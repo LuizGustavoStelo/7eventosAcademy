@@ -26,8 +26,9 @@ services:
       dockerfile: infra/docker/backend.Dockerfile
     container_name: academy-backend
     env_file:
-      - ../../.env
+      - /var/www/7eventosAcademy/.env
     environment:
+      # Caminho interno do container (o arquivo real está em /var/www/7eventosAcademy/secrets no host)
       SECRETS_MASTER_KEY_FILE: /run/secrets/academy_master_key
     depends_on:
       db:
