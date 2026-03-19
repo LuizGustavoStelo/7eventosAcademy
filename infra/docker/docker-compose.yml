@@ -6,6 +6,8 @@ services:
       POSTGRES_DB: academy
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5435:5432"
     volumes:
       - academy_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,22 +20,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: 7eventos-academy-redis
-    restart: unless-stopped
-
-  pgadmin:
-    image: dpage/pgadmin4:8
-    container_name: 7eventos-academy-pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-      PGADMIN_CONFIG_SERVER_MODE: "True"
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - "127.0.0.1:5050:80"
-    volumes:
-      - academy_pgadmin_data:/var/lib/pgadmin
     restart: unless-stopped
 
   backend:
@@ -73,7 +59,6 @@ services:
 
 volumes:
   academy_pgdata:
-  academy_pgadmin_data:
 
 secrets:
   academy_master_key:
