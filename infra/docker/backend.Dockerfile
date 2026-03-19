@@ -21,8 +21,8 @@ COPY apps/backend/prisma ./apps/backend/prisma
 RUN npm ci --workspace backend --omit=dev --include-workspace-root=false
 
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=builder /app/apps/backend/node_modules/.prisma ./apps/backend/node_modules/.prisma
+COPY --from=builder /app/apps/backend/node_modules/@prisma/client ./apps/backend/node_modules/@prisma/client
 
 WORKDIR /app/apps/backend
 EXPOSE 3210
