@@ -1,14 +1,16 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-COPY apps/frontend/package*.json ./
-RUN npm ci
+COPY package.json package-lock.json ./
+COPY apps/frontend/package.json ./apps/frontend/package.json
+RUN npm ci --workspace frontend --include-workspace-root=false
 
-COPY apps/frontend ./
+COPY apps/frontend ./apps/frontend
+WORKDIR /app/apps/frontend
 RUN npm run build
 
 FROM nginx:1.29-alpine AS runtime
 COPY infra/nginx/frontend.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/apps/frontend/dist /usr/share/nginx/html
 
 EXPOSE 80

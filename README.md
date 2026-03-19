@@ -19,8 +19,16 @@ Aplicação dedicada da Academy em arquitetura de monorepo, com frontend React +
 ## Primeiros passos
 
 1. Instalar dependências na raiz: `npm install`
-2. Rodar backend: `npm run dev:backend`
-3. Rodar frontend: `npm run dev:frontend`
+2. Subir banco e redis com Docker Compose: `docker compose -f infra/docker/docker-compose.yml up -d db redis`
+3. Aplicar migrações do backend: `npm run prisma:migrate:deploy --workspace backend`
+4. Rodar backend: `npm run dev:backend`
+5. Rodar frontend: `npm run dev:frontend`
+
+## Autenticação inicial
+
+- `POST /api/auth/register`: cria usuário com perfil `admin`.
+- `POST /api/auth/login`: autentica e retorna `accessToken` e dados do usuário.
+- Perfis RBAC previstos na base: `user`, `admin`, `superadmin`.
 
 ## Padrões obrigatórios
 

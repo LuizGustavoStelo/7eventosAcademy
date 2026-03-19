@@ -1,3 +1,4 @@
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import {
   FastifyAdapter,
@@ -12,6 +13,14 @@ async function bootstrap() {
   );
 
   app.setGlobalPrefix('api');
+  app.enableCors();
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
 
   const port = Number(process.env.PORT ?? 3210);
   await app.listen(port, '0.0.0.0');

@@ -114,6 +114,11 @@ body {
   background: rgba(242, 92, 5, 0.08);
 }
 
+.auth-tabs button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .auth-form {
   display: grid;
   gap: 0.75rem;
@@ -146,6 +151,11 @@ body {
   color: var(--cor-branca);
   font-weight: 700;
   cursor: pointer;
+}
+
+.auth-form button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .auth-error {
