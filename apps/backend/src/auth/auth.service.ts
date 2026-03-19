@@ -4,7 +4,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { User, UserRole } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
 import { PrismaService } from '../database/prisma.service';
 import { LoginDto } from './dto/login.dto';
@@ -46,7 +45,7 @@ export class AuthService {
         name: dto.name.trim(),
         email,
         passwordHash,
-        role: UserRole.ADMIN,
+        role: 'ADMIN',
       },
     });
 
@@ -68,7 +67,12 @@ export class AuthService {
     return this.buildAuthPayload(user);
   }
 
-  private async buildAuthPayload(user: User): Promise<AuthPayload> {
+  private async buildAuthPayload(user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  }): Promise<AuthPayload> {
     const accessToken = await this.jwtService.signAsync({
       sub: user.id,
       email: user.email,
@@ -86,13 +90,14 @@ export class AuthService {
     };
   }
 
-  private mapRole(role: UserRole): AppRole {
-    const roleMap: Record<UserRole, AppRole> = {
-      [UserRole.USER]: 'user',
-      [UserRole.ADMIN]: 'admin',
-      [UserRole.SUPERADMIN]: 'superadmin',
-    };
-
-    return roleMap[role];
+  private mapRole(role: string): AppRole {
+    const normalizedRole = role.toLowerCase();
+    if (normalizedRole === 'superadmin') {
+      return 'superadmin';
+    }
+    if (normalizedRole === 'admin') {
+      return 'admin';
+    }
+    return 'user';
   }
 }

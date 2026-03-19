@@ -128,5 +128,5 @@ jobs:
             cd /var/www/7eventosAcademy
             docker compose pull
             docker compose up -d --remove-orphans
-            docker compose exec -T backend npx prisma migrate deploy || true
+            docker compose exec -T backend npx prisma migrate deploy --schema /app/apps/backend/prisma/schema.prisma
             docker image prune -f
