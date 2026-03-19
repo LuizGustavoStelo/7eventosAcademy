@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: academy-db
+    environment:
+      POSTGRES_DB: academy
+      POSTGRES_USER: academy_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - academy_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U academy_user -d academy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: academy-redis
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: infra/docker/backend.Dockerfile
+    container_name: academy-backend
+    env_file:
+      - ../../.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "127.0.0.1:3210:3210"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3210/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: infra/docker/frontend.Dockerfile
+    container_name: academy-frontend
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8090:80"
+    restart: unless-stopped
+
+volumes:
+  academy_pgdata:

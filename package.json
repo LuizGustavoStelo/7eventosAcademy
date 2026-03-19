@@ -1,0 +1,22 @@
+{
+  "name": "7eventosacademy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plataforma Academy da 7Eventos em monorepo.",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:frontend": "npm run dev --workspace frontend",
+    "dev:backend": "npm run start:dev --workspace backend",
+    "build:frontend": "npm run build --workspace frontend",
+    "build:backend": "npm run build --workspace backend",
+    "build": "npm run build:backend && npm run build:frontend",
+    "test:backend": "npm run test --workspace backend",
+    "lint:backend": "npm run lint --workspace backend"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  }
+}

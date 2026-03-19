@@ -1,0 +1,167 @@
+:root {
+  --cor-primaria: #f25c05;
+  --cor-preto: #1a1a1a;
+  --cor-grafite: #444444;
+  --cor-azul: #0057a3;
+  --cor-areia: #f2efea;
+  --cor-branca: #ffffff;
+  --sombra: 0 12px 28px rgba(0, 0, 0, 0.06);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--cor-areia);
+  color: var(--cor-preto);
+}
+
+.layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 264px 1fr;
+}
+
+.sidebar {
+  background: var(--cor-branca);
+  border-right: 1px solid rgba(26, 26, 26, 0.08);
+  padding: 1.5rem 1rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--cor-primaria);
+  color: var(--cor-branca);
+  font-weight: 700;
+}
+
+.brand strong {
+  display: block;
+  line-height: 1.2;
+}
+
+.brand span {
+  color: var(--cor-grafite);
+  font-size: 0.8rem;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.menu a {
+  text-decoration: none;
+  color: var(--cor-grafite);
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+}
+
+.menu a.active,
+.menu a:hover {
+  background: rgba(242, 92, 5, 0.08);
+  color: var(--cor-primaria);
+}
+
+.content {
+  padding: 1.5rem;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.topbar button {
+  border: 0;
+  border-radius: 0.5rem;
+  padding: 0.65rem 1rem;
+  background: var(--cor-primaria);
+  color: var(--cor-branca);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.card {
+  background: var(--cor-branca);
+  border-radius: 0.9rem;
+  padding: 1rem;
+  box-shadow: var(--sombra);
+}
+
+.card p {
+  margin: 0;
+  color: var(--cor-grafite);
+  font-size: 0.9rem;
+}
+
+.card strong {
+  display: block;
+  margin: 0.45rem 0;
+  font-size: 1.7rem;
+}
+
+.card span {
+  color: var(--cor-azul);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.panel {
+  background: var(--cor-branca);
+  border-radius: 0.9rem;
+  padding: 1rem;
+  box-shadow: var(--sombra);
+}
+
+.panel h2 {
+  margin: 0 0 0.8rem;
+}
+
+.panel ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+@media (max-width: 920px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid rgba(26, 26, 26, 0.08);
+  }
+}

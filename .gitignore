@@ -1,0 +1,30 @@
+# Dependências
+node_modules/
+
+# Build
+apps/**/dist/
+apps/**/build/
+apps/**/.vite/
+coverage/
+
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+**/.dockerignore
