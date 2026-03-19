@@ -36,3 +36,7 @@ Aplicação dedicada da Academy em arquitetura de monorepo, com frontend React +
 3. Fase 2: superadmin e impersonação
 4. Fase 3: financeiro (Sicoob)
 5. Fase 4: presença, materiais e relatórios
+
+## Operação em produção
+
+- Guia completo de implantação: `docs/implantacao-producao.md`
