@@ -27,11 +27,15 @@ services:
     container_name: academy-backend
     env_file:
       - ../../.env
+    environment:
+      SECRETS_MASTER_KEY_FILE: /run/secrets/academy_master_key
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
+    secrets:
+      - academy_master_key
     ports:
       - "127.0.0.1:3210:3210"
     healthcheck:
@@ -55,3 +59,7 @@ services:
 
 volumes:
   academy_pgdata:
+
+secrets:
+  academy_master_key:
+    file: ./secrets/academy_master_key.txt

@@ -30,3 +30,26 @@ A plataforma segue o padrão de monólito modular no backend e SPA no frontend.
 - Toda ação crítica é auditável.
 - Endpoints administrativos exigem RBAC.
 - Operações externas (ex.: webhook Sicoob) devem ser idempotentes.
+
+## Gestão segura de credenciais de integrações
+
+Para suportar múltiplos gateways por admin/conta (Sicoob e outras APIs), o padrão é:
+
+- Não armazenar `client_secret`, token privado ou API key em `.env`.
+- Salvar credenciais por tenant/admin em tabela de cofre (`integration_credentials`).
+- Persistir somente payload criptografado (`ciphertext`) e metadados.
+- Ler chave mestra de arquivo protegido (`SECRETS_MASTER_KEY_FILE`), montado como Docker secret.
+- Controlar rotação por versão (`key_version`) e manter trilha de auditoria.
+
+Campos sugeridos para o cofre:
+
+- `id`
+- `account_id`
+- `admin_id` (ou `created_by`)
+- `provider` (ex.: `sicoob`, `asaas`, `pagarme`)
+- `environment` (`sandbox`/`production`)
+- `ciphertext`
+- `key_version`
+- `created_at`
+- `updated_at`
+- `last_rotated_at`
