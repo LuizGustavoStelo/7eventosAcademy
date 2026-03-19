@@ -11,6 +11,8 @@ enum UserRole {
   USER @map("user")
   ADMIN @map("admin")
   SUPERADMIN @map("superadmin")
+
+  @@map("user_role")
 }
 
 model User {
