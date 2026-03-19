@@ -19,7 +19,7 @@ COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/package.json
 COPY apps/backend/prisma ./apps/backend/prisma
 RUN npm ci --workspace backend --omit=dev --include-workspace-root=false
-RUN npx prisma generate --schema ./apps/backend/prisma/schema.prisma
+RUN npm exec --yes --package=prisma@6.19.2 prisma generate --schema ./apps/backend/prisma/schema.prisma
 
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
 
