@@ -4,12 +4,12 @@ services:
     container_name: 7eventos-academy-db
     environment:
       POSTGRES_DB: academy
-      POSTGRES_USER: academy_user
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - academy_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U academy_user -d academy"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d academy"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -18,6 +18,22 @@ services:
   redis:
     image: redis:7-alpine
     container_name: 7eventos-academy-redis
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: 7eventos-academy-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - academy_pgadmin_data:/var/lib/pgadmin
     restart: unless-stopped
 
   backend:
@@ -38,10 +54,11 @@ services:
     ports:
       - "127.0.0.1:3210:3210"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3210/api/health"]
-      interval: 15s
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3210/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 30s
       timeout: 5s
       retries: 5
+      start_period: 20s
     restart: unless-stopped
 
   frontend:
@@ -56,6 +73,7 @@ services:
 
 volumes:
   academy_pgdata:
+  academy_pgadmin_data:
 
 secrets:
   academy_master_key:

@@ -66,7 +66,7 @@ Exemplo base:
 
 ```env
 POSTGRES_PASSWORD=trocar_em_producao
-DATABASE_URL=postgresql://academy_user:trocar_em_producao@db:5432/academy
+DATABASE_URL=postgresql://postgres:trocar_em_producao@db:5432/academy
 REDIS_URL=redis://redis:6379
 PORT=3210
 JWT_SECRET=trocar_em_producao

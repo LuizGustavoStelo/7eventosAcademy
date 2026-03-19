@@ -12,8 +12,11 @@ const SESSION_KEY = 'academy-auth-session';
 const SESSION_USER_KEY = 'academy-auth-user';
 
 export default function App() {
+  const [modoCadastro, setModoCadastro] = useState(false);
+  const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [confirmacaoSenha, setConfirmacaoSenha] = useState('');
   const [erro, setErro] = useState('');
   const [autenticado, setAutenticado] = useState(
     () => window.sessionStorage.getItem(SESSION_KEY) === '1',
@@ -44,6 +47,25 @@ export default function App() {
     window.sessionStorage.setItem(SESSION_USER_KEY, email);
     setUsuario(email);
     setAutenticado(true);
+  };
+
+  const cadastrar = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErro('');
+
+    if (!nome || !email || !senha || !confirmacaoSenha) {
+      setErro('Preencha todos os campos para criar sua conta.');
+      return;
+    }
+
+    if (senha !== confirmacaoSenha) {
+      setErro('A confirmação de senha não confere.');
+      return;
+    }
+
+    setModoCadastro(false);
+    setSenha('');
+    setConfirmacaoSenha('');
   };
 
   const sair = () => {
@@ -78,10 +100,51 @@ export default function App() {
         </section>
 
         <section className="auth-card">
-          <h2>Entrar</h2>
-          <p>Use suas credenciais para acessar o painel.</p>
+          <div className="auth-tabs">
+            <button
+              type="button"
+              className={!modoCadastro ? 'active' : ''}
+              onClick={() => {
+                setErro('');
+                setModoCadastro(false);
+              }}
+            >
+              Entrar
+            </button>
+            <button
+              type="button"
+              className={modoCadastro ? 'active' : ''}
+              onClick={() => {
+                setErro('');
+                setModoCadastro(true);
+              }}
+            >
+              Cadastrar
+            </button>
+          </div>
 
-          <form className="auth-form" onSubmit={entrar}>
+          <h2>{modoCadastro ? 'Criar conta' : 'Entrar'}</h2>
+          <p>
+            {modoCadastro
+              ? 'Cadastre um novo acesso administrativo.'
+              : 'Use suas credenciais para acessar o painel.'}
+          </p>
+
+          <form className="auth-form" onSubmit={modoCadastro ? cadastrar : entrar}>
+            {modoCadastro ? (
+              <>
+                <label htmlFor="nome">Nome completo</label>
+                <input
+                  id="nome"
+                  autoComplete="name"
+                  placeholder="Nome do responsável"
+                  type="text"
+                  value={nome}
+                  onChange={(event) => setNome(event.target.value)}
+                />
+              </>
+            ) : null}
+
             <label htmlFor="email">E-mail</label>
             <input
               id="email"
@@ -95,16 +158,32 @@ export default function App() {
             <label htmlFor="senha">Senha</label>
             <input
               id="senha"
-              autoComplete="current-password"
+              autoComplete={modoCadastro ? 'new-password' : 'current-password'}
               placeholder="********"
               type="password"
               value={senha}
               onChange={(event) => setSenha(event.target.value)}
             />
 
+            {modoCadastro ? (
+              <>
+                <label htmlFor="confirmacaoSenha">Confirmar senha</label>
+                <input
+                  id="confirmacaoSenha"
+                  autoComplete="new-password"
+                  placeholder="********"
+                  type="password"
+                  value={confirmacaoSenha}
+                  onChange={(event) => setConfirmacaoSenha(event.target.value)}
+                />
+              </>
+            ) : null}
+
             {erro ? <div className="auth-error">{erro}</div> : null}
 
-            <button type="submit">Entrar na plataforma</button>
+            <button type="submit">
+              {modoCadastro ? 'Cadastrar e continuar' : 'Entrar na plataforma'}
+            </button>
           </form>
         </section>
       </div>
