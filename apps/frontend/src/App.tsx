@@ -1,3 +1,6 @@
+﻿import { useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
+
 const kpis = [
   { titulo: 'Contas ativas', valor: '1.284', variacao: '+12% no mês' },
   { titulo: 'Admins ativos', valor: '452', variacao: 'Estável' },
@@ -5,7 +8,109 @@ const kpis = [
   { titulo: 'Adimplência', valor: '98,2%', variacao: 'Meta 99%' },
 ];
 
+const SESSION_KEY = 'academy-auth-session';
+const SESSION_USER_KEY = 'academy-auth-user';
+
 export default function App() {
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [erro, setErro] = useState('');
+  const [autenticado, setAutenticado] = useState(
+    () => window.sessionStorage.getItem(SESSION_KEY) === '1',
+  );
+  const [usuario, setUsuario] = useState(
+    () => window.sessionStorage.getItem(SESSION_USER_KEY) ?? '',
+  );
+
+  const nomeExibicao = useMemo(() => {
+    if (!usuario) {
+      return 'Superadmin';
+    }
+
+    const [inicio] = usuario.split('@');
+    return inicio.replace(/[._-]+/g, ' ').trim();
+  }, [usuario]);
+
+  const entrar = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErro('');
+
+    if (!email || !senha) {
+      setErro('Informe e-mail e senha para acessar a plataforma.');
+      return;
+    }
+
+    window.sessionStorage.setItem(SESSION_KEY, '1');
+    window.sessionStorage.setItem(SESSION_USER_KEY, email);
+    setUsuario(email);
+    setAutenticado(true);
+  };
+
+  const sair = () => {
+    window.sessionStorage.removeItem(SESSION_KEY);
+    window.sessionStorage.removeItem(SESSION_USER_KEY);
+    setAutenticado(false);
+    setSenha('');
+  };
+
+  if (!autenticado) {
+    return (
+      <div className="auth-shell">
+        <section className="auth-panel">
+          <div className="brand auth-brand">
+            <div className="brand-mark">7E</div>
+            <div>
+              <strong>7Eventos Academy</strong>
+              <span>Acesso administrativo</span>
+            </div>
+          </div>
+
+          <h1>Bem-vindo à plataforma Academy</h1>
+          <p>
+            Ambiente para gestão de contas, turmas, matrículas, financeiro e operações de suporte.
+          </p>
+
+          <ul>
+            <li>Controle de acesso por perfil (superadmin, admin e user).</li>
+            <li>Operação centralizada com trilha de auditoria.</li>
+            <li>Integrações financeiras seguras por conta.</li>
+          </ul>
+        </section>
+
+        <section className="auth-card">
+          <h2>Entrar</h2>
+          <p>Use suas credenciais para acessar o painel.</p>
+
+          <form className="auth-form" onSubmit={entrar}>
+            <label htmlFor="email">E-mail</label>
+            <input
+              id="email"
+              autoComplete="email"
+              placeholder="admin@7eventos.com"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+
+            <label htmlFor="senha">Senha</label>
+            <input
+              id="senha"
+              autoComplete="current-password"
+              placeholder="********"
+              type="password"
+              value={senha}
+              onChange={(event) => setSenha(event.target.value)}
+            />
+
+            {erro ? <div className="auth-error">{erro}</div> : null}
+
+            <button type="submit">Entrar na plataforma</button>
+          </form>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="layout">
       <aside className="sidebar">
@@ -18,7 +123,9 @@ export default function App() {
         </div>
 
         <nav className="menu">
-          <a className="active" href="#">Dashboard Global</a>
+          <a className="active" href="#">
+            Dashboard Global
+          </a>
           <a href="#">Contas</a>
           <a href="#">Admins por Conta</a>
           <a href="#">Impersonação</a>
@@ -29,8 +136,13 @@ export default function App() {
 
       <main className="content">
         <header className="topbar">
-          <h1>Painel Executivo</h1>
-          <button type="button">Criar conta</button>
+          <div>
+            <h1>Painel Executivo</h1>
+            <small>{nomeExibicao}</small>
+          </div>
+          <button type="button" onClick={sair}>
+            Sair
+          </button>
         </header>
 
         <section className="kpi-grid">
@@ -55,3 +167,4 @@ export default function App() {
     </div>
   );
 }
+

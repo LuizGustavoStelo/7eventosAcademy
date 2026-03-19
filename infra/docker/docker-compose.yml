@@ -1,7 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: academy-db
+    container_name: 7eventos-academy-db
     environment:
       POSTGRES_DB: academy
       POSTGRES_USER: academy_user
@@ -17,12 +17,12 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: academy-redis
+    container_name: 7eventos-academy-redis
     restart: unless-stopped
 
   backend:
     image: ${BACKEND_IMAGE:-ghcr.io/luizgustavostelo/7eventosacademy-backend}:${APP_VERSION:-latest}
-    container_name: academy-backend
+    container_name: 7eventos-academy-backend
     env_file:
       - /var/www/7eventosAcademy/.env
     environment:
@@ -46,7 +46,7 @@ services:
 
   frontend:
     image: ${FRONTEND_IMAGE:-ghcr.io/luizgustavostelo/7eventosacademy-frontend}:${APP_VERSION:-latest}
-    container_name: academy-frontend
+    container_name: 7eventos-academy-frontend
     depends_on:
       backend:
         condition: service_started
