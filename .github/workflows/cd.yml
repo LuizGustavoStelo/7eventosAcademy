@@ -8,8 +8,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_BACKEND: ${{ github.repository }}-backend
-  IMAGE_FRONTEND: ${{ github.repository }}-frontend
 
 jobs:
   build-and-push:
@@ -37,6 +35,13 @@ jobs:
         run: |
           echo "sha_tag=main-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
+      - name: Normalizar nomes das imagens (lowercase)
+        id: image_names
+        run: |
+          REPO_LC="${GITHUB_REPOSITORY,,}"
+          echo "backend=${REPO_LC}-backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=${REPO_LC}-frontend" >> "$GITHUB_OUTPUT"
+
       - name: Build e push backend
         uses: docker/build-push-action@v6
         with:
@@ -44,8 +49,8 @@ jobs:
           file: infra/docker/backend.Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_BACKEND }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_BACKEND }}:${{ steps.meta.outputs.sha_tag }}
+            ${{ env.REGISTRY }}/${{ steps.image_names.outputs.backend }}:latest
+            ${{ env.REGISTRY }}/${{ steps.image_names.outputs.backend }}:${{ steps.meta.outputs.sha_tag }}
 
       - name: Build e push frontend
         uses: docker/build-push-action@v6
@@ -54,8 +59,8 @@ jobs:
           file: infra/docker/frontend.Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_FRONTEND }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_FRONTEND }}:${{ steps.meta.outputs.sha_tag }}
+            ${{ env.REGISTRY }}/${{ steps.image_names.outputs.frontend }}:latest
+            ${{ env.REGISTRY }}/${{ steps.image_names.outputs.frontend }}:${{ steps.meta.outputs.sha_tag }}
 
   deploy:
     runs-on: ubuntu-latest
