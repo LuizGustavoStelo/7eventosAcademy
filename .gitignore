@@ -30,3 +30,5 @@ Thumbs.db
 **/.dockerignore
 infra/docker/secrets/*.txt
 infra/docker/secrets/*.key
+secrets/*.txt
+secrets/*.key

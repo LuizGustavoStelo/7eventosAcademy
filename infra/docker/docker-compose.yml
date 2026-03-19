@@ -62,4 +62,4 @@ volumes:
 
 secrets:
   academy_master_key:
-    file: ./secrets/academy_master_key.txt
+    file: /var/www/7eventosAcademy/secrets/academy_master_key.txt

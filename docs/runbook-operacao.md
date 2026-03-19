@@ -35,7 +35,7 @@ Diretório da VPS:
 
 ## Rotação de chave mestra
 
-1. Gerar nova chave em `secrets/academy_master_key.txt`.
+1. Gerar nova chave em `/var/www/7eventosAcademy/secrets/academy_master_key.txt`.
 2. Reiniciar backend para carregar a nova versão.
 3. Executar rotina de recriptografia das credenciais existentes.
 4. Validar leitura/escrita de integrações.

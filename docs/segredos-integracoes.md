@@ -7,7 +7,7 @@ Permitir múltiplas credenciais por conta/admin com segurança, sem expor secret
 ## Modelo de segurança
 
 - Chave mestra fora do código e fora do `.env`.
-- Chave mestra entregue por arquivo seguro (`Docker secret`).
+- Chave mestra entregue por arquivo seguro (`Docker secret`) em `/var/www/7eventosAcademy/secrets/academy_master_key.txt`.
 - Credenciais salvas criptografadas (AES-256-GCM) no backend.
 - Acesso somente por serviço autorizado e operações auditadas.
 
