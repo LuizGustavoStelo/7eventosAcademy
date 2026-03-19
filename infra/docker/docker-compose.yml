@@ -21,14 +21,12 @@ services:
     restart: unless-stopped
 
   backend:
-    build:
-      context: ../..
-      dockerfile: infra/docker/backend.Dockerfile
+    image: ${BACKEND_IMAGE:-ghcr.io/luizgustavostelo/7eventosacademy-backend}:${APP_VERSION:-latest}
     container_name: academy-backend
     env_file:
       - /var/www/7eventosAcademy/.env
     environment:
-      # Caminho interno do container (o arquivo real está em /var/www/7eventosAcademy/secrets no host)
+      # Caminho interno do container (arquivo real no host: /var/www/7eventosAcademy/secrets/academy_master_key.txt)
       SECRETS_MASTER_KEY_FILE: /run/secrets/academy_master_key
     depends_on:
       db:
@@ -47,9 +45,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    build:
-      context: ../..
-      dockerfile: infra/docker/frontend.Dockerfile
+    image: ${FRONTEND_IMAGE:-ghcr.io/luizgustavostelo/7eventosacademy-frontend}:${APP_VERSION:-latest}
     container_name: academy-frontend
     depends_on:
       backend:

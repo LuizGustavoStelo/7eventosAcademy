@@ -48,7 +48,7 @@ cd /var/www/7eventosAcademy
 
 Arquivos necessários no runtime:
 
-- `/var/www/7eventosAcademy/docker-compose.yml` (copiar de `infra/docker/docker-compose.prod.yml`)
+- `/var/www/7eventosAcademy/docker-compose.yml` (copiar de `infra/docker/docker-compose.yml`)
 - `/var/www/7eventosAcademy/.env`
 - `/var/www/7eventosAcademy/secrets/academy_master_key.txt`
 
