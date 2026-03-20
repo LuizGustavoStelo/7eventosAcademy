@@ -140,7 +140,6 @@ export default function App() {
   const autenticado = Boolean(token && usuario);
   const secoes = usuario?.role === 'superadmin' ? SECOES_SUPERADMIN : SECOES_ADMIN;
   const secaoAtual = secoes.find((item) => item.id === secaoAtiva) ?? secoes[0];
-  const mostrarTopbarGlobal = secaoAtiva !== 'admin_dashboard_conta';
 
   useEffect(() => {
     if (!autenticado || secoes.length === 0) return;
@@ -171,6 +170,19 @@ export default function App() {
   const aplicarTemaNoFrame = () => {
     const frameDoc = frameRef.current?.contentDocument;
     if (!frameDoc) return;
+
+    let styleTag = frameDoc.getElementById('academy-global-frame-style') as HTMLStyleElement | null;
+    if (!styleTag) {
+      styleTag = frameDoc.createElement('style');
+      styleTag.id = 'academy-global-frame-style';
+      styleTag.textContent = `
+        body > header {
+          display: none !important;
+        }
+      `;
+      frameDoc.head.appendChild(styleTag);
+    }
+
     frameDoc.documentElement.classList.toggle('dark', temaEscuro);
     frameDoc.body?.classList.toggle('dark', temaEscuro);
   };
@@ -421,7 +433,24 @@ export default function App() {
       </aside>
 
       <main className="app-content">
-        {mostrarTopbarGlobal ? (
+        <header className="global-topbar-shell">
+          <div className="global-topbar-left">
+            <label className="global-topbar-search" htmlFor="global-search">
+              <span className="material-symbols-outlined">search</span>
+              <input
+                id="global-search"
+                type="text"
+                placeholder="Buscar alunos, turmas ou materiais..."
+              />
+            </label>
+            <nav className="global-topbar-tabs" aria-label="Navegação superior">
+              <button type="button" className="active">
+                Visão geral
+              </button>
+              <button type="button">Análises</button>
+              <button type="button">Relatórios</button>
+            </nav>
+          </div>
           <div className="global-topbar-right">
             <button type="button" className="global-topbar-icon" aria-label="Notificações">
               <span className="material-symbols-outlined">notifications</span>
@@ -449,16 +478,18 @@ export default function App() {
               </div>
             </div>
           </div>
-        ) : null}
+        </header>
 
-        <iframe
-          ref={frameRef}
-          key={secaoAtual?.id}
-          className="template-frame-full"
-          src={secaoAtual?.templatePath}
-          title={secaoAtual?.label ?? 'Template'}
-          onLoad={aplicarTemaNoFrame}
-        />
+        <div className="template-frame-wrap">
+          <iframe
+            ref={frameRef}
+            key={secaoAtual?.id}
+            className="template-frame-full"
+            src={secaoAtual?.templatePath}
+            title={secaoAtual?.label ?? 'Template'}
+            onLoad={aplicarTemaNoFrame}
+          />
+        </div>
       </main>
     </div>
   );

@@ -196,7 +196,86 @@ table button:disabled {
   margin-left: 264px;
   height: 100vh;
   background: #fff;
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.global-topbar-shell {
+  height: 64px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 1rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+}
+
+.global-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  min-width: 0;
+}
+
+.global-topbar-search {
+  width: min(520px, 46vw);
+  min-width: 250px;
+  height: 40px;
+  border: 1px solid rgba(242, 92, 5, 0.35);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.85rem;
+  background: #fbfbfb;
+}
+
+.global-topbar-search .material-symbols-outlined {
+  color: #9ca3af;
+  font-size: 1.25rem;
+}
+
+.global-topbar-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 1rem;
+  color: #374151;
+}
+
+.global-topbar-search input::placeholder {
+  color: #6b7280;
+}
+
+.global-topbar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.global-topbar-tabs button {
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  font-size: 1.05rem;
+  font-weight: 500;
+  padding: 0.2rem 0.1rem 0.5rem;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.global-topbar-tabs button.active {
+  color: #f25c05;
+  border-bottom-color: #f25c05;
+}
+
+.template-frame-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .template-frame-full {
@@ -208,19 +287,11 @@ table button:disabled {
 }
 
 .global-topbar-right {
-  position: absolute;
-  top: 10px;
-  right: 14px;
-  z-index: 100;
+  position: static;
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 999px;
-  padding: 0.35rem 0.45rem 0.35rem 0.5rem;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  margin-left: auto;
 }
 
 .global-topbar-icon {
@@ -554,11 +625,32 @@ table button {
     height: calc(100vh - 220px);
   }
 
+  .global-topbar-shell {
+    padding: 0.4rem 0.55rem;
+    gap: 0.45rem;
+  }
+
+  .global-topbar-left {
+    gap: 0.55rem;
+  }
+
+  .global-topbar-search {
+    min-width: 150px;
+    width: 100%;
+    height: 36px;
+    padding: 0 0.6rem;
+  }
+
+  .global-topbar-tabs {
+    display: none;
+  }
+
   .global-topbar-right {
-    right: 8px;
-    top: 8px;
-    transform: scale(0.92);
-    transform-origin: top right;
+    gap: 0.35rem;
+  }
+
+  .global-topbar-user-meta {
+    display: none;
   }
 
 }
