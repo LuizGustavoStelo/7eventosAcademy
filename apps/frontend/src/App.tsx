@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
 type Role = 'user' | 'admin' | 'superadmin';
@@ -29,13 +29,13 @@ const SECOES_SUPERADMIN: NavSection[] = [
   },
   {
     id: 'superadmin_gestao_contas',
-    label: 'Gest\u00e3o de Contas',
+    label: 'Gestão de Contas',
     subtitle: 'Template fiel: superadmin_gestao_de_contas',
     templatePath: '/templates/superadmin_gestao_de_contas/index.html',
   },
   {
     id: 'superadmin_impersonacao',
-    label: 'Impersona\u00e7\u00e3o',
+    label: 'Impersonação',
     subtitle: 'Template fiel: superadmin_tela_de_impersonacao',
     templatePath: '/templates/superadmin_tela_de_impersonacao/index.html',
   },
@@ -56,7 +56,7 @@ const SECOES_ADMIN: NavSection[] = [
   },
   {
     id: 'admin_alunos_matriculas',
-    label: 'Alunos e Matr\u00edculas',
+    label: 'ALUNOS',
     subtitle: 'Template fiel: admin_professor_alunos_e_matriculas',
     templatePath: '/templates/admin_professor_alunos_e_matriculas/index.html',
   },
@@ -74,25 +74,25 @@ const SECOES_ADMIN: NavSection[] = [
   },
   {
     id: 'admin_conteudo',
-    label: 'Conte\u00fado e Materiais',
+    label: 'MATERIAIS',
     subtitle: 'Template fiel: admin_professor_conteudo_e_materiais',
     templatePath: '/templates/admin_professor_conteudo_e_materiais/index.html',
   },
   {
     id: 'admin_avisos',
-    label: 'Avisos e Comunica\u00e7\u00e3o',
+    label: 'AVISOS',
     subtitle: 'Template fiel: admin_professor_avisos_e_comunicacao',
     templatePath: '/templates/admin_professor_avisos_e_comunicacao/index.html',
   },
   {
     id: 'admin_relatorios',
-    label: 'Relat\u00f3rios e An\u00e1lises',
+    label: 'RELATÓRIOS',
     subtitle: 'Template fiel: admin_professor_relatorios_e_analises',
     templatePath: '/templates/admin_professor_relatorios_e_analises/index.html',
   },
   {
     id: 'admin_configuracoes',
-    label: 'Configura\u00e7\u00f5es',
+    label: 'Configurações',
     subtitle: 'Template fiel: admin_professor_configuracoes',
     templatePath: '/templates/admin_professor_configuracoes/index.html',
   },
@@ -134,10 +134,13 @@ export default function App() {
   });
 
   const [secaoAtiva, setSecaoAtiva] = useState('');
+  const [temaEscuro, setTemaEscuro] = useState(false);
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
 
   const autenticado = Boolean(token && usuario);
   const secoes = usuario?.role === 'superadmin' ? SECOES_SUPERADMIN : SECOES_ADMIN;
   const secaoAtual = secoes.find((item) => item.id === secaoAtiva) ?? secoes[0];
+  const mostrarTopbarGlobal = secaoAtiva !== 'admin_dashboard_conta';
 
   useEffect(() => {
     if (!autenticado || secoes.length === 0) return;
@@ -165,15 +168,28 @@ export default function App() {
     return () => window.removeEventListener('message', onMessage);
   }, [autenticado, secoes]);
 
+  const aplicarTemaNoFrame = () => {
+    const frameDoc = frameRef.current?.contentDocument;
+    if (!frameDoc) return;
+    frameDoc.documentElement.classList.toggle('dark', temaEscuro);
+    frameDoc.body?.classList.toggle('dark', temaEscuro);
+  };
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', temaEscuro);
+    document.body.classList.toggle('dark', temaEscuro);
+    aplicarTemaNoFrame();
+  }, [temaEscuro, secaoAtiva]);
+
   const lerErroApi = async (response: Response) => {
     try {
       const data = (await response.json()) as { message?: string | string[] };
       if (Array.isArray(data.message)) return data.message.join(' ');
       if (typeof data.message === 'string') return data.message;
     } catch {
-      return 'Falha na opera\u00e7\u00e3o.';
+      return 'Falha na operação.';
     }
-    return 'Falha na opera\u00e7\u00e3o.';
+    return 'Falha na operação.';
   };
 
   const persistirSessao = (auth: AuthResponse) => {
@@ -216,7 +232,7 @@ export default function App() {
 
       persistirSessao((await response.json()) as AuthResponse);
     } catch {
-      setErro('N\u00e3o foi poss\u00edvel conectar com o backend.');
+      setErro('Não foi possível conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -232,7 +248,7 @@ export default function App() {
     }
 
     if (senha !== confirmacaoSenha) {
-      setErro('A confirma\u00e7\u00e3o de senha n\u00e3o confere.');
+      setErro('A confirmação de senha não confere.');
       return;
     }
 
@@ -255,7 +271,7 @@ export default function App() {
       setConfirmacaoSenha('');
       setSenha('');
     } catch {
-      setErro('N\u00e3o foi poss\u00edvel conectar com o backend.');
+      setErro('Não foi possível conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -273,10 +289,10 @@ export default function App() {
             </div>
           </div>
 
-          <h1>Bem-vindo \u00e0 plataforma Academy</h1>
+          <h1>Bem-vindo à plataforma Academy</h1>
           <p>
-            Ambiente para gest\u00e3o de contas, turmas, matr\u00edculas, financeiro e opera\u00e7\u00e3o
-            acad\u00eamica.
+            Ambiente para gestão de contas, turmas, matrículas, financeiro e operação
+            acadêmica.
           </p>
         </section>
 
@@ -373,9 +389,7 @@ export default function App() {
       <aside className="global-sidebar">
         <div className="global-sidebar-brand">
           <strong>7Eventos</strong>
-          <small>
-            ACADEMY MANAGER
-          </small>
+          <small>ACADEMY MANAGER</small>
         </div>
 
         <nav className="global-sidebar-nav">
@@ -407,11 +421,43 @@ export default function App() {
       </aside>
 
       <main className="app-content">
+        {mostrarTopbarGlobal ? (
+          <div className="global-topbar-right">
+            <button type="button" className="global-topbar-icon" aria-label="Notificações">
+              <span className="material-symbols-outlined">notifications</span>
+              <span className="global-topbar-dot" />
+            </button>
+            <button
+              type="button"
+              className="global-topbar-icon"
+              aria-label="Alternar tema"
+              onClick={() => setTemaEscuro((current) => !current)}
+            >
+              <span className="material-symbols-outlined">
+                {temaEscuro ? 'light_mode' : 'dark_mode'}
+              </span>
+            </button>
+            <div className="global-topbar-user">
+              <img
+                className="global-topbar-avatar"
+                alt="Avatar do usuário"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDDw0TJspg79mG5fWY5VjXS8gA3CE9GPLyYCbl0ZwS48kInu_yAIMZeKLC-OO1TctEVlEQysf1QpBPTp8Ml57g9o3zSmOUvPKnOaJm_IE9_7ZO_Tx_aDraQVsQLeQvThBrV9idAYpQDADLvjejTx6ovynKPs6bTZNhy1nmT1Ns-q5zbuMwFPjqqLe6Xs_P8CYwLK3gFTRvheh09Ut1P3UIbNyqcLVWrchzSNWi-sAIj_dgvKhNaNS7dwFGFCfE7NgF_XgphKdfvTwbQ"
+              />
+              <div className="global-topbar-user-meta">
+                <span className="global-topbar-user-name">{usuario?.name ?? 'Professor'}</span>
+                <span className="global-topbar-user-role">Professor</span>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <iframe
+          ref={frameRef}
           key={secaoAtual?.id}
           className="template-frame-full"
           src={secaoAtual?.templatePath}
           title={secaoAtual?.label ?? 'Template'}
+          onLoad={aplicarTemaNoFrame}
         />
       </main>
     </div>

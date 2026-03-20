@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   const TOKEN_KEY = 'academy-auth-token';
   const USER_KEY = 'academy-auth-user';
   const API_BASE_URL = '/api';
@@ -30,7 +30,7 @@
 
   const formatDateTime = (iso) => {
     const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return 'Sem hor?rio definido';
+    if (Number.isNaN(date.getTime())) return 'Sem horário definido';
 
     return new Intl.DateTimeFormat('pt-BR', {
       day: '2-digit',
@@ -49,7 +49,7 @@
   const normalizeClassStatus = (status) => {
     const statusMap = {
       PLANNING: 'Planejamento',
-      ENROLLMENTS_OPEN: 'Matr?culas abertas',
+      ENROLLMENTS_OPEN: 'Matrículas abertas',
       IN_PROGRESS: 'Em andamento',
       CLOSED: 'Encerrada',
     };
@@ -66,11 +66,11 @@
       const fullName = (user?.name || 'Professor(a)').trim();
       const firstName = fullName.split(' ')[0] || 'Professor(a)';
 
-      setText('welcome-title', `Bomédia, ${firstName}`);
+      setText('welcome-title', `Bom dia, ${firstName}`);
       setText('profile-name', fullName);
-      setText('profile-role', user?.role === 'superadmin' ? 'Superadmin' : 'Administrador');
+      setText('profile-role', 'Professor');
     } catch {
-      // Ignora erro de parse da sess?o.
+      // Ignora erro de parse da sessão.
     }
   };
 
@@ -202,7 +202,7 @@
       html ||
         `
         <div class="bg-surface-container-lowest p-4 rounded-xl">
-          <p class="text-sm font-semibold text-zinc-800">Nenhuma pend?ncia cr?tica no momento.</p>
+          <p class="text-sm font-semibold text-zinc-800">Nenhuma pendência crítica no momento.</p>
         </div>
       `,
     );
@@ -230,14 +230,14 @@
         .reduce((acc, item) => acc + Number(item.amount || 0), 0);
 
       setText('kpi-students-value', String(students.length));
-      setText('kpi-students-trend-value', `${activeEnrollments} matr?cula(s) ativa(s)`);
+      setText('kpi-students-trend-value', `${activeEnrollments} matrícula(s) ativa(s)`);
       setText('kpi-students-note', 'base de alunos cadastrados');
 
       setText('kpi-classes-value', String(openClasses));
       setText(
         'kpi-classes-trend',
         classes.some((item) => item.status === 'IN_PROGRESS')
-          ? 'H? turmas em andamento'
+          ? 'Há turmas em andamento'
           : 'Sem turmas em andamento',
       );
       setText('kpi-classes-note', `${classes.length} turma(s) no total`);
@@ -247,7 +247,7 @@
       setText('kpi-occupancy-note', 'ocupação média atual');
 
       setText('kpi-finance-value', formatCurrency(pendingAmount));
-      setText('kpi-finance-trend-value', `${pendingChargesCount} pend?ncia(s)`);
+      setText('kpi-finance-trend-value', `${pendingChargesCount} pendência(s)`);
       setText('kpi-finance-note', 'mensalidades pendentes e atrasadas');
 
       const upcomingClasses = classes
@@ -267,10 +267,10 @@
 
       if (firstClass) {
         renderAgendaCard('agenda-primary', {
-          badge: firstClass.status === 'IN_PROGRESS' ? 'Turma em andamento' : 'Pr?xima turma',
+          badge: firstClass.status === 'IN_PROGRESS' ? 'Turma em andamento' : 'Próxima turma',
           time: formatDateTime(firstClass.startDate),
           title: firstClass.name,
-          subtitle: `${firstClass.course?.name || 'Curso'} " ${normalizeClassStatus(firstClass.status)}`,
+          subtitle: `${firstClass.course?.name || 'Curso'} - ${normalizeClassStatus(firstClass.status)}`,
           actionLabel: 'Abrir turma',
         });
         setAgendaTarget('primary', 'admin_gestao_turmas');
@@ -278,10 +278,10 @@
 
       if (secondClass) {
         renderAgendaCard('agenda-secondary', {
-          badge: 'Pr?xima turma',
+          badge: 'Próxima turma',
           time: formatDateTime(secondClass.startDate),
           title: secondClass.name,
-          subtitle: `${secondClass.course?.name || 'Curso'} " ${normalizeClassStatus(secondClass.status)}`,
+          subtitle: `${secondClass.course?.name || 'Curso'} - ${normalizeClassStatus(secondClass.status)}`,
           actionLabel: 'Ver detalhes',
         });
         setAgendaTarget('secondary', 'admin_agenda');
@@ -289,8 +289,8 @@
         renderAgendaCard('agenda-secondary', {
           badge: 'Financeiro',
           time: `Vence em ${formatDateTime(firstPendingCharge.dueDate)}`,
-          title: `Cobran?a de ${firstPendingCharge.enrollment?.student?.name || 'aluno'}`,
-          subtitle: `${firstPendingCharge.enrollment?.schoolClass?.name || 'Turma'} " ${formatCurrency(firstPendingCharge.amount)}`,
+          title: `Cobrança de ${firstPendingCharge.enrollment?.student?.name || 'aluno'}`,
+          subtitle: `${firstPendingCharge.enrollment?.schoolClass?.name || 'Turma'} - ${formatCurrency(firstPendingCharge.amount)}`,
           actionLabel: 'Abrir financeiro',
         });
         setAgendaTarget('secondary', 'admin_financeiro');
@@ -323,8 +323,8 @@
 
       if (pendingChargesCount > 0) {
         operations.push({
-          title: 'Revisar inadimpl?ncia',
-          subtitle: `${pendingChargesCount} cobran?a(s) pendente(s) somando ${formatCurrency(pendingAmount)}.`,
+          title: 'Revisar inadimplência',
+          subtitle: `${pendingChargesCount} cobrança(s) pendente(s) somando ${formatCurrency(pendingAmount)}.`,
           icon: 'payments',
           urgent: true,
         });
@@ -333,7 +333,7 @@
       if (planningClasses > 0) {
         operations.push({
           title: 'Publicar turmas em planejamento',
-          subtitle: `${planningClasses} turma(s) aguardando abertura de matr?culas.`,
+          subtitle: `${planningClasses} turma(s) aguardando abertura de matrículas.`,
           icon: 'school',
           urgent: false,
         });
@@ -342,7 +342,7 @@
       if (operations.length === 0) {
         operations.push({
           title: 'Operação estável',
-          subtitle: 'Nenhuma pend?ncia cr?tica identificada neste momento.',
+          subtitle: 'Nenhuma pendência crítica identificada neste momento.',
           icon: 'check_circle',
           urgent: false,
         });
@@ -367,3 +367,4 @@
     init();
   }
 })();
+

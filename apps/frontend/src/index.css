@@ -196,6 +196,7 @@ table button:disabled {
   margin-left: 264px;
   height: 100vh;
   background: #fff;
+  position: relative;
 }
 
 .template-frame-full {
@@ -204,6 +205,82 @@ table button:disabled {
   border: 0;
   display: block;
   background: #fff;
+}
+
+.global-topbar-right {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  padding: 0.35rem 0.45rem 0.35rem 0.5rem;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.global-topbar-icon {
+  border: 0;
+  background: transparent;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  color: #6f7b86;
+  display: grid;
+  place-items: center;
+  position: relative;
+  cursor: pointer;
+}
+
+.global-topbar-icon:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1f2937;
+}
+
+.global-topbar-dot {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f25c05;
+}
+
+.global-topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding-left: 0.2rem;
+  padding-right: 0.25rem;
+}
+
+.global-topbar-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.global-topbar-user-meta {
+  display: grid;
+  line-height: 1.05;
+}
+
+.global-topbar-user-name {
+  font-size: 0.79rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.global-topbar-user-role {
+  font-size: 0.67rem;
+  color: #6b7280;
+  font-weight: 600;
 }
 
 .viewer-subtitle {
@@ -225,6 +302,7 @@ table button:disabled {
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 1.2rem;
+  overflow: hidden;
 }
 
 .global-sidebar-brand {
@@ -254,6 +332,7 @@ table button:disabled {
   gap: 0.25rem;
   align-content: start;
   padding-top: 0.6rem;
+  overflow-x: hidden;
 }
 
 .global-sidebar-nav button {
@@ -272,6 +351,8 @@ table button:disabled {
   align-items: center;
   gap: 0.72rem;
   position: relative;
+  width: 100%;
+  min-width: 0;
 }
 
 .global-sidebar-nav button:hover {
@@ -297,10 +378,14 @@ table button:disabled {
 .global-sidebar-icon {
   font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
   font-size: 1.15rem;
+  flex: 0 0 auto;
 }
 
 .global-sidebar-label {
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .global-sidebar-footer {
@@ -467,6 +552,13 @@ table button {
   .app-content {
     margin-left: 0;
     height: calc(100vh - 220px);
+  }
+
+  .global-topbar-right {
+    right: 8px;
+    top: 8px;
+    transform: scale(0.92);
+    transform-origin: top right;
   }
 
 }
