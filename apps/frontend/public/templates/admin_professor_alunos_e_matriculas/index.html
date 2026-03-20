@@ -202,7 +202,7 @@
 </thead>
 <tbody class="divide-y divide-outline-variant/5">
 <!-- Student Row 1 -->
-<tr class="hover:bg-surface-container-low/30 transition-colors cursor-pointer group">
+<tr class="js-open-student hover:bg-surface-container-low/30 transition-colors cursor-pointer group">
 <td class="px-6 py-5">
 <div class="flex items-center gap-3">
 <img class="w-10 h-10 rounded-full object-cover" data-alt="Foto do aluno" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBaWb3AowaZRTOaLmmhIxwaRoZzW7ORvNO9i6WRSYbLd2ty2RxM3lqGv-OUJI9rvhYpO3y2Vxo8AEBNLcEv218BWjSaxIke5Pw7b5GBnNzEHUNJPDCiUXo_KAXSw0rpf-nO1k_MxgnAMVtCjIAPLXEZ9CSZFwlzA6GbJHJTD4sM6aTxIk3k4rBUsz1SLehCFXgMQnI1d2ZaCxfXESVSduzOmshU0tssAX4_qjUK5xQ1PbXqlhrhEsi0Nc37g8HT7VG4omekKwHJcEsk"/>
@@ -240,7 +240,7 @@
 </td>
 </tr>
 <!-- Student Row 2 -->
-<tr class="hover:bg-surface-container-low/30 transition-colors cursor-pointer group">
+<tr class="js-open-student hover:bg-surface-container-low/30 transition-colors cursor-pointer group">
 <td class="px-6 py-5">
 <div class="flex items-center gap-3">
 <img class="w-10 h-10 rounded-full object-cover" data-alt="Foto do aluno" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAztvXxncRMoEXfK9w0x8kjQDosV8qbZkLo8tL0iaPPDShSG2OKWIor7uTDE2IAkDFRmwICZbsCAMXEwI_oS-gt2ystjac8sl5q434qpxrKS2t11oP_XvmgRla6Drgs6DUIU8WKa21kxIYCIGaaHZJoz-yqmIcesyOkcMiLPIadQ6VqMG4XpCetuX5iyFLWk_qnN9Nvlypxxio2l5EDXK5NdQB1OQCLkm7oTwFcIZZy4R0FQfO0IUGtqIGANLkgRqHrVtpKwlY2d96W"/>
@@ -278,7 +278,7 @@
 </td>
 </tr>
 <!-- Student Row 3 -->
-<tr class="hover:bg-surface-container-low/30 transition-colors cursor-pointer group">
+<tr class="js-open-student hover:bg-surface-container-low/30 transition-colors cursor-pointer group">
 <td class="px-6 py-5">
 <div class="flex items-center gap-3">
 <img class="w-10 h-10 rounded-full object-cover" data-alt="Foto do aluno" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBH8ZUUaKyqbLHue573-LGk56CfjLMilaaiqfYE9paUIUk7iub1jRSaglkkvEk9IF0MKTbaO9mf7LHAH1DAzq8toZouKhfmd8YYR-4bGC12TVTN49q7F4E3pU9zd_xQrluZddF78PR4CtdCYDagDOCeS82G1Lx_1FpWhVV57v5Y9fffkdg7FwvaTBvVWkYlj3b3dvJgP1U3J4v1cg5Is_yowQsU3eM5ed7V3kSQGqkDgxJaVeYr3vcJfZiLNUqEjskd_m5ara7BvrFU"/>
@@ -333,9 +333,9 @@
 </main>
 <!-- NavigationDrawer (Shared Component Logic - Active State) -->
 <!-- This drawer represents the "Perfil do Aluno" detail panel -->
-<aside class="fixed right-0 top-0 h-full w-[450px] z-[60] bg-white shadow-2xl flex flex-col transform translate-x-0 transition-transform duration-300">
+<aside class="fixed right-0 top-0 h-full w-[450px] z-[60] bg-white shadow-2xl flex flex-col transform translate-x-full transition-transform duration-300" id="student-drawer">
 <!-- Close Button (Absolute positioned) -->
-<button class="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container-low transition-colors text-outline">
+<button class="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container-low transition-colors text-outline" id="student-drawer-close" type="button">
 <span class="material-symbols-outlined" data-icon="close">close</span>
 </button>
 <!-- Profile Header -->
@@ -469,5 +469,35 @@
 </div>
 </aside>
 <!-- Overlay Backdrop for Drawer -->
-<div class="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50"></div>
+<div class="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50 opacity-0 pointer-events-none transition-opacity duration-300" id="student-drawer-overlay"></div>
+<script>
+  (() => {
+    const drawer = document.getElementById('student-drawer');
+    const overlay = document.getElementById('student-drawer-overlay');
+    const closeButton = document.getElementById('student-drawer-close');
+    const openTriggers = Array.from(document.querySelectorAll('.js-open-student'));
+
+    if (!drawer || !overlay || !closeButton) return;
+
+    const openDrawer = () => {
+      drawer.classList.remove('translate-x-full');
+      overlay.classList.remove('opacity-0', 'pointer-events-none');
+    };
+
+    const closeDrawer = () => {
+      drawer.classList.add('translate-x-full');
+      overlay.classList.add('opacity-0', 'pointer-events-none');
+    };
+
+    openTriggers.forEach((row) => {
+      row.addEventListener('click', openDrawer);
+    });
+
+    closeButton.addEventListener('click', closeDrawer);
+    overlay.addEventListener('click', closeDrawer);
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeDrawer();
+    });
+  })();
+</script>
 </body></html>

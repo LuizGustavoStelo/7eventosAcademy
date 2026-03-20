@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1');
+
 :root {
   --cor-primaria: #f25c05;
   --cor-preto: #1a1a1a;
@@ -219,53 +221,133 @@ table button:disabled {
   background: #fff;
   border-right: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
-  padding: 1rem 0.8rem;
+  padding: 1.4rem 0.8rem 1rem;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  gap: 1rem;
+  gap: 1.2rem;
 }
 
 .global-sidebar-brand {
   display: grid;
-  gap: 0.2rem;
-  padding: 0.35rem 0.45rem;
+  gap: 0.1rem;
+  padding: 0 0.6rem;
 }
 
 .global-sidebar-brand strong {
-  font-size: 1rem;
+  font-size: 2.1rem;
+  line-height: 1;
+  color: #f25c05;
+  font-family: Manrope, 'Segoe UI', sans-serif;
+  font-weight: 800;
 }
 
 .global-sidebar-brand small {
-  color: #555;
-  font-size: 0.8rem;
+  color: #8f98a3;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 700;
 }
 
 .global-sidebar-nav {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.25rem;
   align-content: start;
+  padding-top: 0.6rem;
 }
 
 .global-sidebar-nav button {
   text-align: left;
   border: 1px solid transparent;
   background: transparent;
-  color: #373737;
-  border-radius: 0.65rem;
-  padding: 0.62rem 0.75rem;
-  font-size: 0.92rem;
-  font-weight: 600;
+  color: #97a1ab;
+  border-radius: 0;
+  padding: 0.9rem 0.75rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.72rem;
+  position: relative;
 }
 
 .global-sidebar-nav button:hover {
-  background: rgba(242, 92, 5, 0.08);
+  color: #6f7b86;
+  background: rgba(0, 0, 0, 0.02);
 }
 
 .global-sidebar-nav button.active {
-  background: rgba(242, 92, 5, 0.12);
-  border-color: rgba(242, 92, 5, 0.35);
-  color: #a73a00;
+  color: #16181d;
+  background: #f6f6f6;
+}
+
+.global-sidebar-nav button.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  background: #ff5c00;
+}
+
+.global-sidebar-icon {
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+  font-size: 1.15rem;
+}
+
+.global-sidebar-label {
+  white-space: nowrap;
+}
+
+.global-sidebar-footer {
+  display: grid;
+  gap: 0.95rem;
+  padding: 0.8rem 0.45rem 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.global-sidebar-cta {
+  border: 0;
+  border-radius: 0.55rem;
+  background: linear-gradient(90deg, #ba3e00, #ff5c00);
+  color: #fff;
+  font-weight: 800;
+  text-transform: none;
+  font-size: 0.95rem;
+  padding: 0.86rem 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(242, 92, 5, 0.2);
+}
+
+.global-sidebar-cta .material-symbols-outlined {
+  font-size: 1.2rem;
+}
+
+.global-sidebar-logout {
+  border: 0;
+  background: transparent;
+  color: #9aa3ad;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.8rem;
+  padding: 0.2rem 0.2rem;
+  cursor: pointer;
+}
+
+.global-sidebar-logout:hover {
+  color: #6f7b86;
 }
 
 .kpi-grid {
@@ -376,6 +458,10 @@ table button {
     inset: auto;
     border-right: 0;
     box-shadow: none;
+  }
+
+  .global-sidebar-brand strong {
+    font-size: 1.8rem;
   }
 
   .app-content {

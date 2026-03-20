@@ -98,6 +98,21 @@ const SECOES_ADMIN: NavSection[] = [
   },
 ];
 
+const ICONE_POR_SECAO: Record<string, string> = {
+  admin_dashboard_conta: 'dashboard',
+  admin_gestao_turmas: 'groups',
+  admin_alunos_matriculas: 'person',
+  admin_agenda: 'calendar_today',
+  admin_financeiro: 'payments',
+  admin_conteudo: 'menu_book',
+  admin_avisos: 'campaign',
+  admin_relatorios: 'bar_chart',
+  admin_configuracoes: 'settings',
+  superadmin_dashboard_global: 'dashboard',
+  superadmin_gestao_contas: 'admin_panel_settings',
+  superadmin_impersonacao: 'fingerprint',
+};
+
 export default function App() {
   const [modoCadastro, setModoCadastro] = useState(false);
   const [nome, setNome] = useState('');
@@ -123,7 +138,6 @@ export default function App() {
   const autenticado = Boolean(token && usuario);
   const secoes = usuario?.role === 'superadmin' ? SECOES_SUPERADMIN : SECOES_ADMIN;
   const secaoAtual = secoes.find((item) => item.id === secaoAtiva) ?? secoes[0];
-  const perfil = usuario?.role === 'superadmin' ? 'Superadmin' : 'Admin/Professor';
 
   useEffect(() => {
     if (!autenticado || secoes.length === 0) return;
@@ -167,6 +181,14 @@ export default function App() {
     window.sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(auth.user));
     setToken(auth.accessToken);
     setUsuario(auth.user);
+  };
+
+  const sair = () => {
+    window.sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    window.sessionStorage.removeItem(SESSION_USER_KEY);
+    setToken('');
+    setUsuario(null);
+    setSecaoAtiva('');
   };
 
   const entrar = async (event: FormEvent<HTMLFormElement>) => {
@@ -350,9 +372,9 @@ export default function App() {
     <div className="app-shell">
       <aside className="global-sidebar">
         <div className="global-sidebar-brand">
-          <strong>7Eventos Academy</strong>
+          <strong>7Eventos</strong>
           <small>
-            {perfil} | {usuario?.name}
+            ACADEMY MANAGER
           </small>
         </div>
 
@@ -364,12 +386,24 @@ export default function App() {
               className={secaoAtiva === item.id ? 'active' : ''}
               onClick={() => setSecaoAtiva(item.id)}
             >
-              {item.label}
+              <span className="material-symbols-outlined global-sidebar-icon">
+                {ICONE_POR_SECAO[item.id] ?? 'dashboard'}
+              </span>
+              <span className="global-sidebar-label">{item.label}</span>
             </button>
           ))}
         </nav>
 
-        <span className="viewer-subtitle">{secaoAtual?.subtitle}</span>
+        <div className="global-sidebar-footer">
+          <button type="button" className="global-sidebar-cta">
+            <span className="material-symbols-outlined">add</span>
+            Novo Evento
+          </button>
+          <button type="button" className="global-sidebar-logout" onClick={sair}>
+            <span className="material-symbols-outlined">logout</span>
+            Sair
+          </button>
+        </div>
       </aside>
 
       <main className="app-content">
