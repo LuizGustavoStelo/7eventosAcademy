@@ -9,6 +9,7 @@ import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { FinanceModule } from './finance/finance.module';
 import { SecretsModule } from './security/secrets/secrets.module';
 import { StudentsModule } from './students/students.module';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { StudentsModule } from './students/students.module';
     StudentsModule,
     EnrollmentsModule,
     FinanceModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [],

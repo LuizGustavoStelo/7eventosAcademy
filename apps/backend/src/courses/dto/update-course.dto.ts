@@ -7,27 +7,16 @@ import {
   IsString,
   Min,
 } from 'class-validator';
+import {
+  CourseModalityDto,
+  CoursePaymentModelDto,
+  CourseStatusDto,
+} from './create-course.dto';
 
-export enum CourseStatusDto {
-  ACTIVE = 'ACTIVE',
-  DRAFT = 'DRAFT',
-  INACTIVE = 'INACTIVE',
-}
-
-export enum CourseModalityDto {
-  PRESENTIAL = 'PRESENTIAL',
-  HYBRID = 'HYBRID',
-  EAD = 'EAD',
-}
-
-export enum CoursePaymentModelDto {
-  CASH = 'CASH',
-  INSTALLMENTS = 'INSTALLMENTS',
-}
-
-export class CreateCourseDto {
+export class UpdateCourseDto {
+  @IsOptional()
   @IsString()
-  name!: string;
+  name?: string;
 
   @IsOptional()
   @IsString()

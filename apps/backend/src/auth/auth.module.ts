@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
+import { PrismaModule } from '../database/prisma.module';
+import { UploadsModule } from '../uploads/uploads.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -10,6 +12,8 @@ import { RolesGuard } from './guards/roles.guard';
 @Module({
   imports: [
     ConfigModule,
+    PrismaModule,
+    UploadsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html class="light" lang="pt-BR"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>7Eventos Academy - Alunos e Matrículas</title>
+<title>7Eventos Academy - Alunos e MatrÃ­culas</title>
 <!-- Google Fonts -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
 <!-- Material Symbols -->
@@ -105,7 +105,7 @@
 <header class="h-16 w-full sticky top-0 z-40 bg-white/80 backdrop-blur-xl flex justify-between items-center px-8 shadow-sm">
 <div class="flex items-center gap-4 bg-surface-container-high/50 px-4 py-2 rounded-xl w-96 border border-outline-variant/10 focus-within:ring-2 focus-within:ring-primary-container/20 transition-all">
 <span class="material-symbols-outlined text-outline" data-icon="search">search</span>
-<input class="bg-transparent border-none text-sm focus:ring-0 w-full text-on-surface placeholder:text-outline/60" placeholder="Buscar alunos, matrículas ou cursos..." type="text"/>
+<input class="bg-transparent border-none text-sm focus:ring-0 w-full text-on-surface placeholder:text-outline/60" placeholder="Buscar alunos, matrÃ­culas ou cursos..." type="text"/>
 </div>
 <div class="flex items-center gap-6">
 <div class="flex items-center gap-2">
@@ -135,7 +135,7 @@
 <!-- Header Section -->
 <div class="flex justify-between items-end">
 <div>
-<h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">Gestão de Alunos</h2>
+<h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">GestÃ£o de Alunos</h2>
 <p class="text-outline mt-1 font-body">Visualize e gerencie todos os estudantes ativos na plataforma.</p>
 </div>
 <div class="flex gap-3">
@@ -160,26 +160,26 @@
 <select class="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer">
 <option>Qualquer Turma</option>
 <option>2023.2 - Noite</option>
-<option>2024.1 - Manhã</option>
+<option>2024.1 - ManhÃ£</option>
 </select>
 </div>
 <div class="bg-surface-container-low p-1.5 rounded-xl border border-outline-variant/10 flex flex-col gap-1">
-<label class="text-[10px] font-bold text-outline uppercase px-2 pt-1">Status Acadêmico</label>
+<label class="text-[10px] font-bold text-outline uppercase px-2 pt-1">Status AcadÃªmico</label>
 <select class="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer">
 <option>Ativo</option>
 <option>Trancado</option>
-<option>Concluído</option>
+<option>ConcluÃ­do</option>
 </select>
 </div>
 <div class="bg-surface-container-low p-1.5 rounded-xl border border-outline-variant/10 flex flex-col gap-1">
-<label class="text-[10px] font-bold text-outline uppercase px-2 pt-1">Adimplência</label>
+<label class="text-[10px] font-bold text-outline uppercase px-2 pt-1">AdimplÃªncia</label>
 <select class="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer">
 <option>Em dia</option>
 <option>Inadimplente</option>
 </select>
 </div>
 <div class="bg-surface-container-low p-1.5 rounded-xl border border-outline-variant/10 flex flex-col gap-1">
-<label class="text-[10px] font-bold text-outline uppercase px-2 pt-1">Presença</label>
+<label class="text-[10px] font-bold text-outline uppercase px-2 pt-1">PresenÃ§a</label>
 <div class="flex items-center px-2 pb-1 gap-2">
 <span class="material-symbols-outlined text-primary text-sm" data-icon="trending_up">trending_up</span>
 <span class="text-sm font-semibold text-on-surface">Min. 75%</span>
@@ -192,15 +192,15 @@
 <thead class="bg-surface-container-low/50">
 <tr>
 <th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest">Aluno</th>
-<th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest">Matrícula / ID</th>
+<th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest">MatrÃ­cula / ID</th>
 <th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest">Curso &amp; Turma</th>
-<th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest text-center">Presença</th>
+<th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest text-center">PresenÃ§a</th>
 <th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest">Status Finan.</th>
 <th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest">Status</th>
 <th class="px-6 py-4 text-right"></th>
 </tr>
 </thead>
-<tbody class="divide-y divide-outline-variant/5">
+<tbody id="students-table-body" class="divide-y divide-outline-variant/5">
 <!-- Student Row 1 -->
 <tr class="js-open-student hover:bg-surface-container-low/30 transition-colors cursor-pointer group">
 <td class="px-6 py-5">
@@ -253,7 +253,7 @@
 <td class="px-6 py-5 text-sm font-mono text-outline">#AC-20240192</td>
 <td class="px-6 py-5">
 <p class="text-sm font-semibold text-on-surface">Desenvolvimento Web Fullstack</p>
-<p class="text-[11px] text-outline font-medium">Turma B - Manhã</p>
+<p class="text-[11px] text-outline font-medium">Turma B - ManhÃ£</p>
 </td>
 <td class="px-6 py-5">
 <div class="flex flex-col items-center gap-1">
@@ -290,7 +290,7 @@
 </td>
 <td class="px-6 py-5 text-sm font-mono text-outline">#AC-20240215</td>
 <td class="px-6 py-5">
-<p class="text-sm font-semibold text-on-surface">Gestão de Projetos Ágeis</p>
+<p class="text-sm font-semibold text-on-surface">GestÃ£o de Projetos Ãgeis</p>
 <p class="text-[11px] text-outline font-medium">Turma C - Remoto</p>
 </td>
 <td class="px-6 py-5">
@@ -342,12 +342,12 @@
 <div class="p-8 pb-4">
 <div class="flex items-start gap-5">
 <div class="relative">
-<img class="w-20 h-20 rounded-2xl object-cover ring-4 ring-primary-container/10" data-alt="Foto detalhada do aluno" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAfKkBqF77wIerWGUgfPO1ydfJMlH6MiFowedwqLCMILW03gsj4BHixjevDYVEOTZueGZs2-JMfmWqT5yQXMoztCMou_ySFfnzM-F4783ZA4lFH2_J5z_IfWnqOcagHFPXOfJsIUSp8ICr9_obt1ZdZnLzg8tw5d75bNsFydDoKBLuvpdlpNiQBXLQSKPBymyi3pdJDwiuLkg8vyOKk9Ed96-yv7Z8UJMw-hctRypU2kXdkLT01XrVuh9rey2vfA9XoW3L6GO_scjCf"/>
+<img id="student-drawer-avatar" class="w-20 h-20 rounded-2xl object-cover ring-4 ring-primary-container/10" data-alt="Foto detalhada do aluno" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAfKkBqF77wIerWGUgfPO1ydfJMlH6MiFowedwqLCMILW03gsj4BHixjevDYVEOTZueGZs2-JMfmWqT5yQXMoztCMou_ySFfnzM-F4783ZA4lFH2_J5z_IfWnqOcagHFPXOfJsIUSp8ICr9_obt1ZdZnLzg8tw5d75bNsFydDoKBLuvpdlpNiQBXLQSKPBymyi3pdJDwiuLkg8vyOKk9Ed96-yv7Z8UJMw-hctRypU2kXdkLT01XrVuh9rey2vfA9XoW3L6GO_scjCf"/>
 <span class="absolute -bottom-1 -right-1 bg-emerald-500 border-2 border-white w-4 h-4 rounded-full"></span>
 </div>
 <div class="pt-2">
-<h3 class="text-xl font-extrabold font-headline text-on-surface">Beatriz Oliveira</h3>
-<p class="text-xs font-bold text-primary uppercase tracking-widest mt-1">Matrícula #AC-20240188</p>
+<h3 id="student-drawer-name" class="text-xl font-extrabold font-headline text-on-surface">Beatriz Oliveira</h3>
+<p id="student-drawer-registration" class="text-xs font-bold text-primary uppercase tracking-widest mt-1">Matrícula #AC-20240188</p>
 <div class="flex items-center gap-3 mt-4">
 <button class="p-2 bg-surface-container-low rounded-lg text-outline hover:text-primary transition-colors">
 <span class="material-symbols-outlined text-xl" data-icon="mail">mail</span>
@@ -355,9 +355,13 @@
 <button class="p-2 bg-surface-container-low rounded-lg text-outline hover:text-primary transition-colors">
 <span class="material-symbols-outlined text-xl" data-icon="call">call</span>
 </button>
-<button class="p-2 bg-surface-container-low rounded-lg text-outline hover:text-primary transition-colors">
-<span class="material-symbols-outlined text-xl" data-icon="more_horiz">more_horiz</span>
+<button id="student-avatar-upload-trigger" class="p-2 bg-surface-container-low rounded-lg text-outline hover:text-primary transition-colors" type="button" title="Alterar foto">
+<span class="material-symbols-outlined text-xl">photo_camera</span>
 </button>
+<button id="student-avatar-remove-trigger" class="p-2 bg-surface-container-low rounded-lg text-outline hover:text-primary transition-colors" type="button" title="Remover foto">
+<span class="material-symbols-outlined text-xl">delete</span>
+</button>
+<input id="student-avatar-file" type="file" accept="image/*" class="hidden" />
 </div>
 </div>
 </div>
@@ -366,11 +370,11 @@
 <div class="px-8 flex gap-8 border-b border-outline-variant/10">
 <button class="py-4 text-xs font-bold uppercase tracking-wider text-primary border-b-2 border-primary flex items-center gap-2">
 <span class="material-symbols-outlined text-lg" data-icon="info" style="font-variation-settings: 'FILL' 1;">info</span>
-                Visão Geral
+                VisÃ£o Geral
             </button>
 <button class="py-4 text-xs font-bold uppercase tracking-wider text-outline hover:text-on-surface transition-colors flex items-center gap-2">
 <span class="material-symbols-outlined text-lg" data-icon="history">history</span>
-                Histórico
+                HistÃ³rico
             </button>
 <button class="py-4 text-xs font-bold uppercase tracking-wider text-outline hover:text-on-surface transition-colors flex items-center gap-2">
 <span class="material-symbols-outlined text-lg" data-icon="description">description</span>
@@ -382,7 +386,7 @@
 <!-- KPIs Row -->
 <div class="grid grid-cols-2 gap-4">
 <div class="p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
-<p class="text-[10px] font-bold text-outline uppercase tracking-wider">Frequência Geral</p>
+<p class="text-[10px] font-bold text-outline uppercase tracking-wider">FrequÃªncia Geral</p>
 <div class="flex items-end gap-2 mt-1">
 <span class="text-2xl font-extrabold font-headline text-on-surface">92.4%</span>
 <span class="text-emerald-600 text-xs font-bold pb-1 flex items-center">
@@ -391,7 +395,7 @@
 </div>
 </div>
 <div class="p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
-<p class="text-[10px] font-bold text-outline uppercase tracking-wider">Média de Notas</p>
+<p class="text-[10px] font-bold text-outline uppercase tracking-wider">MÃ©dia de Notas</p>
 <div class="flex items-end gap-2 mt-1">
 <span class="text-2xl font-extrabold font-headline text-on-surface">8.5</span>
 <span class="text-outline text-xs font-medium pb-1">/10.0</span>
@@ -407,7 +411,7 @@
 <div class="space-y-6 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-px before:bg-outline-variant/30">
 <div class="relative pl-8">
 <span class="absolute left-0 top-1.5 w-4 h-4 rounded-full bg-white border-4 border-primary shadow-sm"></span>
-<p class="text-xs font-bold text-on-surface">Presença Confirmada</p>
+<p class="text-xs font-bold text-on-surface">PresenÃ§a Confirmada</p>
 <p class="text-[11px] text-outline mt-0.5">Aula de Tipografia e Grid System</p>
 <span class="text-[10px] text-outline-variant mt-2 block font-medium">Hoje, 19:30</span>
 </div>
@@ -430,7 +434,7 @@
 <div class="flex justify-between items-center mb-4">
 <h4 class="text-sm font-bold text-on-surface flex items-center gap-2">
 <span class="material-symbols-outlined text-primary text-lg" data-icon="account_balance_wallet">account_balance_wallet</span>
-                        Histórico Financeiro
+                        HistÃ³rico Financeiro
                     </h4>
 <button class="text-primary text-[11px] font-bold uppercase hover:underline">Ver Todos</button>
 </div>
@@ -440,7 +444,7 @@
 <span class="material-symbols-outlined text-emerald-500" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
 <div>
 <p class="text-xs font-bold text-on-surface">Mensalidade Janeiro</p>
-<p class="text-[10px] text-outline">Cartão de Crédito • 10/01</p>
+<p class="text-[10px] text-outline">CartÃ£o de CrÃ©dito â€¢ 10/01</p>
 </div>
 </div>
 <p class="text-xs font-bold text-on-surface">R$ 499,00</p>
@@ -450,7 +454,7 @@
 <span class="material-symbols-outlined text-emerald-500" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
 <div>
 <p class="text-xs font-bold text-on-surface">Mensalidade Dezembro</p>
-<p class="text-[10px] text-outline">Boleto Bancário • 10/12</p>
+<p class="text-[10px] text-outline">Boleto BancÃ¡rio â€¢ 10/12</p>
 </div>
 </div>
 <p class="text-xs font-bold text-on-surface">R$ 499,00</p>
@@ -470,34 +474,6 @@
 </aside>
 <!-- Overlay Backdrop for Drawer -->
 <div class="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50 opacity-0 pointer-events-none transition-opacity duration-300" id="student-drawer-overlay"></div>
-<script>
-  (() => {
-    const drawer = document.getElementById('student-drawer');
-    const overlay = document.getElementById('student-drawer-overlay');
-    const closeButton = document.getElementById('student-drawer-close');
-    const openTriggers = Array.from(document.querySelectorAll('.js-open-student'));
-
-    if (!drawer || !overlay || !closeButton) return;
-
-    const openDrawer = () => {
-      drawer.classList.remove('translate-x-full');
-      overlay.classList.remove('opacity-0', 'pointer-events-none');
-    };
-
-    const closeDrawer = () => {
-      drawer.classList.add('translate-x-full');
-      overlay.classList.add('opacity-0', 'pointer-events-none');
-    };
-
-    openTriggers.forEach((row) => {
-      row.addEventListener('click', openDrawer);
-    });
-
-    closeButton.addEventListener('click', closeDrawer);
-    overlay.addEventListener('click', closeDrawer);
-    window.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeDrawer();
-    });
-  })();
-</script>
+<script src="./students-data.js"></script>
 </body></html>
+

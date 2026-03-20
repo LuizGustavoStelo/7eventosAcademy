@@ -1,5 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import multipart from '@fastify/multipart';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -11,6 +12,13 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter(),
   );
+
+  await app.register(multipart, {
+    limits: {
+      fileSize: 5 * 1024 * 1024,
+      files: 1,
+    },
+  });
 
   app.setGlobalPrefix('api');
   app.enableCors();

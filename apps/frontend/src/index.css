@@ -335,6 +335,28 @@ table button:disabled {
   height: 34px;
   border-radius: 50%;
   object-fit: cover;
+  cursor: pointer;
+}
+
+.global-avatar-remove {
+  border: 0;
+  background: #f3f4f6;
+  color: #6b7280;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.global-avatar-remove .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.global-avatar-remove:hover {
+  background: #e5e7eb;
+  color: #111827;
 }
 
 .global-topbar-user-meta {

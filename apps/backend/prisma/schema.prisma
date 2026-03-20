@@ -8,71 +8,193 @@ datasource db {
 }
 
 enum UserRole {
-  USER @map("user")
-  ADMIN @map("admin")
+  USER       @map("user")
+  ADMIN      @map("admin")
   SUPERADMIN @map("superadmin")
 
   @@map("user_role")
 }
 
-model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  name         String
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  role         UserRole @default(ADMIN)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  enrollments  Enrollment[]
-
-  @@map("users")
-}
-
 enum ClassStatus {
-  PLANNING @map("planning")
+  PLANNING         @map("planning")
   ENROLLMENTS_OPEN @map("enrollments_open")
-  IN_PROGRESS @map("in_progress")
-  CLOSED @map("closed")
+  IN_PROGRESS      @map("in_progress")
+  CLOSED           @map("closed")
 
   @@map("class_status")
 }
 
 enum EnrollmentStatus {
-  ACTIVE @map("active")
-  CANCELED @map("canceled")
+  ACTIVE    @map("active")
+  CANCELED  @map("canceled")
   COMPLETED @map("completed")
 
   @@map("enrollment_status")
 }
 
 enum ChargeStatus {
-  PENDING @map("pending")
-  PAID @map("paid")
-  OVERDUE @map("overdue")
+  PENDING  @map("pending")
+  PAID     @map("paid")
+  OVERDUE  @map("overdue")
   CANCELED @map("canceled")
 
   @@map("charge_status")
 }
 
 enum TransactionStatus {
-  PENDING @map("pending")
-  SUCCESS @map("success")
-  FAILED @map("failed")
+  PENDING  @map("pending")
+  SUCCESS  @map("success")
+  FAILED   @map("failed")
   REFUNDED @map("refunded")
 
   @@map("transaction_status")
 }
 
+enum CourseStatus {
+  ACTIVE   @map("active")
+  DRAFT    @map("draft")
+  INACTIVE @map("inactive")
+
+  @@map("course_status")
+}
+
+enum CourseModality {
+  PRESENTIAL @map("presencial")
+  HYBRID     @map("hibrido")
+  EAD        @map("ead")
+
+  @@map("course_modality")
+}
+
+enum CoursePaymentModel {
+  CASH         @map("cash")
+  INSTALLMENTS @map("installments")
+
+  @@map("course_payment_model")
+}
+
+enum UploadOwnerType {
+  COURSE     @map("course")
+  USER       @map("user")
+  STUDENT    @map("student")
+  CLASS      @map("class")
+  ENROLLMENT @map("enrollment")
+
+  @@map("upload_owner_type")
+}
+
+enum StudentCourseStatus {
+  INTERESTED @map("interested")
+  ACTIVE     @map("active")
+  COMPLETED  @map("completed")
+  CANCELED   @map("canceled")
+
+  @@map("student_course_status")
+}
+
+model User {
+  id             String         @id @default(uuid()) @db.Uuid
+  name           String
+  email          String         @unique
+  passwordHash   String         @map("password_hash")
+  role           UserRole       @default(ADMIN)
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  enrollments    Enrollment[]
+  studentProfile StudentProfile?
+  studentCourses StudentCourse[]
+
+  @@map("users")
+}
+
 model Course {
-  id            String       @id @default(uuid()) @db.Uuid
-  name          String
-  description   String?
-  workloadHours Int?         @map("workload_hours")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
-  classes       SchoolClass[]
+  id                String             @id @default(uuid()) @db.Uuid
+  name              String
+  description       String?
+  category          String?
+  coordinator       String?
+  workloadHours     Int?               @map("workload_hours")
+  price             Decimal?           @db.Decimal(12, 2)
+  paymentModel      CoursePaymentModel @default(CASH) @map("payment_model")
+  installmentMonths Int?               @map("installment_months")
+  installmentValue  Decimal?           @map("installment_value") @db.Decimal(12, 2)
+  modality          CourseModality     @default(PRESENTIAL)
+  status            CourseStatus       @default(ACTIVE)
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  classes           SchoolClass[]
+  studentCourses    StudentCourse[]
 
   @@map("courses")
+}
+
+model StudentProfile {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @unique @map("user_id") @db.Uuid
+  documentCpf   String?   @unique @map("document_cpf")
+  phone         String?
+  birthDate     DateTime? @map("birth_date")
+  gender        String?
+  guardianName  String?   @map("guardian_name")
+  guardianPhone String?   @map("guardian_phone")
+  zipCode       String?   @map("zip_code")
+  street        String?
+  streetNumber  String?   @map("street_number")
+  complement    String?
+  neighborhood  String?
+  city          String?
+  state         String?
+  country       String?
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_profiles")
+}
+
+model StudentCourse {
+  id        String            @id @default(uuid()) @db.Uuid
+  studentId String            @map("student_id") @db.Uuid
+  courseId  String            @map("course_id") @db.Uuid
+  status    StudentCourseStatus @default(INTERESTED)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  student   User              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course    Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId])
+  @@index([studentId], map: "student_courses_student_idx")
+  @@index([courseId], map: "student_courses_course_idx")
+  @@map("student_courses")
+}
+
+model UploadAsset {
+  id           String          @id @default(uuid()) @db.Uuid
+  storagePath  String          @unique @map("storage_path")
+  originalName String          @map("original_name")
+  mimeType     String          @map("mime_type")
+  sizeBytes    Int             @map("size_bytes")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  bindings     UploadBinding[]
+
+  @@map("upload_assets")
+}
+
+model UploadBinding {
+  id        String          @id @default(uuid()) @db.Uuid
+  ownerType UploadOwnerType @map("owner_type")
+  ownerId   String          @map("owner_id") @db.Uuid
+  kind      String
+  assetId   String          @map("asset_id") @db.Uuid
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+  asset     UploadAsset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerType, ownerId, kind], map: "upload_bindings_owner_kind_key")
+  @@index([ownerType, ownerId], map: "upload_bindings_owner_idx")
+  @@map("upload_bindings")
 }
 
 model SchoolClass {
@@ -93,14 +215,14 @@ model SchoolClass {
 }
 
 model Enrollment {
-  id            String           @id @default(uuid()) @db.Uuid
-  classId       String           @map("class_id") @db.Uuid
-  studentId     String           @map("student_id") @db.Uuid
-  status        EnrollmentStatus @default(ACTIVE)
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
-  schoolClass   SchoolClass      @relation(fields: [classId], references: [id], onDelete: Cascade)
-  student       User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id             String           @id @default(uuid()) @db.Uuid
+  classId        String           @map("class_id") @db.Uuid
+  studentId      String           @map("student_id") @db.Uuid
+  status         EnrollmentStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  schoolClass    SchoolClass      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student        User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
   monthlyCharges MonthlyCharge[]
 
   @@unique([classId, studentId])
@@ -108,15 +230,15 @@ model Enrollment {
 }
 
 model MonthlyCharge {
-  id                 String               @id @default(uuid()) @db.Uuid
-  enrollmentId       String               @map("enrollment_id") @db.Uuid
-  dueDate            DateTime             @map("due_date")
-  amount             Decimal              @db.Decimal(12, 2)
-  status             ChargeStatus         @default(PENDING)
-  externalChargeId   String?              @map("external_charge_id")
-  createdAt          DateTime             @default(now()) @map("created_at")
-  updatedAt          DateTime             @updatedAt @map("updated_at")
-  enrollment         Enrollment           @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  id                  String               @id @default(uuid()) @db.Uuid
+  enrollmentId        String               @map("enrollment_id") @db.Uuid
+  dueDate             DateTime             @map("due_date")
+  amount              Decimal              @db.Decimal(12, 2)
+  status              ChargeStatus         @default(PENDING)
+  externalChargeId    String?              @map("external_charge_id")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  enrollment          Enrollment           @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   paymentTransactions PaymentTransaction[]
 
   @@unique([externalChargeId])

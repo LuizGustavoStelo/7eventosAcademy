@@ -2,7 +2,13 @@
 import type { FormEvent } from 'react';
 
 type Role = 'user' | 'admin' | 'superadmin';
-type AuthUser = { id: string; name: string; email: string; role: Role };
+type AuthUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  avatarUrl?: string | null;
+};
 type AuthResponse = { accessToken: string; user: AuthUser };
 type NavSection = {
   id: string;
@@ -143,6 +149,7 @@ export default function App() {
   const [secaoAtiva, setSecaoAtiva] = useState('');
   const [temaEscuro, setTemaEscuro] = useState(false);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const autenticado = Boolean(token && usuario);
   const secoes = usuario?.role === 'superadmin' ? SECOES_SUPERADMIN : SECOES_ADMIN;
@@ -224,6 +231,35 @@ export default function App() {
     setUsuario(auth.user);
   };
 
+  const atualizarUsuarioSessao = (nextUser: AuthUser) => {
+    window.sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(nextUser));
+    setUsuario(nextUser);
+  };
+
+  const carregarPerfilAtual = async () => {
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) return;
+
+      const me = (await response.json()) as AuthUser;
+      atualizarUsuarioSessao(me);
+    } catch {
+      // ignora erro de atualização de perfil
+    }
+  };
+
+  useEffect(() => {
+    if (!autenticado) return;
+    void carregarPerfilAtual();
+  }, [autenticado, token]);
+
   const sair = () => {
     window.sessionStorage.removeItem(SESSION_TOKEN_KEY);
     window.sessionStorage.removeItem(SESSION_USER_KEY);
@@ -300,6 +336,46 @@ export default function App() {
     } finally {
       setCarregando(false);
     }
+  };
+
+  const uploadAvatar = async (file: File) => {
+    if (!token) return;
+
+    const body = new FormData();
+    body.append('avatar', file);
+
+    const response = await fetch(`${API_BASE_URL}/auth/me/avatar`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body,
+    });
+
+    if (!response.ok) {
+      throw new Error(await lerErroApi(response));
+    }
+
+    const nextUser = (await response.json()) as AuthUser;
+    atualizarUsuarioSessao(nextUser);
+  };
+
+  const removerAvatar = async () => {
+    if (!token) return;
+
+    const response = await fetch(`${API_BASE_URL}/auth/me/avatar`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(await lerErroApi(response));
+    }
+
+    const nextUser = (await response.json()) as AuthUser;
+    atualizarUsuarioSessao(nextUser);
   };
 
   if (!autenticado) {
@@ -480,11 +556,56 @@ export default function App() {
               </span>
             </button>
             <div className="global-topbar-user">
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    await uploadAvatar(file);
+                  } catch (error) {
+                    const message =
+                      error instanceof Error
+                        ? error.message
+                        : 'Não foi possível atualizar a foto de perfil.';
+                    window.alert(message);
+                  } finally {
+                    event.target.value = '';
+                  }
+                }}
+              />
               <img
                 className="global-topbar-avatar"
                 alt="Avatar do usuário"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDDw0TJspg79mG5fWY5VjXS8gA3CE9GPLyYCbl0ZwS48kInu_yAIMZeKLC-OO1TctEVlEQysf1QpBPTp8Ml57g9o3zSmOUvPKnOaJm_IE9_7ZO_Tx_aDraQVsQLeQvThBrV9idAYpQDADLvjejTx6ovynKPs6bTZNhy1nmT1Ns-q5zbuMwFPjqqLe6Xs_P8CYwLK3gFTRvheh09Ut1P3UIbNyqcLVWrchzSNWi-sAIj_dgvKhNaNS7dwFGFCfE7NgF_XgphKdfvTwbQ"
+                src={
+                  usuario?.avatarUrl ||
+                  'https://lh3.googleusercontent.com/aida-public/AB6AXuDDw0TJspg79mG5fWY5VjXS8gA3CE9GPLyYCbl0ZwS48kInu_yAIMZeKLC-OO1TctEVlEQysf1QpBPTp8Ml57g9o3zSmOUvPKnOaJm_IE9_7ZO_Tx_aDraQVsQLeQvThBrV9idAYpQDADLvjejTx6ovynKPs6bTZNhy1nmT1Ns-q5zbuMwFPjqqLe6Xs_P8CYwLK3gFTRvheh09Ut1P3UIbNyqcLVWrchzSNWi-sAIj_dgvKhNaNS7dwFGFCfE7NgF_XgphKdfvTwbQ'
+                }
+                onClick={() => avatarInputRef.current?.click()}
               />
+              {usuario?.avatarUrl ? (
+                <button
+                  type="button"
+                  className="global-avatar-remove"
+                  aria-label="Remover foto"
+                  onClick={async () => {
+                    try {
+                      await removerAvatar();
+                    } catch (error) {
+                      const message =
+                        error instanceof Error
+                          ? error.message
+                          : 'Não foi possível remover a foto de perfil.';
+                      window.alert(message);
+                    }
+                  }}
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              ) : null}
               <div className="global-topbar-user-meta">
                 <span className="global-topbar-user-name">{usuario?.name ?? 'Professor'}</span>
                 <span className="global-topbar-user-role">Professor</span>
