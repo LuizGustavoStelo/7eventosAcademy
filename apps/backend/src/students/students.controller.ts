@@ -87,6 +87,16 @@ export class StudentsController {
     return this.studentsService.removeAvatar(id);
   }
 
+  @Post('import-csv')
+  async importCsv(@Req() request: MultipartFastifyRequest) {
+    const file = await request.file();
+    if (!file) {
+      throw new BadRequestException('Envie um arquivo CSV no campo file.');
+    }
+
+    return this.studentsService.importCsv(file);
+  }
+
   private async parsePublicRegistrationMultipart(request: MultipartFastifyRequest) {
     const fields: Record<string, unknown> = {};
     let avatar: MultipartFile | undefined;

@@ -223,6 +223,56 @@ export class StudentsService {
     return this.findById(studentId);
   }
 
+  async importCsv(file: MultipartFile) {
+    const content = (await file.toBuffer()).toString('utf-8').replace(/^\uFEFF/, '');
+    const rows = content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (rows.length < 2) {
+      throw new BadRequestException(
+        'CSV inválido. Informe cabeçalho e pelo menos uma linha de aluno.',
+      );
+    }
+
+    const delimiter = this.detectDelimiter(rows[0]);
+    const header = this.parseCsvLine(rows[0], delimiter);
+    const headers = this.normalizeHeaders(header);
+
+    const imported: Array<{ line: number; id: string; email: string }> = [];
+    const errors: Array<{ line: number; message: string }> = [];
+
+    for (let index = 1; index < rows.length; index += 1) {
+      const line = rows[index];
+      const values = this.parseCsvLine(line, delimiter);
+      const row = this.makeRowObject(headers, values);
+      const lineNumber = index + 1;
+
+      try {
+        const dto = this.mapCsvRowToRegistrationDto(row);
+        const created = await this.registerPublic(dto);
+        imported.push({
+          line: lineNumber,
+          id: created.id,
+          email: created.email,
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Falha ao importar registro.';
+        errors.push({ line: lineNumber, message });
+      }
+    }
+
+    return {
+      totalRows: rows.length - 1,
+      importedCount: imported.length,
+      failedCount: errors.length,
+      imported,
+      errors,
+    };
+  }
+
   async findById(studentId: string) {
     const student = await this.prisma.user.findFirst({
       where: {
@@ -334,5 +384,120 @@ export class StudentsService {
         course: studentCourse.course,
       })),
     }));
+  }
+
+  private detectDelimiter(headerLine: string) {
+    const semicolonCount = (headerLine.match(/;/g) || []).length;
+    const commaCount = (headerLine.match(/,/g) || []).length;
+    return semicolonCount > commaCount ? ';' : ',';
+  }
+
+  private parseCsvLine(line: string, delimiter = ',') {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let index = 0; index < line.length; index += 1) {
+      const char = line[index];
+
+      if (char === '"') {
+        if (inQuotes && line[index + 1] === '"') {
+          current += '"';
+          index += 1;
+          continue;
+        }
+        inQuotes = !inQuotes;
+        continue;
+      }
+
+      if (char === delimiter && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+        continue;
+      }
+
+      current += char;
+    }
+
+    result.push(current.trim());
+    return result;
+  }
+
+  private normalizeHeaders(headers: string[]) {
+    return headers.map((header) =>
+      header
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, '')
+        .replace(/_/g, ''),
+    );
+  }
+
+  private makeRowObject(headers: string[], values: string[]) {
+    return headers.reduce<Record<string, string>>((accumulator, header, index) => {
+      accumulator[header] = values[index] ?? '';
+      return accumulator;
+    }, {});
+  }
+
+  private mapCsvRowToRegistrationDto(row: Record<string, string>): PublicStudentRegistrationDto {
+    const name = row.nome || row.name;
+    const email = row.email;
+    const password = row.senha || row.password || randomBytes(8).toString('base64url');
+    const documentCpf = row.cpf || row.documentocpf || row.documentcpf;
+    const phone = row.telefone || row.phone;
+    const birthDateRaw = row.datanascimento || row.birthdate;
+
+    if (!name || !email || !documentCpf || !phone || !birthDateRaw) {
+      throw new BadRequestException(
+        'Campos obrigatórios no CSV: nome, email, cpf, telefone, dataNascimento.',
+      );
+    }
+
+    const courseIdsRaw = row.courseids || row.cursos || '';
+    const courseIds = courseIdsRaw
+      .split(/[|,]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const birthDate = this.normalizeBirthDateFromCsv(birthDateRaw);
+
+    return {
+      name,
+      email,
+      password,
+      documentCpf,
+      phone,
+      birthDate,
+      gender: row.genero || row.gender || undefined,
+      guardianName: row.nomeresponsavel || row.guardianname || undefined,
+      guardianPhone: row.telefoneresponsavel || row.guardianphone || undefined,
+      zipCode: row.cep || row.zipcode || undefined,
+      street: row.rua || row.street || undefined,
+      streetNumber: row.numero || row.streetnumber || undefined,
+      complement: row.complemento || row.complement || undefined,
+      neighborhood: row.bairro || row.neighborhood || undefined,
+      city: row.cidade || row.city || undefined,
+      state: row.estado || row.state || undefined,
+      country: row.pais || row.country || undefined,
+      notes: row.observacoes || row.notes || undefined,
+      courseIds,
+    };
+  }
+
+  private normalizeBirthDateFromCsv(raw: string) {
+    const value = raw.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return value;
+    }
+
+    const brMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (brMatch) {
+      const [, day, month, year] = brMatch;
+      return `${year}-${month}-${day}`;
+    }
+
+    throw new BadRequestException('Data de nascimento inválida no CSV.');
   }
 }

@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 
 <html class="light" lang="pt-BR"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>7Eventos Academy - Alunos e MatrÃ­culas</title>
+<title>7Eventos Academy - Alunos e Matrículas</title>
 <!-- Google Fonts -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
 <!-- Material Symbols -->
@@ -105,7 +105,7 @@
 <header class="h-16 w-full sticky top-0 z-40 bg-white/80 backdrop-blur-xl flex justify-between items-center px-8 shadow-sm">
 <div class="flex items-center gap-4 bg-surface-container-high/50 px-4 py-2 rounded-xl w-96 border border-outline-variant/10 focus-within:ring-2 focus-within:ring-primary-container/20 transition-all">
 <span class="material-symbols-outlined text-outline" data-icon="search">search</span>
-<input class="bg-transparent border-none text-sm focus:ring-0 w-full text-on-surface placeholder:text-outline/60" placeholder="Buscar alunos, matrÃ­culas ou cursos..." type="text"/>
+<input class="bg-transparent border-none text-sm focus:ring-0 w-full text-on-surface placeholder:text-outline/60" placeholder="Buscar alunos, matrículas ou cursos..." type="text"/>
 </div>
 <div class="flex items-center gap-6">
 <div class="flex items-center gap-2">
@@ -117,9 +117,9 @@
 </button>
 </div>
 <div class="h-8 w-px bg-outline-variant/20"></div>
-<button class="bg-gradient-to-r from-primary to-primary-container text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-opacity">
+<button id="student-manual-create-top-trigger" type="button" class="bg-gradient-to-r from-primary to-primary-container text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-opacity">
 <span class="material-symbols-outlined text-lg" data-icon="add">add</span>
-                    Novo Registro
+                    Adicionar Aluno
                 </button>
 <div class="flex items-center gap-3 ml-2">
 <div class="text-right hidden sm:block">
@@ -135,11 +135,15 @@
 <!-- Header Section -->
 <div class="flex justify-between items-end">
 <div>
-<h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">GestÃ£o de Alunos</h2>
+<h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">Gestão de Alunos</h2>
 <p class="text-outline mt-1 font-body">Visualize e gerencie todos os estudantes ativos na plataforma.</p>
 </div>
 <div class="flex gap-3">
-<button class="px-4 py-2 rounded-lg bg-surface-container-lowest text-on-surface text-sm font-semibold border border-outline-variant/20 hover:bg-surface-container-low transition-colors flex items-center gap-2">
+<button id="students-import-csv-trigger" type="button" class="px-4 py-2 rounded-lg bg-surface-container-lowest text-on-surface text-sm font-semibold border border-outline-variant/20 hover:bg-surface-container-low transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="upload_file">upload_file</span>
+                        Importar CSV
+                    </button>
+<button id="students-export-csv-trigger" type="button" class="px-4 py-2 rounded-lg bg-surface-container-lowest text-on-surface text-sm font-semibold border border-outline-variant/20 hover:bg-surface-container-low transition-colors flex items-center gap-2">
 <span class="material-symbols-outlined text-lg" data-icon="file_download">file_download</span>
                         Exportar CSV
                     </button>
@@ -160,26 +164,26 @@
 <select class="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer">
 <option>Qualquer Turma</option>
 <option>2023.2 - Noite</option>
-<option>2024.1 - ManhÃ£</option>
+<option>2024.1 - Manhã</option>
 </select>
 </div>
 <div class="bg-surface-container-low p-1.5 rounded-xl border border-outline-variant/10 flex flex-col gap-1">
-<label class="text-[10px] font-bold text-outline uppercase px-2 pt-1">Status AcadÃªmico</label>
+<label class="text-[10px] font-bold text-outline uppercase px-2 pt-1">Status Acadêmico</label>
 <select class="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer">
 <option>Ativo</option>
 <option>Trancado</option>
-<option>ConcluÃ­do</option>
+<option>Concluído</option>
 </select>
 </div>
 <div class="bg-surface-container-low p-1.5 rounded-xl border border-outline-variant/10 flex flex-col gap-1">
-<label class="text-[10px] font-bold text-outline uppercase px-2 pt-1">AdimplÃªncia</label>
+<label class="text-[10px] font-bold text-outline uppercase px-2 pt-1">Adimplência</label>
 <select class="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer">
 <option>Em dia</option>
 <option>Inadimplente</option>
 </select>
 </div>
 <div class="bg-surface-container-low p-1.5 rounded-xl border border-outline-variant/10 flex flex-col gap-1">
-<label class="text-[10px] font-bold text-outline uppercase px-2 pt-1">PresenÃ§a</label>
+<label class="text-[10px] font-bold text-outline uppercase px-2 pt-1">Presença</label>
 <div class="flex items-center px-2 pb-1 gap-2">
 <span class="material-symbols-outlined text-primary text-sm" data-icon="trending_up">trending_up</span>
 <span class="text-sm font-semibold text-on-surface">Min. 75%</span>
@@ -192,129 +196,16 @@
 <thead class="bg-surface-container-low/50">
 <tr>
 <th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest">Aluno</th>
-<th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest">MatrÃ­cula / ID</th>
+<th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest">Matrícula / ID</th>
 <th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest">Curso &amp; Turma</th>
-<th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest text-center">PresenÃ§a</th>
+<th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest text-center">Presença</th>
 <th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest">Status Finan.</th>
 <th class="px-6 py-4 text-[11px] font-bold text-outline uppercase tracking-widest">Status</th>
 <th class="px-6 py-4 text-right"></th>
 </tr>
 </thead>
 <tbody id="students-table-body" class="divide-y divide-outline-variant/5">
-<!-- Student Row 1 -->
-<tr class="js-open-student hover:bg-surface-container-low/30 transition-colors cursor-pointer group">
-<td class="px-6 py-5">
-<div class="flex items-center gap-3">
-<img class="w-10 h-10 rounded-full object-cover" data-alt="Foto do aluno" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBaWb3AowaZRTOaLmmhIxwaRoZzW7ORvNO9i6WRSYbLd2ty2RxM3lqGv-OUJI9rvhYpO3y2Vxo8AEBNLcEv218BWjSaxIke5Pw7b5GBnNzEHUNJPDCiUXo_KAXSw0rpf-nO1k_MxgnAMVtCjIAPLXEZ9CSZFwlzA6GbJHJTD4sM6aTxIk3k4rBUsz1SLehCFXgMQnI1d2ZaCxfXESVSduzOmshU0tssAX4_qjUK5xQ1PbXqlhrhEsi0Nc37g8HT7VG4omekKwHJcEsk"/>
-<div>
-<p class="text-sm font-bold text-on-surface group-hover:text-primary transition-colors">Beatriz Oliveira</p>
-<p class="text-[11px] text-outline font-medium">beatriz.oliveira@email.com</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-5 text-sm font-mono text-outline">#AC-20240188</td>
-<td class="px-6 py-5">
-<p class="text-sm font-semibold text-on-surface">UI/UX Design Master</p>
-<p class="text-[11px] text-outline font-medium">Turma A - Noturno</p>
-</td>
-<td class="px-6 py-5">
-<div class="flex flex-col items-center gap-1">
-<div class="w-20 h-1.5 bg-outline-variant/20 rounded-full overflow-hidden">
-<div class="h-full bg-primary-container w-[92%]"></div>
-</div>
-<span class="text-[10px] font-bold text-on-surface">92%</span>
-</div>
-</td>
-<td class="px-6 py-5">
-<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700">Adimplente</span>
-</td>
-<td class="px-6 py-5">
-<span class="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
-<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Ativo
-                                </span>
-</td>
-<td class="px-6 py-5 text-right">
-<button class="p-2 text-outline hover:text-primary transition-colors">
-<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
-</button>
-</td>
-</tr>
-<!-- Student Row 2 -->
-<tr class="js-open-student hover:bg-surface-container-low/30 transition-colors cursor-pointer group">
-<td class="px-6 py-5">
-<div class="flex items-center gap-3">
-<img class="w-10 h-10 rounded-full object-cover" data-alt="Foto do aluno" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAztvXxncRMoEXfK9w0x8kjQDosV8qbZkLo8tL0iaPPDShSG2OKWIor7uTDE2IAkDFRmwICZbsCAMXEwI_oS-gt2ystjac8sl5q434qpxrKS2t11oP_XvmgRla6Drgs6DUIU8WKa21kxIYCIGaaHZJoz-yqmIcesyOkcMiLPIadQ6VqMG4XpCetuX5iyFLWk_qnN9Nvlypxxio2l5EDXK5NdQB1OQCLkm7oTwFcIZZy4R0FQfO0IUGtqIGANLkgRqHrVtpKwlY2d96W"/>
-<div>
-<p class="text-sm font-bold text-on-surface group-hover:text-primary transition-colors">Lucas Mendes</p>
-<p class="text-[11px] text-outline font-medium">l.mendes@email.com</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-5 text-sm font-mono text-outline">#AC-20240192</td>
-<td class="px-6 py-5">
-<p class="text-sm font-semibold text-on-surface">Desenvolvimento Web Fullstack</p>
-<p class="text-[11px] text-outline font-medium">Turma B - ManhÃ£</p>
-</td>
-<td class="px-6 py-5">
-<div class="flex flex-col items-center gap-1">
-<div class="w-20 h-1.5 bg-outline-variant/20 rounded-full overflow-hidden">
-<div class="h-full bg-error w-[65%]"></div>
-</div>
-<span class="text-[10px] font-bold text-on-surface">65%</span>
-</div>
-</td>
-<td class="px-6 py-5">
-<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-amber-100 text-amber-700">Atrasado</span>
-</td>
-<td class="px-6 py-5">
-<span class="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
-<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Ativo
-                                </span>
-</td>
-<td class="px-6 py-5 text-right">
-<button class="p-2 text-outline hover:text-primary transition-colors">
-<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
-</button>
-</td>
-</tr>
-<!-- Student Row 3 -->
-<tr class="js-open-student hover:bg-surface-container-low/30 transition-colors cursor-pointer group">
-<td class="px-6 py-5">
-<div class="flex items-center gap-3">
-<img class="w-10 h-10 rounded-full object-cover" data-alt="Foto do aluno" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBH8ZUUaKyqbLHue573-LGk56CfjLMilaaiqfYE9paUIUk7iub1jRSaglkkvEk9IF0MKTbaO9mf7LHAH1DAzq8toZouKhfmd8YYR-4bGC12TVTN49q7F4E3pU9zd_xQrluZddF78PR4CtdCYDagDOCeS82G1Lx_1FpWhVV57v5Y9fffkdg7FwvaTBvVWkYlj3b3dvJgP1U3J4v1cg5Is_yowQsU3eM5ed7V3kSQGqkDgxJaVeYr3vcJfZiLNUqEjskd_m5ara7BvrFU"/>
-<div>
-<p class="text-sm font-bold text-on-surface group-hover:text-primary transition-colors">Mariana Silva</p>
-<p class="text-[11px] text-outline font-medium">mari.silva@email.com</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-5 text-sm font-mono text-outline">#AC-20240215</td>
-<td class="px-6 py-5">
-<p class="text-sm font-semibold text-on-surface">GestÃ£o de Projetos Ãgeis</p>
-<p class="text-[11px] text-outline font-medium">Turma C - Remoto</p>
-</td>
-<td class="px-6 py-5">
-<div class="flex flex-col items-center gap-1">
-<div class="w-20 h-1.5 bg-outline-variant/20 rounded-full overflow-hidden">
-<div class="h-full bg-primary-container w-[88%]"></div>
-</div>
-<span class="text-[10px] font-bold text-on-surface">88%</span>
-</div>
-</td>
-<td class="px-6 py-5">
-<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700">Adimplente</span>
-</td>
-<td class="px-6 py-5">
-<span class="flex items-center gap-1.5 text-xs font-bold text-outline">
-<span class="w-1.5 h-1.5 rounded-full bg-outline"></span> Trancado
-                                </span>
-</td>
-<td class="px-6 py-5 text-right">
-<button class="p-2 text-outline hover:text-primary transition-colors">
-<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
-</button>
-</td>
-</tr>
+<!-- Conteúdo carregado via API -->
 </tbody>
 </table>
 <div class="px-6 py-4 bg-surface-container-low/30 border-t border-outline-variant/10 flex justify-between items-center">
@@ -370,11 +261,11 @@
 <div class="px-8 flex gap-8 border-b border-outline-variant/10">
 <button class="py-4 text-xs font-bold uppercase tracking-wider text-primary border-b-2 border-primary flex items-center gap-2">
 <span class="material-symbols-outlined text-lg" data-icon="info" style="font-variation-settings: 'FILL' 1;">info</span>
-                VisÃ£o Geral
+                Visão Geral
             </button>
 <button class="py-4 text-xs font-bold uppercase tracking-wider text-outline hover:text-on-surface transition-colors flex items-center gap-2">
 <span class="material-symbols-outlined text-lg" data-icon="history">history</span>
-                HistÃ³rico
+                Histórico
             </button>
 <button class="py-4 text-xs font-bold uppercase tracking-wider text-outline hover:text-on-surface transition-colors flex items-center gap-2">
 <span class="material-symbols-outlined text-lg" data-icon="description">description</span>
@@ -386,7 +277,7 @@
 <!-- KPIs Row -->
 <div class="grid grid-cols-2 gap-4">
 <div class="p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
-<p class="text-[10px] font-bold text-outline uppercase tracking-wider">FrequÃªncia Geral</p>
+<p class="text-[10px] font-bold text-outline uppercase tracking-wider">Frequência Geral</p>
 <div class="flex items-end gap-2 mt-1">
 <span class="text-2xl font-extrabold font-headline text-on-surface">92.4%</span>
 <span class="text-emerald-600 text-xs font-bold pb-1 flex items-center">
@@ -395,7 +286,7 @@
 </div>
 </div>
 <div class="p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
-<p class="text-[10px] font-bold text-outline uppercase tracking-wider">MÃ©dia de Notas</p>
+<p class="text-[10px] font-bold text-outline uppercase tracking-wider">Média de Notas</p>
 <div class="flex items-end gap-2 mt-1">
 <span class="text-2xl font-extrabold font-headline text-on-surface">8.5</span>
 <span class="text-outline text-xs font-medium pb-1">/10.0</span>
@@ -411,7 +302,7 @@
 <div class="space-y-6 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-px before:bg-outline-variant/30">
 <div class="relative pl-8">
 <span class="absolute left-0 top-1.5 w-4 h-4 rounded-full bg-white border-4 border-primary shadow-sm"></span>
-<p class="text-xs font-bold text-on-surface">PresenÃ§a Confirmada</p>
+<p class="text-xs font-bold text-on-surface">Presença Confirmada</p>
 <p class="text-[11px] text-outline mt-0.5">Aula de Tipografia e Grid System</p>
 <span class="text-[10px] text-outline-variant mt-2 block font-medium">Hoje, 19:30</span>
 </div>
@@ -434,7 +325,7 @@
 <div class="flex justify-between items-center mb-4">
 <h4 class="text-sm font-bold text-on-surface flex items-center gap-2">
 <span class="material-symbols-outlined text-primary text-lg" data-icon="account_balance_wallet">account_balance_wallet</span>
-                        HistÃ³rico Financeiro
+                        Histórico Financeiro
                     </h4>
 <button class="text-primary text-[11px] font-bold uppercase hover:underline">Ver Todos</button>
 </div>
@@ -444,7 +335,7 @@
 <span class="material-symbols-outlined text-emerald-500" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
 <div>
 <p class="text-xs font-bold text-on-surface">Mensalidade Janeiro</p>
-<p class="text-[10px] text-outline">CartÃ£o de CrÃ©dito â€¢ 10/01</p>
+<p class="text-[10px] text-outline">Cartão de Crédito • 10/01</p>
 </div>
 </div>
 <p class="text-xs font-bold text-on-surface">R$ 499,00</p>
@@ -454,7 +345,7 @@
 <span class="material-symbols-outlined text-emerald-500" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
 <div>
 <p class="text-xs font-bold text-on-surface">Mensalidade Dezembro</p>
-<p class="text-[10px] text-outline">Boleto BancÃ¡rio â€¢ 10/12</p>
+<p class="text-[10px] text-outline">Boleto Bancário • 10/12</p>
 </div>
 </div>
 <p class="text-xs font-bold text-on-surface">R$ 499,00</p>
@@ -474,6 +365,93 @@
 </aside>
 <!-- Overlay Backdrop for Drawer -->
 <div class="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50 opacity-0 pointer-events-none transition-opacity duration-300" id="student-drawer-overlay"></div>
+<input id="students-import-csv-input" type="file" accept=".csv,text/csv" class="hidden" />
+<div id="students-import-csv-modal" class="fixed inset-0 z-[85] hidden items-center justify-center p-4">
+<div id="students-import-csv-overlay" class="absolute inset-0 bg-on-surface/50"></div>
+<div class="relative w-full max-w-5xl rounded-2xl bg-white border border-outline-variant/20 shadow-2xl p-6">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-xl font-extrabold font-headline text-on-surface">Importar alunos por CSV</h3>
+<button id="students-import-csv-close" type="button" class="p-2 rounded-lg hover:bg-surface-container-low">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<section class="rounded-xl border border-outline-variant/20 bg-surface-container-low p-4">
+<h4 class="text-sm font-bold text-on-surface mb-2">Modelo de planilha</h4>
+<p class="text-xs text-outline mb-3">Baixe o modelo, preencha os dados e depois envie o arquivo na coluna ao lado.</p>
+<div class="rounded-lg border border-outline-variant/20 bg-white p-3 text-xs font-mono overflow-auto">
+nome;email;senha;cpf;telefone;dataNascimento;courseIds<br/>
+João Silva;joao@email.com;Senha@123;12345678901;65999990000;1998-03-10;uuid-curso-1|uuid-curso-2
+</div>
+<button id="students-import-csv-download-model" type="button" class="mt-4 px-4 py-2 rounded-lg bg-surface-container-lowest text-on-surface text-sm font-semibold border border-outline-variant/20 hover:bg-surface-container-low transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">download</span>
+Baixar modelo CSV
+</button>
+</section>
+<section class="rounded-xl border border-outline-variant/20 bg-surface-container-low p-4">
+<h4 class="text-sm font-bold text-on-surface mb-2">Enviar arquivo</h4>
+<p class="text-xs text-outline mb-3">Selecione um arquivo `.csv` usando o formato do modelo.</p>
+<button id="students-import-csv-select-file" type="button" class="px-4 py-2 rounded-lg bg-primary-container text-white text-sm font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">upload_file</span>
+Selecionar arquivo CSV
+</button>
+<p id="students-import-csv-file-name" class="mt-3 text-xs text-outline">Nenhum arquivo selecionado.</p>
+<button id="students-import-csv-submit" type="button" class="mt-4 px-4 py-2 rounded-lg bg-primary text-white text-sm font-bold disabled:opacity-50" disabled>
+Importar agora
+</button>
+</section>
+</div>
+</div>
+</div>
+<div id="student-manual-create-modal" class="fixed inset-0 z-[80] hidden items-center justify-center p-4">
+<div class="absolute inset-0 bg-on-surface/50" id="student-manual-create-overlay"></div>
+<div class="relative w-full max-w-3xl rounded-2xl bg-white border border-outline-variant/20 shadow-2xl p-6">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-xl font-extrabold font-headline text-on-surface">Adicionar aluno</h3>
+<button id="student-manual-create-close" type="button" class="p-2 rounded-lg hover:bg-surface-container-low">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<form id="student-manual-create-form" class="space-y-4">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<label class="block">
+<span class="text-xs font-bold text-outline uppercase tracking-wider">Nome completo</span>
+<input id="manual-student-name" name="name" required class="mt-1 w-full rounded-lg border-outline-variant/30" />
+</label>
+<label class="block">
+<span class="text-xs font-bold text-outline uppercase tracking-wider">E-mail</span>
+<input id="manual-student-email" name="email" type="email" required class="mt-1 w-full rounded-lg border-outline-variant/30" />
+</label>
+<label class="block">
+<span class="text-xs font-bold text-outline uppercase tracking-wider">Senha inicial</span>
+<input id="manual-student-password" name="password" type="text" minlength="8" required class="mt-1 w-full rounded-lg border-outline-variant/30" />
+</label>
+<label class="block">
+<span class="text-xs font-bold text-outline uppercase tracking-wider">CPF</span>
+<input id="manual-student-cpf" name="documentCpf" required class="mt-1 w-full rounded-lg border-outline-variant/30" />
+</label>
+<label class="block">
+<span class="text-xs font-bold text-outline uppercase tracking-wider">Telefone</span>
+<input id="manual-student-phone" name="phone" required class="mt-1 w-full rounded-lg border-outline-variant/30" />
+</label>
+<label class="block">
+<span class="text-xs font-bold text-outline uppercase tracking-wider">Nascimento</span>
+<input id="manual-student-birthdate" name="birthDate" type="date" required class="mt-1 w-full rounded-lg border-outline-variant/30" />
+</label>
+</div>
+<label class="block">
+<span class="text-xs font-bold text-outline uppercase tracking-wider">Cursos (opcional)</span>
+<select id="manual-student-course-ids" multiple class="mt-1 w-full rounded-lg border-outline-variant/30 h-36"></select>
+<span class="text-[11px] text-outline">Use Ctrl/Cmd para selecionar mais de um curso.</span>
+</label>
+<div class="flex justify-end gap-3 pt-2">
+<button type="button" id="student-manual-create-cancel" class="px-4 py-2 rounded-lg border border-outline-variant/30 font-semibold">Cancelar</button>
+<button type="submit" class="px-5 py-2 rounded-lg bg-primary-container text-white font-bold">Salvar aluno</button>
+</div>
+</form>
+</div>
+</div>
 <script src="./students-data.js"></script>
 </body></html>
+
 
