@@ -4,7 +4,10 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "sync:templates": "node scripts/sync-templates.mjs",
+    "predev": "npm run sync:templates",
     "dev": "vite",
+    "prebuild": "npm run sync:templates",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },

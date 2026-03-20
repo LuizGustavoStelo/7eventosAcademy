@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Conteúdo - 7Eventos Academy</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-error": "#ffffff",
+              "error-container": "#ffdad6",
+              "on-surface-variant": "#5b4137",
+              "tertiary": "#0061a6",
+              "on-primary": "#ffffff",
+              "surface-bright": "#f9f9f9",
+              "inverse-primary": "#ffb59a",
+              "primary-fixed-dim": "#ffb59a",
+              "tertiary-container": "#0096fd",
+              "on-primary-fixed": "#370e00",
+              "surface-dim": "#dadada",
+              "on-surface": "#1b1b1b",
+              "on-tertiary-container": "#002d51",
+              "on-secondary-fixed-variant": "#7e2c04",
+              "surface-container": "#eeeeee",
+              "surface-variant": "#e2e2e2",
+              "on-background": "#1b1b1b",
+              "tertiary-fixed": "#d2e4ff",
+              "error": "#ba1a1a",
+              "primary": "#a73a00",
+              "inverse-on-surface": "#f1f1f1",
+              "secondary-fixed": "#ffdbce",
+              "on-secondary-container": "#742500",
+              "tertiary-fixed-dim": "#a0c9ff",
+              "secondary": "#9d431b",
+              "surface-container-lowest": "#ffffff",
+              "surface-tint": "#a73a00",
+              "inverse-surface": "#303030",
+              "surface-container-highest": "#e2e2e2",
+              "outline-variant": "#e4beb1",
+              "outline": "#8f7065",
+              "secondary-fixed-dim": "#ffb59a",
+              "on-primary-fixed-variant": "#802a00",
+              "secondary-container": "#fe8c5f",
+              "on-tertiary-fixed": "#001c37",
+              "surface-container-high": "#e8e8e8",
+              "on-primary-container": "#521800",
+              "primary-container": "#ff5c00",
+              "on-secondary": "#ffffff",
+              "primary-fixed": "#ffdbce",
+              "surface": "#f9f9f9",
+              "on-tertiary-fixed-variant": "#00497f",
+              "background": "#f9f9f9",
+              "on-tertiary": "#ffffff",
+              "on-error-container": "#93000a",
+              "surface-container-low": "#f3f3f3",
+              "on-secondary-fixed": "#370e00"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .glass-card {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(20px);
+      }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface flex min-h-screen">
+<!-- SideNavBar Anchor -->
+<aside class="w-[264px] h-screen sticky top-0 bg-surface-container-lowest border-r border-outline-variant/20 flex flex-col z-50">
+<div class="p-8">
+<h1 class="text-2xl font-bold font-headline text-on-surface tracking-tight">7Eventos Academy</h1>
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mt-1">Painel de Gestão</p>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-headline font-semibold text-sm">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-headline font-semibold text-sm">Alunos</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="how_to_reg">how_to_reg</span>
+<span class="font-headline font-semibold text-sm">Matrículas</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-primary-container border-l-4 border-primary-container bg-primary-container/5 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="menu_book" style="font-variation-settings: 'FILL' 1;">menu_book</span>
+<span class="font-headline font-semibold text-sm">Conteúdo</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-headline font-semibold text-sm">Financeiro</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-headline font-semibold text-sm">Configurações</span>
+</a>
+</nav>
+<div class="p-6 mt-auto space-y-2 border-t border-outline-variant/10">
+<button class="flex items-center gap-3 px-4 py-2 w-full text-on-surface-variant hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="help">help</span>
+<span class="font-headline font-semibold text-xs">Suporte</span>
+</button>
+<button class="flex items-center gap-3 px-4 py-2 w-full text-error hover:bg-error-container/20 transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="logout">logout</span>
+<span class="font-headline font-semibold text-xs">Sair</span>
+</button>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+<!-- TopNavBar Anchor -->
+<header class="h-16 w-full sticky top-0 z-40 bg-white/80 backdrop-blur-xl flex justify-between items-center px-8">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative w-96">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl" data-icon="search">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-container/20 transition-all outline-none" placeholder="Buscar materiais, aulas ou documentos..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative text-on-surface-variant hover:text-primary-container transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-primary-container rounded-full border-2 border-white"></span>
+</button>
+<div class="h-8 w-[1px] bg-outline-variant/20"></div>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-bold leading-none">Prof. Ricardo Silva</p>
+<p class="text-[10px] text-on-surface-variant font-medium mt-1">Admin / Coordenador</p>
+</div>
+<img class="w-10 h-10 rounded-full object-cover ring-2 ring-primary-container/10" data-alt="Avatar do Administrador do Sistema" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCmyoeL1_1u1BwEF1YN6N4bC3oE1J94W8e9C6sgfMce84oe8PZWFYrMz5jLp6a75uUt6IjJmfrd2i9BOl5jvURnQghQ4ZAokijSOa0WMRiOGyrU0PXySwCxGf5mByIKe713WsVahxqDoPoI6pIhK0H_KMbOyTbDHFRCBOO6fOKDhzMcn_SULiZidzOjlrPjPNMVLOywFM-0-a3ha6k8--89rOtrNnfkSCn8I3Lf_iyWASPWYeSZQqyMSqSsJFZe4bUxV0S3ZsBwe-g"/>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<div class="flex-1 overflow-y-auto p-8 space-y-8">
+<!-- Header Section -->
+<div class="flex justify-between items-end">
+<div>
+<h2 class="font-headline text-3xl font-extrabold tracking-tight">Gerenciamento de Conteúdo</h2>
+<p class="text-on-surface-variant mt-2 text-sm max-w-lg">Organize seus materiais de aula e mantenha a biblioteca acadêmica atualizada para seus alunos.</p>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-2.5 bg-surface-container-lowest text-on-surface font-semibold text-sm rounded-lg flex items-center gap-2 transition-all hover:bg-surface-container hover:shadow-sm">
+<span class="material-symbols-outlined text-lg" data-icon="folder_zip">folder_zip</span>
+                        Exportar Tudo
+                    </button>
+<button class="px-6 py-2.5 bg-gradient-to-r from-primary to-primary-container text-white font-bold text-sm rounded-lg flex items-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">
+<span class="material-symbols-outlined text-lg" data-icon="cloud_upload" style="font-variation-settings: 'FILL' 1;">cloud_upload</span>
+                        Novo Material
+                    </button>
+</div>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-6">
+<!-- Left: Upload & Filters -->
+<div class="col-span-12 lg:col-span-4 space-y-6">
+<!-- Uploader Component -->
+<div class="bg-surface-container-lowest rounded-xl p-6 space-y-6 border border-outline-variant/5">
+<h3 class="font-headline font-bold text-lg">Upload Rápido</h3>
+<div class="group relative flex flex-col items-center justify-center border-2 border-dashed border-outline-variant/30 rounded-xl py-12 px-6 bg-surface hover:bg-primary-container/5 hover:border-primary-container transition-all cursor-pointer">
+<span class="material-symbols-outlined text-5xl text-outline-variant group-hover:text-primary-container transition-colors" data-icon="upload_file">upload_file</span>
+<p class="text-sm font-semibold mt-4">Arraste seus arquivos aqui</p>
+<p class="text-[11px] text-on-surface-variant mt-1 text-center">PDF, MP4, PPTX ou DOCX (Max 200MB)</p>
+</div>
+<div class="space-y-4">
+<div>
+<label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2 block">Metadados do Arquivo</label>
+<div class="grid grid-cols-2 gap-3">
+<select class="bg-surface-container-high border-none rounded-lg text-xs py-2.5 focus:ring-2 focus:ring-primary-container/20">
+<option>Tipo: PDF</option>
+<option>Tipo: Vídeo</option>
+<option>Tipo: Exercício</option>
+</select>
+<select class="bg-surface-container-high border-none rounded-lg text-xs py-2.5 focus:ring-2 focus:ring-primary-container/20">
+<option>Módulo: 01</option>
+<option>Módulo: 02</option>
+<option>Módulo: 03</option>
+</select>
+</div>
+</div>
+<select class="w-full bg-surface-container-high border-none rounded-lg text-xs py-2.5 focus:ring-2 focus:ring-primary-container/20">
+<option>Visibilidade: Todos os Alunos</option>
+<option>Visibilidade: Somente Premium</option>
+<option>Visibilidade: Rascunho</option>
+</select>
+<button class="w-full py-3 bg-on-surface text-white rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-on-surface/90 transition-colors">
+                                Salvar Metadados
+                            </button>
+</div>
+</div>
+<!-- Statistics Card -->
+<div class="bg-primary-container text-white rounded-xl p-6 relative overflow-hidden">
+<div class="relative z-10">
+<p class="text-sm font-medium opacity-80">Armazenamento Usado</p>
+<h4 class="text-3xl font-bold mt-1">42.8 GB <span class="text-xs font-normal opacity-70">de 100 GB</span></h4>
+<div class="w-full bg-white/20 h-2 rounded-full mt-6">
+<div class="w-[42%] bg-white h-full rounded-full"></div>
+</div>
+<p class="text-[11px] mt-4 font-medium italic">* Plano Pro Academy ativado</p>
+</div>
+<span class="material-symbols-outlined absolute -right-4 -bottom-4 text-9xl opacity-10" data-icon="analytics" style="font-variation-settings: 'FILL' 1;">analytics</span>
+</div>
+</div>
+<!-- Right: Tabs and File List -->
+<div class="col-span-12 lg:col-span-8 bg-surface-container-lowest rounded-xl p-8 border border-outline-variant/5">
+<!-- Custom Tabs -->
+<div class="flex gap-8 mb-8 border-b border-outline-variant/10">
+<button class="pb-4 text-sm font-bold text-primary-container border-b-2 border-primary-container transition-all">
+                            Materiais da Turma
+                        </button>
+<button class="pb-4 text-sm font-semibold text-on-surface-variant hover:text-on-surface transition-all">
+                            Biblioteca Geral
+                        </button>
+</div>
+<!-- Filter Bar -->
+<div class="flex items-center justify-between mb-6">
+<div class="flex items-center gap-4">
+<span class="text-xs font-bold text-on-surface-variant">Filtrar por:</span>
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-surface-container-low text-[10px] font-bold rounded-full cursor-pointer hover:bg-surface-container transition-colors">MAIS RECENTES</span>
+<span class="px-3 py-1 bg-primary-container/10 text-primary-container text-[10px] font-bold rounded-full cursor-pointer">MAIOR TAMANHO</span>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="p-2 bg-surface-container-low rounded-lg text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined text-xl" data-icon="grid_view">grid_view</span>
+</button>
+<button class="p-2 bg-surface-container-high rounded-lg text-primary-container">
+<span class="material-symbols-outlined text-xl" data-icon="view_list">view_list</span>
+</button>
+</div>
+</div>
+<!-- File List -->
+<div class="space-y-2">
+<!-- File Item 1 -->
+<div class="group flex items-center justify-between p-4 rounded-xl hover:bg-surface-container-low transition-all">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-orange-100 flex items-center justify-center rounded-lg text-primary-container">
+<span class="material-symbols-outlined text-2xl" data-icon="picture_as_pdf">picture_as_pdf</span>
+</div>
+<div>
+<h5 class="text-sm font-bold text-on-surface">Introdução ao Design de Eventos.pdf</h5>
+<div class="flex items-center gap-3 mt-1">
+<span class="text-[11px] text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="history">history</span>
+                                            v2.4
+                                        </span>
+<span class="text-[11px] text-on-surface-variant">Publicado em: 12 Out, 2023</span>
+<span class="px-2 py-0.5 bg-green-100 text-green-700 text-[9px] font-bold rounded uppercase">Visível</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-white rounded-full transition-colors" title="Download">
+<span class="material-symbols-outlined text-lg text-on-surface-variant" data-icon="download">download</span>
+</button>
+<button class="p-2 hover:bg-white rounded-full transition-colors" title="Versões">
+<span class="material-symbols-outlined text-lg text-on-surface-variant" data-icon="update">update</span>
+</button>
+<button class="p-2 hover:bg-white rounded-full transition-colors" title="Mais opções">
+<span class="material-symbols-outlined text-lg text-on-surface-variant" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+</div>
+<!-- File Item 2 -->
+<div class="group flex items-center justify-between p-4 rounded-xl hover:bg-surface-container-low transition-all">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-blue-100 flex items-center justify-center rounded-lg text-tertiary-container">
+<span class="material-symbols-outlined text-2xl" data-icon="video_library">video_library</span>
+</div>
+<div>
+<h5 class="text-sm font-bold text-on-surface">Aula 04 - Logística e Operações.mp4</h5>
+<div class="flex items-center gap-3 mt-1">
+<span class="text-[11px] text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="history">history</span>
+                                            v1.0
+                                        </span>
+<span class="text-[11px] text-on-surface-variant">Publicado em: 15 Out, 2023</span>
+<span class="px-2 py-0.5 bg-green-100 text-green-700 text-[9px] font-bold rounded uppercase">Visível</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-white rounded-full transition-colors">
+<span class="material-symbols-outlined text-lg text-on-surface-variant" data-icon="download">download</span>
+</button>
+<button class="p-2 hover:bg-white rounded-full transition-colors">
+<span class="material-symbols-outlined text-lg text-on-surface-variant" data-icon="update">update</span>
+</button>
+<button class="p-2 hover:bg-white rounded-full transition-colors">
+<span class="material-symbols-outlined text-lg text-on-surface-variant" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+</div>
+<!-- File Item 3 -->
+<div class="group flex items-center justify-between p-4 rounded-xl hover:bg-surface-container-low transition-all">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-purple-100 flex items-center justify-center rounded-lg text-purple-600">
+<span class="material-symbols-outlined text-2xl" data-icon="description">description</span>
+</div>
+<div>
+<h5 class="text-sm font-bold text-on-surface">Planilha de Custos_Template.xlsx</h5>
+<div class="flex items-center gap-3 mt-1">
+<span class="text-[11px] text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="history">history</span>
+                                            v3.1
+                                        </span>
+<span class="text-[11px] text-on-surface-variant">Publicado em: 18 Out, 2023</span>
+<span class="px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-bold rounded uppercase">Rascunho</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-white rounded-full transition-colors">
+<span class="material-symbols-outlined text-lg text-on-surface-variant" data-icon="download">download</span>
+</button>
+<button class="p-2 hover:bg-white rounded-full transition-colors">
+<span class="material-symbols-outlined text-lg text-on-surface-variant" data-icon="update">update</span>
+</button>
+<button class="p-2 hover:bg-white rounded-full transition-colors">
+<span class="material-symbols-outlined text-lg text-on-surface-variant" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+</div>
+<!-- Empty State Filler -->
+<div class="mt-12 py-12 flex flex-col items-center justify-center text-center opacity-40">
+<span class="material-symbols-outlined text-6xl mb-4" data-icon="auto_stories">auto_stories</span>
+<p class="text-sm font-bold">Fim da lista atual</p>
+<p class="text-xs mt-1">Exibindo 24 de 1.402 arquivos</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- NavigationDrawer for Contextual Info -->
+<div class="fixed inset-y-0 right-0 w-[400px] bg-white shadow-2xl z-[60] transform translate-x-full transition-transform duration-300 hidden md:flex flex-col border-l border-outline-variant/10">
+<div class="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low">
+<div>
+<h4 class="font-headline font-bold text-lg">Detalhes Rápidos</h4>
+<p class="text-[11px] text-on-surface-variant font-medium">Informações do Registro</p>
+</div>
+<button class="p-2 hover:bg-white rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+</div>
+<div class="p-6 space-y-8 flex-1 overflow-y-auto">
+<div class="flex gap-4 p-4 bg-orange-50 rounded-lg">
+<div class="flex-1">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary-container" data-icon="info" style="font-variation-settings: 'FILL' 1;">info</span>
+<h5 class="text-sm font-bold text-primary-container">Visão Geral</h5>
+</div>
+<div class="space-y-4">
+<div>
+<p class="text-[10px] uppercase tracking-tighter text-on-surface-variant font-bold">Autor</p>
+<p class="text-sm font-semibold">Ricardo Silva</p>
+</div>
+<div>
+<p class="text-[10px] uppercase tracking-tighter text-on-surface-variant font-bold">Localização</p>
+<p class="text-sm font-semibold">Turma Alpha / Módulo 01</p>
+</div>
+<div>
+<p class="text-[10px] uppercase tracking-tighter text-on-surface-variant font-bold">Data de Criação</p>
+<p class="text-sm font-semibold">12 de Outubro de 2023</p>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<h5 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Histórico de Versões</h5>
+<div class="space-y-3">
+<div class="flex items-start gap-3 pl-2 border-l-2 border-primary-container/20">
+<div class="w-2 h-2 rounded-full bg-primary-container mt-1.5 -ml-[9px]"></div>
+<div>
+<p class="text-xs font-bold">v2.4 - Atualização de PDF</p>
+<p class="text-[10px] text-on-surface-variant">Há 2 dias por Ricardo Silva</p>
+</div>
+</div>
+<div class="flex items-start gap-3 pl-2 border-l-2 border-outline-variant/20">
+<div class="w-2 h-2 rounded-full bg-outline-variant mt-1.5 -ml-[9px]"></div>
+<div>
+<p class="text-xs font-semibold">v2.3 - Correção de Tipos</p>
+<p class="text-[10px] text-on-surface-variant">Em 05 de Out por Sistema</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6 border-t border-outline-variant/10 flex gap-3">
+<button class="flex-1 py-3 bg-on-surface text-white text-xs font-bold uppercase tracking-widest rounded-lg">Editar Arquivo</button>
+<button class="p-3 bg-surface-container-high rounded-lg">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+</button>
+</div>
+</div>
+</body></html>
