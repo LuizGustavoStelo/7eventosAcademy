@@ -117,11 +117,11 @@
 </a>
 <a class="flex items-center gap-3 px-6 py-3 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-all duration-200 font-['Manrope'] font-semibold tracking-tight" href="#">
 <span class="material-symbols-outlined">live_tv</span>
-<span>Operação de lives</span>
+<span>Opera??o de lives</span>
 </a>
 <a class="flex items-center gap-3 px-6 py-3 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-all duration-200 font-['Manrope'] font-semibold tracking-tight" href="#">
 <span class="material-symbols-outlined">settings</span>
-<span>Configurações</span>
+<span>Configura??es</span>
 </a>
 </nav>
 <div class="mt-auto px-4 space-y-4">
@@ -149,9 +149,9 @@
 <input class="w-full bg-zinc-100 border-none rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all outline-none" placeholder="Buscar alunos, turmas ou materiais..." type="text"/>
 </div>
 <nav class="hidden lg:flex items-center gap-8 ml-4">
-<a class="text-[#ff5c00] font-headline text-sm font-semibold border-b-2 border-[#ff5c00] pb-2" href="#">Visão geral</a>
-<a class="text-zinc-500 hover:text-zinc-800 font-headline text-sm font-medium transition-opacity" href="#">Análises</a>
-<a class="text-zinc-500 hover:text-zinc-800 font-headline text-sm font-medium transition-opacity" href="#">Relatórios</a>
+<a class="text-[#ff5c00] font-headline text-sm font-semibold border-b-2 border-[#ff5c00] pb-2" href="#">Vis?o geral</a>
+<a class="text-zinc-500 hover:text-zinc-800 font-headline text-sm font-medium transition-opacity" href="#">An?lises</a>
+<a class="text-zinc-500 hover:text-zinc-800 font-headline text-sm font-medium transition-opacity" href="#">Relat?rios</a>
 </nav>
 </div>
 <div class="flex items-center gap-4">
@@ -179,10 +179,10 @@
 <div class="flex justify-between items-end">
 <div>
 <h2 class="font-headline text-3xl font-bold tracking-tight text-zinc-900" id="welcome-title">Bom dia, Professor(a)</h2>
-<p class="text-on-surface-variant font-body mt-1">Aqui está o que precisa de sua atenção hoje.</p>
+<p class="text-on-surface-variant font-body mt-1">Aqui est? o que precisa de sua aten??o hoje.</p>
 </div>
 <div class="flex gap-3">
-<button class="bg-surface-container-low text-zinc-700 px-4 py-2.5 rounded-xl font-headline text-sm font-semibold hover:bg-surface-container-high transition-colors flex items-center gap-2">
+<button id="dashboard-go-agenda" class="bg-surface-container-low text-zinc-700 px-4 py-2.5 rounded-xl font-headline text-sm font-semibold hover:bg-surface-container-high transition-colors flex items-center gap-2">
 <span class="material-symbols-outlined text-lg">calendar_today</span>
                         Agenda
                     </button>
@@ -230,7 +230,7 @@
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-2xl relative overflow-hidden flex flex-col justify-between min-h-[140px]">
 <div class="flex justify-between items-start">
-<span class="text-on-surface-variant font-label text-[10px] font-extrabold uppercase tracking-widest" id="kpi-occupancy-label">Ocupação de vagas</span>
+<span class="text-on-surface-variant font-label text-[10px] font-extrabold uppercase tracking-widest" id="kpi-occupancy-label">Ocupa??o de vagas</span>
 <div class="w-8 h-8 rounded-lg bg-primary/5 flex items-center justify-center text-primary">
 <span class="material-symbols-outlined text-xl">event_available</span>
 </div>
@@ -241,7 +241,7 @@
 <span class="text-emerald-600 text-xs font-bold flex items-center tracking-tight">
 <span class="material-symbols-outlined text-sm" id="kpi-occupancy-trend-icon">arrow_upward</span> <span id="kpi-occupancy-trend-value">0%</span>
                             </span>
-<span class="text-[10px] text-on-surface-variant font-medium" id="kpi-occupancy-note">ocupação média atual</span>
+<span class="text-[10px] text-on-surface-variant font-medium" id="kpi-occupancy-note">ocupa??o m?dia atual</span>
 </div>
 </div>
 <div class="absolute top-0 left-0 w-1 h-full bg-primary/20"></div>
@@ -257,9 +257,9 @@
 <div class="font-headline text-4xl font-bold text-zinc-900" id="kpi-finance-value">R$ 0,00</div>
 <div class="flex items-center gap-1 mt-2">
 <span class="text-error text-xs font-bold flex items-center tracking-tight">
-<span class="material-symbols-outlined text-sm" id="kpi-finance-trend-icon">warning</span> <span id="kpi-finance-trend-value">0 pendências</span>
+<span class="material-symbols-outlined text-sm" id="kpi-finance-trend-icon">warning</span> <span id="kpi-finance-trend-value">0 pend?ncias</span>
                             </span>
-<span class="text-[10px] text-on-surface-variant font-medium" id="kpi-finance-note">requer ação</span>
+<span class="text-[10px] text-on-surface-variant font-medium" id="kpi-finance-note">requer a??o</span>
 </div>
 </div>
 <div class="absolute top-0 left-0 w-1 h-full bg-error"></div>
@@ -272,19 +272,19 @@
 <!-- Agenda Cards Section -->
 <div>
 <div class="flex justify-between items-center mb-4">
-<h3 class="font-headline text-lg font-bold text-zinc-900">Agenda acadêmica de hoje</h3>
-<button class="text-primary font-label text-[11px] font-bold uppercase tracking-wider hover:underline">Ver agenda</button>
+<h3 class="font-headline text-lg font-bold text-zinc-900">Agenda acad?mica de hoje</h3>
+<button id="dashboard-go-agenda-inline" class="text-primary font-label text-[11px] font-bold uppercase tracking-wider hover:underline">Ver agenda</button>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 <!-- Live Class Card -->
 <div class="bg-zinc-900 text-white p-5 rounded-2xl shadow-xl shadow-zinc-900/10 relative overflow-hidden group">
 <div class="absolute top-0 right-0 w-32 h-32 bg-primary/20 blur-3xl -mr-10 -mt-10"></div>
 <div class="flex justify-between items-start relative z-10">
-<span class="bg-primary/20 text-primary border border-primary/30 px-2 py-1 rounded text-[10px] font-bold tracking-widest uppercase" id="agenda-primary-badge">Próxima turma</span>
-<span class="text-white/60 text-xs font-medium" id="agenda-primary-time">Sem horário definido</span>
+<span class="bg-primary/20 text-primary border border-primary/30 px-2 py-1 rounded text-[10px] font-bold tracking-widest uppercase" id="agenda-primary-badge">Pr?xima turma</span>
+<span class="text-white/60 text-xs font-medium" id="agenda-primary-time">Sem hor?rio definido</span>
 </div>
 <div class="mt-6 relative z-10">
-<h4 class="font-headline font-bold text-xl leading-tight" id="agenda-primary-title">Sem eventos próximos</h4>
+<h4 class="font-headline font-bold text-xl leading-tight" id="agenda-primary-title">Sem eventos pr?ximos</h4>
 <p class="text-white/60 text-sm mt-1" id="agenda-primary-subtitle">Cadastre turmas para montar sua agenda.</p>
 </div>
 <div class="mt-8 flex justify-between items-center relative z-10">
@@ -303,8 +303,8 @@
 <!-- In-person Class Card -->
 <div class="bg-surface-container-lowest p-5 rounded-2xl shadow-sm border border-zinc-200/50 hover:border-primary/30 transition-all group">
 <div class="flex justify-between items-start">
-<span class="bg-surface-container-high text-zinc-600 px-2 py-1 rounded text-[10px] font-bold tracking-widest uppercase" id="agenda-secondary-badge">Próxima atividade</span>
-<span class="text-on-surface-variant text-xs font-medium" id="agenda-secondary-time">Sem horário definido</span>
+<span class="bg-surface-container-high text-zinc-600 px-2 py-1 rounded text-[10px] font-bold tracking-widest uppercase" id="agenda-secondary-badge">Pr?xima atividade</span>
+<span class="text-on-surface-variant text-xs font-medium" id="agenda-secondary-time">Sem hor?rio definido</span>
 </div>
 <div class="mt-6">
 <h4 class="font-headline font-bold text-xl text-zinc-900 leading-tight" id="agenda-secondary-title">Sem atividades pendentes</h4>
@@ -325,7 +325,7 @@
 <!-- Pending Tasks List -->
 <div class="bg-surface-container-low rounded-3xl p-8">
 <div class="flex justify-between items-center mb-6">
-<h3 class="font-headline text-lg font-bold text-zinc-900">Operações pendentes</h3>
+<h3 class="font-headline text-lg font-bold text-zinc-900">Opera��es pendentes</h3>
 <span class="bg-error/10 text-error px-3 py-1 rounded-full text-[11px] font-bold" id="pending-urgent-badge">0 urgentes</span>
 </div>
 <div class="space-y-4" id="pending-operations-list">
@@ -336,8 +336,8 @@
 <span class="material-symbols-outlined">check_circle</span>
 </div>
 <div>
-<h5 class="font-body text-sm font-bold text-zinc-900">Lançar presença da aula "Design Thinking"</h5>
-<p class="text-xs text-on-surface-variant mt-0.5">Prazo de hoje ⬢ 14 alunos pendentes</p>
+<h5 class="font-body text-sm font-bold text-zinc-900">Lan?ar presen?a da aula "Design Thinking"</h5>
+<p class="text-xs text-on-surface-variant mt-0.5">Prazo de hoje " 14 alunos pendentes</p>
 </div>
 </div>
 <button class="text-zinc-400 hover:text-zinc-900">
@@ -351,8 +351,8 @@
 <span class="material-symbols-outlined">upload_file</span>
 </div>
 <div>
-<h5 class="font-body text-sm font-bold text-zinc-900">Publicar material de estudo: Módulo 4</h5>
-<p class="text-xs text-on-surface-variant mt-0.5">Agendado para 16:00 ⬢ PDF/MP4 anexado</p>
+<h5 class="font-body text-sm font-bold text-zinc-900">Publicar material de estudo: M?dulo 4</h5>
+<p class="text-xs text-on-surface-variant mt-0.5">Agendado para 16:00 " PDF/MP4 anexado</p>
 </div>
 </div>
 <button class="text-zinc-400 hover:text-zinc-900">
@@ -367,7 +367,7 @@
 </div>
 <div>
 <h5 class="font-body text-sm font-bold text-zinc-900">Revisar propostas de projeto final</h5>
-<p class="text-xs text-on-surface-variant mt-0.5">8 envios ⬢ Turma de Pós-Graduação A</p>
+<p class="text-xs text-on-surface-variant mt-0.5">8 envios " Turma de P�s-Gradua??o A</p>
 </div>
 </div>
 <button class="text-zinc-400 hover:text-zinc-900">
@@ -389,32 +389,32 @@
 <div class="relative pl-6 border-l-2 border-zinc-100 hover:border-primary transition-colors cursor-pointer">
 <div class="absolute -left-[5px] top-0 w-2 h-2 rounded-full bg-zinc-200"></div>
 <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Ontem</span>
-<h5 class="font-body text-sm font-bold text-zinc-900 mt-1">Manutenção da plataforma</h5>
-<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">O sistema ficará indisponível por 2 horas neste domingo para atualização da versão 4.0.</p>
+<h5 class="font-body text-sm font-bold text-zinc-900 mt-1">Manuten??o da plataforma</h5>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">O sistema ficar? indispon?vel por 2 horas neste domingo para atualiza??o da vers�o 4.0.</p>
 </div>
 <div class="relative pl-6 border-l-2 border-zinc-100 hover:border-primary transition-colors cursor-pointer">
 <div class="absolute -left-[5px] top-0 w-2 h-2 rounded-full bg-zinc-200"></div>
-<span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Há 2 dias</span>
-<h5 class="font-body text-sm font-bold text-zinc-900 mt-1">Nova política de matrículas</h5>
-<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">Regras atualizadas para adiamento de pagamentos e solicitações de bolsa.</p>
+<span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">H? 2 dias</span>
+<h5 class="font-body text-sm font-bold text-zinc-900 mt-1">Nova pol?tica de matr?culas</h5>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">Regras atualizadas para adiamento de pagamentos e solicita??es de bolsa.</p>
 </div>
 <div class="relative pl-6 border-l-2 border-zinc-100 hover:border-primary transition-colors cursor-pointer">
 <div class="absolute -left-[5px] top-0 w-2 h-2 rounded-full bg-zinc-200"></div>
 <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Oct 12</span>
-<h5 class="font-body text-sm font-bold text-zinc-900 mt-1">Prêmio Academy 2024</h5>
-<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">As inscrições para "Melhor Inovação Pedagógica" estão abertas para professores.</p>
+<h5 class="font-body text-sm font-bold text-zinc-900 mt-1">Pr?mio Academy 2024</h5>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">As inscri??es para "Melhor Inova??o Pedag�gica" est?o abertas para professores.</p>
 </div>
 </div>
 <button class="w-full mt-8 py-3 text-center border border-zinc-200 rounded-xl font-headline text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition-all">
                             Ver todos os avisos
                         </button>
 </div>
-<!-- Bloco Resumo r�pido -->
+<!-- Bloco Resumo r?pido -->
 <div class="bg-white rounded-3xl p-6 shadow-2xl relative overflow-hidden">
 <div class="absolute top-0 right-0 p-4 opacity-5">
 <span class="material-symbols-outlined text-8xl">insights</span>
 </div>
-<h4 class="font-headline text-md font-bold text-zinc-800 mb-4">Resumo rápido</h4>
+<h4 class="font-headline text-md font-bold text-zinc-800 mb-4">Resumo r?pido</h4>
 <div class="space-y-4">
 <div class="flex items-center justify-between p-3 rounded-lg bg-zinc-50">
 <div class="flex items-center gap-3">
@@ -433,7 +433,7 @@
 <div class="flex items-center justify-between p-3 rounded-lg bg-zinc-50">
 <div class="flex items-center gap-3">
 <span class="material-symbols-outlined text-primary">insights</span>
-<span class="text-sm font-medium text-zinc-600">Resumo rápido</span>
+<span class="text-sm font-medium text-zinc-600">Resumo r?pido</span>
 </div>
 <span class="material-symbols-outlined text-zinc-400 text-sm">chevron_right</span>
 </div>

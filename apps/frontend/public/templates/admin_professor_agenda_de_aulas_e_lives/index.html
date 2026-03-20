@@ -1,379 +1,224 @@
-<!DOCTYPE html>
-
-<html class="light" lang="pt-BR"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Agenda | 7Eventos Academy</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-          darkMode: "class",
-          theme: {
-            extend: {
-              colors: {
-                "on-surface-variant": "#5b4137",
-                "error": "#ba1a1a",
-                "secondary-container": "#fe8c5f",
-                "on-error": "#ffffff",
-                "inverse-surface": "#303030",
-                "inverse-primary": "#ffb59a",
-                "tertiary-container": "#0096fd",
-                "surface": "#f9f9f9",
-                "on-surface": "#1b1b1b",
-                "on-secondary-fixed-variant": "#7e2c04",
-                "surface-container": "#eeeeee",
-                "outline": "#8f7065",
-                "on-tertiary": "#ffffff",
-                "on-primary-container": "#521800",
-                "secondary-fixed-dim": "#ffb59a",
-                "on-secondary-container": "#742500",
-                "on-secondary": "#ffffff",
-                "on-error-container": "#93000a",
-                "on-background": "#1b1b1b",
-                "surface-container-highest": "#e2e2e2",
-                "on-primary-fixed": "#370e00",
-                "tertiary-fixed-dim": "#a0c9ff",
-                "secondary": "#9d431b",
-                "on-primary-fixed-variant": "#802a00",
-                "tertiary-fixed": "#d2e4ff",
-                "on-tertiary-fixed-variant": "#00497f",
-                "surface-container-high": "#e8e8e8",
-                "surface-tint": "#a73a00",
-                "primary-fixed-dim": "#ffb59a",
-                "primary": "#a73a00",
-                "inverse-on-surface": "#f1f1f1",
-                "tertiary": "#0061a6",
-                "error-container": "#ffdad6",
-                "primary-container": "#ff5c00",
-                "surface-container-low": "#f3f3f3",
-                "on-primary": "#ffffff",
-                "background": "#f9f9f9",
-                "surface-dim": "#dadada",
-                "on-tertiary-fixed": "#001c37",
-                "surface-bright": "#f9f9f9",
-                "outline-variant": "#e4beb1",
-                "secondary-fixed": "#ffdbce",
-                "on-tertiary-container": "#002d51",
-                "on-secondary-fixed": "#370e00",
-                "surface-variant": "#e2e2e2",
-                "surface-container-lowest": "#ffffff",
-                "primary-fixed": "#ffdbce"
-              },
-              fontFamily: {
-                "headline": ["Manrope"],
-                "body": ["Inter"],
-                "label": ["Inter"]
-              },
-              borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
-            },
+﻿<!DOCTYPE html>
+<html class="light" lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agenda | 7Eventos Academy</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface": "#f9f9f9",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#f3f3f3",
+            "surface-container": "#eeeeee",
+            "surface-container-high": "#e8e8e8",
+            "on-surface": "#1b1b1b",
+            "on-surface-variant": "#5b4137",
+            "primary": "#a73a00",
+            "primary-container": "#ff5c00",
+            "error": "#ba1a1a"
           },
+          fontFamily: {
+            "headline": ["Manrope"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          }
         }
-    </script>
-<style>
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-            vertical-align: middle;
-        }
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-        }
-    </style>
+      }
+    }
+  </script>
+  <style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      vertical-align: middle;
+    }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+    .day-cell {
+      min-height: 118px;
+    }
+  </style>
 </head>
 <body class="bg-surface font-body text-on-surface">
-<!-- SideNavBar (Fixed Monolith) -->
-<aside class="fixed left-0 top-0 bottom-0 z-40 overflow-y-auto w-[264px] h-screen border-r border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-950 backdrop-blur-20">
-<div class="p-8">
-<h1 class="font-manrope font-bold text-2xl text-zinc-900 dark:text-white">7Eventos</h1>
-<p class="text-xs text-zinc-500 font-medium tracking-wider uppercase">Academy Admin</p>
-</div>
-<nav class="mt-4 flex flex-col gap-1 px-4">
-<a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors" href="#">
-<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
-<span class="text-sm font-medium">Painel</span>
-</a>
-<!-- Active State: Agenda -->
-<a class="flex items-center gap-3 px-4 py-3 text-[#ff5c00] border-l-4 border-[#ff5c00] bg-orange-50/50 dark:bg-orange-900/10" href="#">
-<span class="material-symbols-outlined" data-icon="calendar_today" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
-<span class="text-sm font-bold">Agenda</span>
-</a>
-<a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors" href="#">
-<span class="material-symbols-outlined" data-icon="payments">payments</span>
-<span class="text-sm font-medium">Financeiro</span>
-</a>
-<a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors" href="#">
-<span class="material-symbols-outlined" data-icon="school">school</span>
-<span class="text-sm font-medium">Cursos</span>
-</a>
-<a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors" href="#">
-<span class="material-symbols-outlined" data-icon="group">group</span>
-<span class="text-sm font-medium">Alunos</span>
-</a>
-</nav>
-<div class="px-8 mt-10">
-<button class="w-full bg-gradient-to-r from-primary to-primary-container text-white py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 active:translate-y-px transition-all">
-<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
-                Nova Sessão
-            </button>
-</div>
-<div class="absolute bottom-8 left-0 w-full px-4 flex flex-col gap-1">
-<a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors" href="#">
-<span class="material-symbols-outlined" data-icon="settings">settings</span>
-<span class="text-sm font-medium">Configurações</span>
-</a>
-<a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors" href="#">
-<span class="material-symbols-outlined" data-icon="logout">logout</span>
-<span class="text-sm font-medium">Sair</span>
-</a>
-</div>
-</aside>
-<!-- TopNavBar -->
-<header class="flex items-center justify-between px-8 ml-[264px] sticky top-0 z-30 w-[calc(100%-264px)] h-16 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl shadow-sm shadow-zinc-200/50">
-<div class="flex items-center gap-8">
-<nav class="flex gap-6">
-<a class="text-zinc-500 font-medium hover:text-zinc-800 transition-opacity" href="#">Visão Geral</a>
-<a class="text-[#ff5c00] font-bold border-b-2 border-[#ff5c00] pb-5 translate-y-[2px]" href="#">Relatórios</a>
-<a class="text-zinc-500 font-medium hover:text-zinc-800 transition-opacity" href="#">Arquivados</a>
-</nav>
-</div>
-<div class="flex items-center gap-6">
-<div class="relative group">
-<span class="absolute inset-y-0 left-3 flex items-center text-zinc-400">
-<span class="material-symbols-outlined text-lg" data-icon="search">search</span>
-</span>
-<input class="bg-surface-container-high border-none rounded-full pl-10 pr-4 py-2 text-sm focus:ring-1 focus:ring-primary w-64 transition-all" placeholder="Buscar na agenda..." type="text"/>
-</div>
-<div class="flex items-center gap-3">
-<button class="p-2 text-zinc-500 hover:bg-zinc-100 rounded-full">
-<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
-<button class="p-2 text-zinc-500 hover:bg-zinc-100 rounded-full">
-<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
-</button>
-<div class="w-8 h-8 rounded-full bg-zinc-200 overflow-hidden ml-2 border border-zinc-100">
-<img alt="Avatar do Usuário" class="w-full h-full object-cover" data-alt="Avatar circular do usuário admin" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAPNFZ3xvECZl4nDvgA433a8sjEoVnWqJJ7gPBlW4llawDsNaLlKDDqXtxZ-J9BPa10O-JZ5uCk5sv_jnthd5Vu-ITTnVvGXQ8AzDASkQF3kYEvb-v03EtyzIwZuy36M8EujJvO8XJjIH3DFd8SRd-HXVLge_5Ntka50I16mCL2pJ4g8hwUXO7L6NP_06xhuclGjh21pIz1Aa4TOU-xAtXZRRAkJP7gL5ajbDajRr9E9ul31Sy7whjt0hB6_0RXoQ6QQmmxQpULFLRK"/>
-</div>
-</div>
-</div>
-</header>
-<!-- Main Content -->
-<main class="ml-[264px] p-8 bg-surface min-h-[calc(100vh-64px)]">
-<div class="max-w-7xl mx-auto">
-<!-- Header & View Switcher -->
-<div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-<div>
-<h2 class="font-headline font-bold text-3xl text-on-surface tracking-tight">Agenda de Eventos</h2>
-<p class="text-on-surface-variant font-body mt-1">Gerencie suas aulas e transmissões ao vivo.</p>
-</div>
-<div class="bg-surface-container-low p-1 rounded-xl flex items-center gap-1">
-<button class="px-6 py-2 rounded-lg text-sm font-semibold bg-white shadow-sm text-primary transition-all">Aulas</button>
-<button class="px-6 py-2 rounded-lg text-sm font-semibold text-zinc-500 hover:text-zinc-800 transition-all">Lives</button>
-</div>
-</div>
-<!-- Dashboard Grid -->
-<div class="grid grid-cols-12 gap-8">
-<!-- Calendar Section (Asymmetric Large Block) -->
-<div class="col-span-12 lg:col-span-8">
-<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm shadow-zinc-200/50">
-<!-- Calendar Header -->
-<div class="p-6 border-b border-zinc-50 flex items-center justify-between bg-white">
-<div class="flex items-center gap-4">
-<h3 class="font-headline font-semibold text-xl">Outubro 2023</h3>
-<div class="flex items-center bg-surface-container rounded-lg p-0.5">
-<button class="p-1 hover:text-primary transition-colors"><span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span></button>
-<button class="p-1 hover:text-primary transition-colors"><span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span></button>
-</div>
-</div>
-<div class="flex items-center gap-2">
-<button class="px-4 py-1.5 text-xs font-bold border border-zinc-100 rounded-md hover:bg-zinc-50">Hoje</button>
-<select class="text-xs font-bold border-none bg-surface-container-low rounded-md py-1.5 focus:ring-0">
-<option>Mês</option>
-<option>Semana</option>
-<option>Dia</option>
-</select>
-</div>
-</div>
-<!-- Calendar Content -->
-<div class="calendar-grid text-center border-b border-zinc-50 bg-zinc-50/30">
-<div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Dom</div>
-<div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Seg</div>
-<div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Ter</div>
-<div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Qua</div>
-<div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Qui</div>
-<div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Sex</div>
-<div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Sáb</div>
-</div>
-<div class="calendar-grid h-[500px]">
-<!-- Days -->
-<div class="border-r border-b border-zinc-50 p-2 opacity-30 text-xs font-medium">27</div>
-<div class="border-r border-b border-zinc-50 p-2 opacity-30 text-xs font-medium">28</div>
-<div class="border-r border-b border-zinc-50 p-2 opacity-30 text-xs font-medium">29</div>
-<div class="border-r border-b border-zinc-50 p-2 opacity-30 text-xs font-medium">30</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">1</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">2</div>
-<div class="border-b border-zinc-50 p-2 text-xs font-medium">3</div>
-<!-- Day with Event -->
-<div class="border-r border-b border-zinc-50 p-2 relative group hover:bg-zinc-50/50 cursor-pointer">
-<span class="text-xs font-medium">4</span>
-<div class="mt-1 space-y-1">
-<div class="bg-orange-100 text-[#a73a00] text-[10px] p-1.5 rounded-md font-bold leading-tight">Aula: Marketing Digital</div>
-<div class="bg-blue-100 text-blue-800 text-[10px] p-1.5 rounded-md font-bold leading-tight">Live: Mentoria Turma A</div>
-</div>
-</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">5</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">6</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">7</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">8</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">9</div>
-<div class="border-b border-zinc-50 p-2 text-xs font-medium">10</div>
-<!-- Selected Day -->
-<div class="border-r border-b border-zinc-50 p-2 bg-primary/5 relative">
-<span class="text-xs font-bold text-primary">11</span>
-<div class="mt-1">
-<div class="bg-[#ff5c00] text-white text-[10px] p-1.5 rounded-md font-bold leading-tight shadow-md">Workshop Avançado</div>
-</div>
-<div class="absolute top-2 right-2 w-1.5 h-1.5 bg-primary rounded-full"></div>
-</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">12</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">13</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">14</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">15</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">16</div>
-<div class="border-b border-zinc-50 p-2 text-xs font-medium">17</div>
-<!-- Empty days placeholder -->
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">18</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">19</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">20</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">21</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">22</div>
-<div class="border-r border-b border-zinc-50 p-2 text-xs font-medium">23</div>
-<div class="border-b border-zinc-50 p-2 text-xs font-medium">24</div>
-</div>
-</div>
-</div>
-<!-- Quick Creation Panel (Right Column) -->
-<div class="col-span-12 lg:col-span-4 space-y-6">
-<!-- Create Session Card -->
-<div class="bg-white rounded-2xl p-6 shadow-sm border border-zinc-50">
-<div class="flex items-center gap-3 mb-6">
-<div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-primary">
-<span class="material-symbols-outlined" data-icon="bolt">bolt</span>
-</div>
-<h3 class="font-headline font-bold text-lg">Criação Rápida</h3>
-</div>
-<form class="space-y-4">
-<div>
-<label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Tipo de Sessão</label>
-<div class="grid grid-cols-2 gap-2">
-<button class="flex items-center justify-center gap-2 py-2 px-4 rounded-lg border-2 border-primary text-primary font-bold text-xs bg-orange-50/50" type="button">
-<span class="material-symbols-outlined text-sm" data-icon="videocam">videocam</span>
-                                        Live
-                                    </button>
-<button class="flex items-center justify-center gap-2 py-2 px-4 rounded-lg border-2 border-zinc-100 text-zinc-400 font-bold text-xs hover:bg-zinc-50" type="button">
-<span class="material-symbols-outlined text-sm" data-icon="menu_book">menu_book</span>
-                                        Aula
-                                    </button>
-</div>
-</div>
-<div>
-<label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Título da Live</label>
-<input class="w-full bg-surface-container-high border-none rounded-lg text-sm p-3 focus:ring-1 focus:ring-primary" placeholder="Ex: Mentoria Estratégica" type="text"/>
-</div>
-<div class="grid grid-cols-2 gap-4">
-<div>
-<label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Turma</label>
-<select class="w-full bg-surface-container-high border-none rounded-lg text-sm p-3 focus:ring-1 focus:ring-primary">
-<option>Turma A - 2023</option>
-<option>Turma B - 2023</option>
-</select>
-</div>
-<div>
-<label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Professor</label>
-<select class="w-full bg-surface-container-high border-none rounded-lg text-sm p-3 focus:ring-1 focus:ring-primary">
-<option>Dr. Ricardo Silva</option>
-<option>Ana Clara Mendes</option>
-</select>
-</div>
-</div>
-<div class="grid grid-cols-2 gap-4">
-<div>
-<label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Data</label>
-<input class="w-full bg-surface-container-high border-none rounded-lg text-sm p-3 focus:ring-1 focus:ring-primary" type="date"/>
-</div>
-<div>
-<label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Hora</label>
-<input class="w-full bg-surface-container-high border-none rounded-lg text-sm p-3 focus:ring-1 focus:ring-primary" type="time"/>
-</div>
-</div>
-<div>
-<label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Provedor</label>
-<div class="flex gap-4 items-center">
-<label class="flex items-center gap-2 cursor-pointer group">
-<input checked="" class="text-primary focus:ring-primary border-zinc-300" name="provider" type="radio"/>
-<span class="text-xs font-semibold text-zinc-600 group-hover:text-zinc-900">YouTube</span>
-</label>
-<label class="flex items-center gap-2 cursor-pointer group">
-<input class="text-primary focus:ring-primary border-zinc-300" name="provider" type="radio"/>
-<span class="text-xs font-semibold text-zinc-600 group-hover:text-zinc-900">Zoom</span>
-</label>
-<label class="flex items-center gap-2 cursor-pointer group">
-<input class="text-primary focus:ring-primary border-zinc-300" name="provider" type="radio"/>
-<span class="text-xs font-semibold text-zinc-600 group-hover:text-zinc-900">Meet</span>
-</label>
-</div>
-</div>
-<button class="w-full bg-zinc-900 text-white py-4 rounded-xl font-bold text-sm mt-4 hover:bg-black transition-colors flex items-center justify-center gap-2">
-<span class="material-symbols-outlined text-sm" data-icon="send">send</span>
-                                Agendar Sessão
-                            </button>
-</form>
-</div>
-<!-- Upcoming List -->
-<div class="bg-surface-container-low rounded-2xl p-6">
-<div class="flex items-center justify-between mb-4">
-<h4 class="font-headline font-bold text-sm uppercase tracking-widest text-zinc-500">Próximos Eventos</h4>
-<span class="text-[10px] font-bold text-primary">Ver Tudo</span>
-</div>
-<div class="space-y-4">
-<div class="flex items-start gap-3 bg-white p-3 rounded-xl border border-zinc-50">
-<div class="min-w-[44px] h-[44px] rounded-lg bg-orange-50 flex flex-col items-center justify-center border border-orange-100">
-<span class="text-[10px] font-bold text-primary uppercase leading-none">Out</span>
-<span class="text-lg font-bold text-primary leading-none">12</span>
-</div>
-<div class="overflow-hidden">
-<h5 class="text-xs font-bold text-on-surface truncate">Lançamento de Produto High-End</h5>
-<p class="text-[10px] text-on-surface-variant flex items-center gap-1 mt-0.5">
-<span class="material-symbols-outlined text-[12px]" data-icon="schedule">schedule</span>
-                                        19:00 - 20:30
-                                    </p>
-</div>
-</div>
-<div class="flex items-start gap-3 bg-white p-3 rounded-xl border border-zinc-50">
-<div class="min-w-[44px] h-[44px] rounded-lg bg-zinc-50 flex flex-col items-center justify-center border border-zinc-100">
-<span class="text-[10px] font-bold text-zinc-400 uppercase leading-none">Out</span>
-<span class="text-lg font-bold text-zinc-500 leading-none">15</span>
-</div>
-<div class="overflow-hidden">
-<h5 class="text-xs font-bold text-on-surface truncate">Sessão Individual de Coaching</h5>
-<p class="text-[10px] text-on-surface-variant flex items-center gap-1 mt-0.5">
-<span class="material-symbols-outlined text-[12px]" data-icon="schedule">schedule</span>
-                                        14:00 - 15:00
-                                    </p>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-</main>
-<!-- Contextual FAB (Hidden on this Dashboard per rules but structure remains) -->
-<div class="fixed bottom-8 right-8 hidden lg:block">
-<button class="bg-primary text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all">
-<span class="material-symbols-outlined text-2xl" data-icon="calendar_add_on">calendar_add_on</span>
-</button>
-</div>
-</body></html>
+  <aside class="fixed left-0 top-0 bottom-0 z-40 overflow-y-auto w-[264px] h-screen border-r border-zinc-100 bg-white">
+    <div class="p-8">
+      <h1 class="font-manrope font-bold text-2xl text-zinc-900">7Eventos</h1>
+      <p class="text-xs text-zinc-500 font-medium tracking-wider uppercase">Academy Admin</p>
+    </div>
+    <nav class="mt-4 flex flex-col gap-1 px-4">
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 transition-colors" href="#">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span class="text-sm font-medium">Painel</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-[#ff5c00] border-l-4 border-[#ff5c00] bg-orange-50/50" href="#">
+        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
+        <span class="text-sm font-bold">Agenda</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 transition-colors" href="#">
+        <span class="material-symbols-outlined">payments</span>
+        <span class="text-sm font-medium">Financeiro</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 transition-colors" href="#">
+        <span class="material-symbols-outlined">school</span>
+        <span class="text-sm font-medium">Cursos</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 transition-colors" href="#">
+        <span class="material-symbols-outlined">group</span>
+        <span class="text-sm font-medium">Alunos</span>
+      </a>
+    </nav>
+
+    <div class="px-8 mt-10">
+      <button id="btn-open-quick-create" class="w-full bg-gradient-to-r from-primary to-primary-container text-white py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 active:translate-y-px transition-all">
+        <span class="material-symbols-outlined text-sm">add</span>
+        Nova sessão
+      </button>
+    </div>
+  </aside>
+
+  <header class="flex items-center justify-between px-8 ml-[264px] sticky top-0 z-30 w-[calc(100%-264px)] h-16 bg-white/90 backdrop-blur-xl shadow-sm shadow-zinc-200/50">
+    <div>
+      <h2 class="font-headline font-bold text-xl text-zinc-900 tracking-tight">Agenda acadêmica</h2>
+      <p class="text-xs text-zinc-500">Planejamento de aulas e lives</p>
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="relative group">
+        <span class="absolute inset-y-0 left-3 flex items-center text-zinc-400">
+          <span class="material-symbols-outlined text-lg">search</span>
+        </span>
+        <input id="calendar-search" class="bg-surface-container-high border-none rounded-full pl-10 pr-4 py-2 text-sm focus:ring-1 focus:ring-primary w-64 transition-all" placeholder="Buscar na agenda..." type="text" />
+      </div>
+      <div class="w-8 h-8 rounded-full bg-zinc-200 overflow-hidden border border-zinc-100">
+        <img alt="Avatar do usuário" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAPNFZ3xvECZl4nDvgA433a8sjEoVnWqJJ7gPBlW4llawDsNaLlKDDqXtxZ-J9BPa10O-JZ5uCk5sv_jnthd5Vu-ITTnVvGXQ8AzDASkQF3kYEvb-v03EtyzIwZuy36M8EujJvO8XJjIH3DFd8SRd-HXVLge_5Ntka50I16mCL2pJ4g8hwUXO7L6NP_06xhuclGjh21pIz1Aa4TOU-xAtXZRRAkJP7gL5ajbDajRr9E9ul31Sy7whjt0hB6_0RXoQ6QQmmxQpULFLRK" />
+      </div>
+    </div>
+  </header>
+
+  <main class="ml-[264px] p-8 bg-surface min-h-[calc(100vh-64px)]">
+    <div class="max-w-7xl mx-auto">
+      <div class="grid grid-cols-12 gap-8">
+        <div class="col-span-12 lg:col-span-8">
+          <div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm shadow-zinc-200/50">
+            <div class="p-6 border-b border-zinc-50 flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white">
+              <div class="flex items-center gap-4">
+                <h3 id="calendar-month-title" class="font-headline font-semibold text-xl">-</h3>
+                <div class="flex items-center bg-surface-container rounded-lg p-0.5">
+                  <button id="btn-prev-month" class="p-1 hover:text-primary transition-colors"><span class="material-symbols-outlined">chevron_left</span></button>
+                  <button id="btn-next-month" class="p-1 hover:text-primary transition-colors"><span class="material-symbols-outlined">chevron_right</span></button>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <button id="btn-today" class="px-4 py-1.5 text-xs font-bold border border-zinc-100 rounded-md hover:bg-zinc-50">Hoje</button>
+                <div class="bg-surface-container-low p-1 rounded-xl flex items-center gap-1">
+                  <button id="filter-all" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-white text-primary shadow-sm">Todos</button>
+                  <button id="filter-class" class="px-4 py-1.5 rounded-lg text-xs font-semibold text-zinc-600 hover:text-zinc-900">Aulas</button>
+                  <button id="filter-live" class="px-4 py-1.5 rounded-lg text-xs font-semibold text-zinc-600 hover:text-zinc-900">Lives</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="calendar-grid text-center border-b border-zinc-50 bg-zinc-50/30">
+              <div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Dom</div>
+              <div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Seg</div>
+              <div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Ter</div>
+              <div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Qua</div>
+              <div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Qui</div>
+              <div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Sex</div>
+              <div class="py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Sáb</div>
+            </div>
+
+            <div id="calendar-days" class="calendar-grid"></div>
+          </div>
+        </div>
+
+        <div class="col-span-12 lg:col-span-4 space-y-6">
+          <div class="bg-white rounded-2xl p-6 shadow-sm border border-zinc-50">
+            <div class="flex items-center gap-3 mb-6">
+              <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-primary">
+                <span class="material-symbols-outlined">bolt</span>
+              </div>
+              <h3 class="font-headline font-bold text-lg">Criação rápida</h3>
+            </div>
+
+            <form id="quick-create-form" class="space-y-4">
+              <div>
+                <label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Tipo de sessão</label>
+                <div class="grid grid-cols-2 gap-2">
+                  <button id="type-class" class="session-type-btn flex items-center justify-center py-2 px-2 rounded-lg border-2 border-primary text-primary font-bold text-xs bg-orange-50/50" data-type="class" type="button">Aula</button>
+                  <button id="type-live" class="session-type-btn flex items-center justify-center py-2 px-2 rounded-lg border-2 border-zinc-100 text-zinc-500 font-bold text-xs" data-type="live" type="button">Live</button>
+                </div>
+              </div>
+
+              <div>
+                <label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Título</label>
+                <input id="quick-title" class="w-full bg-surface-container-high border-none rounded-lg text-sm p-3 focus:ring-1 focus:ring-primary" placeholder="Ex: Aula de métricas avançadas" type="text" required />
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Turma</label>
+                  <select id="quick-class-id" class="w-full bg-surface-container-high border-none rounded-lg text-sm p-3 focus:ring-1 focus:ring-primary">
+                    <option value="">Sem turma</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Professor</label>
+                  <input id="quick-teacher" class="w-full bg-surface-container-high border-none rounded-lg text-sm p-3 focus:ring-1 focus:ring-primary" type="text" readonly />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Data</label>
+                  <input id="quick-date" class="w-full bg-surface-container-high border-none rounded-lg text-sm p-3 focus:ring-1 focus:ring-primary" type="date" required />
+                </div>
+                <div>
+                  <label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Hora</label>
+                  <input id="quick-time" class="w-full bg-surface-container-high border-none rounded-lg text-sm p-3 focus:ring-1 focus:ring-primary" type="time" required />
+                </div>
+              </div>
+
+              <div id="provider-wrap">
+                <label class="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1 block">Provedor (live)</label>
+                <select id="quick-provider" class="w-full bg-surface-container-high border-none rounded-lg text-sm p-3 focus:ring-1 focus:ring-primary">
+                  <option value="YouTube">YouTube</option>
+                  <option value="Zoom">Zoom</option>
+                  <option value="Meet">Meet</option>
+                </select>
+              </div>
+
+              <button class="w-full bg-zinc-900 text-white py-4 rounded-xl font-bold text-sm mt-4 hover:bg-black transition-colors flex items-center justify-center gap-2" type="submit">
+                <span class="material-symbols-outlined text-sm">send</span>
+                Agendar sessão
+              </button>
+            </form>
+          </div>
+
+          <div class="bg-surface-container-low rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h4 class="font-headline font-bold text-sm uppercase tracking-widest text-zinc-500">Próximos eventos</h4>
+              <span id="upcoming-count" class="text-[10px] font-bold text-primary">0 itens</span>
+            </div>
+            <div id="upcoming-events-list" class="space-y-4">
+              <div class="bg-white p-3 rounded-xl border border-zinc-50">
+                <p class="text-xs text-zinc-500">Nenhum evento agendado.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="./agenda-data.js"></script>
+</body>
+</html>

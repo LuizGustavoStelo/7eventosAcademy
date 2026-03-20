@@ -244,6 +244,67 @@ table button:disabled {
   left: 12px;
 }
 
+.global-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 42;
+  width: 264px;
+  height: 100vh;
+  background: rgba(255, 255, 255, 0.96);
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 1rem 0.8rem;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 1rem;
+}
+
+.global-sidebar-brand {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.global-sidebar-brand strong {
+  font-size: 1rem;
+}
+
+.global-sidebar-brand small {
+  color: #555;
+  font-size: 0.8rem;
+}
+
+.global-sidebar-nav {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+
+.global-sidebar-nav button {
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #373737;
+  border-radius: 0.65rem;
+  padding: 0.62rem 0.75rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.global-sidebar-nav button:hover {
+  background: rgba(242, 92, 5, 0.08);
+}
+
+.global-sidebar-nav button.active {
+  background: rgba(242, 92, 5, 0.12);
+  border-color: rgba(242, 92, 5, 0.35);
+  color: #a73a00;
+}
+
 .viewer-overlay-right {
   top: 12px;
   right: 12px;
@@ -396,6 +457,16 @@ table button {
   .viewer-overlay-left select {
     min-width: 0;
     width: 100%;
+  }
+
+  .global-sidebar {
+    width: calc(100vw - 24px);
+    height: auto;
+    max-height: 56vh;
+    left: 12px;
+    top: 12px;
+    border-radius: 12px;
+    overflow: auto;
   }
 
   .viewer-overlay-right {
