@@ -1,0 +1,149 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>7Eventos Academy - Cursos</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#f25c05',
+            surface: '#f7f7f8',
+            card: '#ffffff'
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+    }
+  </style>
+</head>
+<body class="bg-surface font-sans text-zinc-900">
+  <main class="p-6 lg:p-8 space-y-6">
+    <section class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h1 class="text-3xl font-extrabold tracking-tight">Gestão de Cursos</h1>
+        <p class="mt-1 text-sm text-zinc-600">Catálogo acadêmico com configuração de valor, modalidade, categoria e status.</p>
+      </div>
+      <button id="novo-curso" class="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white hover:opacity-90">
+        <span class="material-symbols-outlined text-lg">add</span>
+        Novo curso
+      </button>
+    </section>
+
+    <section id="cards-cursos" class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"></section>
+  </main>
+
+  <div id="modal-overlay" class="fixed inset-0 z-40 hidden bg-black/45 backdrop-blur-[1px]"></div>
+
+  <section id="modal-curso" class="fixed left-1/2 top-1/2 z-50 hidden w-[min(960px,94vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl">
+    <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+      <div>
+        <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">Editor de curso</p>
+        <h2 id="modal-title" class="text-2xl font-extrabold">Novo curso acadêmico</h2>
+      </div>
+      <button id="fechar-modal" class="rounded-full p-2 text-zinc-500 hover:bg-zinc-100">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <div class="grid max-h-[78vh] grid-cols-1 overflow-auto lg:grid-cols-[1fr_290px]">
+      <form id="curso-form" class="space-y-4 p-6">
+        <div>
+          <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-zinc-500">Banner principal</label>
+          <input id="bannerUrl" name="bannerUrl" type="url" placeholder="https://..." class="w-full rounded-xl border-zinc-200 bg-zinc-50 text-sm" />
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-zinc-500">Nome do curso</label>
+            <input id="nome" name="nome" required class="w-full rounded-xl border-zinc-200 bg-zinc-50 text-sm" placeholder="Ex: Engenharia de Prompt para IA" />
+          </div>
+
+          <div>
+            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-zinc-500">Categoria</label>
+            <input id="categoria" name="categoria" required class="w-full rounded-xl border-zinc-200 bg-zinc-50 text-sm" placeholder="Ex: Tecnologia" />
+          </div>
+
+          <div>
+            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-zinc-500">Coordenador / Professor</label>
+            <input id="coordenador" name="coordenador" required class="w-full rounded-xl border-zinc-200 bg-zinc-50 text-sm" placeholder="Ex: Prof. Ricardo Silva" />
+          </div>
+
+          <div>
+            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-zinc-500">Carga horária (horas)</label>
+            <input id="cargaHoraria" name="cargaHoraria" type="number" min="1" required class="w-full rounded-xl border-zinc-200 bg-zinc-50 text-sm" />
+          </div>
+
+          <div>
+            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-zinc-500">Valor (R$)</label>
+            <input id="valor" name="valor" type="number" min="0" step="0.01" required class="w-full rounded-xl border-zinc-200 bg-zinc-50 text-sm" />
+          </div>
+
+          <div>
+            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-zinc-500">Modalidade</label>
+            <select id="modalidade" name="modalidade" class="w-full rounded-xl border-zinc-200 bg-zinc-50 text-sm">
+              <option value="Presencial">Presencial</option>
+              <option value="Híbrido">Híbrido</option>
+              <option value="EAD">EAD</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-zinc-500">Status</label>
+            <select id="status" name="status" class="w-full rounded-xl border-zinc-200 bg-zinc-50 text-sm">
+              <option value="ATIVO">Ativo</option>
+              <option value="RASCUNHO">Rascunho</option>
+              <option value="INATIVO">Inativo</option>
+            </select>
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-zinc-500">Descrição</label>
+            <textarea id="descricao" name="descricao" rows="6" class="w-full rounded-xl border-zinc-200 bg-zinc-50 text-sm" placeholder="Descreva objetivos, pré-requisitos e resultados esperados do curso."></textarea>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-end gap-3 border-t border-zinc-200 pt-4">
+          <button type="button" id="apagar-curso" class="hidden rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50">Excluir curso</button>
+          <button type="button" id="cancelar-modal" class="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100">Cancelar</button>
+          <button type="submit" class="rounded-xl bg-zinc-900 px-5 py-2 text-sm font-bold text-white hover:opacity-90">Salvar curso</button>
+        </div>
+      </form>
+
+      <aside class="border-l border-zinc-200 bg-zinc-50 p-6">
+        <h3 class="text-xs font-bold uppercase tracking-[0.22em] text-zinc-500">Pré-visualização</h3>
+        <div class="mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-white">
+          <img id="preview-banner" class="h-40 w-full object-cover" src="https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=1200&q=80" alt="Banner do curso" />
+          <div class="space-y-2 p-4">
+            <p id="preview-nome" class="text-base font-extrabold">Curso</p>
+            <p id="preview-categoria" class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Categoria</p>
+            <p id="preview-descricao" class="text-sm text-zinc-600">Descrição do curso.</p>
+            <div class="grid grid-cols-2 gap-2 pt-2 text-xs font-semibold text-zinc-600">
+              <p id="preview-carga">0h</p>
+              <p id="preview-valor">R$ 0,00</p>
+              <p id="preview-modalidade">Presencial</p>
+              <p id="preview-status">Ativo</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <script src="./courses-data.js"></script>
+</body>
+</html>

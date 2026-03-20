@@ -49,6 +49,12 @@ const SECOES_ADMIN: NavSection[] = [
     templatePath: '/templates/admin_professor_dashboard_da_conta/index.html',
   },
   {
+    id: 'admin_cursos',
+    label: 'CURSOS',
+    subtitle: 'Template fiel: admin_professor_cursos',
+    templatePath: '/templates/admin_professor_cursos/index.html',
+  },
+  {
     id: 'admin_gestao_turmas',
     label: 'Turmas',
     subtitle: 'Template fiel: admin_professor_gestao_de_turmas',
@@ -100,6 +106,7 @@ const SECOES_ADMIN: NavSection[] = [
 
 const ICONE_POR_SECAO: Record<string, string> = {
   admin_dashboard_conta: 'dashboard',
+  admin_cursos: 'school',
   admin_gestao_turmas: 'groups',
   admin_alunos_matriculas: 'person',
   admin_agenda: 'calendar_today',
@@ -177,6 +184,12 @@ export default function App() {
       styleTag.id = 'academy-global-frame-style';
       styleTag.textContent = `
         body > header {
+          display: none !important;
+        }
+        body > main > header:first-child {
+          display: none !important;
+        }
+        header.sticky.top-0 {
           display: none !important;
         }
       `;
