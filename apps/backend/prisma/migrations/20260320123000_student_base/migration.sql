@@ -1,4 +1,4 @@
-﻿CREATE TYPE "student_course_status" AS ENUM ('interested', 'active', 'completed', 'canceled');
+CREATE TYPE "student_course_status" AS ENUM ('interested', 'active', 'completed', 'canceled');
 
 CREATE TABLE "student_profiles" (
     "id" UUID NOT NULL,

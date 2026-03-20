@@ -1,4 +1,4 @@
-﻿CREATE TABLE "wordpress_plugin_licenses" (
+CREATE TABLE "wordpress_plugin_licenses" (
     "id" UUID NOT NULL,
     "key_hash" TEXT NOT NULL,
     "label" TEXT,

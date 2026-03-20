@@ -1,4 +1,4 @@
-﻿CREATE TYPE "course_status" AS ENUM ('active', 'draft', 'inactive');
+CREATE TYPE "course_status" AS ENUM ('active', 'draft', 'inactive');
 CREATE TYPE "course_modality" AS ENUM ('presencial', 'hibrido', 'ead');
 CREATE TYPE "upload_owner_type" AS ENUM ('course', 'user', 'student', 'class', 'enrollment');
 
