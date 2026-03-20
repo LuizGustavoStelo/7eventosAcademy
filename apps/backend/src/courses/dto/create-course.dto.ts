@@ -1,0 +1,15 @@
+﻿import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+
+export class CreateCourseDto {
+  @IsString()
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  workloadHours?: number;
+}

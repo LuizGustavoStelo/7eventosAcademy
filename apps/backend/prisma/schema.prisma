@@ -23,6 +23,118 @@ model User {
   role         UserRole @default(ADMIN)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
+  enrollments  Enrollment[]
 
   @@map("users")
+}
+
+enum ClassStatus {
+  PLANNING @map("planning")
+  ENROLLMENTS_OPEN @map("enrollments_open")
+  IN_PROGRESS @map("in_progress")
+  CLOSED @map("closed")
+
+  @@map("class_status")
+}
+
+enum EnrollmentStatus {
+  ACTIVE @map("active")
+  CANCELED @map("canceled")
+  COMPLETED @map("completed")
+
+  @@map("enrollment_status")
+}
+
+enum ChargeStatus {
+  PENDING @map("pending")
+  PAID @map("paid")
+  OVERDUE @map("overdue")
+  CANCELED @map("canceled")
+
+  @@map("charge_status")
+}
+
+enum TransactionStatus {
+  PENDING @map("pending")
+  SUCCESS @map("success")
+  FAILED @map("failed")
+  REFUNDED @map("refunded")
+
+  @@map("transaction_status")
+}
+
+model Course {
+  id            String       @id @default(uuid()) @db.Uuid
+  name          String
+  description   String?
+  workloadHours Int?         @map("workload_hours")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  classes       SchoolClass[]
+
+  @@map("courses")
+}
+
+model SchoolClass {
+  id            String        @id @default(uuid()) @db.Uuid
+  courseId      String        @map("course_id") @db.Uuid
+  name          String
+  totalSeats    Int           @map("total_seats")
+  occupiedSeats Int           @default(0) @map("occupied_seats")
+  status        ClassStatus   @default(ENROLLMENTS_OPEN)
+  startDate     DateTime      @map("start_date")
+  endDate       DateTime?     @map("end_date")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  course        Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollments   Enrollment[]
+
+  @@map("classes")
+}
+
+model Enrollment {
+  id            String           @id @default(uuid()) @db.Uuid
+  classId       String           @map("class_id") @db.Uuid
+  studentId     String           @map("student_id") @db.Uuid
+  status        EnrollmentStatus @default(ACTIVE)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  schoolClass   SchoolClass      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student       User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  monthlyCharges MonthlyCharge[]
+
+  @@unique([classId, studentId])
+  @@map("enrollments")
+}
+
+model MonthlyCharge {
+  id                 String               @id @default(uuid()) @db.Uuid
+  enrollmentId       String               @map("enrollment_id") @db.Uuid
+  dueDate            DateTime             @map("due_date")
+  amount             Decimal              @db.Decimal(12, 2)
+  status             ChargeStatus         @default(PENDING)
+  externalChargeId   String?              @map("external_charge_id")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+  enrollment         Enrollment           @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  paymentTransactions PaymentTransaction[]
+
+  @@unique([externalChargeId])
+  @@map("monthly_charges")
+}
+
+model PaymentTransaction {
+  id                    String            @id @default(uuid()) @db.Uuid
+  monthlyChargeId       String            @map("monthly_charge_id") @db.Uuid
+  provider              String
+  amount                Decimal           @db.Decimal(12, 2)
+  status                TransactionStatus @default(PENDING)
+  externalTransactionId String?           @map("external_transaction_id")
+  paidAt                DateTime?         @map("paid_at")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+  monthlyCharge         MonthlyCharge     @relation(fields: [monthlyChargeId], references: [id], onDelete: Cascade)
+
+  @@unique([externalTransactionId])
+  @@map("payment_transactions")
 }

@@ -213,22 +213,34 @@ body {
   gap: 0.4rem;
 }
 
-.menu a {
-  text-decoration: none;
+.menu button {
+  border: 0;
+  background: transparent;
+  text-align: left;
   color: var(--cor-grafite);
   padding: 0.65rem 0.75rem;
   border-radius: 0.5rem;
   font-weight: 600;
+  cursor: pointer;
 }
 
-.menu a.active,
-.menu a:hover {
+.menu button.active,
+.menu button:hover {
   background: rgba(242, 92, 5, 0.08);
   color: var(--cor-primaria);
 }
 
 .content {
   padding: 1.5rem;
+}
+
+.section-header {
+  margin-bottom: 1rem;
+}
+
+.section-header p {
+  margin: 0;
+  color: var(--cor-grafite);
 }
 
 .topbar {
@@ -294,10 +306,16 @@ body {
   border-radius: 0.9rem;
   padding: 1rem;
   box-shadow: var(--sombra);
+  margin-bottom: 1rem;
 }
 
 .panel h2 {
   margin: 0 0 0.8rem;
+}
+
+.panel p {
+  margin: 0 0 0.8rem;
+  color: var(--cor-grafite);
 }
 
 .panel ul {
@@ -305,6 +323,53 @@ body {
   padding-left: 1.2rem;
   display: grid;
   gap: 0.4rem;
+}
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9rem;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead th {
+  text-align: left;
+  font-size: 0.82rem;
+  color: var(--cor-grafite);
+  padding: 0.7rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+tbody td {
+  font-size: 0.9rem;
+  padding: 0.7rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.status-pill.ok {
+  background: rgba(39, 174, 96, 0.12);
+  color: #1f7a45;
+}
+
+.status-pill.warn {
+  background: rgba(242, 92, 5, 0.14);
+  color: var(--cor-primaria);
 }
 
 @media (max-width: 920px) {
