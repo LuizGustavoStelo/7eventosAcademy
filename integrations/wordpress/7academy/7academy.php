@@ -22,12 +22,17 @@ define('SEVEN_ACADEMY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SEVEN_ACADEMY_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 require_once SEVEN_ACADEMY_PLUGIN_DIR . 'includes/class-seven-academy-admin.php';
+require_once SEVEN_ACADEMY_PLUGIN_DIR . 'includes/class-seven-academy-api-client.php';
+require_once SEVEN_ACADEMY_PLUGIN_DIR . 'includes/class-seven-academy-license.php';
 require_once SEVEN_ACADEMY_PLUGIN_DIR . 'includes/class-seven-academy-shortcodes.php';
+require_once SEVEN_ACADEMY_PLUGIN_DIR . 'includes/class-seven-academy-updater.php';
 
 function seven_academy_bootstrap(): void
 {
     Seven_Academy_Admin::init();
+    Seven_Academy_License::init();
     Seven_Academy_Shortcodes::init();
+    Seven_Academy_Updater::init();
 }
 
 add_action('plugins_loaded', 'seven_academy_bootstrap');

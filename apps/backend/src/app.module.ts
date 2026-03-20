@@ -10,6 +10,7 @@ import { FinanceModule } from './finance/finance.module';
 import { SecretsModule } from './security/secrets/secrets.module';
 import { StudentsModule } from './students/students.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { WordpressIntegrationModule } from './wordpress-integration/wordpress-integration.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { UploadsModule } from './uploads/uploads.module';
     EnrollmentsModule,
     FinanceModule,
     UploadsModule,
+    WordpressIntegrationModule,
   ],
   controllers: [AppController],
   providers: [],

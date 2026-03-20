@@ -1,4 +1,4 @@
-# 7Eventos Academy
+﻿# 7Eventos Academy
 
 Aplicação dedicada da Academy em arquitetura de monorepo, com frontend React + Vite e backend NestJS + Fastify.
 
@@ -9,6 +9,7 @@ Aplicação dedicada da Academy em arquitetura de monorepo, com frontend React +
 - `infra/docker`: Dockerfiles e `docker-compose.yml`
 - `infra/nginx`: configuração do subdomínio `academy.7eventos.com`
 - `docs`: documentação técnica e operacional
+- `integrations/wordpress/7academy`: plugin WordPress `7academy`
 
 ## Requisitos
 
@@ -36,6 +37,40 @@ Aplicação dedicada da Academy em arquitetura de monorepo, com frontend React +
 - Encoding: UTF-8
 - Separação de responsabilidades por módulos
 - RBAC base: `superadmin`, `admin`, `user`
+
+## Plugin WordPress (7academy)
+
+Documentação base:
+
+- Plano técnico: `docs/PLANO_PLUGIN_WORDPRESS_MIS.md`
+- Guia de setup: `docs/wordpress-plugin-setup.md`
+- Código do plugin: `integrations/wordpress/7academy`
+
+Escopo inicial do plugin:
+
+- Shortcode `[area-do-aluno]`
+- Shortcode `[formulario-cadastro-aluno]`
+- Menu lateral no WordPress Admin com nome `7academy`
+- Painel com status de conexão, versão e configurações mínimas
+
+Diretrizes de segurança:
+
+- WordPress é tratado como ambiente não confiável.
+- Dados acadêmicos sensíveis não devem ser persistidos no banco do WordPress.
+- Autenticação, autorização e regra de negócio ficam no backend Academy.
+
+Atualização automática sem loja oficial:
+
+- Endpoint de atualização no próprio domínio Academy: `https://academy.7eventos.com/atualizacoes-api`
+- Distribuição de artefato via GitHub Releases (preferencialmente privado)
+- O WordPress consulta a API de atualização e instala o `.zip` autorizado
+
+Licenciamento e bloqueio de uso não autorizado:
+
+- Plugin com campo de chave de licença no painel administrativo
+- Licença vinculada ao domínio (`home_url`) e validada pela API Academy
+- Sem licença válida, funcionalidades críticas devem permanecer bloqueadas
+- A gestão de licenças e atualizações deve ser visível apenas para `superadmin` no sistema Academy
 
 ## Roadmap inicial
 

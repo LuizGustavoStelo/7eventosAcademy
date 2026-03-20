@@ -24,7 +24,7 @@ class Seven_Academy_Shortcodes
 
         $src = $base_url . '/mis/area-do-aluno';
         if ($tenant !== '') {
-            $src = add_query_arg('tenant', rawurlencode($tenant), $src);
+            $src = add_query_arg('tenant', $tenant, $src);
         }
 
         return self::render_iframe($src, 'Módulo Incorporado Seguro - Área do Aluno');
@@ -42,7 +42,7 @@ class Seven_Academy_Shortcodes
 
         $src = $base_url . '/mis/cadastro-aluno';
         if ($tenant !== '') {
-            $src = add_query_arg('tenant', rawurlencode($tenant), $src);
+            $src = add_query_arg('tenant', $tenant, $src);
         }
 
         return self::render_iframe($src, 'Módulo Incorporado Seguro - Cadastro de Aluno');

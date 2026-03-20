@@ -260,3 +260,50 @@ model PaymentTransaction {
   @@unique([externalTransactionId])
   @@map("payment_transactions")
 }
+
+model WordpressPluginLicense {
+  id             String                     @id @default(uuid()) @db.Uuid
+  keyHash        String                     @unique @map("key_hash")
+  label          String?
+  maxActivations Int                        @default(1) @map("max_activations")
+  isActive       Boolean                    @default(true) @map("is_active")
+  createdAt      DateTime                   @default(now()) @map("created_at")
+  updatedAt      DateTime                   @updatedAt @map("updated_at")
+  activations    WordpressPluginActivation[]
+
+  @@map("wordpress_plugin_licenses")
+}
+
+model WordpressPluginActivation {
+  id              String                 @id @default(uuid()) @db.Uuid
+  licenseId       String                 @map("license_id") @db.Uuid
+  domain          String
+  siteUrl         String?                @map("site_url")
+  activationToken String                 @unique @map("activation_token")
+  lastValidatedAt DateTime?              @map("last_validated_at")
+  revokedAt       DateTime?              @map("revoked_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  license         WordpressPluginLicense @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@unique([licenseId, domain], map: "wordpress_plugin_activations_license_domain_key")
+  @@index([domain], map: "wordpress_plugin_activations_domain_idx")
+  @@map("wordpress_plugin_activations")
+}
+
+model WordpressPluginRelease {
+  id             String   @id @default(uuid()) @db.Uuid
+  version        String   @unique
+  packageUrl     String   @map("package_url")
+  checksumSha256 String?  @map("checksum_sha256")
+  changelogUrl   String?  @map("changelog_url")
+  minWpVersion   String?  @map("min_wp_version")
+  minPhpVersion  String?  @map("min_php_version")
+  isPublished    Boolean  @default(false) @map("is_published")
+  isMandatory    Boolean  @default(false) @map("is_mandatory")
+  publishedAt    DateTime? @map("published_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("wordpress_plugin_releases")
+}
