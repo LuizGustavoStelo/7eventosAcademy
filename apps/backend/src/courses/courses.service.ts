@@ -1,12 +1,12 @@
-﻿import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+﻿import { Injectable, NotFoundException } from '@nestjs/common';
 import { MultipartFile } from '@fastify/multipart';
 import { CoursePaymentModel, Prisma, UploadOwnerType } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
-import { CoursePaymentModelDto, CreateCourseDto } from './dto/create-course.dto';
+import {
+  CoursePaymentModelDto,
+  CreateCourseDto,
+} from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 
 const COURSE_BANNER_KIND = 'COURSE_BANNER';
@@ -64,7 +64,7 @@ export class CoursesService {
     const paymentModel = dto.paymentModel ?? current.paymentModel;
     const installmentMonths =
       dto.installmentMonths === undefined
-        ? current.installmentMonths ?? undefined
+        ? (current.installmentMonths ?? undefined)
         : dto.installmentMonths;
     const installmentValue =
       dto.installmentValue === undefined
@@ -139,7 +139,9 @@ export class CoursesService {
     return course;
   }
 
-  private async attachBanners(courses: Prisma.CourseGetPayload<Record<string, never>>[]) {
+  private async attachBanners(
+    courses: Prisma.CourseGetPayload<Record<string, never>>[],
+  ) {
     if (courses.length === 0) return [];
 
     const bindings = await this.prisma.uploadBinding.findMany({

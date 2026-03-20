@@ -9,10 +9,7 @@ import {
   Put,
   Req,
 } from '@nestjs/common';
-import {
-  Multipart,
-  MultipartFile,
-} from '@fastify/multipart';
+import { Multipart, MultipartFile } from '@fastify/multipart';
 import type { FastifyRequest } from 'fastify';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -57,7 +54,8 @@ export class StudentsController {
   @Public()
   @Post('public-register-multipart')
   async publicRegisterMultipart(@Req() request: MultipartFastifyRequest) {
-    const { dto, avatar } = await this.parsePublicRegistrationMultipart(request);
+    const { dto, avatar } =
+      await this.parsePublicRegistrationMultipart(request);
     return this.studentsService.registerPublic(dto, avatar);
   }
 
@@ -76,7 +74,9 @@ export class StudentsController {
   ) {
     const file = await request.file();
     if (!file) {
-      throw new BadRequestException('Envie um arquivo de imagem no campo avatar.');
+      throw new BadRequestException(
+        'Envie um arquivo de imagem no campo avatar.',
+      );
     }
 
     return this.studentsService.uploadAvatar(id, file);
@@ -97,7 +97,9 @@ export class StudentsController {
     return this.studentsService.importCsv(file);
   }
 
-  private async parsePublicRegistrationMultipart(request: MultipartFastifyRequest) {
+  private async parsePublicRegistrationMultipart(
+    request: MultipartFastifyRequest,
+  ) {
     const fields: Record<string, unknown> = {};
     let avatar: MultipartFile | undefined;
 

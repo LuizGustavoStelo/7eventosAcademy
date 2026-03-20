@@ -2,6 +2,7 @@
   const TOKEN_KEY = 'academy-auth-token';
   const USER_KEY = 'academy-auth-user';
   const STORAGE_KEY = 'academy-agenda-events-v1';
+  const OPEN_CLASS_EDITOR_KEY = 'academy-open-class-editor';
   const API_BASE_URL = '/api';
 
   const state = {
@@ -41,6 +42,20 @@
     new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(date);
 
   const normalize = (text) => String(text || '').toLowerCase().trim();
+
+  const findEventById = (eventId) => state.events.find((item) => item.id === eventId) || null;
+
+  const openClassEditor = (eventItem) => {
+    if (!eventItem || eventItem.type !== 'class' || !eventItem.classId) return;
+    window.localStorage.setItem(
+      OPEN_CLASS_EDITOR_KEY,
+      JSON.stringify({ classId: eventItem.classId }),
+    );
+    window.parent.postMessage(
+      { type: 'academy:navigate', section: 'admin_gestao_turmas' },
+      window.location.origin,
+    );
+  };
 
   const getSession = () => {
     try {
@@ -191,7 +206,16 @@
             ? 'bg-blue-100 text-blue-800'
             : 'bg-orange-100 text-[#a73a00]';
           const time = new Date(event.datetime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-          return `<div class="${colorClass} text-[10px] p-1.5 rounded-md font-bold leading-tight truncate">${time} - ${event.title}</div>`;
+          return `
+            <button
+              type="button"
+              data-event-id="${event.id}"
+              class="${colorClass} text-[10px] p-1.5 rounded-md font-bold leading-tight truncate w-full text-left hover:opacity-85 transition"
+              title="Abrir edição da turma"
+            >
+              ${time} - ${event.title}
+            </button>
+          `;
         })
         .join('');
 
@@ -236,7 +260,12 @@
         const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         const typeBadge = event.type === 'live' ? 'Live' : 'Aula';
         return `
-          <div class="flex items-start gap-3 bg-white p-3 rounded-xl border border-zinc-50">
+          <button
+            type="button"
+            data-event-id="${event.id}"
+            class="w-full flex items-start gap-3 bg-white p-3 rounded-xl border border-zinc-50 text-left hover:border-primary/40 transition"
+            title="Abrir edição da turma"
+          >
             <div class="min-w-[44px] h-[44px] rounded-lg bg-zinc-50 flex flex-col items-center justify-center border border-zinc-100">
               <span class="text-[10px] font-bold text-zinc-400 uppercase leading-none">${month}</span>
               <span class="text-lg font-bold text-zinc-700 leading-none">${day}</span>
@@ -246,7 +275,7 @@
               <p class="text-[10px] text-on-surface-variant mt-0.5">${event.className} - ${event.teacher}</p>
               <p class="text-[10px] text-on-surface-variant mt-0.5">${typeBadge} - ${time}</p>
             </div>
-          </div>
+          </button>
         `;
       })
       .join('');
@@ -299,6 +328,24 @@
     searchInput?.addEventListener('input', () => {
       state.search = searchInput.value;
       renderAll();
+    });
+
+    calendarDays?.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const trigger = target?.closest('[data-event-id]');
+      if (!trigger) return;
+      const eventId = trigger.getAttribute('data-event-id');
+      if (!eventId) return;
+      openClassEditor(findEventById(eventId));
+    });
+
+    upcomingList?.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const trigger = target?.closest('[data-event-id]');
+      if (!trigger) return;
+      const eventId = trigger.getAttribute('data-event-id');
+      if (!eventId) return;
+      openClassEditor(findEventById(eventId));
     });
 
     quickForm?.addEventListener('submit', (event) => {

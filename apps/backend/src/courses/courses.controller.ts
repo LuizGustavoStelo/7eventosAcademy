@@ -49,10 +49,11 @@ export class CoursesController {
 
     const file = await multipartRequest.file();
     if (!file) {
-      throw new BadRequestException('Envie um arquivo de imagem no campo banner.');
+      throw new BadRequestException(
+        'Envie um arquivo de imagem no campo banner.',
+      );
     }
 
     return this.coursesService.uploadBanner(id, file);
   }
 }
-

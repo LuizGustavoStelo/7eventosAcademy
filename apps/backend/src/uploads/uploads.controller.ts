@@ -13,7 +13,8 @@ export class UploadsController {
     @Param('assetId') assetId: string,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    const { mimeType, stream } = await this.uploadsService.getAssetStream(assetId);
+    const { mimeType, stream } =
+      await this.uploadsService.getAssetStream(assetId);
 
     reply.header('Content-Type', mimeType);
     reply.header('Cache-Control', 'public, max-age=86400');
@@ -21,4 +22,3 @@ export class UploadsController {
     return new StreamableFile(stream);
   }
 }
-

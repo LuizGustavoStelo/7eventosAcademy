@@ -96,6 +96,47 @@ export class EnrollmentsService {
     return enrollment;
   }
 
+  async remove(classId: string, studentId: string) {
+    const enrollment = await this.prisma.enrollment.findUnique({
+      where: {
+        classId_studentId: {
+          classId,
+          studentId,
+        },
+      },
+      select: {
+        id: true,
+        classId: true,
+      },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException('Matrícula não encontrada para esta turma e aluno.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.enrollment.delete({
+        where: {
+          classId_studentId: {
+            classId,
+            studentId,
+          },
+        },
+      });
+
+      await tx.schoolClass.update({
+        where: { id: classId },
+        data: {
+          occupiedSeats: {
+            decrement: 1,
+          },
+        },
+      });
+    });
+
+    return { success: true };
+  }
+
   async findAll() {
     return this.prisma.enrollment.findMany({
       include: {

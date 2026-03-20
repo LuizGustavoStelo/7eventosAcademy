@@ -3,6 +3,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassStatusDto } from './dto/update-class-status.dto';
+import { UpdateClassDto } from './dto/update-class.dto';
 
 @Roles('admin', 'superadmin')
 @Controller('classes')
@@ -17,6 +18,11 @@ export class ClassesController {
   @Post()
   async create(@Body() dto: CreateClassDto) {
     return this.classesService.create(dto);
+  }
+
+  @Patch(':classId')
+  async update(@Param('classId') classId: string, @Body() dto: UpdateClassDto) {
+    return this.classesService.update(classId, dto);
   }
 
   @Patch(':classId/status')

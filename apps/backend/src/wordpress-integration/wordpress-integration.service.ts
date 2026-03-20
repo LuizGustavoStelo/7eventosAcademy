@@ -46,7 +46,10 @@ export class WordpressIntegrationService {
       (activation) => activation.domain === normalizedDomain,
     );
 
-    if (!existingActivation && license.activations.length >= license.maxActivations) {
+    if (
+      !existingActivation &&
+      license.activations.length >= license.maxActivations
+    ) {
       throw new ForbiddenException(
         'Limite de ativações atingido para esta licença.',
       );

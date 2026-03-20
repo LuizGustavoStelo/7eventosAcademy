@@ -86,7 +86,10 @@ export class AuthService {
     return this.buildUserPayload(user);
   }
 
-  async uploadMyAvatar(userId: string, file: MultipartFile): Promise<AuthUserPayload> {
+  async uploadMyAvatar(
+    userId: string,
+    file: MultipartFile,
+  ): Promise<AuthUserPayload> {
     await this.getMe(userId);
 
     await this.uploadsService.bindFileToOwner({

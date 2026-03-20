@@ -1,7 +1,12 @@
 ﻿import { randomUUID } from 'crypto';
 import { createReadStream } from 'fs';
 import { access, mkdir, unlink, writeFile } from 'fs/promises';
-import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { UploadOwnerType } from '@prisma/client';
 import { MultipartFile } from '@fastify/multipart';
 import { dirname, extname, join, resolve } from 'path';
@@ -53,7 +58,8 @@ export class UploadsService implements OnModuleInit {
       include: { asset: true },
     });
 
-    let previousStoragePath: string | null = existingBinding?.asset.storagePath ?? null;
+    const previousStoragePath: string | null =
+      existingBinding?.asset.storagePath ?? null;
 
     try {
       const asset = await this.prisma.$transaction(async (tx) => {
@@ -96,7 +102,9 @@ export class UploadsService implements OnModuleInit {
       });
 
       if (previousStoragePath) {
-        await this.safeUnlink(join(this.uploadRoot, ...previousStoragePath.split('/')));
+        await this.safeUnlink(
+          join(this.uploadRoot, ...previousStoragePath.split('/')),
+        );
       }
 
       return {
@@ -109,7 +117,11 @@ export class UploadsService implements OnModuleInit {
     }
   }
 
-  async getOwnerAsset(ownerType: UploadOwnerType, ownerId: string, kind: string) {
+  async getOwnerAsset(
+    ownerType: UploadOwnerType,
+    ownerId: string,
+    kind: string,
+  ) {
     const binding = await this.prisma.uploadBinding.findUnique({
       where: {
         ownerType_ownerId_kind: {
@@ -194,7 +206,9 @@ export class UploadsService implements OnModuleInit {
   }
 
   async getAssetStream(assetId: string) {
-    const asset = await this.prisma.uploadAsset.findUnique({ where: { id: assetId } });
+    const asset = await this.prisma.uploadAsset.findUnique({
+      where: { id: assetId },
+    });
     if (!asset) {
       throw new NotFoundException('Arquivo não encontrado.');
     }

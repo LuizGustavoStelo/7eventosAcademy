@@ -46,7 +46,9 @@ export class AuthController {
   async uploadAvatar(@Req() request: AuthenticatedRequest) {
     const file = await request.file();
     if (!file) {
-      throw new BadRequestException('Envie um arquivo de imagem no campo avatar.');
+      throw new BadRequestException(
+        'Envie um arquivo de imagem no campo avatar.',
+      );
     }
 
     return this.authService.uploadMyAvatar(request.user.sub, file);

@@ -5,6 +5,7 @@
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreateClassDto } from './dto/create-class.dto';
+import { UpdateClassDto } from './dto/update-class.dto';
 
 type ClassStatusInput =
   | 'planning'
@@ -59,6 +60,71 @@ export class ClassesService {
         },
       },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async update(classId: string, dto: UpdateClassDto) {
+    const existingClass = await this.prisma.schoolClass.findUnique({
+      where: { id: classId },
+      select: {
+        id: true,
+        courseId: true,
+        name: true,
+        totalSeats: true,
+        occupiedSeats: true,
+        startDate: true,
+        endDate: true,
+      },
+    });
+
+    if (!existingClass) {
+      throw new NotFoundException('Turma não encontrada.');
+    }
+
+    if (dto.courseId && dto.courseId !== existingClass.courseId) {
+      const course = await this.prisma.course.findUnique({
+        where: { id: dto.courseId },
+        select: { id: true },
+      });
+
+      if (!course) {
+        throw new NotFoundException('Curso não encontrado.');
+      }
+    }
+
+    const startDate = dto.startDate
+      ? new Date(dto.startDate)
+      : existingClass.startDate;
+    const endDate = dto.endDate ? new Date(dto.endDate) : existingClass.endDate;
+
+    if (endDate && endDate < startDate) {
+      throw new BadRequestException(
+        'A data de término não pode ser menor que a data de início.',
+      );
+    }
+
+    const nextTotalSeats = dto.totalSeats ?? existingClass.totalSeats;
+    if (nextTotalSeats < existingClass.occupiedSeats) {
+      throw new BadRequestException(
+        'Total de vagas não pode ser menor que o número de alunos já matriculados.',
+      );
+    }
+
+    return this.prisma.schoolClass.update({
+      where: { id: classId },
+      data: {
+        courseId: dto.courseId ?? existingClass.courseId,
+        name: dto.name ? dto.name.trim() : existingClass.name,
+        totalSeats: nextTotalSeats,
+        startDate,
+        endDate,
+      },
+      include: {
+        course: true,
+        _count: {
+          select: { enrollments: true },
+        },
+      },
     });
   }
 

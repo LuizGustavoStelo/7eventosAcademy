@@ -5,9 +5,7 @@ import {
 } from '@nestjs/common';
 import { hash } from 'bcryptjs';
 import { randomBytes } from 'crypto';
-import {
-  MultipartFile,
-} from '@fastify/multipart';
+import { MultipartFile } from '@fastify/multipart';
 import {
   Prisma,
   StudentCourseStatus,
@@ -65,7 +63,10 @@ export class StudentsService {
     return this.mapStudentsWithAvatar([student]).then((items) => items[0]);
   }
 
-  async registerPublic(dto: PublicStudentRegistrationDto, avatar?: MultipartFile) {
+  async registerPublic(
+    dto: PublicStudentRegistrationDto,
+    avatar?: MultipartFile,
+  ) {
     const email = dto.email.trim().toLowerCase();
     await this.ensureEmailAvailable(email);
 
@@ -224,7 +225,9 @@ export class StudentsService {
   }
 
   async importCsv(file: MultipartFile) {
-    const content = (await file.toBuffer()).toString('utf-8').replace(/^\uFEFF/, '');
+    const content = (await file.toBuffer())
+      .toString('utf-8')
+      .replace(/^\uFEFF/, '');
     const rows = content
       .split(/\r?\n/)
       .map((line) => line.trim())
@@ -259,7 +262,9 @@ export class StudentsService {
         });
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : 'Falha ao importar registro.';
+          error instanceof Error
+            ? error.message
+            : 'Falha ao importar registro.';
         errors.push({ line: lineNumber, message });
       }
     }
@@ -330,7 +335,9 @@ export class StudentsService {
     });
 
     if (total !== courseIds.length) {
-      throw new BadRequestException('Um ou mais cursos informados são inválidos.');
+      throw new BadRequestException(
+        'Um ou mais cursos informados são inválidos.',
+      );
     }
   }
 
@@ -367,10 +374,16 @@ export class StudentsService {
     });
 
     const avatarByStudentId = new Map(
-      bindings.map((binding) => [binding.ownerId, `/api/uploads/assets/${binding.asset.id}`]),
+      bindings.map((binding) => [
+        binding.ownerId,
+        `/api/uploads/assets/${binding.asset.id}`,
+      ]),
     );
 
     return students.map((student) => ({
+      ...this.resolveStudentStatus(
+        student.studentCourses.map((item) => item.status),
+      ),
       id: student.id,
       name: student.name,
       email: student.email,
@@ -384,6 +397,56 @@ export class StudentsService {
         course: studentCourse.course,
       })),
     }));
+  }
+
+  private resolveStudentStatus(courseStatuses: StudentCourseStatus[]) {
+    if (courseStatuses.length === 0) {
+      return {
+        statusKey: 'pending_course',
+        statusLabel: 'Sem curso',
+      };
+    }
+
+    if (
+      courseStatuses.some((status) => status === StudentCourseStatus.ACTIVE)
+    ) {
+      return {
+        statusKey: 'active',
+        statusLabel: 'Ativo',
+      };
+    }
+
+    if (
+      courseStatuses.some((status) => status === StudentCourseStatus.INTERESTED)
+    ) {
+      return {
+        statusKey: 'pre_active',
+        statusLabel: 'Pré-matrícula',
+      };
+    }
+
+    if (
+      courseStatuses.every((status) => status === StudentCourseStatus.COMPLETED)
+    ) {
+      return {
+        statusKey: 'completed',
+        statusLabel: 'Concluído',
+      };
+    }
+
+    if (
+      courseStatuses.every((status) => status === StudentCourseStatus.CANCELED)
+    ) {
+      return {
+        statusKey: 'inactive',
+        statusLabel: 'Inativo',
+      };
+    }
+
+    return {
+      statusKey: 'active',
+      statusLabel: 'Ativo',
+    };
   }
 
   private detectDelimiter(headerLine: string) {
@@ -435,16 +498,22 @@ export class StudentsService {
   }
 
   private makeRowObject(headers: string[], values: string[]) {
-    return headers.reduce<Record<string, string>>((accumulator, header, index) => {
-      accumulator[header] = values[index] ?? '';
-      return accumulator;
-    }, {});
+    return headers.reduce<Record<string, string>>(
+      (accumulator, header, index) => {
+        accumulator[header] = values[index] ?? '';
+        return accumulator;
+      },
+      {},
+    );
   }
 
-  private mapCsvRowToRegistrationDto(row: Record<string, string>): PublicStudentRegistrationDto {
+  private mapCsvRowToRegistrationDto(
+    row: Record<string, string>,
+  ): PublicStudentRegistrationDto {
     const name = row.nome || row.name;
     const email = row.email;
-    const password = row.senha || row.password || randomBytes(8).toString('base64url');
+    const password =
+      row.senha || row.password || randomBytes(8).toString('base64url');
     const documentCpf = row.cpf || row.documentocpf || row.documentcpf;
     const phone = row.telefone || row.phone;
     const birthDateRaw = row.datanascimento || row.birthdate;

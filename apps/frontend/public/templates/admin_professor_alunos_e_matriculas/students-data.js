@@ -1,8 +1,8 @@
 (() => {
   const API_BASE_URL = '/api';
   const TOKEN_KEY = 'academy-auth-token';
-  const FALLBACK_AVATAR =
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuBaWb3AowaZRTOaLmmhIxwaRoZzW7ORvNO9i6WRSYbLd2ty2RxM3lqGv-OUJI9rvhYpO3y2Vxo8AEBNLcEv218BWjSaxIke5Pw7b5GBnNzEHUNJPDCiUXo_KAXSw0rpf-nO1k_MxgnAMVtCjIAPLXEZ9CSZFwlzA6GbJHJTD4sM6aTxIk3k4rBUsz1SLehCFXgMQnI1d2ZaCxfXESVSduzOmshU0tssAX4_qjUK5xQ1PbXqlhrhEsi0Nc37g8HT7VG4omekKwHJcEsk';
+  const DEFAULT_AVATAR_BG = '#ece8e6';
+  const DEFAULT_AVATAR_TEXT = '#8f7065';
 
   const tableBody = document.getElementById('students-table-body');
   const drawer = document.getElementById('student-drawer');
@@ -29,7 +29,7 @@
 
   const exportCsvTrigger = document.getElementById('students-export-csv-trigger');
 
-  const manualCreateTopTrigger = document.getElementById('student-manual-create-top-trigger');
+  const manualCreateTriggers = document.querySelectorAll('[data-open-student-manual-modal]');
   const manualCreateModal = document.getElementById('student-manual-create-modal');
   const manualCreateOverlay = document.getElementById('student-manual-create-overlay');
   const manualCreateClose = document.getElementById('student-manual-create-close');
@@ -73,6 +73,55 @@
   };
 
   const registrationCode = (id) => `#AC-${id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+
+  const getInitials = (name) => {
+    const parts = String(name || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!parts.length) return 'AL';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0] || ''}${parts[parts.length - 1][0] || ''}`.toUpperCase();
+  };
+
+  const buildInitialsAvatar = (name) => {
+    const initials = getInitials(name);
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+        <rect width="96" height="96" rx="18" fill="${DEFAULT_AVATAR_BG}" />
+        <text x="48" y="56" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="700" fill="${DEFAULT_AVATAR_TEXT}">${initials}</text>
+      </svg>
+    `;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  };
+
+  const getStatusVisual = (statusKey) => {
+    if (statusKey === 'pending_course') {
+      return {
+        dotClass: 'bg-amber-500',
+        textClass: 'text-amber-600',
+      };
+    }
+
+    if (statusKey === 'inactive') {
+      return {
+        dotClass: 'bg-slate-500',
+        textClass: 'text-slate-600',
+      };
+    }
+
+    if (statusKey === 'completed') {
+      return {
+        dotClass: 'bg-blue-500',
+        textClass: 'text-blue-600',
+      };
+    }
+
+    return {
+      dotClass: 'bg-emerald-500',
+      textClass: 'text-emerald-600',
+    };
+  };
 
   const openDrawer = () => {
     drawer?.classList.remove('translate-x-full');
@@ -121,7 +170,7 @@
     if (!student) return;
 
     if (drawerAvatar) {
-      drawerAvatar.src = student.avatarUrl || FALLBACK_AVATAR;
+      drawerAvatar.src = student.avatarUrl || buildInitialsAvatar(student.name);
     }
     if (drawerName) {
       drawerName.textContent = student.name;
@@ -166,12 +215,14 @@
     tableBody.innerHTML = students
       .map((student) => {
         const firstCourse = student.courses?.[0]?.course;
-        const attendance = 80;
+        const hasAttendanceData = false;
+        const hasFinancialData = false;
+        const status = getStatusVisual(student.statusKey);
         return `
           <tr class="js-open-student hover:bg-surface-container-low/30 transition-colors cursor-pointer group" data-student-id="${student.id}">
             <td class="px-6 py-5">
               <div class="flex items-center gap-3">
-                <img class="w-10 h-10 rounded-full object-cover" data-alt="Foto do aluno" src="${student.avatarUrl || FALLBACK_AVATAR}"/>
+                <img class="w-10 h-10 rounded-full object-cover" data-alt="Foto do aluno" src="${student.avatarUrl || buildInitialsAvatar(student.name)}"/>
                 <div>
                   <p class="text-sm font-bold text-on-surface group-hover:text-primary transition-colors">${student.name}</p>
                   <p class="text-[11px] text-outline font-medium">${student.email}</p>
@@ -186,17 +237,17 @@
             <td class="px-6 py-5">
               <div class="flex flex-col items-center gap-1">
                 <div class="w-20 h-1.5 bg-outline-variant/20 rounded-full overflow-hidden">
-                  <div class="h-full bg-primary-container" style="width:${attendance}%"></div>
+                  <div class="h-full ${hasAttendanceData ? 'bg-primary-container' : 'bg-outline-variant/40'}" style="width:${hasAttendanceData ? 80 : 0}%"></div>
                 </div>
-                <span class="text-[10px] font-bold text-on-surface">${attendance}%</span>
+                <span class="text-[10px] font-bold text-on-surface">${hasAttendanceData ? '80%' : '--'}</span>
               </div>
             </td>
             <td class="px-6 py-5">
-              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700">Adimplente</span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${hasFinancialData ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}">${hasFinancialData ? 'Adimplente' : 'Sem dados'}</span>
             </td>
             <td class="px-6 py-5">
-              <span class="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Ativo
+              <span class="flex items-center gap-1.5 text-xs font-bold ${status.textClass}">
+                <span class="w-1.5 h-1.5 rounded-full ${status.dotClass}"></span> ${student.statusLabel || 'Ativo'}
               </span>
             </td>
             <td class="px-6 py-5 text-right">
@@ -411,7 +462,9 @@
       }
     });
 
-    manualCreateTopTrigger?.addEventListener('click', openManualCreateModal);
+    manualCreateTriggers.forEach((trigger) =>
+      trigger.addEventListener('click', openManualCreateModal),
+    );
     manualCreateOverlay?.addEventListener('click', closeManualCreateModal);
     manualCreateClose?.addEventListener('click', closeManualCreateModal);
     manualCreateCancel?.addEventListener('click', closeManualCreateModal);
