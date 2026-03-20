@@ -41,6 +41,11 @@ type FinanceOverview = {
   paidCharges: number;
   overdueCharges: number;
 };
+type NavigateMessage = {
+  type: 'academy:navigate';
+  section: string;
+  openDataPanel?: boolean;
+};
 
 const SESSION_TOKEN_KEY = 'academy-auth-token';
 const SESSION_USER_KEY = 'academy-auth-user';
@@ -198,6 +203,31 @@ export default function App() {
       setSecaoAtiva(secoes[0].id);
     }
   }, [autenticado, secoes, secaoAtiva]);
+
+  useEffect(() => {
+    if (!autenticado) return;
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+
+      const data = event.data as Partial<NavigateMessage>;
+      if (data?.type !== 'academy:navigate' || typeof data.section !== 'string') {
+        return;
+      }
+
+      if (!secoes.some((item) => item.id === data.section)) return;
+
+      setSecaoAtiva(data.section);
+
+      if (usuario?.role !== 'superadmin') {
+        if (data.openDataPanel === true) setMostrarPainelDados(true);
+        if (data.openDataPanel === false) setMostrarPainelDados(false);
+      }
+    };
+
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [autenticado, secoes, usuario?.role]);
 
   const lerErroApi = async (response: Response) => {
     try {

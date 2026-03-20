@@ -1,4 +1,11 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,6 +16,7 @@ const frontendRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(frontendRoot, '..', '..');
 const modelosDir = path.join(repoRoot, 'modelos de telas');
 const templatesRoot = path.join(frontendRoot, 'public', 'templates');
+const force = process.argv.includes('--force');
 
 if (!existsSync(modelosDir)) {
   console.log('[sync-templates] Pasta "modelos de telas" não encontrada. Mantendo templates atuais.');
@@ -34,8 +42,14 @@ for (const entry of entries) {
   const targetDir = path.join(templatesRoot, folderName);
   mkdirSync(targetDir, { recursive: true });
 
+  const targetIndex = path.join(targetDir, 'index.html');
+
+  if (existsSync(targetIndex) && !force) {
+    continue;
+  }
+
   const html = readFileSync(sourceCode, 'utf8');
-  writeFileSync(path.join(targetDir, 'index.html'), html, 'utf8');
+  writeFileSync(targetIndex, html, 'utf8');
 
   const sourcePng = path.join(sourceDir, 'screen.png');
   if (existsSync(sourcePng)) {
@@ -45,4 +59,6 @@ for (const entry of entries) {
   syncedCount += 1;
 }
 
-console.log(`[sync-templates] ${syncedCount} template(s) sincronizado(s).`);
+console.log(
+  `[sync-templates] ${syncedCount} template(s) sincronizado(s)${force ? ' (forçado)' : ''}.`,
+);
