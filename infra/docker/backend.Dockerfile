@@ -4,6 +4,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/package.json
 COPY apps/backend/prisma ./apps/backend/prisma
+COPY apps/backend/scripts ./apps/backend/scripts
 RUN npm ci --workspace backend --include-workspace-root=false
 RUN npm run prisma:generate --workspace backend
 
