@@ -66,7 +66,7 @@
       const fullName = (user?.name || 'Professor(a)').trim();
       const firstName = fullName.split(' ')[0] || 'Professor(a)';
 
-      setText('welcome-title', `Bom dia, ${firstName}`);
+      setText('welcome-title', `Bomédia, ${firstName}`);
       setText('profile-name', fullName);
       setText('profile-role', user?.role === 'superadmin' ? 'Superadmin' : 'Administrador');
     } catch {
@@ -77,7 +77,7 @@
   const fetchJson = async (path) => {
     const token = window.sessionStorage.getItem(TOKEN_KEY);
     if (!token) {
-      throw new Error('Token de autentica??o n?o encontrado.');
+      throw new Error('Token de autenticação não encontrado.');
     }
 
     const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -244,7 +244,7 @@
 
       setText('kpi-occupancy-value', `${occupancyRate.toFixed(1)}%`);
       setText('kpi-occupancy-trend-value', `${occupiedSeats}/${totalSeats} vagas`);
-      setText('kpi-occupancy-note', 'ocupa??o m?dia atual');
+      setText('kpi-occupancy-note', 'ocupação média atual');
 
       setText('kpi-finance-value', formatCurrency(pendingAmount));
       setText('kpi-finance-trend-value', `${pendingChargesCount} pend?ncia(s)`);
@@ -315,7 +315,7 @@
       if (classesToday > 0) {
         operations.push({
           title: `Preparar ${classesToday} aula(s) de hoje`,
-          subtitle: 'Confirme presen?a, materiais e comunica??o da turma.',
+          subtitle: 'Confirme presença, materiais e comunicação da turma.',
           icon: 'calendar_today',
           urgent: true,
         });
@@ -341,7 +341,7 @@
 
       if (operations.length === 0) {
         operations.push({
-          title: 'Opera??o est?vel',
+          title: 'Operação estável',
           subtitle: 'Nenhuma pend?ncia cr?tica identificada neste momento.',
           icon: 'check_circle',
           urgent: false,

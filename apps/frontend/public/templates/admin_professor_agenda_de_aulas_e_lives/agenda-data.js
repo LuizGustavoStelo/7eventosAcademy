@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   const TOKEN_KEY = 'academy-auth-token';
   const USER_KEY = 'academy-auth-user';
   const STORAGE_KEY = 'academy-agenda-events-v1';

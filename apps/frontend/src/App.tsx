@@ -60,13 +60,13 @@ const SECOES_SUPERADMIN: NavSection[] = [
   },
   {
     id: 'superadmin_gestao_contas',
-    label: 'Gest?o de Contas',
+    label: 'Gestão de Contas',
     subtitle: 'Template fiel: superadmin_gestao_de_contas',
     templatePath: '/templates/superadmin_gestao_de_contas/index.html',
   },
   {
     id: 'superadmin_impersonacao',
-    label: 'Impersona??o',
+    label: 'Impersonação',
     subtitle: 'Template fiel: superadmin_tela_de_impersonacao',
     templatePath: '/templates/superadmin_tela_de_impersonacao/index.html',
   },
@@ -87,7 +87,7 @@ const SECOES_ADMIN: NavSection[] = [
   },
   {
     id: 'admin_alunos_matriculas',
-    label: 'Alunos e Matr?culas',
+    label: 'Alunos e Matrículas',
     subtitle: 'Template fiel: admin_professor_alunos_e_matriculas',
     templatePath: '/templates/admin_professor_alunos_e_matriculas/index.html',
   },
@@ -105,25 +105,25 @@ const SECOES_ADMIN: NavSection[] = [
   },
   {
     id: 'admin_conteudo',
-    label: 'Conteúdo e Materiais',
+    label: 'Conte?do e Materiais',
     subtitle: 'Template fiel: admin_professor_conteudo_e_materiais',
     templatePath: '/templates/admin_professor_conteudo_e_materiais/index.html',
   },
   {
     id: 'admin_avisos',
-    label: 'Avisos e Comunica??o',
+    label: 'Avisos e Comunicação',
     subtitle: 'Template fiel: admin_professor_avisos_e_comunicacao',
     templatePath: '/templates/admin_professor_avisos_e_comunicacao/index.html',
   },
   {
     id: 'admin_relatorios',
-    label: 'Relat?rios e An?lises',
+    label: 'Relatórios e Análises',
     subtitle: 'Template fiel: admin_professor_relatorios_e_analises',
     templatePath: '/templates/admin_professor_relatorios_e_analises/index.html',
   },
   {
     id: 'admin_configuracoes',
-    label: 'Configura??es',
+    label: 'Configurações',
     subtitle: 'Template fiel: admin_professor_configuracoes',
     templatePath: '/templates/admin_professor_configuracoes/index.html',
   },
@@ -235,9 +235,9 @@ export default function App() {
       if (Array.isArray(data.message)) return data.message.join(' ');
       if (typeof data.message === 'string') return data.message;
     } catch {
-      return 'Falha na opera??o.';
+      return 'Falha na operação.';
     }
-    return 'Falha na opera??o.';
+    return 'Falha na operação.';
   };
 
   const apiRequest = async <T,>(path: string, init?: RequestInit): Promise<T> => {
@@ -328,7 +328,7 @@ export default function App() {
 
       persistirSessao((await response.json()) as AuthResponse);
     } catch {
-      setErro('N?o foi poss?vel conectar com o backend.');
+      setErro('Não foi possível conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -344,7 +344,7 @@ export default function App() {
     }
 
     if (senha !== confirmacaoSenha) {
-      setErro('A confirma??o de senha n�o confere.');
+      setErro('A confirma??o de senha n?o confere.');
       return;
     }
 
@@ -367,7 +367,7 @@ export default function App() {
       setConfirmacaoSenha('');
       setSenha('');
     } catch {
-      setErro('N?o foi poss?vel conectar com o backend.');
+      setErro('Não foi possível conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -466,7 +466,7 @@ export default function App() {
       });
       await carregarDadosAdmin();
     } catch (error) {
-      setAdminErro(error instanceof Error ? error.message : 'Erro ao criar matr?cula.');
+      setAdminErro(error instanceof Error ? error.message : 'Erro ao criar matrícula.');
     }
   };
 
@@ -488,7 +488,7 @@ export default function App() {
       setChargeDueDate('');
       await carregarDadosAdmin();
     } catch (error) {
-      setAdminErro(error instanceof Error ? error.message : 'Erro ao criar cobran?a.');
+      setAdminErro(error instanceof Error ? error.message : 'Erro ao criar cobrança.');
     }
   };
 
@@ -517,7 +517,7 @@ export default function App() {
     return (
       <aside className="ops-drawer">
         <header className="ops-header">
-          <strong>Painel de dados (integra??o real)</strong>
+          <strong>Painel de dados (integração real)</strong>
           <button type="button" onClick={() => setMostrarPainelDados(false)}>
             Fechar
           </button>
@@ -583,8 +583,8 @@ export default function App() {
                       <th>Curso</th>
                       <th>Vagas</th>
                       <th>Status</th>
-                      <th>In?cio</th>
-                      <th>A??o</th>
+                      <th>Início</th>
+                      <th>Ação</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -622,7 +622,7 @@ export default function App() {
         {secaoAtiva === 'admin_alunos_matriculas' ? (
           <>
             <section className="panel">
-              <h2>Alunos e matr?culas</h2>
+              <h2>Alunos e matrículas</h2>
               <form className="auth-form" onSubmit={criarAluno}>
                 <input
                   value={studentName}
@@ -662,7 +662,7 @@ export default function App() {
                   ))}
                 </select>
                 <button type="submit" disabled={adminCarregando}>
-                  Registrar matr?cula
+                  Registrar matrícula
                 </button>
               </form>
             </section>
@@ -700,25 +700,25 @@ export default function App() {
           <>
             <section className="kpi-grid">
               <article className="card">
-                <p>Total de cobran?as</p>
+                <p>Total de cobranças</p>
                 <strong>{overview?.totalCharges ?? 0}</strong>
                 <span>Pendentes: {overview?.pendingCharges ?? 0}</span>
               </article>
               <article className="card">
-                <p>Cobran�as pagas</p>
+                <p>Cobran?as pagas</p>
                 <strong>{overview?.paidCharges ?? 0}</strong>
                 <span>Atrasadas: {overview?.overdueCharges ?? 0}</span>
               </article>
             </section>
 
             <section className="panel">
-              <h2>Cobran�as</h2>
+              <h2>Cobran?as</h2>
               <form className="auth-form" onSubmit={criarCobranca}>
                 <select
                   value={chargeEnrollmentId}
                   onChange={(event) => setChargeEnrollmentId(event.target.value)}
                 >
-                  <option value="">Selecione a matr?cula</option>
+                  <option value="">Selecione a matrícula</option>
                   {enrollments.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.student.name} - {item.schoolClass.name}
@@ -738,7 +738,7 @@ export default function App() {
                   onChange={(event) => setChargeDueDate(event.target.value)}
                 />
                 <button type="submit" disabled={adminCarregando}>
-                  Criar cobran?a
+                  Criar cobrança
                 </button>
               </form>
             </section>
@@ -753,7 +753,7 @@ export default function App() {
                       <th>Vencimento</th>
                       <th>Valor</th>
                       <th>Status</th>
-                      <th>A??o</th>
+                      <th>Ação</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -786,10 +786,9 @@ export default function App() {
           secaoAtiva,
         ) ? (
           <section className="panel">
-            <h2>Integra??o de dados</h2>
+            <h2>Integração de dados</h2>
             <p>
-              Nesta etapa, os m?dulos com integra??o ativa s?o: Gest?o de Turmas, Alunos e
-              Matr?culas e Financeiro.
+              Nesta etapa, os módulos com integração ativa são: Gestão de Turmas, Alunos e`n              Matrículas e Financeiro.
             </p>
           </section>
         ) : null}
@@ -809,10 +808,10 @@ export default function App() {
             </div>
           </div>
 
-          <h1>Bem-vindo ? plataforma Academy</h1>
+          <h1>Bem-vindo à plataforma Academy</h1>
           <p>
-            Ambiente para gest�o de contas, turmas, matr?culas, financeiro e opera??o
-            acad?mica.
+            Ambiente para gest?o de contas, turmas, matr?culas, financeiro e opera??o
+            acadêmica.
           </p>
         </section>
 
