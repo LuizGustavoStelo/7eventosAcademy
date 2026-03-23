@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
 type Role = 'user' | 'admin' | 'superadmin';
@@ -44,6 +44,12 @@ const SECOES_SUPERADMIN: NavSection[] = [
     label: 'Impersonação',
     subtitle: 'Template fiel: superadmin_tela_de_impersonacao',
     templatePath: '/templates/superadmin_tela_de_impersonacao/index.html',
+  },
+  {
+    id: 'superadmin_wordpress_plugin',
+    label: 'Plugin WordPress',
+    subtitle: 'Gerenciar licenças e releases do plugin 7academy',
+    templatePath: '/templates/superadmin_wordpress_plugin/index.html',
   },
 ];
 
@@ -124,6 +130,7 @@ const ICONE_POR_SECAO: Record<string, string> = {
   superadmin_dashboard_global: 'dashboard',
   superadmin_gestao_contas: 'admin_panel_settings',
   superadmin_impersonacao: 'fingerprint',
+  superadmin_wordpress_plugin: 'extension',
 };
 
 export default function App() {

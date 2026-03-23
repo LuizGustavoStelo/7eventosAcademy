@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plugin WordPress — 7Eventos Academy</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3248;
+      --text: #e8eaf2;
+      --muted: #7b82a0;
+      --primary: #6c63ff;
+      --primary-hover: #5a52e0;
+      --accent: #00d4aa;
+      --danger: #ff5370;
+      --warning: #ffb74d;
+      --radius: 10px;
+      --shadow: 0 4px 20px rgba(0,0,0,.35);
+    }
+
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; padding: 28px 32px; }
+
+    h1 { font-size: 1.35rem; font-weight: 700; margin-bottom: 4px; }
+    .page-subtitle { color: var(--muted); font-size: .85rem; margin-bottom: 28px; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px; width: fit-content; margin-bottom: 28px; }
+    .tab { padding: 7px 18px; border-radius: 6px; border: none; background: transparent; color: var(--muted); font-size: .84rem; font-weight: 500; cursor: pointer; transition: all .2s; }
+    .tab.active { background: var(--primary); color: #fff; }
+
+    /* Cards */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 24px; margin-bottom: 20px; box-shadow: var(--shadow); }
+    .card-title { font-size: .95rem; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .card-title .material-symbols-outlined { color: var(--primary); font-size: 1.2rem; }
+
+    /* Formulário */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field.full { grid-column: 1 / -1; }
+    label { font-size: .78rem; font-weight: 600; color: var(--muted); letter-spacing: .4px; text-transform: uppercase; }
+    input, select { background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: inherit; font-size: .88rem; padding: 9px 12px; transition: border-color .2s; outline: none; }
+    input:focus, select:focus { border-color: var(--primary); }
+    input::placeholder { color: var(--muted); }
+    .field-hint { font-size: .75rem; color: var(--muted); }
+
+    /* Toggle */
+    .toggle-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
+    .toggle-label { font-size: .88rem; }
+    .toggle { position: relative; width: 38px; height: 22px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 22px; cursor: pointer; transition: .25s; }
+    .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .25s; }
+    .toggle input:checked + .toggle-slider { background: var(--primary); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+    /* Botões */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 8px; border: none; font-family: inherit; font-size: .86rem; font-weight: 600; cursor: pointer; transition: all .2s; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--primary); color: var(--text); }
+    .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+    .btn-danger:hover { background: var(--danger); color: #fff; }
+    .btn-row { display: flex; gap: 10px; margin-top: 18px; }
+    .material-symbols-outlined { font-size: 1rem; }
+
+    /* Alertas */
+    .alert { padding: 10px 14px; border-radius: 8px; font-size: .86rem; margin-bottom: 14px; display: none; }
+    .alert.show { display: block; }
+    .alert-success { background: rgba(0,212,170,.12); border: 1px solid rgba(0,212,170,.3); color: var(--accent); }
+    .alert-error { background: rgba(255,83,112,.1); border: 1px solid rgba(255,83,112,.3); color: var(--danger); }
+
+    /* Tabela */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+    thead { background: var(--surface2); }
+    th { padding: 10px 14px; text-align: left; font-size: .75rem; font-weight: 600; color: var(--muted); letter-spacing: .4px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+    td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(108,99,255,.04); }
+    .empty-row td { color: var(--muted); text-align: center; padding: 28px; }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
+    .badge-active { background: rgba(0,212,170,.15); color: var(--accent); }
+    .badge-inactive { background: rgba(255,83,112,.12); color: var(--danger); }
+    .badge-published { background: rgba(108,99,255,.15); color: var(--primary); }
+    .badge-draft { background: rgba(123,130,160,.12); color: var(--muted); }
+    .badge-mandatory { background: rgba(255,183,77,.15); color: var(--warning); }
+
+    /* Código */
+    .code-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 10px 14px; font-family: 'Courier New', monospace; font-size: .83rem; color: var(--accent); word-break: break-all; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .code-box button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px; flex-shrink: 0; }
+    .code-box button:hover { color: var(--text); }
+
+    /* Spinner */
+    .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Tabs de conteúdo */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Key preview */
+    .key-preview { font-family: 'Courier New', monospace; color: var(--primary); background: var(--surface2); padding: 2px 8px; border-radius: 5px; font-size: .82rem; }
+
+    @media (max-width: 700px) {
+      .form-grid, .form-grid.cols-3 { grid-template-columns: 1fr; }
+      body { padding: 18px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<h1><span class="material-symbols-outlined" style="vertical-align:middle;font-size:1.4rem;margin-right:6px;color:var(--primary)">extension</span>Plugin WordPress</h1>
+<p class="page-subtitle">Gerencie licenças de ativação e releases do plugin 7academy para WordPress.</p>
+
+<div class="tabs">
+  <button class="tab active" onclick="mudarTab('licencas')">Licenças</button>
+  <button class="tab" onclick="mudarTab('releases')">Releases</button>
+</div>
+
+<!-- ════════════════ ABA LICENÇAS ════════════════ -->
+<div id="tab-licencas" class="tab-content active">
+
+  <div class="card">
+    <div class="card-title">
+      <span class="material-symbols-outlined">add_circle</span>
+      Nova Licença
+    </div>
+
+    <div id="alert-licenca" class="alert"></div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label for="lic-key">Chave de Licença <span style="color:var(--danger)">*</span></label>
+        <input id="lic-key" type="text" placeholder="7A-XXXX-YYYY-ZZZZ" />
+        <span class="field-hint">Formato livre. Recomendado: 7A-XXXX-YYYY-ZZZZ</span>
+      </div>
+      <div class="field">
+        <label for="lic-label">Identificação do cliente</label>
+        <input id="lic-label" type="text" placeholder="ex: ipesk.com.br" />
+      </div>
+      <div class="field">
+        <label for="lic-max">Máx. ativações</label>
+        <input id="lic-max" type="number" value="1" min="1" max="99" />
+      </div>
+      <div class="field" style="justify-content:flex-end;padding-bottom:2px">
+        <div class="toggle-row">
+          <label class="toggle">
+            <input type="checkbox" id="lic-active" checked />
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label">Licença ativa</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button id="btn-criar-licenca" class="btn btn-primary" onclick="criarLicenca()">
+        <span class="material-symbols-outlined">save</span>
+        Salvar Licença
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <span class="material-symbols-outlined">list</span>
+      Licenças cadastradas
+      <button class="btn btn-ghost" style="margin-left:auto;padding:5px 12px;font-size:.8rem" onclick="carregarLicencas()">
+        <span class="material-symbols-outlined">refresh</span>
+        Atualizar
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Identificação</th>
+            <th>Chave (preview)</th>
+            <th>Status</th>
+            <th>Ativações</th>
+            <th>Criada em</th>
+          </tr>
+        </thead>
+        <tbody id="tabela-licencas">
+          <tr class="empty-row"><td colspan="5">Carregando licenças…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════ ABA RELEASES ════════════════ -->
+<div id="tab-releases" class="tab-content">
+
+  <div class="card">
+    <div class="card-title">
+      <span class="material-symbols-outlined">add_circle</span>
+      Nova Release do Plugin
+    </div>
+
+    <div id="alert-release" class="alert"></div>
+
+    <div class="form-grid cols-3">
+      <div class="field">
+        <label for="rel-version">Versão <span style="color:var(--danger)">*</span></label>
+        <input id="rel-version" type="text" placeholder="1.0.1" />
+      </div>
+      <div class="field">
+        <label for="rel-wp">WordPress mín.</label>
+        <input id="rel-wp" type="text" placeholder="6.0" />
+      </div>
+      <div class="field">
+        <label for="rel-php">PHP mín.</label>
+        <input id="rel-php" type="text" placeholder="8.0" />
+      </div>
+      <div class="field full">
+        <label for="rel-url">URL do pacote (ZIP) <span style="color:var(--danger)">*</span></label>
+        <input id="rel-url" type="url" placeholder="https://github.com/.../7academy-1.0.1.zip" />
+        <span class="field-hint">URL pública para download do ZIP. Use o link gerado pelo release-plugin.bat ou crie manualmente no GitHub Releases.</span>
+      </div>
+      <div class="field full">
+        <label for="rel-changelog">URL do Changelog</label>
+        <input id="rel-changelog" type="url" placeholder="https://github.com/.../releases/tag/v1.0.1" />
+      </div>
+    </div>
+    <div style="display:flex;gap:24px;margin-top:14px">
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="rel-published" checked />
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label">Publicar imediatamente</span>
+      </div>
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="rel-mandatory" />
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label">Atualização obrigatória</span>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button id="btn-criar-release" class="btn btn-primary" onclick="criarRelease()">
+        <span class="material-symbols-outlined">rocket_launch</span>
+        Publicar Release
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <span class="material-symbols-outlined">history</span>
+      Histórico de Releases
+      <button class="btn btn-ghost" style="margin-left:auto;padding:5px 12px;font-size:.8rem" onclick="carregarReleases()">
+        <span class="material-symbols-outlined">refresh</span>
+        Atualizar
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Versão</th>
+            <th>Status</th>
+            <th>Obrigatória</th>
+            <th>WP mín.</th>
+            <th>PHP mín.</th>
+            <th>Publicada em</th>
+          </tr>
+        </thead>
+        <tbody id="tabela-releases">
+          <tr class="empty-row"><td colspan="6">Carregando releases…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var TOKEN_KEY = 'academy-auth-token';
+  var API_BASE  = window.location.origin + '/api';
+
+  function token() {
+    return sessionStorage.getItem(TOKEN_KEY) || '';
+  }
+
+  function fmt(isoStr) {
+    if (!isoStr) return '—';
+    try { return new Date(isoStr).toLocaleDateString('pt-BR'); }
+    catch { return isoStr; }
+  }
+
+  function showAlert(id, type, msg) {
+    var el = document.getElementById(id);
+    el.className = 'alert alert-' + type + ' show';
+    el.textContent = msg;
+    setTimeout(function () { el.classList.remove('show'); }, 6000);
+  }
+
+  function apiHeaders() {
+    return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() };
+  }
+
+  // ── TAB SWITCH ────────────────────────────────────────────────
+  window.mudarTab = function (aba) {
+    document.querySelectorAll('.tab').forEach(function (t, i) {
+      t.classList.toggle('active', ['licencas', 'releases'][i] === aba);
+    });
+    document.querySelectorAll('.tab-content').forEach(function (c) { c.classList.remove('active'); });
+    document.getElementById('tab-' + aba).classList.add('active');
+    if (aba === 'licencas') carregarLicencas();
+    else carregarReleases();
+  };
+
+  // ── LICENÇAS ─────────────────────────────────────────────────
+  window.criarLicenca = function () {
+    var key    = document.getElementById('lic-key').value.trim();
+    var label  = document.getElementById('lic-label').value.trim();
+    var max    = parseInt(document.getElementById('lic-max').value, 10) || 1;
+    var active = document.getElementById('lic-active').checked;
+
+    if (!key) { showAlert('alert-licenca', 'error', 'Informe a chave de licença.'); return; }
+
+    var btn = document.getElementById('btn-criar-licenca');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Salvando…';
+
+    fetch(API_BASE + '/wordpress/admin/licenses', {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify({ licenseKey: key, label: label || undefined, maxActivations: max, isActive: active })
+    })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+    .then(function (res) {
+      if (!res.ok) {
+        var msg = res.data && res.data.message;
+        if (Array.isArray(msg)) msg = msg.join(', ');
+        showAlert('alert-licenca', 'error', msg || 'Erro ao salvar licença.');
+        return;
+      }
+      showAlert('alert-licenca', 'success', 'Licença salva com sucesso! Preview: ' + (res.data.keyPreview || ''));
+      document.getElementById('lic-key').value = '';
+      document.getElementById('lic-label').value = '';
+      carregarLicencas();
+    })
+    .catch(function () { showAlert('alert-licenca', 'error', 'Erro de conexão.'); })
+    .finally(function () {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-symbols-outlined">save</span> Salvar Licença';
+    });
+  };
+
+  window.carregarLicencas = function () {
+    var tbody = document.getElementById('tabela-licencas');
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Carregando…</td></tr>';
+
+    fetch(API_BASE + '/wordpress/admin/licenses', { headers: apiHeaders() })
+    .then(function (r) { return r.json(); })
+    .then(function (list) {
+      if (!Array.isArray(list) || list.length === 0) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Nenhuma licença cadastrada.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(function (l) {
+        var badge = l.isActive
+          ? '<span class="badge badge-active">Ativa</span>'
+          : '<span class="badge badge-inactive">Inativa</span>';
+        var ativacoes = (l.activations ? l.activations.length : 0) + ' / ' + l.maxActivations;
+        return '<tr>'
+          + '<td>' + (l.label || '<span style="color:var(--muted)">—</span>') + '</td>'
+          + '<td><span class="key-preview">••••' + l.id.slice(-6) + '</span></td>'
+          + '<td>' + badge + '</td>'
+          + '<td>' + ativacoes + '</td>'
+          + '<td>' + fmt(l.createdAt) + '</td>'
+          + '</tr>';
+      }).join('');
+    })
+    .catch(function () {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Erro ao carregar licenças.</td></tr>';
+    });
+  };
+
+  // ── RELEASES ─────────────────────────────────────────────────
+  window.criarRelease = function () {
+    var version   = document.getElementById('rel-version').value.trim();
+    var url       = document.getElementById('rel-url').value.trim();
+    var changelog = document.getElementById('rel-changelog').value.trim();
+    var wp        = document.getElementById('rel-wp').value.trim();
+    var php       = document.getElementById('rel-php').value.trim();
+    var published = document.getElementById('rel-published').checked;
+    var mandatory = document.getElementById('rel-mandatory').checked;
+
+    if (!version) { showAlert('alert-release', 'error', 'Informe a versão.'); return; }
+    if (!url) { showAlert('alert-release', 'error', 'Informe a URL do pacote ZIP.'); return; }
+
+    var btn = document.getElementById('btn-criar-release');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Publicando…';
+
+    var payload = { version: version, packageUrl: url, isPublished: published, isMandatory: mandatory };
+    if (wp) payload.minWpVersion = wp;
+    if (php) payload.minPhpVersion = php;
+    if (changelog) payload.changelogUrl = changelog;
+
+    fetch(API_BASE + '/wordpress/admin/releases', {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify(payload)
+    })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+    .then(function (res) {
+      if (!res.ok) {
+        var msg = res.data && res.data.message;
+        if (Array.isArray(msg)) msg = msg.join(', ');
+        showAlert('alert-release', 'error', msg || 'Erro ao publicar release.');
+        return;
+      }
+      showAlert('alert-release', 'success', 'Release v' + version + ' publicada com sucesso!');
+      document.getElementById('rel-version').value = '';
+      document.getElementById('rel-url').value = '';
+      document.getElementById('rel-changelog').value = '';
+      carregarReleases();
+    })
+    .catch(function () { showAlert('alert-release', 'error', 'Erro de conexão.'); })
+    .finally(function () {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-symbols-outlined">rocket_launch</span> Publicar Release';
+    });
+  };
+
+  window.carregarReleases = function () {
+    var tbody = document.getElementById('tabela-releases');
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Carregando…</td></tr>';
+
+    fetch(API_BASE + '/wordpress/admin/releases', { headers: apiHeaders() })
+    .then(function (r) { return r.json(); })
+    .then(function (list) {
+      if (!Array.isArray(list) || list.length === 0) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nenhuma release cadastrada. Use o formulário acima ou o release-plugin.bat.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(function (rel) {
+        var status = rel.isPublished
+          ? '<span class="badge badge-published">Publicada</span>'
+          : '<span class="badge badge-draft">Rascunho</span>';
+        var obrig = rel.isMandatory
+          ? '<span class="badge badge-mandatory">Sim</span>'
+          : '<span style="color:var(--muted)">Não</span>';
+        return '<tr>'
+          + '<td><strong>v' + rel.version + '</strong></td>'
+          + '<td>' + status + '</td>'
+          + '<td>' + obrig + '</td>'
+          + '<td>' + (rel.minWpVersion || '—') + '</td>'
+          + '<td>' + (rel.minPhpVersion || '—') + '</td>'
+          + '<td>' + fmt(rel.publishedAt || rel.createdAt) + '</td>'
+          + '</tr>';
+      }).join('');
+    })
+    .catch(function () {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Erro ao carregar releases.</td></tr>';
+    });
+  };
+
+  // Carga inicial
+  carregarLicencas();
+})();
+</script>
+
+</body>
+</html>
