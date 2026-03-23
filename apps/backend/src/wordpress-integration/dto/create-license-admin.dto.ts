@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsDateString,
   IsInt,
   IsOptional,
   IsString,
@@ -29,4 +30,9 @@ export class CreateLicenseAdminDto {
   @Type(() => Boolean)
   @IsBoolean()
   isActive?: boolean;
+
+  /** Data de expiração da licença (ISO 8601). Opcional. */
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
 }

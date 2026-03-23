@@ -160,6 +160,12 @@
       border: 1px solid var(--border);
     }
     .btn-ghost:hover { color: var(--text); border-color: rgba(26,26,26,.3); }
+    .btn-danger {
+      background: transparent;
+      color: var(--danger);
+      border: 1.5px solid var(--danger);
+    }
+    .btn-danger:hover { background: var(--danger); color: #fff; }
     .btn-sm { padding: 5px 12px; font-size: .78rem; }
     .btn-row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
 
@@ -288,14 +294,10 @@
         <label for="lic-max">Máx. ativações (domínios)</label>
         <input id="lic-max" type="number" value="1" min="1" max="99" />
       </div>
-      <div class="field" style="justify-content:flex-end">
-        <div class="toggle-row">
-          <label class="toggle">
-            <input type="checkbox" id="lic-active" checked />
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="toggle-label">Licença ativa</span>
-        </div>
+      <div class="field">
+        <label for="lic-expires">Data de expiração</label>
+        <input id="lic-expires" type="date" />
+        <span class="field-hint">Opcional. Deixe em branco para licença sem prazo.</span>
       </div>
     </div>
 
@@ -329,11 +331,13 @@
             <th>Identificação</th>
             <th>Status</th>
             <th>Ativações</th>
+            <th>Expira em</th>
             <th>Criada em</th>
+            <th style="text-align:right">Ações</th>
           </tr>
         </thead>
         <tbody id="tabela-licencas">
-          <tr class="empty-row"><td colspan="4">Carregando licenças…</td></tr>
+          <tr class="empty-row"><td colspan="6">Carregando licenças…</td></tr>
         </tbody>
       </table>
     </div>
@@ -438,7 +442,7 @@
   var TOKEN_KEY = 'academy-auth-token';
   var API_BASE  = window.location.origin + '/api';
 
-  function token() { return sessionStorage.getItem(TOKEN_KEY) || ''; }
+  function token() { return localStorage.getItem(TOKEN_KEY) || ''; }
 
   function fmt(iso) {
     if (!iso) return '—';
@@ -500,6 +504,7 @@
     document.getElementById('lic-key').value = '';
     document.getElementById('lic-label').value = '';
     document.getElementById('lic-max').value = '1';
+    document.getElementById('lic-expires').value = '';
     document.getElementById('lic-active').checked = true;
     document.getElementById('key-generated-box').classList.remove('show');
   };
@@ -508,7 +513,8 @@
     var key    = document.getElementById('lic-key').value.trim();
     var label  = document.getElementById('lic-label').value.trim();
     var max    = parseInt(document.getElementById('lic-max').value, 10) || 1;
-    var active = document.getElementById('lic-active').checked;
+    var active   = document.getElementById('lic-active').checked;
+    var expires  = document.getElementById('lic-expires').value;
 
     if (!key) { showAlert('alert-licenca', 'error', 'Informe ou gere a chave de licença.'); return; }
 
@@ -516,10 +522,14 @@
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Salvando…';
 
+    var payload = { licenseKey: key, maxActivations: max, isActive: active };
+    if (label) payload.label = label;
+    if (expires) payload.expiresAt = new Date(expires).toISOString();
+
     fetch(API_BASE + '/wordpress/admin/licenses', {
       method: 'POST',
       headers: hdrs(),
-      body: JSON.stringify({ licenseKey: key, label: label || undefined, maxActivations: max, isActive: active })
+      body: JSON.stringify(payload)
     })
     .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
     .then(function (res) {
@@ -542,13 +552,13 @@
 
   window.carregarLicencas = function () {
     var tbody = document.getElementById('tabela-licencas');
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Carregando…</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Carregando…</td></tr>';
 
     fetch(API_BASE + '/wordpress/admin/licenses', { headers: hdrs() })
     .then(function (r) { return r.json(); })
     .then(function (list) {
       if (!Array.isArray(list) || list.length === 0) {
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Nenhuma licença cadastrada ainda.</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nenhuma licença cadastrada ainda.</td></tr>';
         return;
       }
       tbody.innerHTML = list.map(function (l) {
@@ -556,17 +566,69 @@
           ? '<span class="badge badge-active">Ativa</span>'
           : '<span class="badge badge-inactive">Inativa</span>';
         var atv = (l.activations ? l.activations.length : 0) + ' / ' + l.maxActivations;
+        var exp = l.expiresAt ? fmt(l.expiresAt) : '<span style="color:var(--muted-lt)">Sem prazo</span>';
+        var acoes = '<div style="display:flex;gap:6px;justify-content:flex-end">'
+          + '<button class="btn btn-outline btn-sm" onclick="renovarLicenca(\'' + l.id + '\')" title="Renovar / Reativar">'
+          + '<span class="material-symbols-outlined">autorenew</span> Renovar</button>'
+          + '<button class="btn btn-danger btn-sm" onclick="revogarLicenca(\'' + l.id + '\', \'' + (l.label || l.id) + '\')" title="Revogar licença">'
+          + '<span class="material-symbols-outlined">block</span> Revogar</button>'
+          + '</div>';
         return '<tr>'
           + '<td><strong>' + (l.label || '—') + '</strong></td>'
           + '<td>' + badge + '</td>'
           + '<td>' + atv + '</td>'
+          + '<td>' + exp + '</td>'
           + '<td>' + fmt(l.createdAt) + '</td>'
+          + '<td>' + acoes + '</td>'
           + '</tr>';
       }).join('');
     })
     .catch(function () {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Erro ao carregar. Verifique sua conexão.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Erro ao carregar. Verifique sua conexão.</td></tr>';
     });
+  };
+
+  window.revogarLicenca = function (id, nome) {
+    if (!confirm('Revogar a licença de "' + nome + '"?\nTodas as ativações serão desconectadas.')) return;
+
+    fetch(API_BASE + '/wordpress/admin/licenses/' + id, {
+      method: 'DELETE',
+      headers: hdrs()
+    })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+    .then(function (res) {
+      if (!res.ok) {
+        showAlert('alert-licenca', 'error', (res.data && res.data.message) || 'Erro ao revogar.');
+        return;
+      }
+      showAlert('alert-licenca', 'success', 'Licença revogada com sucesso.');
+      carregarLicencas();
+    })
+    .catch(function () { showAlert('alert-licenca', 'error', 'Erro de conexão.'); });
+  };
+
+  window.renovarLicenca = function (id) {
+    var novaExp = prompt('Nova data de expiração (AAAA-MM-DD). Deixe em branco para remover prazo:');
+    if (novaExp === null) return; // cancelou
+
+    var payload = {};
+    if (novaExp.trim()) payload.expiresAt = new Date(novaExp.trim()).toISOString();
+
+    fetch(API_BASE + '/wordpress/admin/licenses/' + id + '/renew', {
+      method: 'POST',
+      headers: hdrs(),
+      body: JSON.stringify(payload)
+    })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+    .then(function (res) {
+      if (!res.ok) {
+        showAlert('alert-licenca', 'error', (res.data && res.data.message) || 'Erro ao renovar.');
+        return;
+      }
+      showAlert('alert-licenca', 'success', 'Licença reativada! ' + (res.data.expiresAt ? 'Expira em: ' + fmt(res.data.expiresAt) : 'Sem prazo de expiração.'));
+      carregarLicencas();
+    })
+    .catch(function () { showAlert('alert-licenca', 'error', 'Erro de conexão.'); });
   };
 
   // ── RELEASES ─────────────────────────────────────────────

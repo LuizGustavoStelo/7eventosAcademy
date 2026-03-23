@@ -193,6 +193,7 @@ export class WordpressIntegrationService {
     const normalizedKey = this.normalizeLicenseKey(dto.licenseKey);
     const keyHash = this.hashLicenseKey(normalizedKey);
     const maxActivations = dto.maxActivations ?? 1;
+    const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
 
     const license = await this.prisma.wordpressPluginLicense.upsert({
       where: { keyHash },
@@ -201,11 +202,13 @@ export class WordpressIntegrationService {
         label: dto.label?.trim() || null,
         maxActivations,
         isActive: dto.isActive ?? true,
+        expiresAt,
       },
       update: {
         label: dto.label?.trim() || null,
         maxActivations,
         isActive: dto.isActive ?? true,
+        expiresAt,
       },
     });
 
@@ -214,9 +217,73 @@ export class WordpressIntegrationService {
       label: license.label,
       isActive: license.isActive,
       maxActivations: license.maxActivations,
+      expiresAt: license.expiresAt,
       keyPreview: this.maskLicenseKey(normalizedKey),
       createdAt: license.createdAt,
       updatedAt: license.updatedAt,
+    };
+  }
+
+  async deleteLicense(id: string) {
+    const license = await this.prisma.wordpressPluginLicense.findUnique({
+      where: { id },
+    });
+
+    if (!license) {
+      throw new NotFoundException('Licença não encontrada.');
+    }
+
+    // Revoga todas as ativações ativas
+    await this.prisma.wordpressPluginActivation.updateMany({
+      where: { licenseId: id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    // Inativa a licença (mantém histórico no banco)
+    await this.prisma.wordpressPluginLicense.update({
+      where: { id },
+      data: { isActive: false },
+    });
+
+    return {
+      success: true,
+      message: 'Licença revogada e todas as ativações encerradas.',
+    };
+  }
+
+  async renewLicense(id: string, dto: CreateLicenseAdminDto) {
+    const license = await this.prisma.wordpressPluginLicense.findUnique({
+      where: { id },
+    });
+
+    if (!license) {
+      throw new NotFoundException('Licença não encontrada.');
+    }
+
+    const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
+
+    const updated = await this.prisma.wordpressPluginLicense.update({
+      where: { id },
+      data: {
+        isActive: true,
+        expiresAt,
+        maxActivations: dto.maxActivations ?? license.maxActivations,
+      },
+    });
+
+    // Restaura ativações anteriores removendo a revogação
+    await this.prisma.wordpressPluginActivation.updateMany({
+      where: { licenseId: id },
+      data: { revokedAt: null },
+    });
+
+    return {
+      id: updated.id,
+      label: updated.label,
+      isActive: updated.isActive,
+      maxActivations: updated.maxActivations,
+      expiresAt: updated.expiresAt,
+      message: 'Licença renovada com sucesso.',
     };
   }
 

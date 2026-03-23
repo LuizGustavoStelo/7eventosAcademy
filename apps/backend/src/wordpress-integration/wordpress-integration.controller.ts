@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ActivateLicenseDto } from './dto/activate-license.dto';
@@ -48,6 +48,18 @@ export class WordpressIntegrationController {
   @Post('admin/licenses')
   createOrUpdateLicense(@Body() dto: CreateLicenseAdminDto) {
     return this.wordpressIntegrationService.createOrUpdateLicense(dto);
+  }
+
+  @Roles('superadmin')
+  @Delete('admin/licenses/:id')
+  deleteLicense(@Param('id') id: string) {
+    return this.wordpressIntegrationService.deleteLicense(id);
+  }
+
+  @Roles('superadmin')
+  @Post('admin/licenses/:id/renew')
+  renewLicense(@Param('id') id: string, @Body() dto: CreateLicenseAdminDto) {
+    return this.wordpressIntegrationService.renewLicense(id, dto);
   }
 
   @Roles('superadmin')

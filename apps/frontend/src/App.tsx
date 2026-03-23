@@ -23,8 +23,9 @@ type NavigateMessage = {
 };
 
 const SESSION_TOKEN_KEY = 'academy-auth-token';
-const SESSION_USER_KEY = 'academy-auth-user';
+const SESSION_USER_KEY  = 'academy-auth-user';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+
 
 const SECOES_SUPERADMIN: NavSection[] = [
   {
@@ -142,9 +143,10 @@ export default function App() {
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
 
-  const [token, setToken] = useState(() => window.sessionStorage.getItem(SESSION_TOKEN_KEY) ?? '');
+  const [token, setToken] = useState(() => window.localStorage.getItem(SESSION_TOKEN_KEY) ?? '');
   const [usuario, setUsuario] = useState<AuthUser | null>(() => {
-    const saved = window.sessionStorage.getItem(SESSION_USER_KEY);
+    const saved = window.localStorage.getItem(SESSION_USER_KEY);
+
     if (!saved) return null;
     try {
       return JSON.parse(saved) as AuthUser;
@@ -232,14 +234,14 @@ export default function App() {
   };
 
   const persistirSessao = (auth: AuthResponse) => {
-    window.sessionStorage.setItem(SESSION_TOKEN_KEY, auth.accessToken);
-    window.sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(auth.user));
+    window.localStorage.setItem(SESSION_TOKEN_KEY, auth.accessToken);
+    window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(auth.user));
     setToken(auth.accessToken);
     setUsuario(auth.user);
   };
 
   const atualizarUsuarioSessao = (nextUser: AuthUser) => {
-    window.sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(nextUser));
+    window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(nextUser));
     setUsuario(nextUser);
   };
 
@@ -268,8 +270,8 @@ export default function App() {
   }, [autenticado, token]);
 
   const sair = () => {
-    window.sessionStorage.removeItem(SESSION_TOKEN_KEY);
-    window.sessionStorage.removeItem(SESSION_USER_KEY);
+    window.localStorage.removeItem(SESSION_TOKEN_KEY);
+    window.localStorage.removeItem(SESSION_USER_KEY);
     setToken('');
     setUsuario(null);
     setSecaoAtiva('');

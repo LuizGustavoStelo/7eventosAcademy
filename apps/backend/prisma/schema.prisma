@@ -270,6 +270,7 @@ model WordpressPluginLicense {
   label          String?
   maxActivations Int                        @default(1) @map("max_activations")
   isActive       Boolean                    @default(true) @map("is_active")
+  expiresAt      DateTime?                  @map("expires_at")
   createdAt      DateTime                   @default(now()) @map("created_at")
   updatedAt      DateTime                   @updatedAt @map("updated_at")
   activations    WordpressPluginActivation[]
