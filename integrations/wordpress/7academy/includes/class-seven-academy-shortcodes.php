@@ -55,7 +55,7 @@ class Seven_Academy_Shortcodes
         }
 
         // Página HTML servida diretamente pelo backend em /mis/area-do-aluno.html
-        $src = $base_url . '/mis/area-do-aluno.html';
+        $src = $base_url . '/mis/area-do-aluno.html?embed=1';
 
         wp_enqueue_style('seven-academy-mis');
 
@@ -88,7 +88,7 @@ class Seven_Academy_Shortcodes
         }
 
         // Página HTML servida diretamente pelo backend em /mis/cadastro-aluno.html
-        $src = $base_url . '/mis/cadastro-aluno.html';
+        $src = $base_url . '/mis/cadastro-aluno.html?embed=1';
 
         wp_enqueue_style('seven-academy-mis');
 

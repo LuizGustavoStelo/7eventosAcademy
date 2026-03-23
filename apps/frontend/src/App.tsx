@@ -160,6 +160,7 @@ export default function App() {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
+  const isEmbedded = new URLSearchParams(window.location.search).get('embed') === '1';
   const autenticado = Boolean(token && usuario);
   const secoes = usuario?.role === 'superadmin' ? SECOES_SUPERADMIN : SECOES_ADMIN;
   const secaoAtual = secoes.find((item) => item.id === secaoAtiva) ?? secoes[0];
@@ -389,22 +390,24 @@ export default function App() {
 
   if (!autenticado) {
     return (
-      <div className="auth-shell">
-        <section className="auth-panel">
-          <div className="brand auth-brand">
-            <div className="brand-mark">7E</div>
-            <div>
-              <strong>7Eventos Academy</strong>
-              <span>Acesso administrativo</span>
+      <div className={`auth-shell ${isEmbedded ? 'embedded' : ''}`}>
+        {!isEmbedded && (
+          <section className="auth-panel">
+            <div className="brand auth-brand">
+              <div className="brand-mark">7E</div>
+              <div>
+                <strong>7Eventos Academy</strong>
+                <span>Acesso administrativo</span>
+              </div>
             </div>
-          </div>
 
-          <h1>Bem-vindo à plataforma Academy</h1>
-          <p>
-            Ambiente para gestão de contas, turmas, matrículas, financeiro e operação
-            acadêmica.
-          </p>
-        </section>
+            <h1>Bem-vindo à plataforma Academy</h1>
+            <p>
+              Ambiente para gestão de contas, turmas, matrículas, financeiro e operação
+              acadêmica.
+            </p>
+          </section>
+        )}
 
         <section className="auth-card">
           <div className="auth-tabs">

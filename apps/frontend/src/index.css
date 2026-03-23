@@ -42,6 +42,16 @@ body {
   padding: 2.5rem;
 }
 
+.auth-shell.embedded {
+  grid-template-columns: 1fr;
+  place-items: center;
+  background: transparent;
+}
+
+.auth-shell.embedded .auth-card {
+  justify-self: center;
+}
+
 .auth-panel {
   display: grid;
   align-content: center;
