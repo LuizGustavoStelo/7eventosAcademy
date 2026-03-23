@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Cadastro de Aluno — 7Eventos Academy</title>
+  <link rel="stylesheet" href="/mis/mis.css" />
+  <style>
+    /* Sobrescritas pontuais para layout de cadastro multi-etapa */
+    .mis-register { min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 32px 16px; }
+    .mis-register__box { background: var(--academy-surface); border: 1px solid var(--academy-border); border-radius: var(--academy-radius); padding: 36px 32px; width: 100%; max-width: 560px; box-shadow: var(--academy-shadow); }
+    .mis-register__logo { font-size: 1.4rem; font-weight: 700; color: var(--academy-primary); text-align: center; margin-bottom: 4px; }
+    .mis-register__subtitle { text-align: center; color: var(--academy-muted); font-size: .88rem; margin-bottom: 28px; }
+    .mis-step-indicator { display: flex; gap: 8px; justify-content: center; margin-bottom: 28px; }
+    .mis-step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--academy-border); transition: background .3s; }
+    .mis-step-dot--active { background: var(--academy-primary); }
+    .mis-step-dot--done   { background: var(--academy-accent); }
+    .mis-step { display: none; }
+    .mis-step--active { display: block; }
+    .mis-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .mis-section-label { font-size: .75rem; font-weight: 600; color: var(--academy-muted); letter-spacing: .6px; text-transform: uppercase; margin: 20px 0 12px; }
+    .mis-btn-row { display: flex; gap: 10px; margin-top: 20px; }
+    .mis-btn-row .mis-btn { flex: 1; }
+    @media (max-width: 480px) {
+      .mis-field-row { grid-template-columns: 1fr; }
+      .mis-register__box { padding: 28px 18px; }
+    }
+    #mis-success { display: none; text-align: center; padding: 24px 0; }
+    #mis-success .mis-success-icon { font-size: 3.5rem; margin-bottom: 12px; }
+    #mis-success h2 { font-size: 1.3rem; margin-bottom: 8px; }
+    #mis-success p { color: var(--academy-muted); font-size: .9rem; line-height: 1.7; }
+  </style>
+</head>
+<body>
+
+<div class="mis-register">
+  <div class="mis-register__box">
+
+    <div class="mis-register__logo">7Eventos Academy</div>
+    <p class="mis-register__subtitle">Crie sua conta de aluno</p>
+
+    <!-- Indicador de etapas -->
+    <div class="mis-step-indicator" id="mis-step-dots">
+      <div class="mis-step-dot mis-step-dot--active" id="mis-dot-0"></div>
+      <div class="mis-step-dot" id="mis-dot-1"></div>
+      <div class="mis-step-dot" id="mis-dot-2"></div>
+    </div>
+
+    <div id="mis-register-alert" class="mis-alert mis-alert--error" style="display:none"></div>
+
+    <form id="mis-register-form" novalidate>
+
+      <!-- ═══ Etapa 1 — Acesso ═══ -->
+      <div class="mis-step mis-step--active" id="mis-step-0">
+        <p class="mis-section-label">Dados de acesso</p>
+
+        <div class="mis-field">
+          <label for="r-name">Nome completo <span style="color:var(--academy-error)">*</span></label>
+          <input id="r-name" class="mis-input" type="text" name="name" placeholder="João da Silva" autocomplete="name" required />
+        </div>
+
+        <div class="mis-field">
+          <label for="r-email">E-mail <span style="color:var(--academy-error)">*</span></label>
+          <input id="r-email" class="mis-input" type="email" name="email" placeholder="seu@email.com" autocomplete="email" required />
+        </div>
+
+        <div class="mis-field">
+          <label for="r-password">Senha <span style="color:var(--academy-error)">*</span></label>
+          <input id="r-password" class="mis-input" type="password" name="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" required />
+        </div>
+
+        <div class="mis-btn-row">
+          <button type="button" id="mis-btn-step0" class="mis-btn mis-btn--primary">Próximo</button>
+        </div>
+      </div>
+
+      <!-- ═══ Etapa 2 — Dados pessoais ═══ -->
+      <div class="mis-step" id="mis-step-1">
+        <p class="mis-section-label">Dados pessoais</p>
+
+        <div class="mis-field-row">
+          <div class="mis-field">
+            <label for="r-cpf">CPF <span style="color:var(--academy-error)">*</span></label>
+            <input id="r-cpf" class="mis-input" type="text" name="documentCpf" placeholder="000.000.000-00" inputmode="numeric" required />
+          </div>
+          <div class="mis-field">
+            <label for="r-phone">Telefone / WhatsApp <span style="color:var(--academy-error)">*</span></label>
+            <input id="r-phone" class="mis-input" type="tel" name="phone" placeholder="(11) 99999-9999" autocomplete="tel" required />
+          </div>
+        </div>
+
+        <div class="mis-field-row">
+          <div class="mis-field">
+            <label for="r-birth">Data de nascimento <span style="color:var(--academy-error)">*</span></label>
+            <input id="r-birth" class="mis-input" type="date" name="birthDate" required />
+          </div>
+          <div class="mis-field">
+            <label for="r-gender">Gênero</label>
+            <select id="r-gender" class="mis-input" name="gender">
+              <option value="">Prefiro não informar</option>
+              <option value="masculino">Masculino</option>
+              <option value="feminino">Feminino</option>
+              <option value="outro">Outro</option>
+            </select>
+          </div>
+        </div>
+
+        <p class="mis-section-label">Responsável (se menor de 18 anos)</p>
+        <div class="mis-field-row">
+          <div class="mis-field">
+            <label for="r-guardian-name">Nome do responsável</label>
+            <input id="r-guardian-name" class="mis-input" type="text" name="guardianName" placeholder="Nome completo" />
+          </div>
+          <div class="mis-field">
+            <label for="r-guardian-phone">Telefone do responsável</label>
+            <input id="r-guardian-phone" class="mis-input" type="tel" name="guardianPhone" placeholder="(11) 99999-9999" />
+          </div>
+        </div>
+
+        <div class="mis-btn-row">
+          <button type="button" id="mis-btn-back1" class="mis-btn mis-btn--ghost">Voltar</button>
+          <button type="button" id="mis-btn-step1" class="mis-btn mis-btn--primary">Próximo</button>
+        </div>
+      </div>
+
+      <!-- ═══ Etapa 3 — Endereço ═══ -->
+      <div class="mis-step" id="mis-step-2">
+        <p class="mis-section-label">Endereço (opcional)</p>
+
+        <div class="mis-field-row">
+          <div class="mis-field">
+            <label for="r-zip">CEP</label>
+            <input id="r-zip" class="mis-input" type="text" name="zipCode" placeholder="00000-000" inputmode="numeric" />
+          </div>
+          <div class="mis-field">
+            <label for="r-street-number">Número</label>
+            <input id="r-street-number" class="mis-input" type="text" name="streetNumber" placeholder="123" />
+          </div>
+        </div>
+
+        <div class="mis-field">
+          <label for="r-street">Logradouro</label>
+          <input id="r-street" class="mis-input" type="text" name="street" placeholder="Rua, Avenida…" autocomplete="address-line1" />
+        </div>
+
+        <div class="mis-field-row">
+          <div class="mis-field">
+            <label for="r-neighborhood">Bairro</label>
+            <input id="r-neighborhood" class="mis-input" type="text" name="neighborhood" placeholder="Bairro" />
+          </div>
+          <div class="mis-field">
+            <label for="r-complement">Complemento</label>
+            <input id="r-complement" class="mis-input" type="text" name="complement" placeholder="Apto, bloco…" />
+          </div>
+        </div>
+
+        <div class="mis-field-row">
+          <div class="mis-field">
+            <label for="r-city">Cidade</label>
+            <input id="r-city" class="mis-input" type="text" name="city" placeholder="São Paulo" autocomplete="address-level2" />
+          </div>
+          <div class="mis-field">
+            <label for="r-state">Estado</label>
+            <input id="r-state" class="mis-input" type="text" name="state" placeholder="SP" maxlength="2" />
+          </div>
+        </div>
+
+        <div class="mis-field">
+          <label for="r-notes">Observações</label>
+          <input id="r-notes" class="mis-input" type="text" name="notes" placeholder="Alguma observação importante?" />
+        </div>
+
+        <div class="mis-btn-row">
+          <button type="button" id="mis-btn-back2" class="mis-btn mis-btn--ghost">Voltar</button>
+          <button type="submit" id="mis-btn-submit" class="mis-btn mis-btn--primary">Cadastrar</button>
+        </div>
+      </div>
+
+    </form>
+
+    <!-- ── Sucesso ── -->
+    <div id="mis-success">
+      <div class="mis-success-icon">🎉</div>
+      <h2>Cadastro realizado!</h2>
+      <p>
+        Seu cadastro foi criado com sucesso.<br />
+        Faça login na <a href="/mis/area-do-aluno" style="color:var(--academy-primary)">Área do Aluno</a>
+        para acompanhar suas matrículas e materiais.
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   MIS — Formulário de Cadastro de Aluno | Script
+   Charset: UTF-8
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var API_BASE = (function () {
+    var p = new URLSearchParams(window.location.search);
+    var b = p.get('api_base');
+    return b ? b.replace(/\/$/, '') : window.location.origin;
+  })();
+
+  var currentStep = 0;
+
+  function $(id) { return document.getElementById(id); }
+
+  function showAlert(msg) {
+    var el = $('mis-register-alert');
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  function hideAlert() { $('mis-register-alert').style.display = 'none'; }
+
+  function goToStep(step) {
+    $('mis-step-' + currentStep).classList.remove('mis-step--active');
+    $('mis-dot-' + currentStep).classList.remove('mis-step-dot--active');
+    $('mis-dot-' + currentStep).classList.add('mis-step-dot--done');
+
+    currentStep = step;
+    $('mis-step-' + step).classList.add('mis-step--active');
+    $('mis-dot-' + step).classList.remove('mis-step-dot--done');
+    $('mis-dot-' + step).classList.add('mis-step-dot--active');
+
+    hideAlert();
+  }
+
+  function valNotEmpty(id, label) {
+    var v = $(id).value.trim();
+    if (!v) { showAlert('O campo "' + label + '" é obrigatório.'); return false; }
+    return true;
+  }
+
+  /* Etapa 0 → 1 */
+  $('mis-btn-step0').addEventListener('click', function () {
+    if (!valNotEmpty('r-name',     'Nome completo'))  return;
+    if (!valNotEmpty('r-email',    'E-mail'))         return;
+    if (!valNotEmpty('r-password', 'Senha'))          return;
+    var pwd = $('r-password').value;
+    if (pwd.length < 8) { showAlert('A senha deve ter pelo menos 8 caracteres.'); return; }
+    goToStep(1);
+  });
+
+  /* Etapa 1 → 0 */
+  $('mis-btn-back1').addEventListener('click', function () {
+    $('mis-step-1').classList.remove('mis-step--active');
+    $('mis-dot-1').classList.remove('mis-step-dot--active', 'mis-step-dot--done');
+    $('mis-dot-0').classList.remove('mis-step-dot--done');
+    $('mis-dot-0').classList.add('mis-step-dot--active');
+    currentStep = 0;
+    $('mis-step-0').classList.add('mis-step--active');
+    hideAlert();
+  });
+
+  /* Etapa 1 → 2 */
+  $('mis-btn-step1').addEventListener('click', function () {
+    if (!valNotEmpty('r-cpf',   'CPF'))    return;
+    if (!valNotEmpty('r-phone', 'Telefone')) return;
+    if (!valNotEmpty('r-birth', 'Data de nascimento')) return;
+    goToStep(2);
+  });
+
+  /* Etapa 2 → 1 */
+  $('mis-btn-back2').addEventListener('click', function () {
+    $('mis-step-2').classList.remove('mis-step--active');
+    $('mis-dot-2').classList.remove('mis-step-dot--active', 'mis-step-dot--done');
+    $('mis-dot-1').classList.remove('mis-step-dot--done');
+    $('mis-dot-1').classList.add('mis-step-dot--active');
+    currentStep = 1;
+    $('mis-step-1').classList.add('mis-step--active');
+    hideAlert();
+  });
+
+  /* Submit final */
+  $('mis-register-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    hideAlert();
+
+    var payload = {
+      name:         $('r-name').value.trim(),
+      email:        $('r-email').value.trim(),
+      password:     $('r-password').value,
+      documentCpf:  $('r-cpf').value.trim(),
+      phone:        $('r-phone').value.trim(),
+      birthDate:    $('r-birth').value,
+    };
+
+    var gender = $('r-gender').value;
+    if (gender) payload.gender = gender;
+
+    var gn = $('r-guardian-name').value.trim();
+    if (gn) payload.guardianName = gn;
+    var gp = $('r-guardian-phone').value.trim();
+    if (gp) payload.guardianPhone = gp;
+
+    var zip = $('r-zip').value.trim();           if (zip)  payload.zipCode      = zip;
+    var str = $('r-street').value.trim();        if (str)  payload.street        = str;
+    var stn = $('r-street-number').value.trim(); if (stn)  payload.streetNumber  = stn;
+    var nbh = $('r-neighborhood').value.trim();  if (nbh)  payload.neighborhood  = nbh;
+    var cmp = $('r-complement').value.trim();    if (cmp)  payload.complement     = cmp;
+    var cit = $('r-city').value.trim();          if (cit)  payload.city           = cit;
+    var sta = $('r-state').value.trim();         if (sta)  payload.state          = sta;
+    var not = $('r-notes').value.trim();         if (not)  payload.notes          = not;
+
+    var btn = $('mis-btn-submit');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="mis-spinner"></span> Cadastrando…';
+
+    fetch(API_BASE + '/api/mis/v1/public/cadastros', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          var msg = res.data && res.data.message;
+          if (Array.isArray(msg)) msg = msg.join(', ');
+          showAlert(msg || 'Erro ao cadastrar. Verifique os dados e tente novamente.');
+          btn.disabled = false;
+          btn.textContent = 'Cadastrar';
+          return;
+        }
+
+        // Esconde formulário e exibe sucesso
+        $('mis-register-form').style.display = 'none';
+        $('mis-step-dots').style.display = 'none';
+        $('mis-success').style.display = 'block';
+      })
+      .catch(function () {
+        showAlert('Erro de conexão. Tente novamente.');
+        btn.disabled = false;
+        btn.textContent = 'Cadastrar';
+      });
+  });
+
+  /* Máscara de CEP simples */
+  $('r-zip').addEventListener('input', function () {
+    var v = this.value.replace(/\D/g, '').slice(0, 8);
+    this.value = v.length > 5 ? v.slice(0,5) + '-' + v.slice(5) : v;
+  });
+})();
+</script>
+
+</body>
+</html>

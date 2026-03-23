@@ -198,18 +198,21 @@ model UploadBinding {
 }
 
 model SchoolClass {
-  id            String        @id @default(uuid()) @db.Uuid
-  courseId      String        @map("course_id") @db.Uuid
+  id            String          @id @default(uuid()) @db.Uuid
+  courseId      String          @map("course_id") @db.Uuid
   name          String
-  totalSeats    Int           @map("total_seats")
-  occupiedSeats Int           @default(0) @map("occupied_seats")
-  status        ClassStatus   @default(ENROLLMENTS_OPEN)
-  startDate     DateTime      @map("start_date")
-  endDate       DateTime?     @map("end_date")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
-  course        Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  totalSeats    Int             @map("total_seats")
+  occupiedSeats Int             @default(0) @map("occupied_seats")
+  status        ClassStatus     @default(ENROLLMENTS_OPEN)
+  startDate     DateTime        @map("start_date")
+  endDate       DateTime?       @map("end_date")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  course        Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
   enrollments   Enrollment[]
+  studyMaterials StudyMaterial[]
+  classNotices  ClassNotice[]
+  lives         Live[]
 
   @@map("classes")
 }
@@ -289,6 +292,72 @@ model WordpressPluginActivation {
   @@unique([licenseId, domain], map: "wordpress_plugin_activations_license_domain_key")
   @@index([domain], map: "wordpress_plugin_activations_domain_idx")
   @@map("wordpress_plugin_activations")
+}
+
+enum LiveStatus {
+  SCHEDULED @map("scheduled")
+  LIVE      @map("live")
+  ENDED     @map("ended")
+
+  @@map("live_status")
+}
+
+model StudyMaterial {
+  id            String      @id @default(uuid()) @db.Uuid
+  classId       String      @map("class_id") @db.Uuid
+  title         String
+  description   String?
+  fileUrl       String?     @map("file_url")
+  externalUrl   String?     @map("external_url")
+  mimeType      String?     @map("mime_type")
+  kind          String      @default("file")
+  publishedBy   String?     @map("published_by")
+  publishedAt   DateTime    @default(now()) @map("published_at")
+  expiresAt     DateTime?   @map("expires_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  schoolClass   SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@index([classId], map: "study_materials_class_idx")
+  @@map("study_materials")
+}
+
+model ClassNotice {
+  id          String      @id @default(uuid()) @db.Uuid
+  classId     String      @map("class_id") @db.Uuid
+  title       String
+  body        String
+  priority    String      @default("normal")
+  publishedBy String?     @map("published_by")
+  publishedAt DateTime    @default(now()) @map("published_at")
+  expiresAt   DateTime?   @map("expires_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  schoolClass SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@index([classId], map: "class_notices_class_idx")
+  @@map("class_notices")
+}
+
+model Live {
+  id               String      @id @default(uuid()) @db.Uuid
+  classId          String      @map("class_id") @db.Uuid
+  title            String
+  description      String?
+  instructor       String?
+  scheduledAt      DateTime    @map("scheduled_at")
+  durationMinutes  Int?        @map("duration_minutes")
+  status           LiveStatus  @default(SCHEDULED)
+  streamUrl        String?     @map("stream_url")
+  recordingUrl     String?     @map("recording_url")
+  provider         String?
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  schoolClass      SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@index([classId], map: "lives_class_idx")
+  @@index([status], map: "lives_status_idx")
+  @@map("lives")
 }
 
 model WordpressPluginRelease {

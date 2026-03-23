@@ -21,9 +21,11 @@ COPY apps/backend/package.json ./apps/backend/package.json
 COPY apps/backend/prisma ./apps/backend/prisma
 RUN npm ci --workspace backend --omit=dev --include-workspace-root=false
 
-COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
-COPY --from=builder /app/apps/backend/node_modules/.prisma ./apps/backend/node_modules/.prisma
-COPY --from=builder /app/apps/backend/node_modules/@prisma/client ./apps/backend/node_modules/@prisma/client
+COPY --from=builder /app/apps/backend/dist    ./apps/backend/dist
+# Páginas estáticas do MIS (area-do-aluno.html, cadastro-aluno.html, mis.css)
+COPY --from=builder /app/apps/backend/public  ./apps/backend/public
+COPY --from=builder /app/apps/backend/node_modules/.prisma          ./apps/backend/node_modules/.prisma
+COPY --from=builder /app/apps/backend/node_modules/@prisma/client   ./apps/backend/node_modules/@prisma/client
 
 WORKDIR /app/apps/backend
 EXPOSE 3210

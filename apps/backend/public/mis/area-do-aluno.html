@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Área do Aluno — 7Eventos Academy</title>
+  <link rel="stylesheet" href="/mis/mis.css" />
+</head>
+<body>
+
+<!-- ════════════════════════════════════════
+     TELA DE LOGIN (exibida quando não há sessão)
+     ════════════════════════════════════════ -->
+<div id="mis-view-login" class="mis-login">
+  <div class="mis-login__box">
+    <div class="mis-login__logo">7Eventos Academy</div>
+    <p class="mis-login__subtitle">Acesse sua área do aluno</p>
+
+    <div id="mis-login-alert" class="mis-alert mis-alert--error" style="display:none"></div>
+
+    <form id="mis-login-form" novalidate>
+      <div class="mis-field">
+        <label for="mis-email">E-mail</label>
+        <input
+          id="mis-email"
+          class="mis-input"
+          type="email"
+          name="email"
+          placeholder="seu@email.com"
+          autocomplete="email"
+          required
+        />
+      </div>
+
+      <div class="mis-field">
+        <label for="mis-password">Senha</label>
+        <input
+          id="mis-password"
+          class="mis-input"
+          type="password"
+          name="password"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          required
+        />
+      </div>
+
+      <button id="mis-login-btn" type="submit" class="mis-btn mis-btn--primary">
+        Entrar
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     PORTAL DO ALUNO (exibido após login)
+     ════════════════════════════════════════ -->
+<div id="mis-view-portal" style="display:none">
+
+  <header class="mis-header">
+    <span class="mis-header__brand">7Eventos Academy</span>
+    <div style="display:flex;align-items:center;gap:16px">
+      <span id="mis-header-name" class="mis-header__user"></span>
+      <button id="mis-logout-btn" class="mis-header__logout" type="button">Sair</button>
+    </div>
+  </header>
+
+  <div class="mis-wrap">
+
+    <!-- ── Meus dados ───────────────────────── -->
+    <div class="mis-card" id="mis-card-me">
+      <div class="mis-card__title">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        Meu Perfil
+      </div>
+      <div id="mis-me-content"><div class="mis-empty">Carregando…</div></div>
+    </div>
+
+    <!-- ── Matrículas ────────────────────────── -->
+    <div class="mis-card">
+      <div class="mis-card__title">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        Minhas Matrículas
+      </div>
+      <div id="mis-matriculas-content"><div class="mis-empty">Carregando…</div></div>
+    </div>
+
+    <!-- ── Materiais ─────────────────────────── -->
+    <div class="mis-card">
+      <div class="mis-card__title">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Materiais de Estudo
+      </div>
+      <div id="mis-materiais-content"><div class="mis-empty">Carregando…</div></div>
+    </div>
+
+    <!-- ── Avisos ────────────────────────────── -->
+    <div class="mis-card">
+      <div class="mis-card__title">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Avisos da Turma
+      </div>
+      <div id="mis-avisos-content"><div class="mis-empty">Carregando…</div></div>
+    </div>
+
+  </div><!-- /mis-wrap -->
+</div><!-- /mis-view-portal -->
+
+<script>
+/* ============================================================
+   MIS — Área do Aluno | Script principal
+   Charset: UTF-8
+   ============================================================ */
+(function () {
+  'use strict';
+
+  /* ── Configuração dinâmica ── */
+  var API_BASE = (function () {
+    var params = new URLSearchParams(window.location.search);
+    var base = params.get('api_base');
+    if (base) return base.replace(/\/$/, '');
+    // Fallback: mesmo servidor que serve esta página
+    return window.location.origin;
+  })();
+
+  var TOKEN_KEY = 'mis_access_token';
+
+  /* ── Helpers ── */
+  function $(id) { return document.getElementById(id); }
+  function getToken() { return sessionStorage.getItem(TOKEN_KEY); }
+  function setToken(t) { sessionStorage.setItem(TOKEN_KEY, t); }
+  function clearToken() { sessionStorage.removeItem(TOKEN_KEY); }
+
+  function fetchApi(path, opts) {
+    opts = opts || {};
+    var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    var token = getToken();
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    return fetch(API_BASE + path, Object.assign({ headers: headers }, opts));
+  }
+
+  function showAlert(msg) {
+    var el = $('mis-login-alert');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+  function hideAlert() { $('mis-login-alert').style.display = 'none'; }
+
+  /* ── Renderizadores ── */
+  function renderMe(data) {
+    var profile = data.studentProfile || {};
+    var html = '<table class="mis-table"><tbody>';
+    html += '<tr><th>Nome</th><td>' + esc(data.name) + '</td></tr>';
+    html += '<tr><th>E-mail</th><td>' + esc(data.email) + '</td></tr>';
+    if (profile.phone) html += '<tr><th>Telefone</th><td>' + esc(profile.phone) + '</td></tr>';
+    if (profile.city)  html += '<tr><th>Cidade</th><td>' + esc(profile.city) + (profile.state ? ' - ' + esc(profile.state) : '') + '</td></tr>';
+    html += '</tbody></table>';
+    $('mis-me-content').innerHTML = html;
+  }
+
+  function renderMatriculas(list) {
+    if (!list || list.length === 0) {
+      $('mis-matriculas-content').innerHTML = '<div class="mis-empty">Nenhuma matrícula ativa no momento.</div>';
+      return;
+    }
+    var html = '<table class="mis-table"><thead><tr><th>Curso</th><th>Turma</th><th>Modalidade</th><th>Status</th></tr></thead><tbody>';
+    list.forEach(function (m) {
+      html += '<tr>';
+      html += '<td>' + esc(m.courseName) + '</td>';
+      html += '<td>' + esc(m.className) + '</td>';
+      html += '<td>' + esc(m.modality || '—') + '</td>';
+      html += '<td><span class="mis-badge mis-badge--active">' + esc(m.status) + '</span></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    $('mis-matriculas-content').innerHTML = html;
+  }
+
+  function renderMateriais(list) {
+    if (!list || list.length === 0) {
+      $('mis-materiais-content').innerHTML = '<div class="mis-empty">Nenhum material disponível no momento.</div>';
+      return;
+    }
+    var html = '<table class="mis-table"><thead><tr><th>Título</th><th>Turma</th><th>Tipo</th><th>Link</th></tr></thead><tbody>';
+    list.forEach(function (m) {
+      var link = m.fileUrl || m.externalUrl || '';
+      var linkHtml = link
+        ? '<a href="' + esc(link) + '" target="_blank" rel="noopener" style="color:var(--academy-primary)">Abrir</a>'
+        : '—';
+      html += '<tr>';
+      html += '<td>' + esc(m.title) + '</td>';
+      html += '<td>' + esc(m.className) + '</td>';
+      html += '<td>' + esc(m.kind) + '</td>';
+      html += '<td>' + linkHtml + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    $('mis-materiais-content').innerHTML = html;
+  }
+
+  function renderAvisos(list) {
+    if (!list || list.length === 0) {
+      $('mis-avisos-content').innerHTML = '<div class="mis-empty">Nenhum aviso no momento.</div>';
+      return;
+    }
+    var html = '';
+    list.forEach(function (a) {
+      html += '<div style="padding:14px 0;border-bottom:1px solid var(--academy-border)">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">';
+      html += '<strong>' + esc(a.title) + '</strong>';
+      html += '<span class="mis-badge mis-badge--' + (a.priority === 'high' ? 'high' : 'normal') + '">' + esc(a.priority) + '</span>';
+      html += '</div>';
+      html += '<p style="color:var(--academy-muted);font-size:.88rem">' + esc(a.body) + '</p>';
+      html += '<p style="color:var(--academy-muted);font-size:.75rem;margin-top:6px">' + esc(a.className) + '</p>';
+      html += '</div>';
+    });
+    $('mis-avisos-content').innerHTML = html;
+  }
+
+  function esc(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* ── Carregamento do portal ── */
+  function loadPortal(userName) {
+    $('mis-view-login').style.display = 'none';
+    $('mis-view-portal').style.display = 'block';
+    $('mis-header-name').textContent = userName || '';
+
+    fetchApi('/api/mis/v1/aluno/me').then(function (r) { return r.json(); }).then(renderMe).catch(console.error);
+    fetchApi('/api/mis/v1/aluno/matriculas').then(function (r) { return r.json(); }).then(renderMatriculas).catch(console.error);
+    fetchApi('/api/mis/v1/aluno/materiais').then(function (r) { return r.json(); }).then(renderMateriais).catch(console.error);
+    fetchApi('/api/mis/v1/aluno/avisos').then(function (r) { return r.json(); }).then(renderAvisos).catch(console.error);
+  }
+
+  /* ── Login ── */
+  $('mis-login-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    hideAlert();
+
+    var email = $('mis-email').value.trim();
+    var password = $('mis-password').value;
+    var btn = $('mis-login-btn');
+
+    if (!email || !password) {
+      showAlert('Preencha e-mail e senha.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="mis-spinner"></span> Entrando…';
+
+    fetchApi('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: email, password: password })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          var msg = res.data && (res.data.message || (Array.isArray(res.data.message) ? res.data.message.join(', ') : ''));
+          showAlert(msg || 'Credenciais inválidas.');
+          btn.disabled = false;
+          btn.textContent = 'Entrar';
+          return;
+        }
+        setToken(res.data.accessToken);
+        loadPortal(res.data.user && res.data.user.name);
+      })
+      .catch(function () {
+        showAlert('Erro de conexão. Tente novamente.');
+        btn.disabled = false;
+        btn.textContent = 'Entrar';
+      });
+  });
+
+  /* ── Logout ── */
+  $('mis-logout-btn').addEventListener('click', function () {
+    clearToken();
+    $('mis-view-portal').style.display = 'none';
+    $('mis-view-login').style.display = 'flex';
+    $('mis-email').value = '';
+    $('mis-password').value = '';
+    $('mis-login-btn').textContent = 'Entrar';
+    $('mis-login-btn').disabled = false;
+  });
+
+  /* ── Auto-login se há token na sessão ── */
+  if (getToken()) {
+    fetchApi('/api/mis/v1/aluno/me')
+      .then(function (r) {
+        if (!r.ok) { clearToken(); return; }
+        return r.json().then(function (d) { loadPortal(d.name); });
+      })
+      .catch(function () { clearToken(); });
+  }
+})();
+</script>
+</body>
+</html>
