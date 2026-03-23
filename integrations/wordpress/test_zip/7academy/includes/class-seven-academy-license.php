@@ -128,11 +128,7 @@ class Seven_Academy_License
             admin_url('admin.php')
         );
 
-        if (headers_sent()) {
-            echo '<script type="text/javascript">window.location.href="' . esc_js($location) . '";</script>';
-        } else {
-            wp_redirect($location);
-        }
+        wp_safe_redirect($location);
         exit;
     }
 }

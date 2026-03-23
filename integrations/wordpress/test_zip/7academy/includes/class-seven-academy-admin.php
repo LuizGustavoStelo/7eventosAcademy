@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 if (!defined('ABSPATH')) {
     exit;
@@ -196,37 +196,6 @@ class Seven_Academy_Admin
                     <input type="hidden" name="action" value="seven_academy_deactivate_license" />
                     <?php submit_button('Remover licença do site', 'secondary', 'submit', false); ?>
                 </form>
-            </div>
-
-            <hr style="max-width: 960px; margin: 40px 0;">
-
-            <div style="max-width: 960px;">
-                <h3>Shortcodes de Integração</h3>
-                <p>Use os shortcodes abaixo para incluir as funcionalidades da Academy em suas páginas:</p>
-                <table class="widefat striped">
-                    <thead>
-                        <tr>
-                            <th>Shortcode</th>
-                            <th>Uso Recomendado</th>
-                            <th>O que faz</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><code>[area-do-aluno]</code></td>
-                            <td>Portal do Aluno (MIS).</td>
-                            <td>Incorpora o Portal do Aluno completo via iframe seguro.</td>
-                        </tr>
-                        <tr>
-                            <td><code>[formulario-cadastro-aluno]</code></td>
-                            <td>Páginas de Captura / Inscrição.</td>
-                            <td>Incorpora o formulário de pré-matrícula para novos alunos.</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <p class="description" style="margin-top: 10px;">
-                    <strong>Dica:</strong> Você pode ajustar a altura do iframe adicionando o atributo <code>height</code>, ex: <code>[area-do-aluno height="850px"]</code>.
-                </p>
             </div>
         </div>
         <?php

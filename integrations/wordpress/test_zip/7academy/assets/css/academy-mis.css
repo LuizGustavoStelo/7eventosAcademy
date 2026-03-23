@@ -1,0 +1,45 @@
+/* ==========================================================
+   7academy WordPress Plugin — Estilos do container do iframe
+   Arquivo: academy-mis.css  |  Charset: UTF-8
+   ========================================================== */
+
+.seven-academy-container {
+  position: relative;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0f1117;
+}
+
+.seven-academy-container iframe {
+  display: block;
+  width: 100%;
+  min-height: 720px;
+  border: 0;
+  border-radius: 8px;
+}
+
+/* Placeholder enquanto o iframe carrega */
+.seven-academy-container::before {
+  content: '';
+  display: none; /* ativado via JS se necessário */
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #1a1d27 25%, #22263a 50%, #1a1d27 75%);
+  background-size: 400% 100%;
+  animation: seven-academy-shimmer 1.6s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+@keyframes seven-academy-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* Responsivo: altura mínima reduzida em telas pequenas */
+@media (max-width: 600px) {
+  .seven-academy-container iframe {
+    min-height: 540px;
+  }
+}
