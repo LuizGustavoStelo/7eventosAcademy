@@ -42,7 +42,7 @@
   let courses = [];
   let selectedCsvFile = null;
 
-  const getToken = () => window.sessionStorage.getItem(TOKEN_KEY) || '';
+  const getToken = () => (new URLSearchParams(window.location.search).get('token') || (function(){try{return window.localStorage.getItem(TOKEN_KEY)||window.sessionStorage.getItem(TOKEN_KEY);}catch{return null;}}())) || '';
 
   const request = async (path, options = {}) => {
     const token = getToken();

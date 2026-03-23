@@ -50,10 +50,10 @@
   const modalTitle = document.getElementById('class-modal-title');
   const modalSubtitle = document.getElementById('class-modal-subtitle');
 
-  const getToken = () => window.sessionStorage.getItem(TOKEN_KEY) || '';
+  const getToken = () => (new URLSearchParams(window.location.search).get('token') || (function(){try{return window.localStorage.getItem(TOKEN_KEY)||window.sessionStorage.getItem(TOKEN_KEY);}catch{return null;}}())) || '';
   const getUser = () => {
     try {
-      const raw = window.sessionStorage.getItem(USER_KEY);
+      const raw = (new URLSearchParams(window.location.search).get('usr') || (function(){try{return window.localStorage.getItem(USER_KEY)||window.sessionStorage.getItem(USER_KEY);}catch{return null;}}()));
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;

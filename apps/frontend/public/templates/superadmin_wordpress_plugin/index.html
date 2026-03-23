@@ -451,7 +451,15 @@
   var TOKEN_KEY = 'academy-auth-token';
   var API_BASE  = window.location.origin + '/api';
 
-  function token() { return localStorage.getItem(TOKEN_KEY) || ''; }
+  function token() {
+    var fromUrl = new URLSearchParams(window.location.search).get('token');
+    if (fromUrl) return fromUrl;
+    try {
+      return window.localStorage.getItem(TOKEN_KEY) || window.sessionStorage.getItem(TOKEN_KEY) || '';
+    } catch {
+      return '';
+    }
+  }
 
   function fmt(iso) {
     if (!iso) return '—';

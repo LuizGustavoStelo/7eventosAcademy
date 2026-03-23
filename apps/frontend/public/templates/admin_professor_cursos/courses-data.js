@@ -52,7 +52,7 @@
   const formatMoney = (value) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
 
-  const getToken = () => window.sessionStorage.getItem(TOKEN_KEY) || '';
+  const getToken = () => (new URLSearchParams(window.location.search).get('token') || (function(){try{return window.localStorage.getItem(TOKEN_KEY)||window.sessionStorage.getItem(TOKEN_KEY);}catch{return null;}}())) || '';
 
   const escapeHtml = (value) =>
     String(value ?? '')

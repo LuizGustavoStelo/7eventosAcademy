@@ -58,7 +58,7 @@
   };
 
   const applyUserIdentity = () => {
-    const rawUser = window.sessionStorage.getItem(USER_KEY);
+    const rawUser = (new URLSearchParams(window.location.search).get('usr') || (function(){try{return window.localStorage.getItem(USER_KEY)||window.sessionStorage.getItem(USER_KEY);}catch{return null;}}()));
     if (!rawUser) return;
 
     try {
@@ -75,7 +75,7 @@
   };
 
   const fetchJson = async (path) => {
-    const token = window.sessionStorage.getItem(TOKEN_KEY);
+    const token = (new URLSearchParams(window.location.search).get('token') || (function(){try{return window.localStorage.getItem(TOKEN_KEY)||window.sessionStorage.getItem(TOKEN_KEY);}catch{return null;}}()));
     if (!token) {
       throw new Error('Token de autenticação não encontrado.');
     }

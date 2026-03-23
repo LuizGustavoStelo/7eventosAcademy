@@ -143,12 +143,13 @@ export default function App() {
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
 
-  const [token, setToken] = useState(() => window.localStorage.getItem(SESSION_TOKEN_KEY) ?? '');
+  const [token, setToken] = useState(() => {
+    try { return window.localStorage.getItem(SESSION_TOKEN_KEY) ?? ''; } catch { return ''; }
+  });
   const [usuario, setUsuario] = useState<AuthUser | null>(() => {
-    const saved = window.localStorage.getItem(SESSION_USER_KEY);
-
-    if (!saved) return null;
     try {
+      const saved = window.localStorage.getItem(SESSION_USER_KEY);
+      if (!saved) return null;
       return JSON.parse(saved) as AuthUser;
     } catch {
       return null;
@@ -235,14 +236,16 @@ export default function App() {
   };
 
   const persistirSessao = (auth: AuthResponse) => {
-    window.localStorage.setItem(SESSION_TOKEN_KEY, auth.accessToken);
-    window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(auth.user));
+    try {
+      window.localStorage.setItem(SESSION_TOKEN_KEY, auth.accessToken);
+      window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(auth.user));
+    } catch {}
     setToken(auth.accessToken);
     setUsuario(auth.user);
   };
 
   const atualizarUsuarioSessao = (nextUser: AuthUser) => {
-    window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(nextUser));
+    try { window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(nextUser)); } catch {}
     setUsuario(nextUser);
   };
 
@@ -271,8 +274,10 @@ export default function App() {
   }, [autenticado, token]);
 
   const sair = () => {
-    window.localStorage.removeItem(SESSION_TOKEN_KEY);
-    window.localStorage.removeItem(SESSION_USER_KEY);
+    try {
+      window.localStorage.removeItem(SESSION_TOKEN_KEY);
+      window.localStorage.removeItem(SESSION_USER_KEY);
+    } catch {}
     setToken('');
     setUsuario(null);
     setSecaoAtiva('');
@@ -631,7 +636,7 @@ export default function App() {
             ref={frameRef}
             key={secaoAtual?.id}
             className="template-frame-full"
-            src={secaoAtual?.templatePath}
+            src={`${secaoAtual?.templatePath}?token=${encodeURIComponent(token)}&usr=${encodeURIComponent(JSON.stringify(usuario))}`}
             title={secaoAtual?.label ?? 'Template'}
             onLoad={aplicarTemaNoFrame}
           />
