@@ -4,138 +4,266 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Plugin WordPress — 7Eventos Academy</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0f1117;
-      --surface: #1a1d27;
-      --surface2: #22263a;
-      --border: #2e3248;
-      --text: #e8eaf2;
-      --muted: #7b82a0;
-      --primary: #6c63ff;
-      --primary-hover: #5a52e0;
-      --accent: #00d4aa;
-      --danger: #ff5370;
-      --warning: #ffb74d;
-      --radius: 10px;
-      --shadow: 0 4px 20px rgba(0,0,0,.35);
+      --primary:   #f25c05;
+      --primary-h: #c94900;
+      --text:      #1a1a1a;
+      --muted:     #6b7280;
+      --muted-lt:  #97a1ab;
+      --bg:        #f7f7f5;
+      --surface:   #ffffff;
+      --border:    rgba(26,26,26,.10);
+      --shadow:    0 2px 12px rgba(0,0,0,.07);
+      --radius:    10px;
+      --danger:    #b42318;
+      --success:   #027a48;
+      --blue:      #0057a3;
     }
 
-    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; padding: 28px 32px; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      padding: 28px 32px;
+      min-height: 100vh;
+    }
 
-    h1 { font-size: 1.35rem; font-weight: 700; margin-bottom: 4px; }
-    .page-subtitle { color: var(--muted); font-size: .85rem; margin-bottom: 28px; }
+    /* ── Cabeçalho ── */
+    .page-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .page-header .material-symbols-outlined { color: var(--primary); font-size: 1.5rem; }
+    h1 { font-size: 1.3rem; font-weight: 800; color: var(--text); }
+    .page-subtitle { color: var(--muted); font-size: .83rem; margin-bottom: 24px; }
 
-    /* Tabs */
-    .tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px; width: fit-content; margin-bottom: 28px; }
-    .tab { padding: 7px 18px; border-radius: 6px; border: none; background: transparent; color: var(--muted); font-size: .84rem; font-weight: 500; cursor: pointer; transition: all .2s; }
-    .tab.active { background: var(--primary); color: #fff; }
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 24px; }
+    .tab {
+      padding: 9px 22px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: .88rem;
+      font-weight: 700;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color .2s, border-color .2s;
+    }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .tab:hover:not(.active) { color: var(--text); }
 
-    /* Cards */
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 24px; margin-bottom: 20px; box-shadow: var(--shadow); }
-    .card-title { font-size: .95rem; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-    .card-title .material-symbols-outlined { color: var(--primary); font-size: 1.2rem; }
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      margin-bottom: 18px;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: .9rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .card-title .material-symbols-outlined { color: var(--primary); font-size: 1.1rem; }
 
-    /* Formulário */
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    /* ── Form ── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .form-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
     .field { display: flex; flex-direction: column; gap: 5px; }
     .field.full { grid-column: 1 / -1; }
-    label { font-size: .78rem; font-weight: 600; color: var(--muted); letter-spacing: .4px; text-transform: uppercase; }
-    input, select { background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: inherit; font-size: .88rem; padding: 9px 12px; transition: border-color .2s; outline: none; }
-    input:focus, select:focus { border-color: var(--primary); }
-    input::placeholder { color: var(--muted); }
-    .field-hint { font-size: .75rem; color: var(--muted); }
+    label { font-size: .75rem; font-weight: 700; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+    .input-wrap { display: flex; gap: 8px; }
+    input, select {
+      border: 1px solid rgba(26,26,26,.2);
+      border-radius: 8px;
+      color: var(--text);
+      background: #fff;
+      font-family: inherit;
+      font-size: .88rem;
+      padding: 9px 12px;
+      transition: border-color .2s, box-shadow .2s;
+      outline: none;
+      width: 100%;
+    }
+    input:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(242,92,5,.12);
+    }
+    input::placeholder { color: #b0b7c0; }
+    .field-hint { font-size: .72rem; color: var(--muted-lt); }
 
-    /* Toggle */
-    .toggle-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
-    .toggle-label { font-size: .88rem; }
-    .toggle { position: relative; width: 38px; height: 22px; }
-    .toggle input { opacity: 0; width: 0; height: 0; }
-    .toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 22px; cursor: pointer; transition: .25s; }
-    .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .25s; }
+    /* ── Toggle ── */
+    .toggle-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+    .toggle-label { font-size: .88rem; font-weight: 600; color: var(--text); }
+    .toggle { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-slider {
+      position: absolute; inset: 0;
+      background: #d1d5db;
+      border-radius: 22px;
+      cursor: pointer;
+      transition: .25s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 16px; height: 16px;
+      left: 3px; top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: .25s;
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
     .toggle input:checked + .toggle-slider { background: var(--primary); }
     .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
 
-    /* Botões */
-    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 8px; border: none; font-family: inherit; font-size: .86rem; font-weight: 600; cursor: pointer; transition: all .2s; }
+    /* ── Botões ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      border-radius: 8px;
+      border: none;
+      font-family: inherit;
+      font-size: .84rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .2s;
+      white-space: nowrap;
+    }
+    .btn .material-symbols-outlined { font-size: .95rem; }
     .btn-primary { background: var(--primary); color: #fff; }
-    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-primary:hover { background: var(--primary-h); }
     .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
-    .btn-ghost:hover { border-color: var(--primary); color: var(--text); }
-    .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
-    .btn-danger:hover { background: var(--danger); color: #fff; }
-    .btn-row { display: flex; gap: 10px; margin-top: 18px; }
-    .material-symbols-outlined { font-size: 1rem; }
+    .btn-outline {
+      background: transparent;
+      color: var(--primary);
+      border: 1.5px solid var(--primary);
+    }
+    .btn-outline:hover { background: rgba(242,92,5,.06); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--text); border-color: rgba(26,26,26,.3); }
+    .btn-sm { padding: 5px 12px; font-size: .78rem; }
+    .btn-row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
 
-    /* Alertas */
-    .alert { padding: 10px 14px; border-radius: 8px; font-size: .86rem; margin-bottom: 14px; display: none; }
-    .alert.show { display: block; }
-    .alert-success { background: rgba(0,212,170,.12); border: 1px solid rgba(0,212,170,.3); color: var(--accent); }
-    .alert-error { background: rgba(255,83,112,.1); border: 1px solid rgba(255,83,112,.3); color: var(--danger); }
+    /* ── Alertas ── */
+    .alert { padding: 10px 14px; border-radius: 8px; font-size: .84rem; margin-bottom: 14px; display: none; }
+    .alert.show { display: flex; align-items: flex-start; gap: 8px; }
+    .alert-success { background: #ecfdf3; border: 1px solid #a9efc5; color: var(--success); }
+    .alert-error   { background: #fff1f0; border: 1px solid #fecdca; color: var(--danger); }
+    .alert .material-symbols-outlined { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
 
-    /* Tabela */
+    /* ── Tabela ── */
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: .84rem; }
-    thead { background: var(--surface2); }
-    th { padding: 10px 14px; text-align: left; font-size: .75rem; font-weight: 600; color: var(--muted); letter-spacing: .4px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
-    td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    thead { }
+    th {
+      padding: 9px 12px;
+      text-align: left;
+      font-size: .72rem;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      background: #fafafa;
+    }
+    td { padding: 11px 12px; border-bottom: 1px solid rgba(26,26,26,.06); vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
-    tr:hover td { background: rgba(108,99,255,.04); }
-    .empty-row td { color: var(--muted); text-align: center; padding: 28px; }
+    tr:hover td { background: rgba(242,92,5,.02); }
+    .empty-row td { color: var(--muted); text-align: center; padding: 32px; font-size: .84rem; }
 
-    /* Badges */
-    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
-    .badge-active { background: rgba(0,212,170,.15); color: var(--accent); }
-    .badge-inactive { background: rgba(255,83,112,.12); color: var(--danger); }
-    .badge-published { background: rgba(108,99,255,.15); color: var(--primary); }
-    .badge-draft { background: rgba(123,130,160,.12); color: var(--muted); }
-    .badge-mandatory { background: rgba(255,183,77,.15); color: var(--warning); }
+    /* ── Badges ── */
+    .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 20px; font-size: .72rem; font-weight: 700; }
+    .badge-active   { background: #ecfdf3; color: #027a48; }
+    .badge-inactive { background: #fff1f0; color: var(--danger); }
+    .badge-pub      { background: rgba(242,92,5,.1); color: var(--primary); }
+    .badge-draft    { background: #f3f4f6; color: var(--muted); }
+    .badge-mand     { background: #fffbeb; color: #b45309; }
 
-    /* Código */
-    .code-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 10px 14px; font-family: 'Courier New', monospace; font-size: .83rem; color: var(--accent); word-break: break-all; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .code-box button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px; flex-shrink: 0; }
-    .code-box button:hover { color: var(--text); }
+    /* ── Gerador de chave ── */
+    .key-generated {
+      background: #fff8f5;
+      border: 1.5px dashed rgba(242,92,5,.4);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .key-generated.show { display: flex; }
+    .key-generated code { font-family: 'Courier New', monospace; font-size: .9rem; color: var(--primary); font-weight: 700; letter-spacing: .05em; }
+    .key-generated button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+    .key-generated button:hover { background: rgba(242,92,5,.08); color: var(--primary); }
+    .key-hint { font-size: .73rem; color: var(--muted-lt); margin-top: 3px; }
 
-    /* Spinner */
-    .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+    /* ── Spinner ── */
+    .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Tabs de conteúdo */
+    /* ── Conteúdo de abas ── */
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
-    /* Key preview */
-    .key-preview { font-family: 'Courier New', monospace; color: var(--primary); background: var(--surface2); padding: 2px 8px; border-radius: 5px; font-size: .82rem; }
+    /* ── Separador de botões no card ── */
+    .actions-bar { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
-    @media (max-width: 700px) {
+    @media (max-width: 680px) {
       .form-grid, .form-grid.cols-3 { grid-template-columns: 1fr; }
-      body { padding: 18px 16px; }
+      body { padding: 18px 14px; }
     }
   </style>
 </head>
 <body>
 
-<h1><span class="material-symbols-outlined" style="vertical-align:middle;font-size:1.4rem;margin-right:6px;color:var(--primary)">extension</span>Plugin WordPress</h1>
+<div class="page-header">
+  <span class="material-symbols-outlined">extension</span>
+  <h1>Plugin WordPress</h1>
+</div>
 <p class="page-subtitle">Gerencie licenças de ativação e releases do plugin 7academy para WordPress.</p>
 
 <div class="tabs">
   <button class="tab active" onclick="mudarTab('licencas')">Licenças</button>
-  <button class="tab" onclick="mudarTab('releases')">Releases</button>
+  <button class="tab"        onclick="mudarTab('releases')">Releases</button>
 </div>
 
-<!-- ════════════════ ABA LICENÇAS ════════════════ -->
+<!-- ══════════════════ ABA LICENÇAS ══════════════════ -->
 <div id="tab-licencas" class="tab-content active">
 
   <div class="card">
     <div class="card-title">
-      <span class="material-symbols-outlined">add_circle</span>
+      <span class="material-symbols-outlined">vpn_key</span>
       Nova Licença
+    </div>
+
+    <!-- Chave gerada -->
+    <div id="key-generated-box" class="key-generated">
+      <div>
+        <code id="key-generated-value"></code>
+        <div class="key-hint">Copie e guarde antes de salvar — ela não será exibida novamente.</div>
+      </div>
+      <button onclick="copiarChave()" title="Copiar">
+        <span class="material-symbols-outlined">content_copy</span>
+      </button>
     </div>
 
     <div id="alert-licenca" class="alert"></div>
@@ -143,18 +271,24 @@
     <div class="form-grid">
       <div class="field">
         <label for="lic-key">Chave de Licença <span style="color:var(--danger)">*</span></label>
-        <input id="lic-key" type="text" placeholder="7A-XXXX-YYYY-ZZZZ" />
-        <span class="field-hint">Formato livre. Recomendado: 7A-XXXX-YYYY-ZZZZ</span>
+        <div class="input-wrap">
+          <input id="lic-key" type="text" placeholder="7A-XXXX-YYYY-ZZZZ" style="font-family:'Courier New',monospace;letter-spacing:.05em" />
+          <button class="btn btn-outline btn-sm" onclick="gerarChave()" title="Gerar aleatória" style="flex-shrink:0">
+            <span class="material-symbols-outlined">casino</span>
+            Gerar
+          </button>
+        </div>
+        <span class="field-hint">Use o botão "Gerar" para criar uma chave aleatória segura.</span>
       </div>
       <div class="field">
         <label for="lic-label">Identificação do cliente</label>
         <input id="lic-label" type="text" placeholder="ex: ipesk.com.br" />
       </div>
       <div class="field">
-        <label for="lic-max">Máx. ativações</label>
+        <label for="lic-max">Máx. ativações (domínios)</label>
         <input id="lic-max" type="number" value="1" min="1" max="99" />
       </div>
-      <div class="field" style="justify-content:flex-end;padding-bottom:2px">
+      <div class="field" style="justify-content:flex-end">
         <div class="toggle-row">
           <label class="toggle">
             <input type="checkbox" id="lic-active" checked />
@@ -170,31 +304,36 @@
         <span class="material-symbols-outlined">save</span>
         Salvar Licença
       </button>
+      <button class="btn btn-ghost" onclick="limparFormLicenca()">
+        <span class="material-symbols-outlined">restart_alt</span>
+        Limpar
+      </button>
     </div>
   </div>
 
   <div class="card">
     <div class="card-title">
       <span class="material-symbols-outlined">list</span>
-      Licenças cadastradas
-      <button class="btn btn-ghost" style="margin-left:auto;padding:5px 12px;font-size:.8rem" onclick="carregarLicencas()">
-        <span class="material-symbols-outlined">refresh</span>
-        Atualizar
-      </button>
+      Licenças Cadastradas
+      <span class="actions-bar">
+        <button class="btn btn-ghost btn-sm" onclick="carregarLicencas()">
+          <span class="material-symbols-outlined">refresh</span>
+          Atualizar
+        </button>
+      </span>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>Identificação</th>
-            <th>Chave (preview)</th>
             <th>Status</th>
             <th>Ativações</th>
             <th>Criada em</th>
           </tr>
         </thead>
         <tbody id="tabela-licencas">
-          <tr class="empty-row"><td colspan="5">Carregando licenças…</td></tr>
+          <tr class="empty-row"><td colspan="4">Carregando licenças…</td></tr>
         </tbody>
       </table>
     </div>
@@ -202,12 +341,12 @@
 
 </div>
 
-<!-- ════════════════ ABA RELEASES ════════════════ -->
+<!-- ══════════════════ ABA RELEASES ══════════════════ -->
 <div id="tab-releases" class="tab-content">
 
   <div class="card">
     <div class="card-title">
-      <span class="material-symbols-outlined">add_circle</span>
+      <span class="material-symbols-outlined">rocket_launch</span>
       Nova Release do Plugin
     </div>
 
@@ -229,34 +368,33 @@
       <div class="field full">
         <label for="rel-url">URL do pacote (ZIP) <span style="color:var(--danger)">*</span></label>
         <input id="rel-url" type="url" placeholder="https://github.com/.../7academy-1.0.1.zip" />
-        <span class="field-hint">URL pública para download do ZIP. Use o link gerado pelo release-plugin.bat ou crie manualmente no GitHub Releases.</span>
+        <span class="field-hint">URL pública para download do ZIP. Gerada automaticamente pelo <code>release-plugin.bat</code>.</span>
       </div>
       <div class="field full">
         <label for="rel-changelog">URL do Changelog</label>
         <input id="rel-changelog" type="url" placeholder="https://github.com/.../releases/tag/v1.0.1" />
       </div>
     </div>
-    <div style="display:flex;gap:24px;margin-top:14px">
+
+    <div style="display:flex;gap:28px;margin-top:16px;flex-wrap:wrap">
       <div class="toggle-row">
-        <label class="toggle">
-          <input type="checkbox" id="rel-published" checked />
-          <span class="toggle-slider"></span>
-        </label>
+        <label class="toggle"><input type="checkbox" id="rel-published" checked /><span class="toggle-slider"></span></label>
         <span class="toggle-label">Publicar imediatamente</span>
       </div>
       <div class="toggle-row">
-        <label class="toggle">
-          <input type="checkbox" id="rel-mandatory" />
-          <span class="toggle-slider"></span>
-        </label>
+        <label class="toggle"><input type="checkbox" id="rel-mandatory" /><span class="toggle-slider"></span></label>
         <span class="toggle-label">Atualização obrigatória</span>
       </div>
     </div>
 
     <div class="btn-row">
       <button id="btn-criar-release" class="btn btn-primary" onclick="criarRelease()">
-        <span class="material-symbols-outlined">rocket_launch</span>
+        <span class="material-symbols-outlined">cloud_upload</span>
         Publicar Release
+      </button>
+      <button class="btn btn-ghost" onclick="limparFormRelease()">
+        <span class="material-symbols-outlined">restart_alt</span>
+        Limpar
       </button>
     </div>
   </div>
@@ -265,10 +403,12 @@
     <div class="card-title">
       <span class="material-symbols-outlined">history</span>
       Histórico de Releases
-      <button class="btn btn-ghost" style="margin-left:auto;padding:5px 12px;font-size:.8rem" onclick="carregarReleases()">
-        <span class="material-symbols-outlined">refresh</span>
-        Atualizar
-      </button>
+      <span class="actions-bar">
+        <button class="btn btn-ghost btn-sm" onclick="carregarReleases()">
+          <span class="material-symbols-outlined">refresh</span>
+          Atualizar
+        </button>
+      </span>
     </div>
     <div class="table-wrap">
       <table>
@@ -298,31 +438,56 @@
   var TOKEN_KEY = 'academy-auth-token';
   var API_BASE  = window.location.origin + '/api';
 
-  function token() {
-    return sessionStorage.getItem(TOKEN_KEY) || '';
-  }
+  function token() { return sessionStorage.getItem(TOKEN_KEY) || ''; }
 
-  function fmt(isoStr) {
-    if (!isoStr) return '—';
-    try { return new Date(isoStr).toLocaleDateString('pt-BR'); }
-    catch { return isoStr; }
+  function fmt(iso) {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleDateString('pt-BR'); } catch { return iso; }
   }
 
   function showAlert(id, type, msg) {
-    var el = document.getElementById(id);
+    var el  = document.getElementById(id);
+    var ico = type === 'success' ? 'check_circle' : 'error';
     el.className = 'alert alert-' + type + ' show';
-    el.textContent = msg;
-    setTimeout(function () { el.classList.remove('show'); }, 6000);
+    el.innerHTML = '<span class="material-symbols-outlined">' + ico + '</span><span>' + msg + '</span>';
+    setTimeout(function () { el.classList.remove('show'); }, 7000);
   }
 
-  function apiHeaders() {
+  function hdrs() {
     return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() };
   }
 
-  // ── TAB SWITCH ────────────────────────────────────────────────
+  // ── GERADOR DE CHAVE ──────────────────────────────────────
+  function randomSegment(len) {
+    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    var out = '';
+    for (var i = 0; i < len; i++) {
+      out += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return out;
+  }
+
+  window.gerarChave = function () {
+    var key = '7A-' + randomSegment(4) + '-' + randomSegment(4) + '-' + randomSegment(4);
+    document.getElementById('lic-key').value = key;
+
+    var box = document.getElementById('key-generated-box');
+    document.getElementById('key-generated-value').textContent = key;
+    box.classList.add('show');
+  };
+
+  window.copiarChave = function () {
+    var val = document.getElementById('key-generated-value').textContent;
+    navigator.clipboard.writeText(val).then(function () {
+      showAlert('alert-licenca', 'success', 'Chave copiada para a área de transferência!');
+    });
+  };
+
+  // ── TABS ──────────────────────────────────────────────────
   window.mudarTab = function (aba) {
+    var abas = ['licencas', 'releases'];
     document.querySelectorAll('.tab').forEach(function (t, i) {
-      t.classList.toggle('active', ['licencas', 'releases'][i] === aba);
+      t.classList.toggle('active', abas[i] === aba);
     });
     document.querySelectorAll('.tab-content').forEach(function (c) { c.classList.remove('active'); });
     document.getElementById('tab-' + aba).classList.add('active');
@@ -330,14 +495,22 @@
     else carregarReleases();
   };
 
-  // ── LICENÇAS ─────────────────────────────────────────────────
+  // ── LICENÇAS ─────────────────────────────────────────────
+  window.limparFormLicenca = function () {
+    document.getElementById('lic-key').value = '';
+    document.getElementById('lic-label').value = '';
+    document.getElementById('lic-max').value = '1';
+    document.getElementById('lic-active').checked = true;
+    document.getElementById('key-generated-box').classList.remove('show');
+  };
+
   window.criarLicenca = function () {
     var key    = document.getElementById('lic-key').value.trim();
     var label  = document.getElementById('lic-label').value.trim();
     var max    = parseInt(document.getElementById('lic-max').value, 10) || 1;
     var active = document.getElementById('lic-active').checked;
 
-    if (!key) { showAlert('alert-licenca', 'error', 'Informe a chave de licença.'); return; }
+    if (!key) { showAlert('alert-licenca', 'error', 'Informe ou gere a chave de licença.'); return; }
 
     var btn = document.getElementById('btn-criar-licenca');
     btn.disabled = true;
@@ -345,23 +518,22 @@
 
     fetch(API_BASE + '/wordpress/admin/licenses', {
       method: 'POST',
-      headers: apiHeaders(),
+      headers: hdrs(),
       body: JSON.stringify({ licenseKey: key, label: label || undefined, maxActivations: max, isActive: active })
     })
     .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
     .then(function (res) {
       if (!res.ok) {
         var msg = res.data && res.data.message;
-        if (Array.isArray(msg)) msg = msg.join(', ');
-        showAlert('alert-licenca', 'error', msg || 'Erro ao salvar licença.');
+        if (Array.isArray(msg)) msg = msg.join(' | ');
+        showAlert('alert-licenca', 'error', msg || 'Erro ao salvar a licença.');
         return;
       }
-      showAlert('alert-licenca', 'success', 'Licença salva com sucesso! Preview: ' + (res.data.keyPreview || ''));
-      document.getElementById('lic-key').value = '';
-      document.getElementById('lic-label').value = '';
+      showAlert('alert-licenca', 'success', 'Licença salva com sucesso para "' + (label || key) + '"!');
+      limparFormLicenca();
       carregarLicencas();
     })
-    .catch(function () { showAlert('alert-licenca', 'error', 'Erro de conexão.'); })
+    .catch(function () { showAlert('alert-licenca', 'error', 'Erro de conexão com o servidor.'); })
     .finally(function () {
       btn.disabled = false;
       btn.innerHTML = '<span class="material-symbols-outlined">save</span> Salvar Licença';
@@ -370,35 +542,42 @@
 
   window.carregarLicencas = function () {
     var tbody = document.getElementById('tabela-licencas');
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Carregando…</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Carregando…</td></tr>';
 
-    fetch(API_BASE + '/wordpress/admin/licenses', { headers: apiHeaders() })
+    fetch(API_BASE + '/wordpress/admin/licenses', { headers: hdrs() })
     .then(function (r) { return r.json(); })
     .then(function (list) {
       if (!Array.isArray(list) || list.length === 0) {
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Nenhuma licença cadastrada.</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Nenhuma licença cadastrada ainda.</td></tr>';
         return;
       }
       tbody.innerHTML = list.map(function (l) {
         var badge = l.isActive
           ? '<span class="badge badge-active">Ativa</span>'
           : '<span class="badge badge-inactive">Inativa</span>';
-        var ativacoes = (l.activations ? l.activations.length : 0) + ' / ' + l.maxActivations;
+        var atv = (l.activations ? l.activations.length : 0) + ' / ' + l.maxActivations;
         return '<tr>'
-          + '<td>' + (l.label || '<span style="color:var(--muted)">—</span>') + '</td>'
-          + '<td><span class="key-preview">••••' + l.id.slice(-6) + '</span></td>'
+          + '<td><strong>' + (l.label || '—') + '</strong></td>'
           + '<td>' + badge + '</td>'
-          + '<td>' + ativacoes + '</td>'
+          + '<td>' + atv + '</td>'
           + '<td>' + fmt(l.createdAt) + '</td>'
           + '</tr>';
       }).join('');
     })
     .catch(function () {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Erro ao carregar licenças.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Erro ao carregar. Verifique sua conexão.</td></tr>';
     });
   };
 
-  // ── RELEASES ─────────────────────────────────────────────────
+  // ── RELEASES ─────────────────────────────────────────────
+  window.limparFormRelease = function () {
+    ['rel-version','rel-url','rel-changelog','rel-wp','rel-php'].forEach(function (id) {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('rel-published').checked = true;
+    document.getElementById('rel-mandatory').checked = false;
+  };
+
   window.criarRelease = function () {
     var version   = document.getElementById('rel-version').value.trim();
     var url       = document.getElementById('rel-url').value.trim();
@@ -408,8 +587,8 @@
     var published = document.getElementById('rel-published').checked;
     var mandatory = document.getElementById('rel-mandatory').checked;
 
-    if (!version) { showAlert('alert-release', 'error', 'Informe a versão.'); return; }
-    if (!url) { showAlert('alert-release', 'error', 'Informe a URL do pacote ZIP.'); return; }
+    if (!version) { showAlert('alert-release', 'error', 'Informe a versão da release.'); return; }
+    if (!url)     { showAlert('alert-release', 'error', 'Informe a URL do pacote ZIP.'); return; }
 
     var btn = document.getElementById('btn-criar-release');
     btn.disabled = true;
@@ -422,27 +601,25 @@
 
     fetch(API_BASE + '/wordpress/admin/releases', {
       method: 'POST',
-      headers: apiHeaders(),
+      headers: hdrs(),
       body: JSON.stringify(payload)
     })
     .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
     .then(function (res) {
       if (!res.ok) {
         var msg = res.data && res.data.message;
-        if (Array.isArray(msg)) msg = msg.join(', ');
+        if (Array.isArray(msg)) msg = msg.join(' | ');
         showAlert('alert-release', 'error', msg || 'Erro ao publicar release.');
         return;
       }
       showAlert('alert-release', 'success', 'Release v' + version + ' publicada com sucesso!');
-      document.getElementById('rel-version').value = '';
-      document.getElementById('rel-url').value = '';
-      document.getElementById('rel-changelog').value = '';
+      limparFormRelease();
       carregarReleases();
     })
-    .catch(function () { showAlert('alert-release', 'error', 'Erro de conexão.'); })
+    .catch(function () { showAlert('alert-release', 'error', 'Erro de conexão com o servidor.'); })
     .finally(function () {
       btn.disabled = false;
-      btn.innerHTML = '<span class="material-symbols-outlined">rocket_launch</span> Publicar Release';
+      btn.innerHTML = '<span class="material-symbols-outlined">cloud_upload</span> Publicar Release';
     });
   };
 
@@ -450,20 +627,20 @@
     var tbody = document.getElementById('tabela-releases');
     tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Carregando…</td></tr>';
 
-    fetch(API_BASE + '/wordpress/admin/releases', { headers: apiHeaders() })
+    fetch(API_BASE + '/wordpress/admin/releases', { headers: hdrs() })
     .then(function (r) { return r.json(); })
     .then(function (list) {
       if (!Array.isArray(list) || list.length === 0) {
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nenhuma release cadastrada. Use o formulário acima ou o release-plugin.bat.</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nenhuma release cadastrada. Use o formulário acima ou o <code>release-plugin.bat</code>.</td></tr>';
         return;
       }
       tbody.innerHTML = list.map(function (rel) {
         var status = rel.isPublished
-          ? '<span class="badge badge-published">Publicada</span>'
+          ? '<span class="badge badge-pub">Publicada</span>'
           : '<span class="badge badge-draft">Rascunho</span>';
         var obrig = rel.isMandatory
-          ? '<span class="badge badge-mandatory">Sim</span>'
-          : '<span style="color:var(--muted)">Não</span>';
+          ? '<span class="badge badge-mand">Sim</span>'
+          : '<span style="color:var(--muted-lt)">Não</span>';
         return '<tr>'
           + '<td><strong>v' + rel.version + '</strong></td>'
           + '<td>' + status + '</td>'
