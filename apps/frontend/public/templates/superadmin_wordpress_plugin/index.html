@@ -579,8 +579,8 @@
         var acoes = '<div style="display:flex;gap:6px;justify-content:flex-end">'
           + '<button class="btn btn-outline btn-sm" onclick="renovarLicenca(\'' + l.id + '\')" title="Renovar / Reativar">'
           + '<span class="material-symbols-outlined">autorenew</span> Renovar</button>'
-          + '<button class="btn btn-danger btn-sm" onclick="revogarLicenca(\'' + l.id + '\', \'' + (l.label || l.id) + '\')" title="Revogar licença">'
-          + '<span class="material-symbols-outlined">block</span> Revogar</button>'
+          + '<button class="btn btn-danger btn-sm" onclick="apagarLicenca(\'' + l.id + '\', \'' + (l.label || l.id) + '\')" title="Apagar licença">'
+          + '<span class="material-symbols-outlined">delete</span> Apagar</button>'
           + '</div>';
         return '<tr>'
           + '<td><strong>' + (l.label || '—') + '</strong></td>'
@@ -597,20 +597,20 @@
     });
   };
 
-  window.revogarLicenca = function (id, nome) {
-    if (!confirm('Revogar a licença de "' + nome + '"?\nTodas as ativações serão desconectadas.')) return;
+  window.apagarLicenca = function (id, nome) {
+    if (!confirm('Apagar permanentemente a licença de "' + nome + '"?\nEssa ação não pode ser desfeita.')) return;
 
     fetch(API_BASE + '/wordpress/admin/licenses/' + id, {
       method: 'DELETE',
-      headers: hdrs()
+      headers: { 'Authorization': 'Bearer ' + token() }
     })
     .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
     .then(function (res) {
       if (!res.ok) {
-        showAlert('alert-licenca', 'error', (res.data && res.data.message) || 'Erro ao revogar.');
+        showAlert('alert-licenca', 'error', (res.data && res.data.message) || 'Erro ao apagar.');
         return;
       }
-      showAlert('alert-licenca', 'success', 'Licença revogada com sucesso.');
+      showAlert('alert-licenca', 'success', 'Licença apagada com sucesso.');
       carregarLicencas();
     })
     .catch(function () { showAlert('alert-licenca', 'error', 'Erro de conexão.'); });

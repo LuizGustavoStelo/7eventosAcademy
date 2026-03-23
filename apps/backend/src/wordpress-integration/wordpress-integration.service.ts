@@ -233,21 +233,12 @@ export class WordpressIntegrationService {
       throw new NotFoundException('Licença não encontrada.');
     }
 
-    // Revoga todas as ativações ativas
-    await this.prisma.wordpressPluginActivation.updateMany({
-      where: { licenseId: id, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-
-    // Inativa a licença (mantém histórico no banco)
-    await this.prisma.wordpressPluginLicense.update({
-      where: { id },
-      data: { isActive: false },
-    });
+    // onDelete: Cascade apaga as ativações automaticamente
+    await this.prisma.wordpressPluginLicense.delete({ where: { id } });
 
     return {
       success: true,
-      message: 'Licença revogada e todas as ativações encerradas.',
+      message: 'Licença apagada permanentemente.',
     };
   }
 
