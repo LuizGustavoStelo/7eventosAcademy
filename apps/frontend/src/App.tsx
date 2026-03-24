@@ -157,6 +157,7 @@ export default function App() {
   });
 
   const [secaoAtiva, setSecaoAtiva] = useState('');
+  const [frameCarregando, setFrameCarregando] = useState(true);
   const [temaEscuro, setTemaEscuro] = useState(false);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
@@ -172,6 +173,10 @@ export default function App() {
       setSecaoAtiva(secoes[0].id);
     }
   }, [autenticado, secoes, secaoAtiva]);
+
+  useEffect(() => {
+    setFrameCarregando(true);
+  }, [secaoAtiva]);
 
   useEffect(() => {
     if (!autenticado) return;
@@ -631,14 +636,22 @@ export default function App() {
           </div>
         </header>
 
-        <div className="template-frame-wrap">
+        <div className="template-frame-wrap" style={{ position: 'relative' }}>
+          {frameCarregando && (
+            <div className="absolute inset-0 flex items-center justify-center bg-surface z-10 transition-opacity duration-300">
+              <span className="material-symbols-outlined animate-spin text-primary" style={{ fontSize: '2rem' }}>progress_activity</span>
+            </div>
+          )}
           <iframe
             ref={frameRef}
             key={secaoAtual?.id}
-            className="template-frame-full"
+            className={`template-frame-full transition-opacity duration-300 ${frameCarregando ? 'opacity-0' : 'opacity-100'}`}
             src={`${secaoAtual?.templatePath}?token=${encodeURIComponent(token)}&usr=${encodeURIComponent(JSON.stringify(usuario))}`}
             title={secaoAtual?.label ?? 'Template'}
-            onLoad={aplicarTemaNoFrame}
+            onLoad={() => {
+              aplicarTemaNoFrame();
+              setTimeout(() => setFrameCarregando(false), 100);
+            }}
           />
         </div>
       </main>
