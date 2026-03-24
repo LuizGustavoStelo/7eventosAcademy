@@ -89,6 +89,12 @@ class Seven_Academy_Admin
         $tenantSlug = isset($input['tenant_slug']) ? sanitize_text_field((string) $input['tenant_slug'])           : '';
         $licenseKey = isset($input['license_key']) ? sanitize_text_field((string) $input['license_key'])           : '';
 
+        // Se a chave vier vazia do formulário mas já temos uma salva, mantemos a antiga
+        // (comportamento de campo de senha/protegido para não apagar por acidente)
+        if ($licenseKey === '' && !empty($current['license_key'])) {
+            $licenseKey = (string) $current['license_key'];
+        }
+
         if ($healthPath === '' || $healthPath[0] !== '/') {
             $healthPath = '/api/health';
         }
@@ -281,16 +287,29 @@ class Seven_Academy_Admin
     public static function render_license_key_field(): void
     {
         $settings = self::get_settings();
+        $has_key  = !empty($settings['license_key']);
         ?>
-        <input
-            type="password"
-            class="regular-text"
-            name="<?php echo esc_attr(self::OPTION_KEY); ?>[license_key]"
-            value="<?php echo esc_attr($settings['license_key']); ?>"
-            placeholder="XXXX-XXXX-XXXX-XXXX"
-            autocomplete="off"
-        />
-        <p class="description">Chave de licenca fornecida para autorizar este dominio.</p>
+        <div id="seven-academy-license-wrapper">
+            <?php if ($has_key) : ?>
+                <div class="seven-academy-key-status" style="margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
+                    <span class="dashicons dashicons-lock" style="color: #146c2e;"></span>
+                    <span style="font-weight: 500; color: #146c2e;">Chave de licença configurada e protegida</span>
+                    <button type="button" class="button button-secondary button-small" onclick="document.getElementById('seven-academy-license-input-wrap').style.display='block'; this.parentElement.style.display='none';">Trocar Chave</button>
+                </div>
+            <?php endif; ?>
+
+            <div id="seven-academy-license-input-wrap" style="<?php echo $has_key ? 'display: none;' : ''; ?>">
+                <input
+                    type="password"
+                    class="regular-text"
+                    name="<?php echo esc_attr(self::OPTION_KEY); ?>[license_key]"
+                    value=""
+                    placeholder="XXXX-XXXX-XXXX-XXXX"
+                    autocomplete="off"
+                />
+                <p class="description">Insira a nova chave de licença fornecida pela Academy.</p>
+            </div>
+        </div>
         <?php
     }
 

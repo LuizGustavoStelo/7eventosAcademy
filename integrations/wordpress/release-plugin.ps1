@@ -151,6 +151,16 @@ Write-Host "`n [1/4] Gerando ZIP do plugin..."
 
 if (Test-Path $ZipPath) { Remove-Item $ZipPath -Force }
 
+Write-Host " Limpando BOM escondido dos arquivos PHP..."
+$phpFiles = Get-ChildItem -Path $PLUGIN_DIR -Recurse -Filter "*.php"
+foreach ($f in $phpFiles) {
+    $bytes = [System.IO.File]::ReadAllBytes($f.FullName)
+    if ($bytes.Length -gt 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        [System.IO.File]::WriteAllBytes($f.FullName, $bytes[3..($bytes.Length-1)])
+        Write-Host " -> BOM removido de: $($f.Name)" -ForegroundColor DarkGray
+    }
+}
+
 Write-Host " Usando tar.exe para gerar zip compativel com Linux..."
 Push-Location $ScriptDir
 & tar.exe -a -c -f $ZipName 7academy
