@@ -93,8 +93,8 @@ class Seven_Academy_Admin
             $healthPath = '/api/health';
         }
 
-        $activationToken    = (string) ($current['activation_token']    ?? '');
-        $licenseActivatedAt = (string) ($current['license_activated_at'] ?? '');
+        $activationToken    = isset($input['activation_token'])     ? sanitize_text_field((string) $input['activation_token'])     : (string) ($current['activation_token']    ?? '');
+        $licenseActivatedAt = isset($input['license_activated_at']) ? sanitize_text_field((string) $input['license_activated_at']) : (string) ($current['license_activated_at'] ?? '');
 
         if ($licenseKey !== (string) ($current['license_key'] ?? '')) {
             $activationToken    = '';
