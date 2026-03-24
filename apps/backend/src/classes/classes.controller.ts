@@ -1,14 +1,18 @@
-﻿import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassStatusDto } from './dto/update-class-status.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
+import { ClassesMaterialsService } from './classes-materials.service';
 
 @Roles('admin', 'superadmin')
 @Controller('classes')
 export class ClassesController {
-  constructor(private readonly classesService: ClassesService) {}
+  constructor(
+    private readonly classesService: ClassesService,
+    private readonly materialsService: ClassesMaterialsService,
+  ) {}
 
   @Get()
   async findAll() {
@@ -32,4 +36,15 @@ export class ClassesController {
   ) {
     return this.classesService.updateStatus(classId, dto.status);
   }
+
+  @Get(':classId/materials')
+  async getMaterials(@Param('classId') classId: string) {
+    return this.materialsService.getMaterials(classId);
+  }
+
+  @Get('materials/all')
+  async getAllMaterials() {
+    return this.materialsService.getAllMaterials();
+  }
 }
+

@@ -171,9 +171,9 @@
 <div class="bg-primary-container text-white rounded-xl p-6 relative overflow-hidden">
 <div class="relative z-10">
 <p class="text-sm font-medium opacity-80">Armazenamento Usado</p>
-<h4 class="text-3xl font-bold mt-1">42.8 GB <span class="text-xs font-normal opacity-70">de 100 GB</span></h4>
+<h4 class="text-3xl font-bold mt-1" id="arm-usado">0.00 GB <span class="text-xs font-normal opacity-70" id="arm-limite">de 100 GB</span></h4>
 <div class="w-full bg-white/20 h-2 rounded-full mt-6">
-<div class="w-[42%] bg-white h-full rounded-full"></div>
+<div class="w-[0%] bg-white h-full rounded-full transition-all" id="arm-barra"></div>
 </div>
 <p class="text-[11px] mt-4 font-medium italic">* Plano Pro Academy ativado</p>
 </div>
@@ -210,7 +210,7 @@
 </div>
 </div>
 <!-- File List -->
-<div class="space-y-2">
+<div class="space-y-2" id="lista-materiais">
 <!-- File Item 1 -->
 <div class="group flex items-center justify-between p-4 rounded-xl hover:bg-surface-container-low transition-all">
 <div class="flex items-center gap-4">
@@ -305,7 +305,7 @@
 <div class="mt-12 py-12 flex flex-col items-center justify-center text-center opacity-40">
 <span class="material-symbols-outlined text-6xl mb-4" data-icon="auto_stories">auto_stories</span>
 <p class="text-sm font-bold">Fim da lista atual</p>
-<p class="text-xs mt-1">Exibindo 24 de 1.402 arquivos</p>
+<p class="text-xs mt-1" id="materiais-contagem">Exibindo 0 arquivos</p>
 </div>
 </div>
 </div>
@@ -373,4 +373,97 @@
 </button>
 </div>
 </div>
+<script>
+(function () {
+  'use strict';
+  var TOKEN_KEY = 'academy-auth-token';
+  var API_BASE  = window.location.origin + '/api';
+
+  function token() {
+    var fromUrl = new URLSearchParams(window.location.search).get('token');
+    if (fromUrl) return fromUrl;
+    try { return window.localStorage.getItem(TOKEN_KEY) || window.sessionStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; }
+  }
+
+  function hdrs() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() }; }
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleDateString('pt-BR'); } catch (e) { return iso; }
+  }
+
+  function getIconText(mime) {
+    if (!mime) return 'description';
+    if (mime.indexOf('pdf') >= 0) return 'picture_as_pdf';
+    if (mime.indexOf('video') >= 0 || mime.indexOf('mp4') >= 0) return 'video_library';
+    if (mime.indexOf('image') >= 0) return 'image';
+    return 'description';
+  }
+
+  function getBgColor(mime) {
+    if (!mime) return 'bg-purple-100 text-purple-600';
+    if (mime.indexOf('pdf') >= 0) return 'bg-orange-100 text-primary-container';
+    if (mime.indexOf('video') >= 0 || mime.indexOf('mp4') >= 0) return 'bg-blue-100 text-tertiary-container';
+    return 'bg-purple-100 text-purple-600';
+  }
+
+  function carregarArmazenamento() {
+    fetch(API_BASE + '/settings/storage-limit', { headers: hdrs() })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var used = (d.usedGb || 0).toFixed(2);
+        var limit = d.limitGb || 10;
+        var pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+        
+        document.getElementById('arm-usado').innerHTML = used + ' GB <span class="text-xs font-normal opacity-70" id="arm-limite">de ' + limit + ' GB</span>';
+        document.getElementById('arm-barra').style.width = pct + '%';
+        if (pct > 90) document.getElementById('arm-barra').classList.add('bg-red-400');
+      })
+      .catch(console.error);
+  }
+
+  function carregarMateriais() {
+    fetch(API_BASE + '/classes/materials/all', { headers: hdrs() })
+      .then(function(r) { return r.json(); })
+      .then(function(list) {
+        var cont = document.getElementById('lista-materiais');
+        if (!Array.isArray(list) || list.length === 0) {
+          cont.innerHTML = '<div class="text-center text-sm py-4">Nenhum material encontrado.</div>';
+          document.getElementById('materiais-contagem').textContent = 'Exibindo 0 arquivos';
+          return;
+        }
+
+        document.getElementById('materiais-contagem').textContent = 'Exibindo ' + list.length + ' arquivos';
+        cont.innerHTML = list.map(function(m) {
+          var icone = getIconText(m.mimeType);
+          var bgClass = getBgColor(m.mimeType);
+          var turmaStr = (m.schoolClass && m.schoolClass.name) ? (' — ' + m.schoolClass.name) : '';
+          
+          return '<div class="group flex items-center justify-between p-4 rounded-xl hover:bg-surface-container-low transition-all">' +
+            '<div class="flex items-center gap-4">' +
+              '<div class="w-12 h-12 flex items-center justify-center rounded-lg ' + bgClass + '">' +
+                '<span class="material-symbols-outlined text-2xl">' + icone + '</span>' +
+              '</div>' +
+              '<div>' +
+                '<h5 class="text-sm font-bold text-on-surface">' + m.title + turmaStr + '</h5>' +
+                '<div class="flex items-center gap-3 mt-1">' +
+                  '<span class="text-[11px] text-on-surface-variant">Publicado em: ' + fmtDate(m.createdAt) + '</span>' +
+                  '<span class="px-2 py-0.5 bg-green-100 text-green-700 text-[9px] font-bold rounded uppercase">Visível</span>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">' +
+              '<button class="p-2 hover:bg-white rounded-full transition-colors"><span class="material-symbols-outlined text-lg text-on-surface-variant">download</span></button>' +
+              '<button class="p-2 hover:bg-white rounded-full transition-colors"><span class="material-symbols-outlined text-lg text-on-surface-variant">more_vert</span></button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      })
+      .catch(console.error);
+  }
+
+  carregarArmazenamento();
+  carregarMateriais();
+})();
+</script>
 </body></html>

@@ -377,3 +377,10 @@ model WordpressPluginRelease {
 
   @@map("wordpress_plugin_releases")
 }
+
+model SystemSetting {
+  key   String @id
+  value String
+
+  @@map("system_settings")
+}

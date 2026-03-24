@@ -1,4 +1,4 @@
-﻿import { randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import { createReadStream } from 'fs';
 import { access, mkdir, unlink, writeFile } from 'fs/promises';
 import {
@@ -33,7 +33,7 @@ export class UploadsService implements OnModuleInit {
 
   async bindFileToOwner(input: BindFileInput) {
     const { ownerType, ownerId, kind, file } = input;
-    this.assertImage(file);
+    this.assertDocumentOrMedia(file);
 
     const buffer = await file.toBuffer();
     if (!buffer.length) {
@@ -230,9 +230,11 @@ export class UploadsService implements OnModuleInit {
     return `/api/uploads/assets/${assetId}`;
   }
 
-  private assertImage(file: MultipartFile) {
-    if (!file.mimetype.startsWith('image/')) {
-      throw new BadRequestException('Somente imagens são permitidas.');
+  private assertDocumentOrMedia(file: MultipartFile) {
+    const allowedPrefixes = ['image/', 'video/', 'application/pdf', 'application/vnd', 'application/msword', 'audio/'];
+    const isAllowed = allowedPrefixes.some(prefix => file.mimetype.startsWith(prefix));
+    if (!isAllowed) {
+      throw new BadRequestException('Formato de arquivo não suportado para materiais.');
     }
   }
 

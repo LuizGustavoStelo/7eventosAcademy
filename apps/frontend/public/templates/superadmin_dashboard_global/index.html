@@ -371,6 +371,22 @@
                     Team Notes
                 </button>
 </div>
+<div class="mt-8 space-y-4">
+<p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Configuração Global</p>
+<div class="p-4 bg-zinc-50 border border-zinc-200 rounded-xl space-y-3">
+  <div>
+      <p class="text-sm font-bold text-zinc-900">Limite Armazenamento (GB)</p>
+      <p class="text-[10px] text-zinc-500">Padrão para a plataforma</p>
+  </div>
+  <div class="flex items-center gap-2">
+      <input type="number" id="input-limite" class="w-full text-sm border-zinc-200 rounded-md p-2 bg-white" placeholder="Ex: 100"/>
+      <button id="btn-salvar-limite" class="px-3 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition flex items-center justify-center">
+        <span class="material-symbols-outlined text-sm">save</span>
+      </button>
+  </div>
+  <p id="msg-limite" class="text-[10px] text-emerald-600 font-bold hidden">Salvo com sucesso!</p>
+</div>
+</div>
 <div class="mt-12 space-y-4">
 <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Active Institutions</p>
 <div class="space-y-3">
@@ -396,4 +412,62 @@
 </div>
 </aside>
 </main>
+<script>
+(function() {
+  'use strict';
+  var TOKEN_KEY = 'academy-auth-token';
+  var API_BASE = window.location.origin + '/api';
+
+  function token() {
+    var fromUrl = new URLSearchParams(window.location.search).get('token');
+    if (fromUrl) return fromUrl;
+    try {
+      return window.localStorage.getItem(TOKEN_KEY) || window.sessionStorage.getItem(TOKEN_KEY) || '';
+    } catch { return ''; }
+  }
+
+  function hdrs() {
+    return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() };
+  }
+
+  var inputLimite = document.getElementById('input-limite');
+  var btnSalvar = document.getElementById('btn-salvar-limite');
+  var msg = document.getElementById('msg-limite');
+
+  function carregarLimite() {
+    fetch(API_BASE + '/settings/storage-limit', { headers: hdrs() })
+      .then(r => r.json())
+      .then(d => {
+        if (d && d.limitGb) {
+          inputLimite.value = d.limitGb;
+        }
+      })
+      .catch(console.error);
+  }
+
+  btnSalvar.addEventListener('click', function() {
+    btnSalvar.style.opacity = '0.5';
+    var val = parseInt(inputLimite.value, 10);
+    if (isNaN(val) || val <= 0) val = 100;
+
+    fetch(API_BASE + '/settings/storage-limit', {
+      method: 'POST',
+      headers: hdrs(),
+      body: JSON.stringify({ limitGb: val })
+    })
+    .then(r => r.json())
+    .then(() => {
+      btnSalvar.style.opacity = '1';
+      msg.classList.remove('hidden');
+      setTimeout(() => msg.classList.add('hidden'), 3000);
+    })
+    .catch(() => {
+      btnSalvar.style.opacity = '1';
+      alert('Erro ao salvar.');
+    });
+  });
+
+  carregarLimite();
+})();
+</script>
 </body></html>
