@@ -205,6 +205,21 @@
 </div>
 </div>
 </div>
+
+<div class="bg-surface-container-low p-8 rounded-xl mt-8">
+<h2 class="text-xl font-bold font-headline mb-6">Integração Financeira</h2>
+<p class="text-xs text-neutral-500 mb-4">Gerencie a conexão e verifique o status do gateway de pagamentos localizado em ambiente seguro pelo superadmin.</p>
+<div class="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm border border-neutral-100">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-neutral-600 bg-neutral-50 p-2 rounded-lg" id="gateway-icon">account_balance_wallet</span>
+<div>
+<p class="font-semibold text-sm" id="gateway-provider">Verificando status...</p>
+<p class="text-xs text-neutral-500" id="gateway-status">Conectando ao cofre central.</p>
+</div>
+</div>
+<span class="text-[10px] font-bold px-2 py-1 rounded uppercase bg-neutral-100 text-neutral-500 transition-colors" id="gateway-badge">CARREGANDO</span>
+</div>
+</div>
 </section>
 <!-- SECURITY & STATS SIDEBAR -->
 <section class="col-span-12 lg:col-span-4 space-y-8">
@@ -265,5 +280,45 @@
 <button class="px-10 py-3 rounded-xl bg-[#FF5C00] text-white font-headline font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform">Salvar Alterações</button>
 </div>
 </div>
-</main>
+<script>
+    (function() {
+      var TOKEN_KEY = 'academy-auth-token';
+      var API_BASE = window.location.origin + '/api';
+
+      function token() {
+        var fromUrl = new URLSearchParams(window.location.search).get('token');
+        if (fromUrl) return fromUrl;
+        try {
+          return window.localStorage.getItem(TOKEN_KEY) || window.sessionStorage.getItem(TOKEN_KEY) || '';
+        } catch { return ''; }
+      }
+
+      function hdrs() {
+        return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() };
+      }
+
+      fetch(API_BASE + '/settings/payment-gateway', { headers: hdrs() })
+      .then(r => r.json())
+      .then(d => {
+         const providerStr = d.provider !== 'Nenhum' ? 'Provedor Ativo: ' + d.provider.toUpperCase() : 'Nenhum provedor configurado';
+         const statusStr = d.isConfigured ? 'Credenciais verificadas e ativas no cofre seguro.' : 'Aguardando configuração do Superadmin.';
+         const badgeClass = d.isConfigured ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+         const badgeText = d.isConfigured ? 'OPERACIONAL' : 'INATIVO';
+         
+         document.getElementById('gateway-provider').textContent = providerStr;
+         document.getElementById('gateway-status').textContent = statusStr;
+         document.getElementById('gateway-badge').className = 'text-[10px] font-bold px-2 py-1 rounded uppercase ' + badgeClass;
+         document.getElementById('gateway-badge').textContent = badgeText;
+         
+         if(!d.isConfigured) {
+             document.getElementById('gateway-icon').className = 'material-symbols-outlined text-red-600 bg-red-50 p-2 rounded-xl';
+             document.getElementById('gateway-icon').textContent = 'error';
+         } else {
+             document.getElementById('gateway-icon').className = 'material-symbols-outlined text-green-600 bg-green-50 p-2 rounded-xl';
+             document.getElementById('gateway-icon').textContent = 'verified';
+         }
+      })
+      .catch(console.error);
+    })();
+  </script>
 </body></html>
