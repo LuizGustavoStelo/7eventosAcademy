@@ -135,7 +135,31 @@ export class WordpressIntegrationService {
     });
 
     if (!validation.valid) {
-      throw new UnauthorizedException('Licença inválida para atualização.');
+      // Lógica de Recuperação Legada:
+      // Versões anteriores a 1.0.17 tinham um bug que podia apagar o token de ativação.
+      // Se o plugin for antigo, permitimos o check de update se o domínio tiver uma licença ativa no banco,
+      // mesmo que o token enviado seja inválido/vazio. Isso permite o auto-update para versões fixadas.
+      const isLegacyVersion = this.compareVersions('1.0.17', dto.pluginVersion);
+
+      if (isLegacyVersion) {
+        const normalizedDomain = this.normalizeDomain(dto.domain);
+        const hasValidLicenseForDomain =
+          await this.prisma.wordpressPluginLicense.findFirst({
+            where: {
+              isActive: true,
+              activations: {
+                some: { domain: normalizedDomain, revokedAt: null },
+              },
+            },
+          });
+
+        if (!hasValidLicenseForDomain) {
+          throw new UnauthorizedException('Licença inválida para atualização.');
+        }
+        // Se encontramos uma licença válida para o domínio, permitimos continuar o check
+      } else {
+        throw new UnauthorizedException('Licença inválida para atualização.');
+      }
     }
 
     const latestRelease = await this.prisma.wordpressPluginRelease.findFirst({
