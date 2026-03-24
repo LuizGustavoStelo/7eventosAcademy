@@ -28,7 +28,7 @@ import { MisModule } from './mis/mis.module';
       {
         name: 'default',
         ttl: 60_000,  // janela de 60 segundos (ms)
-        limit: 120,   // máx. 120 requisições por IP nessa janela
+        limit: 1000,   // máx. 1000 requisições por IP nessa janela
       },
       {
         name: 'public-mis',
