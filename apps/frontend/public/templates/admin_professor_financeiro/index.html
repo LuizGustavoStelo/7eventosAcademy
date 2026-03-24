@@ -122,7 +122,7 @@
 <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">MÊS ATUAL</span>
 </div>
 <p class="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-1">Total Recebido</p>
-<h3 class="font-manrope text-2xl font-bold text-zinc-900">R$ 42.580,00</h3>
+<h3 id="kpi-recebido" class="font-manrope text-2xl font-bold text-zinc-900">R$ 0,00</h3>
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-xl border-l-4 border-error shadow-sm">
 <div class="flex justify-between items-start mb-4">
@@ -132,7 +132,7 @@
 <span class="text-[10px] font-bold text-error bg-red-50 px-2 py-1 rounded">CRÍTICO</span>
 </div>
 <p class="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-1">Inadimplência</p>
-<h3 class="font-manrope text-2xl font-bold text-zinc-900">R$ 3.120,00</h3>
+<h3 id="kpi-inadimplencia" class="font-manrope text-2xl font-bold text-zinc-900">R$ 0,00</h3>
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-xl border-l-4 border-zinc-400 shadow-sm">
 <div class="flex justify-between items-start mb-4">
@@ -141,7 +141,7 @@
 </span>
 </div>
 <p class="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-1">Pendências</p>
-<h3 class="font-manrope text-2xl font-bold text-zinc-900">12 Cobranças</h3>
+<h3 id="kpi-pendencias" class="font-manrope text-2xl font-bold text-zinc-900">0 Cobranças</h3>
 </div>
 </div>
 </div>
@@ -180,109 +180,12 @@
 <th class="px-6 py-4 text-xs font-bold text-zinc-400 uppercase tracking-widest text-right">Ações</th>
 </tr>
 </thead>
-<tbody class="divide-y divide-zinc-50">
-<tr class="hover:bg-zinc-50/80 transition-colors group">
-<td class="px-6 py-4">
-<div class="flex items-center gap-3">
-<div class="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center text-primary font-bold text-xs">AM</div>
-<div>
-<p class="font-inter text-sm font-semibold text-zinc-900">Ana Maria Silva</p>
-<p class="text-[11px] text-zinc-500">ana.silva@email.com</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-4 text-sm text-zinc-600">Marketing Digital v1</td>
-<td class="px-6 py-4 text-sm font-bold text-zinc-900">R$ 450,00</td>
-<td class="px-6 py-4 text-sm text-zinc-600">10/10/2023</td>
-<td class="px-6 py-4">
-<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-bold uppercase">Pago</span>
-</td>
-<td class="px-6 py-4 text-right">
-<button class="p-2 text-zinc-400 hover:text-primary transition-colors">
-<span class="material-symbols-outlined text-[20px]">more_vert</span>
-</button>
-</td>
-</tr>
-<tr class="hover:bg-zinc-50/80 transition-colors group">
-<td class="px-6 py-4">
-<div class="flex items-center gap-3">
-<img alt="Avatar Aluno" class="w-9 h-9 rounded-full" data-alt="Avatar de um aluno jovem" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAoVSRYlODbxcBrz-AaJ4koMWrKSDcqhzkEiAKIFaUPqJzUibj-OoEisW7kvAWhEBz3TgK4CifmTD4EzXxxn7JGXbUgInOKkWSV23C6JP2ynHPxgbbRUucb_Z_HHtHAHqfDYpOIlolcwe4xyNepZHQeKvbiL3msJBTr-eJS5Pz44yz5NrN_Ode_5s4ayn5Prn5pHnGoNYVwQWZEeyNXehOWyk3HD1R25wM-hpnLEZCzA32S6B4Vikn641l7MR92Tt2qVCZulfRDIExX"/>
-<div>
-<p class="font-inter text-sm font-semibold text-zinc-900">Bruno Oliveira</p>
-<p class="text-[11px] text-zinc-500">bruno.o@email.com</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-4 text-sm text-zinc-600">Design de Interface</td>
-<td class="px-6 py-4 text-sm font-bold text-zinc-900">R$ 380,00</td>
-<td class="px-6 py-4 text-sm text-zinc-600">05/10/2023</td>
-<td class="px-6 py-4">
-<span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold uppercase">Atrasado</span>
-</td>
-<td class="px-6 py-4 text-right">
-<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-<button class="p-2 bg-orange-50 text-[#ff5c00] rounded-lg hover:bg-orange-100 transition-colors" title="Reenviar cobrança">
-<span class="material-symbols-outlined text-[18px]">mail</span>
-</button>
-<button class="p-2 bg-zinc-50 text-zinc-600 rounded-lg hover:bg-zinc-100 transition-colors" title="Registrar acordo">
-<span class="material-symbols-outlined text-[18px]">handshake</span>
-</button>
-</div>
-</td>
-</tr>
-<tr class="hover:bg-zinc-50/80 transition-colors group">
-<td class="px-6 py-4">
-<div class="flex items-center gap-3">
-<div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">CC</div>
-<div>
-<p class="font-inter text-sm font-semibold text-zinc-900">Carla Costa</p>
-<p class="text-[11px] text-zinc-500">carla.c@email.com</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-4 text-sm text-zinc-600">Gestão de Projetos</td>
-<td class="px-6 py-4 text-sm font-bold text-zinc-900">R$ 520,00</td>
-<td class="px-6 py-4 text-sm text-zinc-600">15/10/2023</td>
-<td class="px-6 py-4">
-<span class="px-3 py-1 bg-zinc-100 text-zinc-600 rounded-full text-[10px] font-bold uppercase">Pendente</span>
-</td>
-<td class="px-6 py-4 text-right">
-<button class="p-2 text-zinc-400 hover:text-primary transition-colors">
-<span class="material-symbols-outlined text-[20px]">more_vert</span>
-</button>
-</td>
-</tr>
-<tr class="hover:bg-zinc-50/80 transition-colors group">
-<td class="px-6 py-4">
-<div class="flex items-center gap-3">
-<img alt="Avatar Aluno" class="w-9 h-9 rounded-full" data-alt="Avatar de um aluno sorridente" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDu7vma50xdaJdtP12US-MF3PhGhI-g96Fvh5VEhi5UeLyvUJ0K-i55Lo_6pbIOHqtjtYeB7MdO9M8GjP7CrR5r1gAU74tLjD_nXuUekTdSLlZTt1QiQ9Q_m5v64ZUgJk6slc43zehiDBvNjKnxWEmZMbDxMW0oXu7c3ncP2Cb0CqzGO-B3XzP5YLXMrQphs6Ar8VukDLsoef3MyPazNZWPpTve0EdaRxmtGM2uf6nfZxtpbgggI-MPcATN_QNDRPDym_rmRuX9l9ZB"/>
-<div>
-<p class="font-inter text-sm font-semibold text-zinc-900">Diego Santos</p>
-<p class="text-[11px] text-zinc-500">diego.s@email.com</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-4 text-sm text-zinc-600">Fullstack Developer</td>
-<td class="px-6 py-4 text-sm font-bold text-zinc-900">R$ 890,00</td>
-<td class="px-6 py-4 text-sm text-zinc-600">08/10/2023</td>
-<td class="px-6 py-4">
-<span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold uppercase">Atrasado</span>
-</td>
-<td class="px-6 py-4 text-right">
-<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-<button class="p-2 bg-orange-50 text-[#ff5c00] rounded-lg hover:bg-orange-100 transition-colors" title="Reenviar cobrança">
-<span class="material-symbols-outlined text-[18px]">mail</span>
-</button>
-<button class="p-2 bg-zinc-50 text-zinc-600 rounded-lg hover:bg-zinc-100 transition-colors" title="Registrar acordo">
-<span class="material-symbols-outlined text-[18px]">handshake</span>
-</button>
-</div>
-</td>
-</tr>
+<tbody id="tabela-cobrancas" class="divide-y divide-zinc-50">
+<tr class="empty-row"><td colspan="6" class="px-6 py-8 text-center text-zinc-500 font-medium text-sm">Carregando lançamentos...</td></tr>
 </tbody>
 </table>
 <div class="px-6 py-4 border-t border-zinc-100 flex items-center justify-between">
-<p class="text-xs text-zinc-500">Exibindo 4 de 128 lançamentos</p>
+<p id="total-lancamentos" class="text-xs text-zinc-500">Exibindo 0 lançamentos</p>
 <div class="flex items-center gap-2">
 <button class="p-1 text-zinc-400 hover:text-zinc-700 disabled:opacity-30" disabled="">
 <span class="material-symbols-outlined">chevron_left</span>
@@ -298,4 +201,125 @@
 </div>
 </div>
 </main>
+<script>
+(function () {
+  'use strict';
+  var TOKEN_KEY = 'academy-auth-token';
+  var API_BASE  = window.location.origin + '/api';
+
+  function token() {
+    var fromUrl = new URLSearchParams(window.location.search).get('token');
+    if (fromUrl) return fromUrl;
+    try {
+      return window.localStorage.getItem(TOKEN_KEY) || window.sessionStorage.getItem(TOKEN_KEY) || '';
+    } catch (e) { return ''; }
+  }
+
+  function fmtCurrency(val) {
+    if (val == null) return 'R$ 0,00';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleDateString('pt-BR', {timeZone: 'UTC'}); } catch (e) { return iso; }
+  }
+
+  function getInitials(name) {
+    if (!name) return '??';
+    var parts = name.trim().split(' ');
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return name.substring(0, 2).toUpperCase();
+  }
+
+  function hdrs() {
+    return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() };
+  }
+
+  function carregarOverview() {
+    fetch(API_BASE + '/finance/overview', { headers: hdrs() })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var totalRecebido = 0;
+        var inadimplencia = 0;
+        
+        if (data.amountByStatus && Array.isArray(data.amountByStatus)) {
+          data.amountByStatus.forEach(function(item) {
+            if (item.status === 'paid') totalRecebido = item.amount;
+            if (item.status === 'overdue') inadimplencia = item.amount;
+          });
+        }
+        
+        document.getElementById('kpi-recebido').textContent = fmtCurrency(totalRecebido);
+        document.getElementById('kpi-inadimplencia').textContent = fmtCurrency(inadimplencia);
+        document.getElementById('kpi-pendencias').textContent = (data.pendingCharges || 0) + ' Cobranças';
+      })
+      .catch(function(e) { console.error('Erro overview:', e); });
+  }
+
+  function carregarCobrancas() {
+    fetch(API_BASE + '/finance/charges', { headers: hdrs() })
+      .then(function(r) { return r.json(); })
+      .then(function(list) {
+        var tbody = document.getElementById('tabela-cobrancas');
+        if (!Array.isArray(list) || list.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-zinc-500 font-medium text-sm">Nenhuma cobrança encontrada</td></tr>';
+          document.getElementById('total-lancamentos').textContent = 'Exibindo 0 lançamentos';
+          return;
+        }
+        
+        document.getElementById('total-lancamentos').textContent = 'Exibindo ' + list.length + ' lançamentos';
+        
+        tbody.innerHTML = list.map(function(c) {
+          var name = (c.enrollment && c.enrollment.student) ? c.enrollment.student.name : 'Aluno Desconhecido';
+          var email = (c.enrollment && c.enrollment.student) ? c.enrollment.student.email : '';
+          var course = (c.enrollment && c.enrollment.schoolClass && c.enrollment.schoolClass.course) ? c.enrollment.schoolClass.course.name : 'Turma Indefinida';
+          
+          var initials = getInitials(name);
+          var bgColors = ['bg-orange-100 text-primary', 'bg-blue-100 text-blue-700', 'bg-emerald-100 text-emerald-700', 'bg-purple-100 text-purple-700'];
+          var initialsColor = bgColors[name.length % bgColors.length];
+          
+          var statusHtml = '';
+          if (c.status === 'PAID') {
+            statusHtml = '<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-bold uppercase">Pago</span>';
+          } else if (c.status === 'OVERDUE') {
+            statusHtml = '<span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold uppercase">Atrasado</span>';
+          } else if (c.status === 'PENDING') {
+            statusHtml = '<span class="px-3 py-1 bg-zinc-100 text-zinc-600 rounded-full text-[10px] font-bold uppercase">Pendente</span>';
+          } else {
+            statusHtml = '<span class="px-3 py-1 bg-zinc-100 text-zinc-600 rounded-full text-[10px] font-bold uppercase">' + c.status + '</span>';
+          }
+          
+          var acoesHtml = c.status === 'OVERDUE' 
+            ? '<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">' +
+              '<button class="p-2 bg-orange-50 text-[#ff5c00] rounded-lg hover:bg-orange-100 transition-colors" title="Reenviar cobrança"><span class="material-symbols-outlined text-[18px]">mail</span></button>' +
+              '<button class="p-2 bg-zinc-50 text-zinc-600 rounded-lg hover:bg-zinc-100 transition-colors" title="Registrar acordo"><span class="material-symbols-outlined text-[18px]">handshake</span></button>' +
+              '</div>'
+            : '<button class="p-2 text-zinc-400 hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">more_vert</span></button>';
+
+          return '<tr class="hover:bg-zinc-50/80 transition-colors group">' +
+            '<td class="px-6 py-4">' +
+              '<div class="flex items-center gap-3">' +
+                '<div class="w-9 h-9 rounded-full ' + initialsColor + ' flex items-center justify-center font-bold text-xs">' + initials + '</div>' +
+                '<div>' +
+                  '<p class="font-inter text-sm font-semibold text-zinc-900">' + name + '</p>' +
+                  '<p class="text-[11px] text-zinc-500">' + email + '</p>' +
+                '</div>' +
+              '</div>' +
+            '</td>' +
+            '<td class="px-6 py-4 text-sm text-zinc-600">' + course + '</td>' +
+            '<td class="px-6 py-4 text-sm font-bold text-zinc-900">' + fmtCurrency(c.amount) + '</td>' +
+            '<td class="px-6 py-4 text-sm text-zinc-600">' + fmtDate(c.dueDate) + '</td>' +
+            '<td class="px-6 py-4">' + statusHtml + '</td>' +
+            '<td class="px-6 py-4 text-right">' + acoesHtml + '</td>' +
+          '</tr>';
+        }).join('');
+      })
+      .catch(function(e) { console.error('Erro cobranças:', e); });
+  }
+
+  carregarOverview();
+  carregarCobrancas();
+})();
+</script>
 </body></html>
