@@ -15,7 +15,7 @@ class Seven_Academy_Api_Client
             [
                 'timeout' => 12,
                 'headers' => [
-                    'Accept' => 'application/json',
+                    'Accept'       => 'application/json',
                     'Content-Type' => 'application/json',
                 ],
                 'body' => wp_json_encode($payload),
@@ -24,27 +24,29 @@ class Seven_Academy_Api_Client
 
         if (is_wp_error($response)) {
             return [
-                'ok' => false,
-                'status' => 0,
+                'ok'      => false,
+                'status'  => 0,
                 'message' => $response->get_error_message(),
-                'data' => null,
+                'data'    => null,
             ];
         }
 
-        $status = (int) wp_remote_retrieve_response_code($response);
-        $body = (string) wp_remote_retrieve_body($response);
+        $status  = (int) wp_remote_retrieve_response_code($response);
+        $body    = (string) wp_remote_retrieve_body($response);
         $decoded = json_decode($body, true);
 
         $message = '';
         if (is_array($decoded) && isset($decoded['message'])) {
-            $message = is_array($decoded['message']) ? implode(', ', $decoded['message']) : (string) $decoded['message'];
+            $message = is_array($decoded['message'])
+                ? implode(', ', $decoded['message'])
+                : (string) $decoded['message'];
         }
 
         return [
-            'ok' => $status >= 200 && $status < 300,
-            'status' => $status,
+            'ok'      => $status >= 200 && $status < 300,
+            'status'  => $status,
             'message' => $message,
-            'data' => is_array($decoded) ? $decoded : null,
+            'data'    => is_array($decoded) ? $decoded : null,
         ];
     }
 
@@ -64,27 +66,29 @@ class Seven_Academy_Api_Client
 
         if (is_wp_error($response)) {
             return [
-                'ok' => false,
-                'status' => 0,
+                'ok'      => false,
+                'status'  => 0,
                 'message' => $response->get_error_message(),
-                'data' => null,
+                'data'    => null,
             ];
         }
 
-        $status = (int) wp_remote_retrieve_response_code($response);
-        $body = (string) wp_remote_retrieve_body($response);
+        $status  = (int) wp_remote_retrieve_response_code($response);
+        $body    = (string) wp_remote_retrieve_body($response);
         $decoded = json_decode($body, true);
 
         $message = '';
         if (is_array($decoded) && isset($decoded['message'])) {
-            $message = is_array($decoded['message']) ? implode(', ', $decoded['message']) : (string) $decoded['message'];
+            $message = is_array($decoded['message'])
+                ? implode(', ', $decoded['message'])
+                : (string) $decoded['message'];
         }
 
         return [
-            'ok' => $status >= 200 && $status < 300,
-            'status' => $status,
+            'ok'      => $status >= 200 && $status < 300,
+            'status'  => $status,
             'message' => $message,
-            'data' => is_array($decoded) ? $decoded : null,
+            'data'    => is_array($decoded) ? $decoded : null,
         ];
     }
 }

@@ -33,15 +33,15 @@ class Seven_Academy_Admin
             'seven_academy_settings_group',
             self::OPTION_KEY,
             [
-                'type' => 'array',
+                'type'              => 'array',
                 'sanitize_callback' => [self::class, 'sanitize_settings'],
-                'default' => self::default_settings(),
+                'default'           => self::default_settings(),
             ]
         );
 
         add_settings_section(
             'seven_academy_main_section',
-            'Configuração de conexão',
+            'Configuracao de conexao',
             '__return_false',
             'seven-academy'
         );
@@ -64,7 +64,7 @@ class Seven_Academy_Admin
 
         add_settings_field(
             'tenant_slug',
-            'Tenant público (opcional)',
+            'Tenant publico (opcional)',
             [self::class, 'render_tenant_slug_field'],
             'seven-academy',
             'seven_academy_main_section'
@@ -72,7 +72,7 @@ class Seven_Academy_Admin
 
         add_settings_field(
             'license_key',
-            'Chave de licença',
+            'Chave de licenca',
             [self::class, 'render_license_key_field'],
             'seven-academy',
             'seven_academy_main_section'
@@ -82,22 +82,22 @@ class Seven_Academy_Admin
     public static function sanitize_settings(array $input): array
     {
         $defaults = self::default_settings();
-        $current = self::get_settings();
+        $current  = self::get_settings();
 
-        $baseUrl = isset($input['base_url']) ? esc_url_raw(trim((string) $input['base_url'])) : $defaults['base_url'];
-        $healthPath = isset($input['health_path']) ? trim((string) $input['health_path']) : $defaults['health_path'];
-        $tenantSlug = isset($input['tenant_slug']) ? sanitize_text_field((string) $input['tenant_slug']) : '';
-        $licenseKey = isset($input['license_key']) ? sanitize_text_field((string) $input['license_key']) : '';
+        $baseUrl    = isset($input['base_url'])    ? esc_url_raw(trim((string) $input['base_url']))               : $defaults['base_url'];
+        $healthPath = isset($input['health_path']) ? trim((string) $input['health_path'])                          : $defaults['health_path'];
+        $tenantSlug = isset($input['tenant_slug']) ? sanitize_text_field((string) $input['tenant_slug'])           : '';
+        $licenseKey = isset($input['license_key']) ? sanitize_text_field((string) $input['license_key'])           : '';
 
         if ($healthPath === '' || $healthPath[0] !== '/') {
             $healthPath = '/api/health';
         }
 
-        $activationToken = (string) ($current['activation_token'] ?? '');
+        $activationToken    = (string) ($current['activation_token']    ?? '');
         $licenseActivatedAt = (string) ($current['license_activated_at'] ?? '');
 
         if ($licenseKey !== (string) ($current['license_key'] ?? '')) {
-            $activationToken = '';
+            $activationToken    = '';
             $licenseActivatedAt = '';
             delete_transient('seven_academy_license_validation_cache');
             delete_transient('seven_academy_connection_cache');
@@ -105,11 +105,11 @@ class Seven_Academy_Admin
         }
 
         return [
-            'base_url' => rtrim($baseUrl, '/'),
-            'health_path' => $healthPath,
-            'tenant_slug' => $tenantSlug,
-            'license_key' => $licenseKey,
-            'activation_token' => $activationToken,
+            'base_url'            => rtrim($baseUrl, '/'),
+            'health_path'         => $healthPath,
+            'tenant_slug'         => $tenantSlug,
+            'license_key'         => $licenseKey,
+            'activation_token'    => $activationToken,
             'license_activated_at' => $licenseActivatedAt,
         ];
     }
@@ -120,14 +120,14 @@ class Seven_Academy_Admin
             return;
         }
 
-        $settings = self::get_settings();
-        $connection = self::check_connection($settings['base_url'], $settings['health_path']);
+        $settings      = self::get_settings();
+        $connection    = self::check_connection($settings['base_url'], $settings['health_path']);
         $licenseStatus = Seven_Academy_License::get_license_status($settings);
-        $notice = self::read_notice();
+        $notice        = self::read_notice();
         ?>
         <div class="wrap">
             <h1>7academy</h1>
-            <p>Painel administrativo do plugin de integração com a Academy.</p>
+            <p>Painel administrativo do plugin de integracao com a Academy.</p>
 
             <?php if ($notice) : ?>
                 <div class="notice notice-<?php echo esc_attr($notice['type']); ?> is-dismissible">
@@ -138,17 +138,17 @@ class Seven_Academy_Admin
             <table class="widefat striped" style="max-width: 960px; margin: 16px 0;">
                 <tbody>
                     <tr>
-                        <td style="width: 260px;"><strong>Status de conexão</strong></td>
+                        <td style="width: 260px;"><strong>Status de conexao</strong></td>
                         <td>
                             <?php if ($connection['ok']) : ?>
                                 <span style="color: #146c2e;"><strong>Conectado</strong></span>
                             <?php else : ?>
-                                <span style="color: #b42318;"><strong>Indisponível</strong></span>
+                                <span style="color: #b42318;"><strong>Indisponivel</strong></span>
                             <?php endif; ?>
                         </td>
                     </tr>
                     <tr>
-                        <td><strong>Status da licença</strong></td>
+                        <td><strong>Status da licenca</strong></td>
                         <td>
                             <?php if (!empty($licenseStatus['active'])) : ?>
                                 <span style="color: #146c2e;"><strong>Ativa</strong></span>
@@ -159,19 +159,19 @@ class Seven_Academy_Admin
                         </td>
                     </tr>
                     <tr>
-                        <td><strong>Versão do plugin</strong></td>
+                        <td><strong>Versao do plugin</strong></td>
                         <td><?php echo esc_html(SEVEN_ACADEMY_VERSION); ?></td>
                     </tr>
                     <tr>
                         <td><strong>URL da Academy</strong></td>
-                        <td><?php echo esc_html($settings['base_url'] ?: 'Não configurada'); ?></td>
+                        <td><?php echo esc_html($settings['base_url'] ?: 'Nao configurada'); ?></td>
                     </tr>
                     <tr>
-                        <td><strong>Domínio do site</strong></td>
+                        <td><strong>Dominio do site</strong></td>
                         <td><?php echo esc_html((string) wp_parse_url(home_url('/'), PHP_URL_HOST)); ?></td>
                     </tr>
                     <tr>
-                        <td><strong>Detalhe técnico</strong></td>
+                        <td><strong>Detalhe tecnico</strong></td>
                         <td><?php echo esc_html($connection['message']); ?></td>
                     </tr>
                 </tbody>
@@ -181,7 +181,7 @@ class Seven_Academy_Admin
                 <?php
                 settings_fields('seven_academy_settings_group');
                 do_settings_sections('seven-academy');
-                submit_button('Salvar configurações');
+                submit_button('Salvar configuracoes');
                 ?>
             </form>
 
@@ -189,21 +189,21 @@ class Seven_Academy_Admin
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                     <?php wp_nonce_field('seven_academy_activate_license'); ?>
                     <input type="hidden" name="action" value="seven_academy_activate_license" />
-                    <?php submit_button('Ativar licença', 'primary', 'submit', false); ?>
+                    <?php submit_button('Ativar licenca', 'primary', 'submit', false); ?>
                 </form>
 
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                     <?php wp_nonce_field('seven_academy_deactivate_license'); ?>
                     <input type="hidden" name="action" value="seven_academy_deactivate_license" />
-                    <?php submit_button('Remover licença do site', 'secondary', 'submit', false); ?>
+                    <?php submit_button('Remover licenca do site', 'secondary', 'submit', false); ?>
                 </form>
             </div>
 
             <hr style="max-width: 960px; margin: 40px 0;">
 
             <div style="max-width: 960px;">
-                <h3>Shortcodes de Integração</h3>
-                <p>Use os shortcodes abaixo para incluir as funcionalidades da Academy em suas páginas:</p>
+                <h3>Shortcodes de Integracao</h3>
+                <p>Use os shortcodes abaixo para incluir as funcionalidades da Academy em suas paginas:</p>
                 <table class="widefat striped">
                     <thead>
                         <tr>
@@ -220,13 +220,13 @@ class Seven_Academy_Admin
                         </tr>
                         <tr>
                             <td><code>[formulario-cadastro-aluno]</code></td>
-                            <td>Páginas de Captura / Inscrição.</td>
-                            <td>Incorpora o formulário de pré-matrícula para novos alunos.</td>
+                            <td>Paginas de Captura / Inscricao.</td>
+                            <td>Incorpora o formulario de pre-matricula para novos alunos.</td>
                         </tr>
                     </tbody>
                 </table>
                 <p class="description" style="margin-top: 10px;">
-                    <strong>Dica:</strong> Você pode ajustar a altura do iframe adicionando o atributo <code>height</code>, ex: <code>[area-do-aluno height="850px"]</code>.
+                    <strong>Dica:</strong> Voce pode ajustar a altura do iframe adicionando o atributo <code>height</code>, ex: <code>[area-do-aluno height="850px"]</code>.
                 </p>
             </div>
         </div>
@@ -244,7 +244,7 @@ class Seven_Academy_Admin
             value="<?php echo esc_attr($settings['base_url']); ?>"
             placeholder="https://academy.7eventos.com"
         />
-        <p class="description">Domínio principal da Academy, sem barra no final.</p>
+        <p class="description">Dominio principal da Academy, sem barra no final.</p>
         <?php
     }
 
@@ -274,7 +274,7 @@ class Seven_Academy_Admin
             value="<?php echo esc_attr($settings['tenant_slug']); ?>"
             placeholder="instituicao-x"
         />
-        <p class="description">Identificador público da instituição, quando necessário.</p>
+        <p class="description">Identificador publico da instituicao, quando necessario.</p>
         <?php
     }
 
@@ -290,7 +290,7 @@ class Seven_Academy_Admin
             placeholder="XXXX-XXXX-XXXX-XXXX"
             autocomplete="off"
         />
-        <p class="description">Chave de licença fornecida para autorizar este domínio.</p>
+        <p class="description">Chave de licenca fornecida para autorizar este dominio.</p>
         <?php
     }
 
@@ -313,11 +313,11 @@ class Seven_Academy_Admin
     public static function default_settings(): array
     {
         return [
-            'base_url' => 'https://academy.7eventos.com',
-            'health_path' => '/api/health',
-            'tenant_slug' => '',
-            'license_key' => '',
-            'activation_token' => '',
+            'base_url'            => 'https://academy.7eventos.com',
+            'health_path'         => '/api/health',
+            'tenant_slug'         => '',
+            'license_key'         => '',
+            'activation_token'    => '',
             'license_activated_at' => '',
         ];
     }
@@ -326,13 +326,13 @@ class Seven_Academy_Admin
     {
         if ($baseUrl === '') {
             return [
-                'ok' => false,
-                'message' => 'URL base não configurada.',
+                'ok'      => false,
+                'message' => 'URL base nao configurada.',
             ];
         }
 
         $cacheKey = 'seven_academy_connection_cache';
-        $cached = get_transient($cacheKey);
+        $cached   = get_transient($cacheKey);
         if (is_array($cached)) {
             return $cached;
         }
@@ -340,18 +340,18 @@ class Seven_Academy_Admin
         $result = Seven_Academy_Api_Client::get_json($baseUrl, $healthPath);
         if ($result['ok']) {
             $outcome = [
-                'ok' => true,
-                'message' => 'Conexão validada com sucesso.',
+                'ok'      => true,
+                'message' => 'Conexao validada com sucesso.',
             ];
             set_transient($cacheKey, $outcome, MINUTE_IN_SECONDS * 5);
             return $outcome;
         }
 
-        $status = (int) ($result['status'] ?? 0);
+        $status  = (int) ($result['status'] ?? 0);
         $message = (string) ($result['message'] ?? 'Falha ao conectar na API.');
 
         $outcome = [
-            'ok' => false,
+            'ok'      => false,
             'message' => $status > 0 ? 'HTTP ' . $status . ': ' . $message : $message,
         ];
         set_transient($cacheKey, $outcome, MINUTE_IN_SECONDS * 2);
@@ -360,8 +360,8 @@ class Seven_Academy_Admin
 
     private static function read_notice(): ?array
     {
-        $type = isset($_GET['seven_academy_notice_type']) ? sanitize_text_field((string) $_GET['seven_academy_notice_type']) : '';
-        $message = isset($_GET['seven_academy_notice_message']) ? rawurldecode((string) $_GET['seven_academy_notice_message']) : '';
+        $type    = isset($_GET['seven_academy_notice_type'])    ? sanitize_text_field((string) $_GET['seven_academy_notice_type'])    : '';
+        $message = isset($_GET['seven_academy_notice_message']) ? rawurldecode((string) $_GET['seven_academy_notice_message'])         : '';
 
         if ($type === '' || $message === '') {
             return null;
@@ -373,7 +373,7 @@ class Seven_Academy_Admin
         }
 
         return [
-            'type' => $type,
+            'type'    => $type,
             'message' => $message,
         ];
     }

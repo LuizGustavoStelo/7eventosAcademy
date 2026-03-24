@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 7academy
  * Plugin URI: https://academy.7eventos.com
- * Description: Integra o WordPress ao mÃ³dulo incorporado seguro da Academy.
+ * Description: Integra o WordPress ao modulo incorporado seguro da Academy.
  * Version: 1.1.0
  * Requires at least: 6.0
  * Requires PHP: 8.0

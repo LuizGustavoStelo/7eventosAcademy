@@ -1,12 +1,10 @@
 <?php
 /**
- * Shortcodes do Módulo Incorporado Seguro (MIS)
+ * Shortcodes do Modulo Incorporado Seguro (MIS)
  *
- * Disponibiliza dois shortcodes para uso em páginas do WordPress:
- *   [area-do-aluno]            — Portal do aluno autenticado
- *   [formulario-cadastro-aluno] — Formulário de pré-matrícula público
- *
- * Charset: UTF-8
+ * Disponibiliza dois shortcodes para uso em paginas do WordPress:
+ *   [area-do-aluno]              - Portal do aluno autenticado
+ *   [formulario-cadastro-aluno]  - Formulario de pre-matricula publico
  */
 
 if (!defined('ABSPATH')) {
@@ -17,9 +15,9 @@ class Seven_Academy_Shortcodes
 {
     public static function init(): void
     {
-        add_shortcode('area-do-aluno', [self::class, 'render_area_do_aluno']);
+        add_shortcode('area-do-aluno',            [self::class, 'render_area_do_aluno']);
         add_shortcode('formulario-cadastro-aluno', [self::class, 'render_formulario_cadastro_aluno']);
-        add_action('wp_enqueue_scripts', [self::class, 'enqueue_assets']);
+        add_action('wp_enqueue_scripts',           [self::class, 'enqueue_assets']);
     }
 
     public static function enqueue_assets(): void
@@ -30,14 +28,13 @@ class Seven_Academy_Shortcodes
             [],
             SEVEN_ACADEMY_VERSION
         );
-        // O style só é carregado quando um shortcode é usado na página (via wp_enqueue na renderização)
     }
 
     /**
      * Shortcode [area-do-aluno]
      *
      * Atributos opcionais:
-     *   height   — Altura mínima do iframe (padrão: 720px)
+     *   height - Altura minima do iframe (padrao: 720px)
      */
     public static function render_area_do_aluno(array $atts = []): string
     {
@@ -51,17 +48,16 @@ class Seven_Academy_Shortcodes
         $base_url = rtrim((string) $settings['base_url'], '/');
 
         if ($base_url === '') {
-            return '<p>' . esc_html__('Plugin 7academy: URL da Academy não configurada.', 'seven-academy') . '</p>';
+            return '<p>' . esc_html__('Plugin 7academy: URL da Academy nao configurada.', 'seven-academy') . '</p>';
         }
 
-        // Página HTML servida diretamente pelo backend em /mis/area-do-aluno.html
         $src = $base_url . '/mis/area-do-aluno.html?embed=1';
 
         wp_enqueue_style('seven-academy-mis');
 
         return self::render_iframe(
             $src,
-            __('Área do Aluno — 7Eventos Academy', 'seven-academy'),
+            __('Area do Aluno - 7Eventos Academy', 'seven-academy'),
             (string) $atts['height']
         );
     }
@@ -70,7 +66,7 @@ class Seven_Academy_Shortcodes
      * Shortcode [formulario-cadastro-aluno]
      *
      * Atributos opcionais:
-     *   height   — Altura mínima do iframe (padrão: 860px)
+     *   height - Altura minima do iframe (padrao: 860px)
      */
     public static function render_formulario_cadastro_aluno(array $atts = []): string
     {
@@ -84,17 +80,16 @@ class Seven_Academy_Shortcodes
         $base_url = rtrim((string) $settings['base_url'], '/');
 
         if ($base_url === '') {
-            return '<p>' . esc_html__('Plugin 7academy: URL da Academy não configurada.', 'seven-academy') . '</p>';
+            return '<p>' . esc_html__('Plugin 7academy: URL da Academy nao configurada.', 'seven-academy') . '</p>';
         }
 
-        // Página HTML servida diretamente pelo backend em /mis/cadastro-aluno.html
         $src = $base_url . '/mis/cadastro-aluno.html?embed=1';
 
         wp_enqueue_style('seven-academy-mis');
 
         return self::render_iframe(
             $src,
-            __('Cadastro de Aluno — 7Eventos Academy', 'seven-academy'),
+            __('Cadastro de Aluno - 7Eventos Academy', 'seven-academy'),
             (string) $atts['height']
         );
     }
