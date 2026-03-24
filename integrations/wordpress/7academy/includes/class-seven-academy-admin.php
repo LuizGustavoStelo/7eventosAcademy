@@ -100,6 +100,7 @@ class Seven_Academy_Admin
             $activationToken = '';
             $licenseActivatedAt = '';
             delete_transient('seven_academy_license_validation_cache');
+            delete_transient('seven_academy_connection_cache');
             delete_site_transient('seven_academy_update_cache');
         }
 
@@ -330,21 +331,31 @@ class Seven_Academy_Admin
             ];
         }
 
+        $cacheKey = 'seven_academy_connection_cache';
+        $cached = get_transient($cacheKey);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
         $result = Seven_Academy_Api_Client::get_json($baseUrl, $healthPath);
         if ($result['ok']) {
-            return [
+            $outcome = [
                 'ok' => true,
                 'message' => 'Conexão validada com sucesso.',
             ];
+            set_transient($cacheKey, $outcome, MINUTE_IN_SECONDS * 5);
+            return $outcome;
         }
 
         $status = (int) ($result['status'] ?? 0);
         $message = (string) ($result['message'] ?? 'Falha ao conectar na API.');
 
-        return [
+        $outcome = [
             'ok' => false,
             'message' => $status > 0 ? 'HTTP ' . $status . ': ' . $message : $message,
         ];
+        set_transient($cacheKey, $outcome, MINUTE_IN_SECONDS * 2);
+        return $outcome;
     }
 
     private static function read_notice(): ?array
