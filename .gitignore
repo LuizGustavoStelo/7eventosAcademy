@@ -35,3 +35,7 @@ secrets/*.key
 
 # Script release local
 integrations/wordpress/release-plugin.env
+
+# Arquivos de Upload
+apps/backend/storage/uploads/
+

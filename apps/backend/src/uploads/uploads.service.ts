@@ -6,7 +6,9 @@ import {
   Injectable,
   NotFoundException,
   OnModuleInit,
+  Logger
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { UploadOwnerType } from '@prisma/client';
 import { MultipartFile } from '@fastify/multipart';
 import { dirname, extname, join, resolve } from 'path';
@@ -21,6 +23,7 @@ type BindFileInput = {
 
 @Injectable()
 export class UploadsService implements OnModuleInit {
+  private readonly logger = new Logger(UploadsService.name);
   private readonly uploadRoot = resolve(
     process.env.UPLOADS_DIR ?? join(process.cwd(), 'storage', 'uploads'),
   );
@@ -258,7 +261,43 @@ export class UploadsService implements OnModuleInit {
     try {
       await unlink(filePath);
     } catch {
-      // ignora ausência de arquivo físico
+      // Ignorar caso o arquivo já não exista ao deletar.
     }
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async cleanupOrphanAssets() {
+    this.logger.log('Iniciando limpeza de arquivos órfãos (UploadAssets sem UploadBindings)...');
+    
+    // Filtra assets que foram criados há mais de 24 horas e não possuem bindings
+    const yesterday = new Date();
+    yesterday.setHours(yesterday.getHours() - 24);
+
+    const orphans = await this.prisma.uploadAsset.findMany({
+      where: {
+        bindings: { none: {} },
+        createdAt: { lt: yesterday },
+      },
+      select: { id: true, storagePath: true },
+    });
+
+    if (orphans.length === 0) {
+      this.logger.log('Nenhum arquivo órfão encontrado.');
+      return;
+    }
+
+    this.logger.log(`Encontrados ${orphans.length} arquivos órfãos para remoção.`);
+
+    const assetIds = orphans.map(o => o.id);
+    const result = await this.prisma.uploadAsset.deleteMany({
+      where: { id: { in: assetIds } },
+    });
+
+    for (const orphan of orphans) {
+      const absolutePath = join(this.uploadRoot, ...orphan.storagePath.split('/'));
+      await this.safeUnlink(absolutePath);
+    }
+
+    this.logger.log(`Limpeza concluída. ${result.count} órfãos removidos do banco e do disco.`);
   }
 }
