@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Materiais de Apoio | Portal de Pós-Graduação</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-low": "#f0f4f4",
+              "inverse-primary": "#6dd7d8",
+              "on-error-container": "#93000a",
+              "on-surface-variant": "#3d4949",
+              "surface-variant": "#dfe3e3",
+              "on-secondary-fixed": "#001945",
+              "secondary": "#485d8f",
+              "tertiary-fixed": "#ffdbca",
+              "primary-fixed": "#8bf3f5",
+              "on-tertiary-fixed": "#331200",
+              "surface": "#f6fafa",
+              "on-secondary-fixed-variant": "#304576",
+              "primary-fixed-dim": "#6dd7d8",
+              "surface-bright": "#f6fafa",
+              "surface-container-highest": "#dfe3e3",
+              "tertiary-container": "#ac6133",
+              "on-surface": "#171d1c",
+              "secondary-fixed": "#d9e2ff",
+              "surface-tint": "#00696b",
+              "on-primary": "#ffffff",
+              "surface-container-high": "#e4e9e8",
+              "on-primary-container": "#f3fffe",
+              "outline-variant": "#bcc9c9",
+              "primary-container": "#008284",
+              "inverse-surface": "#2c3131",
+              "inverse-on-surface": "#edf2f1",
+              "secondary-container": "#b0c6fe",
+              "surface-container-lowest": "#ffffff",
+              "surface-dim": "#d6dbda",
+              "on-primary-fixed": "#002020",
+              "on-secondary-container": "#3c5182",
+              "on-error": "#ffffff",
+              "error-container": "#ffdad6",
+              "tertiary": "#8e491e",
+              "on-primary-fixed-variant": "#004f51",
+              "surface-container": "#eaefee",
+              "on-background": "#171d1c",
+              "on-secondary": "#ffffff",
+              "error": "#ba1a1a",
+              "outline": "#6d7979",
+              "on-tertiary-container": "#fffbff",
+              "secondary-fixed-dim": "#b0c6fe",
+              "on-tertiary-fixed-variant": "#733509",
+              "tertiary-fixed-dim": "#ffb68e",
+              "primary": "#006768",
+              "background": "#f6fafa",
+              "on-tertiary": "#ffffff"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Manrope"],
+              "label": ["Manrope"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body { font-family: 'Manrope', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar Shell -->
+<aside class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-slate-50 dark:bg-slate-950 font-manrope text-sm font-medium z-50">
+<div class="px-6 py-8">
+<div class="flex items-center gap-3 mb-2">
+<div class="w-10 h-10 bg-primary flex items-center justify-center rounded-xl shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">school</span>
+</div>
+<div>
+<h1 class="text-lg font-black text-teal-800 dark:text-teal-300 leading-none">Portal do Aluno</h1>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Pós-Graduação Premium</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-teal-600 hover:bg-teal-50/50 dark:hover:bg-slate-900 transition-all duration-300 ease-in-out rounded-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Painel</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-teal-600 hover:bg-teal-50/50 dark:hover:bg-slate-900 transition-all duration-300 ease-in-out rounded-lg" href="#">
+<span class="material-symbols-outlined">school</span>
+<span>Aulas</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-teal-600 hover:bg-teal-50/50 dark:hover:bg-slate-900 transition-all duration-300 ease-in-out rounded-lg" href="#">
+<span class="material-symbols-outlined">calendar_month</span>
+<span>Agenda</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border-r-4 border-teal-600 transition-all duration-300 ease-in-out rounded-l-lg" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">folder_open</span>
+<span>Materiais</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-teal-600 hover:bg-teal-50/50 dark:hover:bg-slate-900 transition-all duration-300 ease-in-out rounded-lg" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span>Financeiro</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-teal-600 hover:bg-teal-50/50 dark:hover:bg-slate-900 transition-all duration-300 ease-in-out rounded-lg" href="#">
+<span class="material-symbols-outlined">checklist_rtl</span>
+<span>Frequência</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-teal-600 hover:bg-teal-50/50 dark:hover:bg-slate-900 transition-all duration-300 ease-in-out rounded-lg" href="#">
+<span class="material-symbols-outlined">notifications_active</span>
+<span>Avisos</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-teal-600 hover:bg-teal-50/50 dark:hover:bg-slate-900 transition-all duration-300 ease-in-out rounded-lg" href="#">
+<span class="material-symbols-outlined">verified</span>
+<span>Certificado</span>
+</a>
+</nav>
+<div class="mt-auto px-4 pb-8">
+<button class="w-full flex items-center justify-center gap-2 py-3 bg-primary text-on-primary rounded-xl font-semibold shadow-md hover:opacity-90 transition-all active:scale-95">
+<span class="material-symbols-outlined text-[18px]">support_agent</span>
+                Secretaria Virtual
+            </button>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="md:ml-64 min-h-screen">
+<!-- TopAppBar -->
+<header class="sticky top-0 w-full flex justify-between items-center px-6 py-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-40 shadow-sm dark:shadow-none font-manrope antialiased tracking-tight">
+<div class="flex items-center gap-4">
+<h2 class="text-xl font-bold text-teal-700 dark:text-teal-400">Portal de Pós-Graduação</h2>
+<div class="hidden lg:flex items-center bg-surface-container px-3 py-1.5 rounded-full border border-outline-variant/20">
+<span class="material-symbols-outlined text-outline text-[20px]">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-64 placeholder:text-outline" placeholder="Buscar materiais..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 mr-4 border-r pr-4 border-outline-variant/30">
+<button class="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+</div>
+<div class="flex items-center gap-3">
+<div class="text-right hidden sm:block">
+<p class="text-xs font-bold text-on-surface">Lucas Oliveira</p>
+<p class="text-[10px] text-slate-500">Mestrado em Bioética</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center overflow-hidden border-2 border-white shadow-sm">
+<img alt="Avatar do Estudante" data-alt="portrait of a young man with a friendly expression in a modern professional setting with natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-QkNa3GIlXOS14gULUj6R4bxNzEert63ZQoeHT9mvF9FuiiHqnvRIcC_vMGQNBmKRrpb7kIqY_i_tulUnBO8BqF7cbdB7fFfrBF1at4vffHuPG3D5o3kMmjQ2CnVOA-wuVa69sGG_fGMj-YsJXzBBzAAFZMOjRXpehXNLEjeRdzHK4gIqYr12x_UyIlBkTqVJKYp4gwAUZ6dErMFxs1LyTw9ti1GqM2yZ6rPgSa0Bz65mHZFMdl-RdIA9xGx2A045Xlx1dp7t3mY"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="p-6 md:p-10 space-y-10">
+<!-- Page Header -->
+<section class="max-w-7xl mx-auto">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<nav class="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-widest font-bold mb-2">
+<span>Início</span>
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+<span class="text-primary">Materiais</span>
+</nav>
+<h1 class="text-3xl md:text-4xl font-extrabold text-on-surface tracking-tighter">Biblioteca de Materiais</h1>
+<p class="text-slate-600 mt-2 max-w-2xl">Acesse aqui todos os arquivos, referências bibliográficas e conteúdos complementares organizados por disciplina.</p>
+</div>
+<div class="flex items-center gap-3">
+<div class="bg-surface-container-high p-1 rounded-xl flex">
+<button class="px-4 py-2 bg-white shadow-sm rounded-lg text-primary font-bold text-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">grid_view</span>
+                                Grade
+                            </button>
+<button class="px-4 py-2 text-slate-500 font-bold text-sm flex items-center gap-2 hover:bg-slate-200/50 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-[18px]">view_list</span>
+                                Lista
+                            </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Module Section: Neurociência Aplicada -->
+<section class="max-w-7xl mx-auto space-y-6">
+<div class="flex items-center gap-4">
+<div class="h-8 w-1.5 bg-primary rounded-full"></div>
+<h2 class="text-xl font-bold text-on-surface">Módulo 01: Fundamentos da Neurociência</h2>
+<span class="text-xs font-medium px-2 py-0.5 bg-secondary-fixed text-on-secondary-fixed rounded">4 Arquivos</span>
+</div>
+<!-- Bento Grid Layout for Materials -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- PDF Material -->
+<div class="group bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-all border border-outline-variant/10 flex flex-col h-full">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 bg-red-50 text-red-600 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">picture_as_pdf</span>
+</div>
+<button class="p-1 text-slate-300 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+<h3 class="font-bold text-on-surface leading-tight mb-2 group-hover:text-primary transition-colors">Apostila: Mapeamento Cerebral e Cognição</h3>
+<div class="mt-auto pt-4 border-t border-slate-50 space-y-2">
+<div class="flex items-center gap-2 text-[11px] text-slate-500">
+<span class="material-symbols-outlined text-[14px]">person</span>
+<span>Prof. Dr. Ricardo Santos</span>
+</div>
+<div class="flex items-center gap-2 text-[11px] text-slate-400">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+<span>Upload em 12 Out 2023</span>
+</div>
+<button class="w-full mt-4 bg-primary/5 text-primary hover:bg-primary hover:text-white transition-all py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[16px]">download</span>
+                                Download / Visualizar
+                            </button>
+</div>
+</div>
+<!-- Video Material -->
+<div class="group bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-all border border-outline-variant/10 flex flex-col h-full">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">play_circle</span>
+</div>
+</div>
+<h3 class="font-bold text-on-surface leading-tight mb-2 group-hover:text-primary transition-colors">Videoaula: Anatomia das Funções Executivas</h3>
+<div class="mt-auto pt-4 border-t border-slate-50 space-y-2">
+<div class="flex items-center gap-2 text-[11px] text-slate-500">
+<span class="material-symbols-outlined text-[14px]">person</span>
+<span>Prof. Dr. Ricardo Santos</span>
+</div>
+<div class="flex items-center gap-2 text-[11px] text-slate-400">
+<span class="material-symbols-outlined text-[14px]">timer</span>
+<span>Duração: 45 min</span>
+</div>
+<button class="w-full mt-4 bg-primary/5 text-primary hover:bg-primary hover:text-white transition-all py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[16px]">visibility</span>
+                                Visualizar
+                            </button>
+</div>
+</div>
+<!-- Link Material -->
+<div class="group bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-all border border-outline-variant/10 flex flex-col h-full">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-[28px]">link</span>
+</div>
+</div>
+<h3 class="font-bold text-on-surface leading-tight mb-2 group-hover:text-primary transition-colors">Artigo: Avanços na Neuroplasticidade (Pubmed)</h3>
+<div class="mt-auto pt-4 border-t border-slate-50 space-y-2">
+<div class="flex items-center gap-2 text-[11px] text-slate-500">
+<span class="material-symbols-outlined text-[14px]">public</span>
+<span>Referência Externa</span>
+</div>
+<div class="flex items-center gap-2 text-[11px] text-slate-400">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+<span>Upload em 14 Out 2023</span>
+</div>
+<button class="w-full mt-4 bg-primary/5 text-primary hover:bg-primary hover:text-white transition-all py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[16px]">open_in_new</span>
+                                Acessar Link
+                            </button>
+</div>
+</div>
+<!-- Image Material -->
+<div class="group bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all border border-outline-variant/10 flex flex-col h-full">
+<div class="h-32 w-full overflow-hidden relative">
+<img alt="Diagrama Cerebral" class="w-full h-full object-cover" data-alt="detailed scientific illustration of a human brain with different lobes highlighted in soft pastel colors on a clean background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA1vg2k00h80qLJTplK-X_F6Y_Plgh1p8DKtDixRUjQ8_xtZd0V9wIZQmHnIqvl60VRl6LGzP1DudDZI1OhpG2fEqHbmshgQsSKlrnjDRi-06ycaRob3ZVTSbXfklmUYJG7naUllJWeoHMpXVn20voKbRILyWuCb1YIBkYuK7bDlGUxzD2RS1zXG4xsZpGMuoFKVpzUn_bUlH5X7X-ycaE8a-Tj3J1GdSOWFS3sJ_nQKxO5Yvcyad6XjCHofsRQEHGRCB4Hkh3FDAQ"/>
+<div class="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-3xl">zoom_in</span>
+</div>
+</div>
+<div class="p-4 flex-1 flex flex-col">
+<h3 class="font-bold text-on-surface leading-tight mb-2 text-sm">Infográfico: Estrutura do Sistema Límbico</h3>
+<div class="mt-auto space-y-1">
+<div class="flex items-center gap-2 text-[10px] text-slate-400">
+<span class="material-symbols-outlined text-[12px]">image</span>
+<span>PNG (2.4 MB)</span>
+</div>
+<button class="w-full mt-3 bg-primary/5 text-primary hover:bg-primary hover:text-white transition-all py-1.5 rounded-lg font-bold text-[10px] flex items-center justify-center gap-2">
+                                    Visualizar Imagem
+                                </button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Module Section: Ética e Pesquisa -->
+<section class="max-w-7xl mx-auto space-y-6">
+<div class="flex items-center gap-4">
+<div class="h-8 w-1.5 bg-secondary rounded-full"></div>
+<h2 class="text-xl font-bold text-on-surface">Módulo 02: Ética e Metodologia Científica</h2>
+<span class="text-xs font-medium px-2 py-0.5 bg-secondary-fixed text-on-secondary-fixed rounded">2 Arquivos</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- PDF Material -->
+<div class="group bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-all border border-outline-variant/10 flex flex-col h-full">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 bg-red-50 text-red-600 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">picture_as_pdf</span>
+</div>
+</div>
+<h3 class="font-bold text-on-surface leading-tight mb-2 group-hover:text-primary transition-colors">Manual: Normas ABNT para Artigos Científicos</h3>
+<div class="mt-auto pt-4 border-t border-slate-50 space-y-2">
+<div class="flex items-center gap-2 text-[11px] text-slate-500">
+<span class="material-symbols-outlined text-[14px]">person</span>
+<span>Profa. Dra. Elena Martins</span>
+</div>
+<div class="flex items-center gap-2 text-[11px] text-slate-400">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+<span>Upload em 05 Nov 2023</span>
+</div>
+<button class="w-full mt-4 bg-primary/5 text-primary hover:bg-primary hover:text-white transition-all py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[16px]">download</span>
+                                Download / Visualizar
+                            </button>
+</div>
+</div>
+<!-- PDF Material -->
+<div class="group bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-all border border-outline-variant/10 flex flex-col h-full">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 bg-red-50 text-red-600 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">picture_as_pdf</span>
+</div>
+</div>
+<h3 class="font-bold text-on-surface leading-tight mb-2 group-hover:text-primary transition-colors">Guia: Ética em Pesquisa com Seres Humanos</h3>
+<div class="mt-auto pt-4 border-t border-slate-50 space-y-2">
+<div class="flex items-center gap-2 text-[11px] text-slate-500">
+<span class="material-symbols-outlined text-[14px]">person</span>
+<span>Profa. Dra. Elena Martins</span>
+</div>
+<div class="flex items-center gap-2 text-[11px] text-slate-400">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+<span>Upload em 10 Nov 2023</span>
+</div>
+<button class="w-full mt-4 bg-primary/5 text-primary hover:bg-primary hover:text-white transition-all py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[16px]">download</span>
+                                Download / Visualizar
+                            </button>
+</div>
+</div>
+<!-- Empty Space to encourage Bento/Asymmetric look -->
+<div class="hidden lg:flex lg:col-span-2 bg-gradient-to-br from-teal-700 to-teal-900 rounded-xl p-8 items-center relative overflow-hidden group">
+<div class="relative z-10">
+<h3 class="text-2xl font-bold text-white mb-2">Precisa de ajuda com as referências?</h3>
+<p class="text-teal-50 text-sm max-w-xs mb-6">Nossa biblioteca virtual possui acesso direto às maiores bases acadêmicas do mundo.</p>
+<button class="bg-white text-teal-800 px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-teal-50 transition-colors flex items-center gap-2">
+                                Consultar Secretaria
+                                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+<div class="absolute right-[-20px] bottom-[-20px] opacity-10 transform rotate-12 group-hover:rotate-0 transition-transform duration-700">
+<span class="material-symbols-outlined text-[240px]" style="font-variation-settings: 'FILL' 1;">auto_stories</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Footer -->
+<footer class="max-w-7xl mx-auto px-6 py-12 border-t border-outline-variant/10 text-center">
+<p class="text-slate-400 text-xs">© 2023 Ipesk - Instituto de Pesquisa e Ensino. Todos os direitos reservados.</p>
+<p class="text-[10px] text-slate-300 mt-2">Portal de Pós-Graduação • Versão 4.2.0-stable</p>
+</footer>
+</main>
+<!-- Mobile Navigation Bar -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white shadow-[0_-4px_10px_rgba(0,0,0,0.05)] flex justify-around items-center py-2 px-4 z-50">
+<a class="flex flex-col items-center p-2 text-slate-500" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] mt-1">Início</span>
+</a>
+<a class="flex flex-col items-center p-2 text-slate-500" href="#">
+<span class="material-symbols-outlined">school</span>
+<span class="text-[10px] mt-1">Aulas</span>
+</a>
+<a class="flex flex-col items-center p-2 text-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">folder_open</span>
+<span class="text-[10px] mt-1 font-bold">Materiais</span>
+</a>
+<a class="flex flex-col items-center p-2 text-slate-500" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] mt-1">Perfil</span>
+</a>
+</nav>
+</body></html>

@@ -14,7 +14,7 @@ const __dirname = path.dirname(__filename);
 
 const frontendRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(frontendRoot, '..', '..');
-const modelosDir = path.join(repoRoot, 'modelos de telas');
+const modelosDir = path.join(repoRoot, 'resources', 'templates', 'manager');
 const templatesRoot = path.join(frontendRoot, 'public', 'templates');
 const force = process.argv.includes('--force');
 
@@ -50,11 +50,6 @@ for (const entry of entries) {
 
   const html = readFileSync(sourceCode, 'utf8');
   writeFileSync(targetIndex, html, 'utf8');
-
-  const sourcePng = path.join(sourceDir, 'screen.png');
-  if (existsSync(sourcePng)) {
-    cpSync(sourcePng, path.join(targetDir, 'screen.png'));
-  }
 
   syncedCount += 1;
 }
