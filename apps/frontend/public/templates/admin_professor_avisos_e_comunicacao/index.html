@@ -140,15 +140,15 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 <div class="space-y-2">
 <label class="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Título do Aviso</label>
-<input class="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 text-sm" placeholder="Ex: Alteração no horário da aula de Design" type="text"/>
+<input id="aviso-titulo" class="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 text-sm" placeholder="Ex: Alteração no horário da aula de Design" type="text"/>
 </div>
 <div class="space-y-2">
 <label class="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Prioridade</label>
-<div class="flex gap-2">
-<button class="flex-1 py-3 text-xs font-bold rounded-xl border-2 border-green-100 text-green-600 bg-green-50/30" type="button">Normal</button>
-<button class="flex-1 py-3 text-xs font-bold rounded-xl border-2 border-orange-100 text-orange-600 bg-orange-50/30 ring-2 ring-primary" type="button">Importante</button>
-<button class="flex-1 py-3 text-xs font-bold rounded-xl border-2 border-red-100 text-red-600 bg-red-50/30" type="button">Urgente</button>
-</div>
+<select id="aviso-prioridade" class="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 text-sm">
+ <option value="normal">Normal</option>
+ <option value="importante">Importante</option>
+ <option value="urgente">Urgente</option>
+</select>
 </div>
 </div>
 <div class="space-y-2">
@@ -160,28 +160,26 @@
 <button class="p-1.5 hover:bg-white rounded transition-colors" type="button"><span class="material-symbols-outlined text-lg" data-icon="format_list_bulleted">format_list_bulleted</span></button>
 <button class="p-1.5 hover:bg-white rounded transition-colors ml-auto" type="button"><span class="material-symbols-outlined text-lg" data-icon="attach_file">attach_file</span></button>
 </div>
-<textarea class="w-full bg-transparent border-none rounded-b-xl px-4 py-3 focus:ring-0 text-sm resize-none" placeholder="Escreva sua mensagem aqui..." rows="6"></textarea>
+<textarea id="aviso-conteudo" class="w-full bg-transparent border-none rounded-b-xl px-4 py-3 focus:ring-0 text-sm resize-none" placeholder="Escreva sua mensagem aqui..." rows="6"></textarea>
 </div>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 <div class="space-y-2">
-<label class="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Agendar Envio</label>
+<label class="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Turma (Alvo)</label>
 <div class="relative">
-<span class="material-symbols-outlined absolute left-3 top-2.5 text-neutral-400 text-lg" data-icon="calendar_month">calendar_month</span>
-<input class="w-full bg-surface-container-low border-none rounded-xl pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-primary/20 text-sm" placeholder="Imediato" type="text"/>
+<span class="material-symbols-outlined absolute left-3 top-2.5 text-neutral-400 text-lg" data-icon="school">school</span>
+<select id="aviso-turma" class="w-full bg-surface-container-low border-none rounded-xl pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-primary/20 text-sm">
+</select>
 </div>
 </div>
 <div class="space-y-2">
-<label class="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Expiração</label>
-<div class="relative">
-<span class="material-symbols-outlined absolute left-3 top-2.5 text-neutral-400 text-lg" data-icon="timer_off">timer_off</span>
-<input class="w-full bg-surface-container-low border-none rounded-xl pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-primary/20 text-sm" placeholder="Sem expiração" type="text"/>
-</div>
+<label class="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Avisos na Base</label>
+<div class="relative"><p class="text-[10px] text-zinc-500 p-2">Sincronizado via Banco de Dados</p></div>
 </div>
 <div class="flex items-end">
-<button class="w-full py-2.5 bg-black text-white rounded-xl font-bold text-sm transition-transform active:scale-95 shadow-lg shadow-black/10">
-                                        Enviar Comunicado
-                                    </button>
+<button id="btn-enviar-aviso" type="button" class="w-full py-2.5 bg-black text-white rounded-xl font-bold text-sm transition-transform active:scale-95 shadow-lg shadow-black/10">
+    Enviar Comunicado
+</button>
 </div>
 </div>
 </form>
@@ -192,79 +190,8 @@
 <h3 class="text-lg font-bold">Avisos Recentes</h3>
 <button class="text-primary text-xs font-bold flex items-center gap-1">Ver todos <span class="material-symbols-outlined text-sm" data-icon="arrow_forward">arrow_forward</span></button>
 </div>
-<div class="divide-y divide-surface-container">
-<!-- Row 1 -->
-<div class="p-6 hover:bg-neutral-50 transition-colors flex items-center gap-6">
-<div class="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 shrink-0">
-<span class="material-symbols-outlined" data-icon="priority_high">priority_high</span>
-</div>
-<div class="flex-1 min-w-0">
-<div class="flex items-center gap-2 mb-1">
-<span class="px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-bold rounded uppercase">Importante</span>
-<span class="text-xs text-neutral-400 font-medium">Enviado há 2 horas • Turma Design 02</span>
-</div>
-<h4 class="font-bold text-on-surface truncate">Atualização do Cronograma de TCC</h4>
-<p class="text-sm text-neutral-500 truncate">As datas de entrega foram postergadas em uma semana devido ao feriado nacional...</p>
-</div>
-<div class="flex items-center gap-4 shrink-0">
-<div class="text-right">
-<div class="flex items-center gap-1 justify-end text-green-600">
-<span class="material-symbols-outlined text-sm" data-icon="check_circle">check_circle</span>
-<span class="text-xs font-bold">98% Entregue</span>
-</div>
-<p class="text-[10px] text-neutral-400">142 visualizações</p>
-</div>
-<button class="p-2 hover:bg-neutral-200 rounded-lg transition-colors"><span class="material-symbols-outlined" data-icon="more_vert">more_vert</span></button>
-</div>
-</div>
-<!-- Row 2 -->
-<div class="p-6 hover:bg-neutral-50 transition-colors flex items-center gap-6">
-<div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-<span class="material-symbols-outlined" data-icon="info">info</span>
-</div>
-<div class="flex-1 min-w-0">
-<div class="flex items-center gap-2 mb-1">
-<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase">Informativo</span>
-<span class="text-xs text-neutral-400 font-medium">Agendado p/ 15/10 • Todos os Alunos</span>
-</div>
-<h4 class="font-bold text-on-surface truncate">Workshop: Mercado de Trabalho Digital</h4>
-<p class="text-sm text-neutral-500 truncate">Inscrições abertas para o workshop presencial com especialistas do setor.</p>
-</div>
-<div class="flex items-center gap-4 shrink-0">
-<div class="text-right">
-<div class="flex items-center gap-1 justify-end text-blue-600">
-<span class="material-symbols-outlined text-sm" data-icon="schedule">schedule</span>
-<span class="text-xs font-bold">Aguardando</span>
-</div>
-<p class="text-[10px] text-neutral-400">Programado</p>
-</div>
-<button class="p-2 hover:bg-neutral-200 rounded-lg transition-colors"><span class="material-symbols-outlined" data-icon="more_vert">more_vert</span></button>
-</div>
-</div>
-<!-- Row 3 -->
-<div class="p-6 hover:bg-neutral-50 transition-colors flex items-center gap-6">
-<div class="w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-600 shrink-0">
-<span class="material-symbols-outlined" data-icon="archive">archive</span>
-</div>
-<div class="flex-1 min-w-0 opacity-60">
-<div class="flex items-center gap-2 mb-1">
-<span class="px-2 py-0.5 bg-neutral-200 text-neutral-600 text-[10px] font-bold rounded uppercase">Expirado</span>
-<span class="text-xs text-neutral-400 font-medium">Expirou em 01/10 • Turma Tech 05</span>
-</div>
-<h4 class="font-bold text-on-surface truncate">Link da Aula Gravada - Fundamentos de Python</h4>
-<p class="text-sm text-neutral-500 truncate">O link da gravação da aula do dia 25/09 já está disponível na plataforma.</p>
-</div>
-<div class="flex items-center gap-4 shrink-0">
-<div class="text-right opacity-60">
-<div class="flex items-center gap-1 justify-end text-neutral-600">
-<span class="material-symbols-outlined text-sm" data-icon="lock_clock">lock_clock</span>
-<span class="text-xs font-bold">Finalizado</span>
-</div>
-<p class="text-[10px] text-neutral-400">Arquivado</p>
-</div>
-<button class="p-2 hover:bg-neutral-200 rounded-lg transition-colors"><span class="material-symbols-outlined" data-icon="more_vert">more_vert</span></button>
-</div>
-</div>
+<div class="divide-y divide-surface-container" id="lista-avisos">
+   <div class="p-6 text-center text-sm text-neutral-500">Carregando avisos...</div>
 </div>
 </div>
 </section>
@@ -383,4 +310,119 @@
 <span class="material-symbols-outlined text-3xl" data-icon="add">add</span>
 </button>
 </div>
+<script>
+(function() {
+  'use strict';
+  var TOKEN_KEY = 'academy-auth-token';
+  var API_BASE = window.location.origin + '/api';
+
+  function token() {
+    var fromUrl = new URLSearchParams(window.location.search).get('token');
+    if (fromUrl) return fromUrl;
+    try {
+      return window.localStorage.getItem(TOKEN_KEY) || window.sessionStorage.getItem(TOKEN_KEY) || '';
+    } catch { return ''; }
+  }
+
+  function hdrs() {
+    return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() };
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleDateString('pt-BR'); } catch (e) { return iso; }
+  }
+
+  function carregarTurmas() {
+    fetch(API_BASE + '/classes', { headers: hdrs() })
+      .then(r => r.json())
+      .then(d => {
+        var sel = document.getElementById('aviso-turma');
+        if (!sel) return;
+        if (!Array.isArray(d) || d.length === 0) {
+            sel.innerHTML = '<option value="">Nenhuma turma disponível</option>';
+            return;
+        }
+        sel.innerHTML = d.map(function(t) {
+            return '<option value="' + t.id + '">' + t.name + '</option>';
+        }).join('');
+      })
+      .catch(console.error);
+  }
+
+  function carregarAvisos() {
+    fetch(API_BASE + '/classes/notices/all', { headers: hdrs() })
+      .then(r => r.json())
+      .then(list => {
+        var cont = document.getElementById('lista-avisos');
+        if (!Array.isArray(list) || list.length === 0) {
+          cont.innerHTML = '<div class="p-6 text-center text-sm text-neutral-500">Nenhum aviso enviado.</div>';
+          return;
+        }
+
+        cont.innerHTML = list.map(function(a) {
+          var bgIcon = a.priority === 'urgente' ? 'bg-red-100 text-red-600' : (a.priority === 'importante' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600');
+          var bgBadge = a.priority === 'urgente' ? 'bg-red-100 text-red-700' : (a.priority === 'importante' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700');
+          var iconName = a.priority === 'urgente' ? 'warning' : (a.priority === 'importante' ? 'priority_high' : 'info');
+          var turmaStr = a.schoolClass ? a.schoolClass.name : 'Turma desconhecida';
+
+          return '<div class="p-6 hover:bg-neutral-50 transition-colors flex items-center gap-6">' +
+            '<div class="w-12 h-12 rounded-full ' + bgIcon + ' flex items-center justify-center shrink-0">' +
+              '<span class="material-symbols-outlined">' + iconName + '</span>' +
+            '</div>' +
+            '<div class="flex-1 min-w-0">' +
+              '<div class="flex items-center gap-2 mb-1">' +
+                '<span class="px-2 py-0.5 ' + bgBadge + ' text-[10px] font-bold rounded uppercase">' + a.priority + '</span>' +
+                '<span class="text-xs text-neutral-400 font-medium">Publicado em: ' + fmtDate(a.createdAt) + ' • ' + turmaStr + '</span>' +
+              '</div>' +
+              '<h4 class="font-bold text-on-surface truncate">' + a.title + '</h4>' +
+              '<p class="text-sm text-neutral-500 truncate">' + a.body + '</p>' +
+            '</div>' +
+            '<div class="flex items-center gap-4 shrink-0">' +
+              '<button class="p-2 hover:bg-neutral-200 rounded-lg transition-colors"><span class="material-symbols-outlined text-zinc-400">more_vert</span></button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      })
+      .catch(console.error);
+  }
+
+  var btnSalvar = document.getElementById('btn-enviar-aviso');
+  if (btnSalvar) {
+    btnSalvar.addEventListener('click', function(e) {
+      e.preventDefault();
+      var classId = document.getElementById('aviso-turma').value;
+      var title = document.getElementById('aviso-titulo').value;
+      var priority = document.getElementById('aviso-prioridade').value;
+      var body = document.getElementById('aviso-conteudo').value;
+
+      if (!classId || !title || !body) {
+        alert('Preencha os campos obrigatórios!');
+        return;
+      }
+
+      btnSalvar.style.opacity = '0.5';
+      fetch(API_BASE + '/classes/' + classId + '/notices', {
+        method: 'POST',
+        headers: hdrs(),
+        body: JSON.stringify({ title: title, body: body, priority: priority })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function() {
+        btnSalvar.style.opacity = '1';
+        document.getElementById('aviso-titulo').value = '';
+        document.getElementById('aviso-conteudo').value = '';
+        carregarAvisos();
+      })
+      .catch(function() {
+        btnSalvar.style.opacity = '1';
+        alert('Erro ao enviar aviso.');
+      });
+    });
+  }
+
+  carregarTurmas();
+  carregarAvisos();
+})();
+</script>
 </body></html>

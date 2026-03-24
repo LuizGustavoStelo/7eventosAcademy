@@ -5,6 +5,7 @@ import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassStatusDto } from './dto/update-class-status.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 import { ClassesMaterialsService } from './classes-materials.service';
+import { ClassesNoticesService } from './classes-notices.service';
 
 @Roles('admin', 'superadmin')
 @Controller('classes')
@@ -12,6 +13,7 @@ export class ClassesController {
   constructor(
     private readonly classesService: ClassesService,
     private readonly materialsService: ClassesMaterialsService,
+    private readonly noticesService: ClassesNoticesService,
   ) {}
 
   @Get()
@@ -45,6 +47,16 @@ export class ClassesController {
   @Get('materials/all')
   async getAllMaterials() {
     return this.materialsService.getAllMaterials();
+  }
+
+  @Post(':classId/notices')
+  async createNotice(@Param('classId') classId: string, @Body() dto: any) {
+    return this.noticesService.createNotice({ classId, ...dto });
+  }
+
+  @Get('notices/all')
+  async getAllNotices() {
+    return this.noticesService.getAllNotices();
   }
 }
 
