@@ -17,6 +17,7 @@ import { UploadsService } from '../uploads/uploads.service';
 import { AssignStudentCoursesDto } from './dto/assign-student-courses.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { PublicStudentRegistrationDto } from './dto/public-student-registration.dto';
+import { UpdateStudentDto } from './dto/update-student.dto';
 
 const STUDENT_AVATAR_KIND = 'STUDENT_AVATAR';
 
@@ -26,6 +27,15 @@ type StudentWithRelations = Prisma.UserGetPayload<{
     studentCourses: {
       include: {
         course: true;
+      };
+    };
+    enrollments: {
+      include: {
+        schoolClass: {
+          include: {
+            course: true;
+          };
+        };
       };
     };
   };
@@ -56,6 +66,9 @@ export class StudentsService {
         studentProfile: true,
         studentCourses: {
           include: { course: true },
+        },
+        enrollments: {
+          include: { schoolClass: { include: { course: true } } },
         },
       },
     });
@@ -139,6 +152,9 @@ export class StudentsService {
           studentCourses: {
             include: { course: true },
           },
+          enrollments: {
+            include: { schoolClass: { include: { course: true } } },
+          },
         },
       });
 
@@ -155,6 +171,111 @@ export class StudentsService {
     }
 
     return this.findById(student.id);
+  }
+
+  async update(studentId: string, dto: UpdateStudentDto) {
+    await this.ensureStudentExists(studentId);
+
+    const dataToUpdate: Prisma.UserUpdateInput = {};
+    if (dto.name !== undefined) dataToUpdate.name = dto.name.trim();
+
+    if (dto.email !== undefined) {
+      const email = dto.email.trim().toLowerCase();
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+      if (existingUser && existingUser.id !== studentId) {
+        throw new BadRequestException('Já existe um usuário com este e-mail.');
+      }
+      dataToUpdate.email = email;
+    }
+
+    if (dto.password) {
+      dataToUpdate.passwordHash = await hash(dto.password, 12);
+    }
+
+    const profileData: Record<string, any> = {};
+    if (dto.documentCpf !== undefined) {
+      profileData.documentCpf = dto.documentCpf ? this.normalizeCpf(dto.documentCpf) : null;
+    }
+    if (dto.phone !== undefined) {
+      profileData.phone = dto.phone ? this.normalizePhone(dto.phone) : null;
+    }
+    if (dto.birthDate !== undefined) {
+      if (dto.birthDate) {
+        const bd = new Date(dto.birthDate);
+        if (Number.isNaN(bd.getTime()) || bd > new Date()) {
+          throw new BadRequestException('Data de nascimento inválida.');
+        }
+        profileData.birthDate = bd;
+      } else {
+        profileData.birthDate = null;
+      }
+    }
+
+    if (dto.gender !== undefined) profileData.gender = dto.gender;
+    if (dto.guardianName !== undefined) profileData.guardianName = dto.guardianName;
+    if (dto.guardianPhone !== undefined) {
+      profileData.guardianPhone = dto.guardianPhone ? this.normalizePhone(dto.guardianPhone) : null;
+    }
+    if (dto.zipCode !== undefined) profileData.zipCode = dto.zipCode;
+    if (dto.street !== undefined) profileData.street = dto.street;
+    if (dto.streetNumber !== undefined) profileData.streetNumber = dto.streetNumber;
+    if (dto.complement !== undefined) profileData.complement = dto.complement;
+    if (dto.neighborhood !== undefined) profileData.neighborhood = dto.neighborhood;
+    if (dto.city !== undefined) profileData.city = dto.city;
+    if (dto.state !== undefined) profileData.state = dto.state;
+    if (dto.country !== undefined) profileData.country = dto.country;
+    if (dto.notes !== undefined) profileData.notes = dto.notes;
+
+    if (Object.keys(profileData).length > 0) {
+      dataToUpdate.studentProfile = {
+        upsert: {
+          create: profileData as Prisma.StudentProfileCreateWithoutUserInput,
+          update: profileData as Prisma.StudentProfileUpdateWithoutUserInput,
+        },
+      };
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: studentId },
+        data: dataToUpdate,
+      });
+
+      if (dto.courseIds !== undefined) {
+        const uniqueCourseIds = [...new Set(dto.courseIds)];
+        if (uniqueCourseIds.length > 0) {
+          const total = await tx.course.count({
+            where: { id: { in: uniqueCourseIds } },
+          });
+          if (total !== uniqueCourseIds.length) {
+            throw new BadRequestException('Um ou mais cursos informados são inválidos.');
+          }
+        }
+
+        await tx.studentCourse.deleteMany({
+          where: {
+            studentId,
+            courseId: { notIn: uniqueCourseIds },
+          },
+        });
+
+        if (uniqueCourseIds.length > 0) {
+          await tx.studentCourse.createMany({
+            data: uniqueCourseIds.map((courseId) => ({
+              studentId,
+              courseId,
+              status: StudentCourseStatus.INTERESTED,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+    });
+
+    return this.findById(studentId);
   }
 
   async assignCourses(studentId: string, dto: AssignStudentCoursesDto) {
@@ -191,6 +312,9 @@ export class StudentsService {
         studentProfile: true,
         studentCourses: {
           include: { course: true },
+        },
+        enrollments: {
+          include: { schoolClass: { include: { course: true } } },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -289,6 +413,9 @@ export class StudentsService {
         studentCourses: {
           include: { course: true },
         },
+        enrollments: {
+          include: { schoolClass: { include: { course: true } } },
+        },
       },
     });
 
@@ -383,6 +510,7 @@ export class StudentsService {
     return students.map((student) => ({
       ...this.resolveStudentStatus(
         student.studentCourses.map((item) => item.status),
+        Array.isArray(student.enrollments) && student.enrollments.length > 0
       ),
       id: student.id,
       name: student.name,
@@ -391,16 +519,21 @@ export class StudentsService {
       createdAt: student.createdAt,
       avatarUrl: avatarByStudentId.get(student.id) ?? null,
       profile: student.studentProfile,
-      courses: student.studentCourses.map((studentCourse) => ({
+       courses: student.studentCourses.map((studentCourse) => ({
         id: studentCourse.id,
         status: studentCourse.status,
         course: studentCourse.course,
       })),
+      enrollments: student.enrollments ? student.enrollments.map((enr) => ({
+        id: enr.id,
+        status: enr.status,
+        class: enr.schoolClass,
+      })) : [],
     }));
   }
 
-  private resolveStudentStatus(courseStatuses: StudentCourseStatus[]) {
-    if (courseStatuses.length === 0) {
+  private resolveStudentStatus(courseStatuses: StudentCourseStatus[], hasEnrollments: boolean = false) {
+    if (courseStatuses.length === 0 && !hasEnrollments) {
       return {
         statusKey: 'pending_course',
         statusLabel: 'Sem curso',
@@ -408,6 +541,7 @@ export class StudentsService {
     }
 
     if (
+      hasEnrollments || 
       courseStatuses.some((status) => status === StudentCourseStatus.ACTIVE)
     ) {
       return {

@@ -10,6 +10,10 @@
   const closeButton = document.getElementById('student-drawer-close');
   const footerCounter = document.querySelector('p.text-xs.text-outline.font-medium');
 
+  const studentEditTrigger = document.getElementById('student-drawer-edit-trigger');
+  const manualStudentId = document.getElementById('manual-student-id');
+  const manualCreateTitle = document.getElementById('student-manual-create-title');
+
   const drawerAvatar = document.getElementById('student-drawer-avatar');
   const drawerName = document.getElementById('student-drawer-name');
   const drawerRegistration = document.getElementById('student-drawer-registration');
@@ -142,6 +146,11 @@
     manualCreateModal?.classList.add('hidden');
     manualCreateModal?.classList.remove('flex');
     manualCreateForm?.reset();
+
+    if (manualStudentId) manualStudentId.value = '';
+    if (manualCreateTitle) manualCreateTitle.textContent = 'Adicionar aluno';
+    const manualPassword = document.getElementById('manual-student-password');
+    if (manualPassword) manualPassword.required = true;
   };
 
   const openImportCsvModal = () => {
@@ -214,7 +223,7 @@
 
     tableBody.innerHTML = students
       .map((student) => {
-        const firstCourse = student.courses?.[0]?.course;
+        const firstCourse = student.enrollments?.[0]?.class?.course || student.courses?.[0]?.course;
         const hasAttendanceData = false;
         const hasFinancialData = false;
         const status = getStatusVisual(student.statusKey);
@@ -232,7 +241,7 @@
             <td class="px-6 py-5 text-sm font-mono text-outline">${registrationCode(student.id)}</td>
             <td class="px-6 py-5">
               <p class="text-sm font-semibold text-on-surface">${firstCourse?.name || 'Curso não vinculado'}</p>
-              <p class="text-[11px] text-outline font-medium">${firstCourse ? 'Múltiplos cursos permitidos' : 'Sem turma ativa'}</p>
+              <p class="text-[11px] text-outline font-medium">${firstCourse ? (student.enrollments?.length ? student.enrollments[0].class.name : 'Múltiplos cursos permitidos') : 'Sem turma ativa'}</p>
             </td>
             <td class="px-6 py-5">
               <div class="flex flex-col items-center gap-1">
@@ -356,21 +365,36 @@
       (option) => option.value,
     );
 
+    const isEditing = Boolean(formData.get('id'));
+
     const payload = {
       name: String(formData.get('name') || '').trim(),
       email: String(formData.get('email') || '').trim(),
-      password: String(formData.get('password') || '').trim(),
       documentCpf: String(formData.get('documentCpf') || '').trim(),
       phone: String(formData.get('phone') || '').trim(),
       birthDate: String(formData.get('birthDate') || '').trim(),
       courseIds: selectedCourseIds,
     };
 
-    await request('/students/public-register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const pass = String(formData.get('password') || '').trim();
+    if (pass) {
+      payload.password = pass;
+    }
+
+    if (isEditing) {
+      await request(`/students/${formData.get('id')}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      payload.password = pass || undefined;
+      await request('/students/public-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    }
 
     closeManualCreateModal();
     await loadStudents();
@@ -492,6 +516,48 @@
       if (importCsvSubmit) {
         importCsvSubmit.disabled = !file;
       }
+    });
+
+    studentEditTrigger?.addEventListener('click', () => {
+      if (!selectedStudentId) return;
+      const student = students.find((item) => item.id === selectedStudentId);
+      if (!student) return;
+
+      if (manualStudentId) manualStudentId.value = student.id;
+      if (manualCreateTitle) manualCreateTitle.textContent = 'Editar aluno';
+      const manualName = document.getElementById('manual-student-name');
+      if (manualName) manualName.value = student.name || '';
+      
+      const manualEmail = document.getElementById('manual-student-email');
+      if (manualEmail) manualEmail.value = student.email || '';
+      
+      const manualPassword = document.getElementById('manual-student-password');
+      if (manualPassword) {
+        manualPassword.value = '';
+        manualPassword.required = false;
+      }
+
+      const manualCpf = document.getElementById('manual-student-cpf');
+      if (manualCpf) manualCpf.value = student.profile?.documentCpf || '';
+
+      const manualPhone = document.getElementById('manual-student-phone');
+      if (manualPhone) manualPhone.value = student.profile?.phone || '';
+
+      const manualBirthDate = document.getElementById('manual-student-birthdate');
+      if (manualBirthDate && student.profile?.birthDate) {
+        manualBirthDate.value = new Date(student.profile.birthDate).toISOString().slice(0, 10);
+      } else if (manualBirthDate) {
+        manualBirthDate.value = '';
+      }
+
+      if (manualCreateCoursesSelect) {
+        Array.from(manualCreateCoursesSelect.options).forEach((option) => {
+          option.selected = (student.courses || []).some((item) => item.course?.id === option.value);
+        });
+      }
+
+      closeDrawer();
+      openManualCreateModal();
     });
 
     importCsvSubmit?.addEventListener('click', async () => {

@@ -7,6 +7,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Req,
 } from '@nestjs/common';
 import { Multipart, MultipartFile } from '@fastify/multipart';
@@ -18,6 +19,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { AssignStudentCoursesDto } from './dto/assign-student-courses.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { PublicStudentRegistrationDto } from './dto/public-student-registration.dto';
+import { UpdateStudentDto } from './dto/update-student.dto';
 import { StudentsService } from './students.service';
 
 type MultipartFastifyRequest = FastifyRequest & {
@@ -43,6 +45,11 @@ export class StudentsController {
   @Post()
   async create(@Body() dto: CreateStudentDto) {
     return this.studentsService.create(dto);
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdateStudentDto) {
+    return this.studentsService.update(id, dto);
   }
 
   @Public()

@@ -671,17 +671,21 @@
       const payload = buildPayloadFromForm();
       const isEditing = Boolean(payload.classId);
 
-      const classRecord = isEditing
-        ? await request(`/classes/${payload.classId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload.classData),
-          })
-        : await request('/classes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload.classData),
-          });
+      let classRecord;
+      if (isEditing) {
+        await request(`/classes/${payload.classId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload.classData),
+        });
+        classRecord = { id: payload.classId, name: payload.classData.name };
+      } else {
+        classRecord = await request('/classes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload.classData),
+        });
+      }
 
       await syncStudentsInClass(classRecord.id, payload.selectedStudentIds);
 
