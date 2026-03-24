@@ -51,7 +51,7 @@ class Seven_Academy_Shortcodes
             return '<p>' . esc_html__('Plugin 7academy: URL da Academy nao configurada.', 'seven-academy') . '</p>';
         }
 
-        $src = $base_url . '/mis/area-do-aluno.html?embed=1';
+        $src = $base_url . '/api/mis/area-do-aluno.html?embed=1';
 
         wp_enqueue_style('seven-academy-mis');
 
@@ -83,7 +83,7 @@ class Seven_Academy_Shortcodes
             return '<p>' . esc_html__('Plugin 7academy: URL da Academy nao configurada.', 'seven-academy') . '</p>';
         }
 
-        $src = $base_url . '/mis/cadastro-aluno.html?embed=1';
+        $src = $base_url . '/api/mis/cadastro-aluno.html?embed=1';
 
         wp_enqueue_style('seven-academy-mis');
 

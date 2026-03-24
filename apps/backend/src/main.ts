@@ -37,10 +37,9 @@ async function bootstrap() {
   });
 
   // ── Arquivos estáticos do MIS (HTML/CSS/JS) ────────────────────────────────
-  // Disponíveis em /mis/* — separado do prefixo /api
   await app.register(fastifyStatic, {
     root: join(__dirname, '..', 'public'),
-    prefix: '/',
+    prefix: '/api/',
     decorateReply: false,
   });
 
