@@ -26,7 +26,8 @@ async function bootstrap() {
         fontSrc:     ["'self'", 'https://fonts.gstatic.com'],
         imgSrc:      ["'self'", 'data:'],
         connectSrc:  ["'self'"],
-        frameSrc:    ["'none'"],
+        frameSrc:    ["'self'"],
+        frameAncestors: ["*"], // Permitir que o MIS seja incorporado em iFrames de outros domínios (WP)
         objectSrc:   ["'none'"],
         upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
       },
