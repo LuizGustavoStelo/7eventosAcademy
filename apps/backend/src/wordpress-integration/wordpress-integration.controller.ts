@@ -38,37 +38,37 @@ export class WordpressIntegrationController {
     return this.wordpressIntegrationService.checkUpdates(dto);
   }
 
-  @Roles('superadmin')
+  @Roles('admin', 'superadmin')
   @Get('admin/licenses')
   listLicenses() {
     return this.wordpressIntegrationService.listLicenses();
   }
 
-  @Roles('superadmin')
+  @Roles('admin', 'superadmin')
   @Post('admin/licenses')
   createOrUpdateLicense(@Body() dto: CreateLicenseAdminDto) {
     return this.wordpressIntegrationService.createOrUpdateLicense(dto);
   }
 
-  @Roles('superadmin')
+  @Roles('admin', 'superadmin')
   @Delete('admin/licenses/:id')
   deleteLicense(@Param('id') id: string) {
     return this.wordpressIntegrationService.deleteLicense(id);
   }
 
-  @Roles('superadmin')
+  @Roles('admin', 'superadmin')
   @Post('admin/licenses/:id/renew')
   renewLicense(@Param('id') id: string, @Body() dto: CreateLicenseAdminDto) {
     return this.wordpressIntegrationService.renewLicense(id, dto);
   }
 
-  @Roles('superadmin')
+  @Roles('admin', 'superadmin')
   @Get('admin/releases')
   listReleases() {
     return this.wordpressIntegrationService.listReleases();
   }
 
-  @Roles('superadmin')
+  @Roles('admin', 'superadmin')
   @Post('admin/releases')
   createOrUpdateRelease(@Body() dto: CreateReleaseAdminDto) {
     return this.wordpressIntegrationService.createOrUpdateRelease(dto);

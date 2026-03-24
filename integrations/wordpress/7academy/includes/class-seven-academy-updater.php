@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 class Seven_Academy_Updater
 {
     private const UPDATE_CACHE_KEY = 'seven_academy_update_cache';
-    private const UPDATE_CACHE_TTL = 900;
+    private const UPDATE_CACHE_TTL = 900; // 15 minutes
 
     public static function init(): void
     {
@@ -79,6 +79,7 @@ class Seven_Academy_Updater
 
     private static function fetch_update_data(): array
     {
+        // Return cached result immediately if available - avoids any HTTP call.
         $cached = get_site_transient(self::UPDATE_CACHE_KEY);
         if (is_array($cached)) {
             return $cached;
@@ -89,11 +90,23 @@ class Seven_Academy_Updater
         $token    = trim((string) ($settings['activation_token'] ?? ''));
         $domain   = wp_parse_url(home_url('/'), PHP_URL_HOST);
 
+        // If not configured, store a negative result and return - no HTTP call.
         if ($baseUrl === '' || $token === '' || !is_string($domain)) {
             $result = ['ok' => false, 'data' => null];
             set_site_transient(self::UPDATE_CACHE_KEY, $result, self::UPDATE_CACHE_TTL);
             return $result;
         }
+
+        /**
+         * Anti-concurrency lock: write an empty result to the cache BEFORE
+         * making the HTTP call. This prevents two simultaneous requests
+         * (e.g. WP cron + admin page load) from both making the HTTP call
+         * at the same time, which would double the blocking time.
+         *
+         * The real result will overwrite this once the HTTP call completes.
+         */
+        $placeholder = ['ok' => false, 'data' => null];
+        set_site_transient(self::UPDATE_CACHE_KEY, $placeholder, 30); // 30s lock
 
         $payload = [
             'activationToken'  => $token,
@@ -115,6 +128,7 @@ class Seven_Academy_Updater
             'data' => $response['data'],
         ];
 
+        // Replace the lock with the real result.
         set_site_transient(self::UPDATE_CACHE_KEY, $result, self::UPDATE_CACHE_TTL);
         return $result;
     }

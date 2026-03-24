@@ -6,6 +6,17 @@ if (!defined('ABSPATH')) {
 
 class Seven_Academy_Api_Client
 {
+    /**
+     * Timeout in seconds for POST requests.
+     * Keep it short to avoid blocking PHP execution.
+     */
+    private const TIMEOUT_POST = 5;
+
+    /**
+     * Timeout in seconds for GET requests.
+     */
+    private const TIMEOUT_GET = 4;
+
     public static function post_json(string $baseUrl, string $path, array $payload): array
     {
         $endpoint = rtrim($baseUrl, '/') . '/' . ltrim($path, '/');
@@ -13,8 +24,9 @@ class Seven_Academy_Api_Client
         $response = wp_remote_post(
             $endpoint,
             [
-                'timeout' => 12,
-                'headers' => [
+                'timeout'    => self::TIMEOUT_POST,
+                'blocking'   => true,
+                'headers'    => [
                     'Accept'       => 'application/json',
                     'Content-Type' => 'application/json',
                 ],
@@ -57,8 +69,9 @@ class Seven_Academy_Api_Client
         $response = wp_remote_get(
             $endpoint,
             [
-                'timeout' => 8,
-                'headers' => [
+                'timeout'  => self::TIMEOUT_GET,
+                'blocking' => true,
+                'headers'  => [
                     'Accept' => 'application/json',
                 ],
             ]
