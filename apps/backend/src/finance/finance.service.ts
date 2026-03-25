@@ -163,7 +163,28 @@ export class FinanceService {
     };
   }
 
-  async createTransaction(dto: CreateTransactionDto) {
+  async getGatewayConfigByUser(userId: string) {
+    const config = await this.prisma.accountFinancialConfig.findUnique({
+      where: { userId },
+      select: {
+        provider: true,
+        environment: true,
+        isActive: true,
+        encryptedSettings: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      provider: (config?.provider ?? 'manual').toLowerCase(),
+      environment: (config?.environment ?? 'sandbox').toLowerCase(),
+      isActive: config?.isActive ?? false,
+      isConfigured: Boolean(config?.encryptedSettings),
+      updatedAt: config?.updatedAt ?? null,
+    };
+  }
+
+  async createTransaction(dto: CreateTransactionDto, userId: string) {
     const charge = await this.prisma.monthlyCharge.findUnique({
       where: { id: dto.monthlyChargeId },
       select: {
@@ -185,11 +206,13 @@ export class FinanceService {
     }
 
     const status: string = dto.status ?? 'success';
+    const provider = await this.resolveProvider(dto.provider, userId);
+
     const transaction = await this.prisma.$transaction(async (tx) => {
       const createdTransaction = await tx.paymentTransaction.create({
         data: {
           monthlyChargeId: dto.monthlyChargeId,
-          provider: dto.provider?.trim() || 'manual',
+          provider,
           amount: dto.amount,
           status: this.toPrismaTransactionStatus(status),
           externalTransactionId: dto.externalTransactionId?.trim() || null,
@@ -217,6 +240,27 @@ export class FinanceService {
       ...transaction,
       amount: Number(transaction.amount),
     };
+  }
+
+  private async resolveProvider(providerInput: string | undefined, userId: string) {
+    const provider = providerInput?.trim();
+    if (provider) {
+      return provider;
+    }
+
+    const config = await this.prisma.accountFinancialConfig.findUnique({
+      where: { userId },
+      select: {
+        provider: true,
+        isActive: true,
+      },
+    });
+
+    if (config?.isActive && config.provider?.trim()) {
+      return config.provider.trim();
+    }
+
+    return 'manual';
   }
 
   private toPrismaChargeStatus(status: string) {

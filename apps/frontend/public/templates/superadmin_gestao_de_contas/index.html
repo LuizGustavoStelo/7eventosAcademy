@@ -1,523 +1,603 @@
 <!DOCTYPE html>
-
-<html class="light" lang="pt-BR"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>7Eventos Academy - Gestão de Contas</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        "outline-variant": "#e4beb1",
-                        "on-secondary": "#ffffff",
-                        "background": "#f9f9f9",
-                        "tertiary": "#0061a6",
-                        "secondary-fixed-dim": "#ffb59a",
-                        "surface-dim": "#dadada",
-                        "secondary-container": "#fe8c5f",
-                        "surface-variant": "#e2e2e2",
-                        "inverse-primary": "#ffb59a",
-                        "on-secondary-fixed-variant": "#7e2c04",
-                        "on-tertiary-fixed": "#001c37",
-                        "primary-fixed-dim": "#ffb59a",
-                        "on-secondary-container": "#742500",
-                        "secondary-fixed": "#ffdbce",
-                        "surface-container-lowest": "#ffffff",
-                        "primary": "#a73a00",
-                        "tertiary-fixed-dim": "#a0c9ff",
-                        "tertiary-fixed": "#d2e4ff",
-                        "on-primary-container": "#521800",
-                        "primary-fixed": "#ffdbce",
-                        "inverse-on-surface": "#f1f1f1",
-                        "surface": "#f9f9f9",
-                        "on-background": "#1b1b1b",
-                        "secondary": "#9d431b",
-                        "inverse-surface": "#303030",
-                        "on-surface": "#1b1b1b",
-                        "on-error": "#ffffff",
-                        "surface-container-highest": "#e2e2e2",
-                        "surface-container-low": "#f3f3f3",
-                        "surface-bright": "#f9f9f9",
-                        "error": "#ba1a1a",
-                        "primary-container": "#ff5c00",
-                        "on-surface-variant": "#5b4137",
-                        "on-error-container": "#93000a",
-                        "surface-container-high": "#e8e8e8",
-                        "on-primary": "#ffffff",
-                        "on-secondary-fixed": "#370e00",
-                        "surface-container": "#eeeeee",
-                        "on-tertiary-container": "#002d51",
-                        "tertiary-container": "#0096fd",
-                        "on-tertiary": "#ffffff",
-                        "on-primary-fixed-variant": "#802a00",
-                        "outline": "#8f7065",
-                        "surface-tint": "#a73a00",
-                        "on-primary-fixed": "#370e00",
-                        "error-container": "#ffdad6",
-                        "on-tertiary-fixed-variant": "#00497f"
-                    },
-                    fontFamily: {
-                        "headline": ["Manrope"],
-                        "body": ["Inter"],
-                        "label": ["Inter"]
-                    },
-                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
-                },
-            },
-        }
-    </script>
-<style>
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-            vertical-align: middle;
-        }
-        .tonal-transition-no-border {
-            border-right-width: 0 !important;
-        }
-        .glass-sidebar {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(20px);
-        }
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #e2e2e2;
-            border-radius: 10px;
-        }
-    </style>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Super Admin | Gestão de Contas</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --c-primary: #ff5c00;
+      --c-bg: #f7f7f8;
+      --c-card: #ffffff;
+      --c-muted: #64748b;
+      --c-border: #e2e8f0;
+      --c-text: #0f172a;
+    }
+    body {
+      margin: 0;
+      background: var(--c-bg);
+      color: var(--c-text);
+      font-family: Inter, sans-serif;
+    }
+    h1, h2, h3 {
+      font-family: Manrope, sans-serif;
+    }
+    .card {
+      background: var(--c-card);
+      border: 1px solid var(--c-border);
+      border-radius: 1rem;
+    }
+    .metric-value {
+      font-family: Manrope, sans-serif;
+      font-weight: 800;
+      font-size: 1.9rem;
+      line-height: 1;
+    }
+    .row-selected {
+      background: #fff3ed;
+      border-left: 3px solid var(--c-primary);
+    }
+  </style>
 </head>
-<body class="bg-surface font-body text-on-surface">
-<!-- Sidebar Wrapper -->
+<body>
+  <main class="px-6 py-6 md:px-8">
+    <header class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div>
+        <h1 class="text-3xl font-extrabold tracking-tight">Gestão de Contas</h1>
+        <p class="mt-1 text-sm text-slate-500">
+          Contas admin/professor com configuração financeira por conta.
+        </p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button
+          id="btn-recarregar"
+          class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          type="button"
+        >
+          Recarregar
+        </button>
+        <span id="status-global" class="text-xs font-semibold text-slate-500">Aguardando dados...</span>
+      </div>
+    </header>
 
-<!-- Top Navigation -->
-<header class="sticky top-0 z-40 w-full flex justify-between items-center h-16 px-8 ml-0 bg-zinc-50/80 backdrop-blur-md transition-opacity pr-[284px]">
-<div class="flex items-center gap-6">
-<div class="relative flex items-center">
-<span class="material-symbols-outlined absolute left-3 text-on-surface-variant text-xl">search</span>
-<input class="pl-10 pr-4 py-2 bg-surface-container-high border-none rounded-xl text-sm w-80 focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all" placeholder="Search accounts, tenants..." type="text"/>
-</div>
-<div class="flex items-center gap-4 border-l border-outline-variant/20 pl-6">
-<a class="text-primary font-semibold border-b-2 border-primary pb-1 text-sm" href="#">Overview</a>
-<a class="text-on-surface-variant hover:text-on-surface text-sm transition-colors" href="#">Analytics</a>
-<a class="text-on-surface-variant hover:text-on-surface text-sm transition-colors" href="#">Reports</a>
-</div>
-</div>
-<div class="flex items-center gap-5">
-<div class="flex items-center gap-2">
-<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors relative">
-<span class="material-symbols-outlined">notifications</span>
-<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full"></span>
-</button>
-<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
-<span class="material-symbols-outlined">dark_mode</span>
-</button>
-<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
-<span class="material-symbols-outlined">apps</span>
-</button>
-</div>
-<div class="flex items-center gap-3 pl-4 border-l border-outline-variant/20">
-<div class="text-right">
-<p class="text-sm font-bold leading-none">Superadmin</p>
-<p class="text-[10px] text-on-surface-variant">Global Access</p>
-</div>
-<img class="w-10 h-10 rounded-full object-cover border-2 border-primary/10" data-alt="User professional profile portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXovrOW1KKK1uE9rAFB4SBwJdsuHpsAKzNt0ygEws7f3M-6r9Juzi1vYLJqc2vjUbs2NVzidzyLEvwvzZtLtJaRQhJtOqO7S_k4YARrpqmlE2T2sqP79IsfKczTCmeoijo4829HcYS1fPfK64kELsGez9R9LoMYkw9I-pRjrGtFmJOoC9eeuAk57E-Vm1Mqg6_X-pAzsA4lmZgC5Ddi73WdDeLgGsTv9zAgiTxPZWdpKXb_UKgpCXrD8AjQSFSFDc52jAjtL_ulvzY"/>
-</div>
-</div>
-</header>
-<!-- Main Content -->
-<main class="ml-0 p-8 bg-surface min-h-screen">
-<!-- Page Header -->
-<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
-<div>
-<nav class="flex items-center gap-2 text-on-surface-variant text-[11px] font-bold uppercase tracking-wider mb-2">
-<a class="hover:text-primary transition-colors" href="#">Administration</a>
-<span class="material-symbols-outlined text-sm">chevron_right</span>
-<span class="text-on-surface">Accounts Management</span>
-</nav>
-<h2 class="text-4xl font-headline font-bold text-on-surface tracking-tight">Organization Tenants</h2>
-<p class="text-on-surface-variant mt-1 font-body">Manage global accounts, billing statuses, and platform limits.</p>
-</div>
-<div class="flex items-center gap-3">
-<button class="flex items-center gap-2 px-5 py-3 bg-surface-container-lowest border border-outline-variant/15 text-on-surface rounded-xl text-sm font-semibold hover:bg-surface-container-low transition-all">
-<span class="material-symbols-outlined text-lg">filter_list</span>
-                    Advanced Filters
-                </button>
-<button class="flex items-center gap-2 px-6 py-3 bg-gradient-to-br from-primary to-primary-container text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">
-<span class="material-symbols-outlined text-lg">add_circle</span>
-                    New Account
-                </button>
-</div>
-</div>
-<!-- KPI Grid -->
-<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-<div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm relative overflow-hidden group">
-<div class="absolute top-0 left-0 w-1 h-full bg-primary"></div>
-<p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">Total Accounts</p>
-<h3 class="text-3xl font-headline font-bold mt-2">1,284</h3>
-<div class="flex items-center gap-2 mt-4 text-emerald-600 text-xs font-bold">
-<span class="material-symbols-outlined text-sm">trending_up</span>
-                    +12% this month
-                </div>
-</div>
-<div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm relative overflow-hidden group">
-<p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">Active Learners</p>
-<h3 class="text-3xl font-headline font-bold mt-2">42.5k</h3>
-<div class="flex items-center gap-2 mt-4 text-emerald-600 text-xs font-bold">
-<span class="material-symbols-outlined text-sm">trending_up</span>
-                    +5.2% vs last week
-                </div>
-</div>
-<div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm relative overflow-hidden group">
-<p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">Active Courses</p>
-<h3 class="text-3xl font-headline font-bold mt-2">892</h3>
-<div class="flex items-center gap-2 mt-4 text-zinc-400 text-xs font-bold">
-<span class="material-symbols-outlined text-sm">remove</span>
-                    Stable
-                </div>
-</div>
-<div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm relative overflow-hidden group">
-<p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">Revenue (MRR)</p>
-<h3 class="text-3xl font-headline font-bold mt-2">R$ 142k</h3>
-<div class="flex items-center gap-2 mt-4 text-primary text-xs font-bold">
-<span class="material-symbols-outlined text-sm">payments</span>
-                    Target: 150k
-                </div>
-</div>
-</div>
-<!-- Filter Bar -->
-<div class="bg-surface-container-low p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 mb-6">
-<div class="flex items-center gap-4">
-<div class="flex items-center gap-2 bg-surface-container-lowest px-4 py-2 rounded-xl border border-outline-variant/10">
-<span class="text-xs font-bold text-on-surface-variant">Status:</span>
-<select class="bg-transparent border-none text-xs font-bold text-on-surface focus:ring-0 p-0 pr-8">
-<option>All Status</option>
-<option>Active</option>
-<option>Suspended</option>
-<option>Pending</option>
-</select>
-</div>
-<div class="flex items-center gap-2 bg-surface-container-lowest px-4 py-2 rounded-xl border border-outline-variant/10">
-<span class="text-xs font-bold text-on-surface-variant">Plan:</span>
-<select class="bg-transparent border-none text-xs font-bold text-on-surface focus:ring-0 p-0 pr-8">
-<option>All Plans</option>
-<option>Enterprise</option>
-<option>Professional</option>
-<option>Basic</option>
-</select>
-</div>
-</div>
-<div class="flex items-center gap-2">
-<span class="text-xs font-medium text-on-surface-variant">Showing 1-10 of 1,284 results</span>
-</div>
-</div>
-<!-- Data Table Section -->
-<div class="bg-surface-container-low rounded-3xl overflow-hidden shadow-sm">
-<table class="w-full text-left border-collapse">
-<thead>
-<tr class="bg-surface-container-high/50 border-b border-outline-variant/10">
-<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Account Name</th>
-<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Responsible</th>
-<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Status</th>
-<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-center">Active Classes</th>
-<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Last Access</th>
-<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-right">Actions</th>
-</tr>
-</thead>
-<tbody class="divide-y divide-outline-variant/5">
-<!-- Row 1 -->
-<tr class="hover:bg-surface-container-lowest transition-colors group">
-<td class="px-6 py-5">
-<div class="flex items-center gap-3">
-<div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 font-bold">TI</div>
-<div>
-<p class="font-headline font-bold text-sm text-on-surface">Tech Innovators Corp</p>
-<p class="text-xs text-on-surface-variant">tenant-ti-4029</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-5">
-<p class="text-sm font-medium">Carlos Eduardo</p>
-<p class="text-xs text-on-surface-variant">ceo@techinn.com</p>
-</td>
-<td class="px-6 py-5">
-<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-bold uppercase tracking-wider">Active</span>
-</td>
-<td class="px-6 py-5 text-center">
-<span class="text-sm font-bold">24</span>
-</td>
-<td class="px-6 py-5">
-<p class="text-sm">Today, 10:24 AM</p>
-<p class="text-[10px] text-on-surface-variant font-medium">IP: 187.42.10.22</p>
-</td>
-<td class="px-6 py-5 text-right">
-<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant" title="View Details">
-<span class="material-symbols-outlined text-xl">visibility</span>
-</button>
-<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant" title="Settings">
-<span class="material-symbols-outlined text-xl">settings</span>
-</button>
-<button class="p-2 hover:bg-error/10 hover:text-error rounded-lg text-on-surface-variant">
-<span class="material-symbols-outlined text-xl">block</span>
-</button>
-</div>
-</td>
-</tr>
-<!-- Row 2 -->
-<tr class="hover:bg-surface-container-lowest transition-colors group">
-<td class="px-6 py-5">
-<div class="flex items-center gap-3">
-<div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 font-bold">EA</div>
-<div>
-<p class="font-headline font-bold text-sm text-on-surface">Eventos Academy SP</p>
-<p class="text-xs text-on-surface-variant">tenant-ea-8821</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-5">
-<p class="text-sm font-medium">Marina Silva</p>
-<p class="text-xs text-on-surface-variant">marina@ea-sp.edu</p>
-</td>
-<td class="px-6 py-5">
-<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-bold uppercase tracking-wider">Active</span>
-</td>
-<td class="px-6 py-5 text-center">
-<span class="text-sm font-bold">12</span>
-</td>
-<td class="px-6 py-5">
-<p class="text-sm">Yesterday, 04:15 PM</p>
-<p class="text-[10px] text-on-surface-variant font-medium">IP: 201.21.90.01</p>
-</td>
-<td class="px-6 py-5 text-right">
-<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant">
-<span class="material-symbols-outlined text-xl">visibility</span>
-</button>
-<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant">
-<span class="material-symbols-outlined text-xl">settings</span>
-</button>
-<button class="p-2 hover:bg-error/10 hover:text-error rounded-lg text-on-surface-variant">
-<span class="material-symbols-outlined text-xl">block</span>
-</button>
-</div>
-</td>
-</tr>
-<!-- Row 3 (Suspended) -->
-<tr class="hover:bg-surface-container-lowest transition-colors group bg-error/5">
-<td class="px-6 py-5">
-<div class="flex items-center gap-3">
-<div class="w-10 h-10 bg-zinc-200 rounded-xl flex items-center justify-center text-zinc-600 font-bold">GL</div>
-<div>
-<p class="font-headline font-bold text-sm text-on-surface">Global Logística</p>
-<p class="text-xs text-on-surface-variant">tenant-gl-1029</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-5">
-<p class="text-sm font-medium">Henrique Rocha</p>
-<p class="text-xs text-on-surface-variant">adm@globallog.com</p>
-</td>
-<td class="px-6 py-5">
-<span class="px-3 py-1 bg-zinc-200 text-zinc-700 rounded-full text-[10px] font-bold uppercase tracking-wider">Suspended</span>
-</td>
-<td class="px-6 py-5 text-center">
-<span class="text-sm font-bold text-zinc-400">0</span>
-</td>
-<td class="px-6 py-5">
-<p class="text-sm">Oct 12, 2023</p>
-<p class="text-[10px] text-on-surface-variant font-medium">Billing Overdue</p>
-</td>
-<td class="px-6 py-5 text-right">
-<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant">
-<span class="material-symbols-outlined text-xl">visibility</span>
-</button>
-<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant">
-<span class="material-symbols-outlined text-xl">settings</span>
-</button>
-<button class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
-<span class="material-symbols-outlined text-xl">check_circle</span>
-</button>
-</div>
-</td>
-</tr>
-<!-- Row 4 -->
-<tr class="hover:bg-surface-container-lowest transition-colors group">
-<td class="px-6 py-5">
-<div class="flex items-center gap-3">
-<div class="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 font-bold">SV</div>
-<div>
-<p class="font-headline font-bold text-sm text-on-surface">Sales Velocity Academy</p>
-<p class="text-xs text-on-surface-variant">tenant-sv-5542</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-5">
-<p class="text-sm font-medium">Arthur Lima</p>
-<p class="text-xs text-on-surface-variant">arthur@salesvelocity.io</p>
-</td>
-<td class="px-6 py-5">
-<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-bold uppercase tracking-wider">Active</span>
-</td>
-<td class="px-6 py-5 text-center">
-<span class="text-sm font-bold">58</span>
-</td>
-<td class="px-6 py-5">
-<p class="text-sm">2 hours ago</p>
-<p class="text-[10px] text-on-surface-variant font-medium">IP: 177.12.55.90</p>
-</td>
-<td class="px-6 py-5 text-right">
-<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant">
-<span class="material-symbols-outlined text-xl">visibility</span>
-</button>
-<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant">
-<span class="material-symbols-outlined text-xl">settings</span>
-</button>
-<button class="p-2 hover:bg-error/10 hover:text-error rounded-lg text-on-surface-variant">
-<span class="material-symbols-outlined text-xl">block</span>
-</button>
-</div>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- Pagination -->
-<div class="bg-surface-container px-6 py-4 flex items-center justify-between border-t border-outline-variant/10">
-<div class="flex items-center gap-2">
-<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-highest transition-colors">
-<span class="material-symbols-outlined text-sm">chevron_left</span>
-</button>
-<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs">1</button>
-<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-highest transition-colors text-xs font-bold">2</button>
-<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-highest transition-colors text-xs font-bold">3</button>
-<span class="px-2 text-on-surface-variant">...</span>
-<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-highest transition-colors text-xs font-bold">128</button>
-<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-highest transition-colors">
-<span class="material-symbols-outlined text-sm">chevron_right</span>
-</button>
-</div>
-<div class="flex items-center gap-4">
-<span class="text-xs font-medium text-on-surface-variant">Items per page:</span>
-<select class="bg-surface-container-lowest border border-outline-variant/10 rounded-lg text-xs font-bold focus:ring-0 px-2 py-1">
-<option>10</option>
-<option>25</option>
-<option>50</option>
-</select>
-</div>
-</div>
-</div>
-</main>
-<!-- Side Drawer (Quick Actions / Summary) -->
-<aside class="fixed right-0 top-0 h-screen w-80 bg-surface-container-lowest border-l border-outline-variant/15 z-50 flex flex-col p-6 shadow-2xl overflow-y-auto">
-<div class="flex items-center justify-between mb-8">
-<div>
-<h3 class="font-headline font-bold text-lg text-on-surface">Quick Actions</h3>
-<p class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant">Managed by Superadmin</p>
-</div>
-<button class="p-2 hover:bg-surface-container rounded-full transition-colors">
-<span class="material-symbols-outlined">close</span>
-</button>
-</div>
-<div class="space-y-6">
-<!-- Account Summary Card -->
-<div class="p-5 bg-surface-container rounded-2xl">
-<p class="text-[10px] font-bold uppercase tracking-widest text-primary mb-3">Selected Account</p>
-<div class="flex items-center gap-3 mb-4">
-<div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 font-bold text-lg">TI</div>
-<div>
-<p class="font-headline font-bold text-sm">Tech Innovators</p>
-<p class="text-[11px] text-on-surface-variant">Enterprise Plan</p>
-</div>
-</div>
-<div class="space-y-2">
-<div class="flex justify-between items-center text-xs">
-<span class="text-on-surface-variant">Usage:</span>
-<span class="font-bold">84% of 100GB</span>
-</div>
-<div class="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden">
-<div class="bg-primary h-full w-[84%]"></div>
-</div>
-</div>
-</div>
-<!-- Action Buttons -->
-<div class="space-y-2">
-<button class="w-full flex items-center justify-between p-4 bg-surface-container-lowest hover:bg-zinc-50 border border-outline-variant/10 rounded-xl transition-all group">
-<div class="flex items-center gap-3">
-<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">key</span>
-<span class="text-sm font-semibold">Reset Credentials</span>
-</div>
-<span class="material-symbols-outlined text-zinc-300">chevron_right</span>
-</button>
-<button class="w-full flex items-center justify-between p-4 bg-surface-container-lowest hover:bg-zinc-50 border border-outline-variant/10 rounded-xl transition-all group">
-<div class="flex items-center gap-3">
-<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">equalizer</span>
-<span class="text-sm font-semibold">Manage Limits</span>
-</div>
-<span class="material-symbols-outlined text-zinc-300">chevron_right</span>
-</button>
-<button class="w-full flex items-center justify-between p-4 bg-surface-container-lowest hover:bg-error/5 border border-outline-variant/10 rounded-xl transition-all group">
-<div class="flex items-center gap-3">
-<span class="material-symbols-outlined text-error">power_settings_new</span>
-<span class="text-sm font-semibold text-error">Deactivate Account</span>
-</div>
-<span class="material-symbols-outlined text-zinc-300">chevron_right</span>
-</button>
-</div>
-<!-- Recent Activity -->
-<div class="pt-4 border-t border-outline-variant/10">
-<h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">Recent Activity</h4>
-<div class="space-y-4">
-<div class="flex gap-3">
-<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center">
-<span class="material-symbols-outlined text-sm">edit</span>
-</div>
-<div>
-<p class="text-[11px] font-bold">Plan upgraded to Enterprise</p>
-<p class="text-[10px] text-on-surface-variant">2 hours ago • By Admin</p>
-</div>
-</div>
-<div class="flex gap-3">
-<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center">
-<span class="material-symbols-outlined text-sm">person_add</span>
-</div>
-<div>
-<p class="text-[11px] font-bold">12 new learners joined</p>
-<p class="text-[10px] text-on-surface-variant">Today, 09:12 AM</p>
-</div>
-</div>
-<div class="flex gap-3">
-<div class="w-8 h-8 rounded-full bg-error/10 flex items-center justify-center text-error">
-<span class="material-symbols-outlined text-sm">report</span>
-</div>
-<div>
-<p class="text-[11px] font-bold">Storage limit warning</p>
-<p class="text-[10px] text-on-surface-variant">Yesterday • System</p>
-</div>
-</div>
-</div>
-</div>
-<!-- Team Notes -->
-<div class="pt-4 border-t border-outline-variant/10">
-<div class="flex items-center justify-between mb-3">
-<h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Internal Notes</h4>
-<button class="text-primary text-[10px] font-bold uppercase">Add Note</button>
-</div>
-<div class="p-3 bg-primary/5 rounded-xl border-l-2 border-primary">
-<p class="text-[11px] text-on-primary-container italic font-medium leading-relaxed">"Account requires special attention regarding the new SCORM modules implementation next week."</p>
-<p class="text-[9px] text-primary/60 mt-2">— Rodrigo (Manager)</p>
-</div>
-</div>
-</div>
-</aside>
-</body></html>
+    <section class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <article class="card p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Contas admin/professor</p>
+        <p id="kpi-total-accounts" class="metric-value mt-2">0</p>
+      </article>
+      <article class="card p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Alunos ativos</p>
+        <p id="kpi-learners" class="metric-value mt-2">0</p>
+      </article>
+      <article class="card p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cursos ativos</p>
+        <p id="kpi-courses" class="metric-value mt-2">0</p>
+      </article>
+      <article class="card p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">MRR pago (mês)</p>
+        <p id="kpi-revenue" class="metric-value mt-2">R$ 0,00</p>
+      </article>
+      <article class="card p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Financeiro ativo</p>
+        <p id="kpi-configured" class="metric-value mt-2">0</p>
+      </article>
+    </section>
+
+    <section class="grid grid-cols-1 gap-6 2xl:grid-cols-[1.6fr_1fr]">
+      <article class="card overflow-hidden">
+        <div class="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <h2 class="text-lg font-bold">Contas</h2>
+          <label class="block">
+            <span class="sr-only">Buscar conta</span>
+            <input
+              id="input-busca"
+              class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+              type="search"
+              placeholder="Buscar por nome ou e-mail"
+            />
+          </label>
+        </div>
+        <div class="max-h-[68vh] overflow-auto">
+          <table class="w-full border-collapse text-left text-sm">
+            <thead class="sticky top-0 bg-slate-50">
+              <tr>
+                <th class="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">Conta</th>
+                <th class="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">Financeiro</th>
+                <th class="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">API</th>
+                <th class="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">Atualização</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-contas">
+              <tr>
+                <td colspan="4" class="px-4 py-8 text-center text-sm text-slate-500">Carregando contas...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <aside class="card p-4">
+        <header class="mb-4 border-b border-slate-200 pb-3">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">FINANCEIRO</p>
+          <h3 id="finance-account-name" class="mt-1 text-xl font-extrabold">Selecione uma conta</h3>
+          <p id="finance-account-email" class="text-xs text-slate-500">—</p>
+        </header>
+
+        <form id="form-financeiro" class="space-y-4">
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Provedor</span>
+              <select id="provider" class="w-full rounded-lg border-slate-200 text-sm">
+                <option value="manual">Manual (sem gateway)</option>
+                <option value="sicoob">Sicoob</option>
+                <option value="asaas">Asaas</option>
+                <option value="stripe">Stripe</option>
+              </select>
+            </label>
+
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Ambiente</span>
+              <select id="environment" class="w-full rounded-lg border-slate-200 text-sm">
+                <option value="sandbox">Sandbox</option>
+                <option value="production">Produção</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="inline-flex items-center gap-2">
+            <input id="is-active" type="checkbox" class="rounded border-slate-300 text-orange-600 focus:ring-orange-500" />
+            <span class="text-sm font-medium text-slate-700">Gateway ativo para esta conta</span>
+          </label>
+
+          <div id="generic-fields" class="hidden space-y-3">
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">API Key</span>
+              <input id="generic-api-key" class="w-full rounded-lg border-slate-200 text-sm" type="password" placeholder="Cole a API Key" />
+            </label>
+          </div>
+
+          <div id="sicoob-fields" class="hidden space-y-3">
+            <p class="rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-800">
+              Sicoob usa OAuth 2.0 Client Credentials com mTLS e certificado A1 ICP-Brasil.
+            </p>
+
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Client ID</span>
+              <input id="sicoob-client-id" class="w-full rounded-lg border-slate-200 text-sm" type="text" />
+            </label>
+
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Client Secret</span>
+              <input id="sicoob-client-secret" class="w-full rounded-lg border-slate-200 text-sm" type="password" placeholder="Preencha para cadastrar/atualizar" />
+              <span id="flag-secret" class="mt-1 block text-[11px] font-semibold text-slate-500">Segredo não configurado</span>
+            </label>
+
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Número do cliente/cedente</span>
+              <input id="sicoob-numero-cliente" class="w-full rounded-lg border-slate-200 text-sm" type="text" />
+            </label>
+
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">URL de token OAuth</span>
+              <input id="sicoob-token-url" class="w-full rounded-lg border-slate-200 text-sm" type="url" />
+            </label>
+
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">URL base de produção</span>
+              <input id="sicoob-base-url" class="w-full rounded-lg border-slate-200 text-sm" type="url" />
+            </label>
+
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">URL base de sandbox</span>
+              <input id="sicoob-sandbox-base-url" class="w-full rounded-lg border-slate-200 text-sm" type="url" />
+            </label>
+
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Escopos</span>
+              <textarea id="sicoob-scopes" class="w-full rounded-lg border-slate-200 text-sm" rows="2" placeholder="boletos_inclusao, boletos_consulta, boletos_alteracao"></textarea>
+            </label>
+
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Webhook URL (opcional)</span>
+              <input id="sicoob-webhook-url" class="w-full rounded-lg border-slate-200 text-sm" type="url" />
+            </label>
+
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Certificado público (PEM/CRT)</span>
+              <textarea id="sicoob-cert" class="w-full rounded-lg border-slate-200 font-mono text-xs" rows="5" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+              <span id="flag-cert" class="mt-1 block text-[11px] font-semibold text-slate-500">Certificado não configurado</span>
+            </label>
+
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Chave privada (PEM/KEY)</span>
+              <textarea id="sicoob-key" class="w-full rounded-lg border-slate-200 font-mono text-xs" rows="5" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+              <span id="flag-key" class="mt-1 block text-[11px] font-semibold text-slate-500">Chave privada não configurada</span>
+            </label>
+          </div>
+
+          <div class="flex items-center gap-3 pt-2">
+            <button id="btn-salvar" type="submit" class="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white hover:bg-orange-700">
+              Salvar financeiro
+            </button>
+            <span id="status-save" class="text-xs font-semibold text-slate-500"></span>
+          </div>
+        </form>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var TOKEN_KEY = 'academy-auth-token';
+      var API_BASE = window.location.origin + '/api';
+      var state = {
+        accounts: [],
+        filteredAccounts: [],
+        selectedAccountId: '',
+      };
+
+      function getToken() {
+        var fromUrl = new URLSearchParams(window.location.search).get('token');
+        if (fromUrl) return fromUrl;
+        try {
+          return (
+            window.localStorage.getItem(TOKEN_KEY) ||
+            window.sessionStorage.getItem(TOKEN_KEY) ||
+            ''
+          );
+        } catch (err) {
+          return '';
+        }
+      }
+
+      function headers() {
+        return {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + getToken(),
+        };
+      }
+
+      function formatCurrency(value) {
+        return new Intl.NumberFormat('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        }).format(value || 0);
+      }
+
+      function formatDateTime(iso) {
+        if (!iso) return '—';
+        try {
+          return new Date(iso).toLocaleString('pt-BR');
+        } catch (err) {
+          return iso;
+        }
+      }
+
+      function setGlobalStatus(text, isError) {
+        var el = document.getElementById('status-global');
+        el.textContent = text;
+        el.className = isError
+          ? 'text-xs font-semibold text-red-600'
+          : 'text-xs font-semibold text-slate-500';
+      }
+
+      function normalizeFinanceLabel(finance) {
+        if (!finance || !finance.isConfigured) return 'Não configurado';
+        if (!finance.isActive) return 'Configurado (inativo)';
+        return 'Ativo';
+      }
+
+      function renderTable() {
+        var tbody = document.getElementById('tbody-contas');
+        if (!state.filteredAccounts.length) {
+          tbody.innerHTML =
+            '<tr><td colspan="4" class="px-4 py-8 text-center text-sm text-slate-500">Nenhuma conta encontrada.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = state.filteredAccounts
+          .map(function (account) {
+            var selectedClass =
+              account.id === state.selectedAccountId ? 'row-selected' : '';
+            var financeLabel = normalizeFinanceLabel(account.finance);
+            var financeTone = account.finance && account.finance.isActive
+              ? 'text-emerald-700 bg-emerald-50'
+              : 'text-amber-700 bg-amber-50';
+
+            return (
+              '<tr class="' + selectedClass + ' cursor-pointer hover:bg-slate-50" data-id="' + account.id + '">' +
+              '<td class="px-4 py-3">' +
+              '<p class="font-semibold text-slate-900">' + escapeHtml(account.name || 'Sem nome') + '</p>' +
+              '<p class="text-xs text-slate-500">' + escapeHtml(account.email || '') + '</p>' +
+              '</td>' +
+              '<td class="px-4 py-3"><span class="rounded-full px-2 py-1 text-xs font-bold ' + financeTone + '">' + financeLabel + '</span></td>' +
+              '<td class="px-4 py-3 text-xs font-semibold uppercase text-slate-700">' + escapeHtml((account.finance && account.finance.provider) || 'manual') + '</td>' +
+              '<td class="px-4 py-3 text-xs text-slate-500">' + formatDateTime((account.finance && account.finance.updatedAt) || account.updatedAt) + '</td>' +
+              '</tr>'
+            );
+          })
+          .join('');
+
+        Array.prototype.forEach.call(tbody.querySelectorAll('tr[data-id]'), function (row) {
+          row.addEventListener('click', function () {
+            var id = row.getAttribute('data-id');
+            selectAccount(id);
+          });
+        });
+      }
+
+      function updateKpis(overview) {
+        document.getElementById('kpi-total-accounts').textContent = String(
+          overview.totalAccounts || 0
+        );
+        document.getElementById('kpi-learners').textContent = String(
+          overview.activeLearners || 0
+        );
+        document.getElementById('kpi-courses').textContent = String(
+          overview.activeCourses || 0
+        );
+        document.getElementById('kpi-revenue').textContent = formatCurrency(
+          overview.revenueMrr || 0
+        );
+        document.getElementById('kpi-configured').textContent = String(
+          overview.configuredFinanceAccounts || 0
+        );
+      }
+
+      function applySearch() {
+        var term = (document.getElementById('input-busca').value || '')
+          .trim()
+          .toLowerCase();
+        if (!term) {
+          state.filteredAccounts = state.accounts.slice();
+        } else {
+          state.filteredAccounts = state.accounts.filter(function (account) {
+            var target = (account.name + ' ' + account.email).toLowerCase();
+            return target.indexOf(term) !== -1;
+          });
+        }
+        renderTable();
+      }
+
+      function loadDashboard() {
+        setGlobalStatus('Carregando dados...', false);
+        return fetch(API_BASE + '/superadmin/accounts', { headers: headers() })
+          .then(function (response) {
+            if (!response.ok) throw new Error('Falha ao carregar contas.');
+            return response.json();
+          })
+          .then(function (data) {
+            state.accounts = Array.isArray(data.accounts) ? data.accounts : [];
+            state.filteredAccounts = state.accounts.slice();
+            updateKpis(data.overview || {});
+            renderTable();
+
+            if (!state.selectedAccountId && state.accounts.length) {
+              selectAccount(state.accounts[0].id);
+            } else {
+              renderTable();
+            }
+
+            setGlobalStatus('Dados atualizados.', false);
+          })
+          .catch(function (err) {
+            setGlobalStatus(err.message || 'Erro ao carregar dados.', true);
+          });
+      }
+
+      function selectAccount(accountId) {
+        state.selectedAccountId = accountId;
+        renderTable();
+        var account = state.accounts.find(function (item) {
+          return item.id === accountId;
+        });
+        if (!account) return;
+
+        document.getElementById('finance-account-name').textContent =
+          account.name || 'Sem nome';
+        document.getElementById('finance-account-email').textContent =
+          account.email || '—';
+
+        loadFinancialConfig(accountId);
+      }
+
+      function updateProviderFields() {
+        var provider = document.getElementById('provider').value;
+        document.getElementById('sicoob-fields').classList.toggle(
+          'hidden',
+          provider !== 'sicoob'
+        );
+        document.getElementById('generic-fields').classList.toggle(
+          'hidden',
+          provider === 'sicoob' || provider === 'manual'
+        );
+      }
+
+      function loadFinancialConfig(accountId) {
+        document.getElementById('status-save').textContent = 'Carregando...';
+
+        fetch(API_BASE + '/superadmin/accounts/' + accountId + '/financial', {
+          headers: headers(),
+        })
+          .then(function (response) {
+            if (!response.ok) throw new Error('Falha ao carregar financeiro.');
+            return response.json();
+          })
+          .then(function (data) {
+            var finance = data.finance || {};
+            var sicoob = finance.sicoob || {};
+
+            document.getElementById('provider').value = finance.provider || 'manual';
+            document.getElementById('environment').value =
+              finance.environment || 'sandbox';
+            document.getElementById('is-active').checked = !!finance.isActive;
+
+            document.getElementById('sicoob-client-id').value = sicoob.clientId || '';
+            document.getElementById('sicoob-client-secret').value = '';
+            document.getElementById('sicoob-numero-cliente').value =
+              sicoob.numeroCliente || '';
+            document.getElementById('sicoob-token-url').value = sicoob.tokenUrl || '';
+            document.getElementById('sicoob-base-url').value = sicoob.baseUrl || '';
+            document.getElementById('sicoob-sandbox-base-url').value =
+              sicoob.sandboxBaseUrl || '';
+            document.getElementById('sicoob-webhook-url').value =
+              sicoob.webhookUrl || '';
+            document.getElementById('sicoob-scopes').value = Array.isArray(
+              sicoob.scopes
+            )
+              ? sicoob.scopes.join(', ')
+              : '';
+            document.getElementById('sicoob-cert').value = '';
+            document.getElementById('sicoob-key').value = '';
+            document.getElementById('generic-api-key').value = '';
+
+            document.getElementById('flag-secret').textContent =
+              sicoob.clientSecretConfigured
+                ? 'Client Secret já configurado'
+                : 'Segredo não configurado';
+            document.getElementById('flag-cert').textContent =
+              sicoob.certificateConfigured
+                ? 'Certificado já configurado'
+                : 'Certificado não configurado';
+            document.getElementById('flag-key').textContent =
+              sicoob.privateKeyConfigured
+                ? 'Chave privada já configurada'
+                : 'Chave privada não configurada';
+
+            updateProviderFields();
+            document.getElementById('status-save').textContent = '';
+          })
+          .catch(function (err) {
+            document.getElementById('status-save').textContent =
+              err.message || 'Erro ao carregar financeiro.';
+          });
+      }
+
+      function parseScopes(rawValue) {
+        return String(rawValue || '')
+          .split(/[\n,;]+/)
+          .map(function (item) {
+            return item.trim();
+          })
+          .filter(Boolean);
+      }
+
+      function buildPayload() {
+        var provider = document.getElementById('provider').value;
+        var payload = {
+          provider: provider,
+          environment: document.getElementById('environment').value,
+          isActive: document.getElementById('is-active').checked,
+        };
+
+        if (provider === 'sicoob') {
+          payload.sicoobClientId = document.getElementById('sicoob-client-id').value;
+          payload.sicoobClientSecret = document.getElementById(
+            'sicoob-client-secret'
+          ).value;
+          payload.sicoobNumeroCliente = document.getElementById(
+            'sicoob-numero-cliente'
+          ).value;
+          payload.sicoobTokenUrl = document.getElementById('sicoob-token-url').value;
+          payload.sicoobBaseUrl = document.getElementById('sicoob-base-url').value;
+          payload.sicoobSandboxBaseUrl = document.getElementById(
+            'sicoob-sandbox-base-url'
+          ).value;
+          payload.sicoobWebhookUrl = document.getElementById(
+            'sicoob-webhook-url'
+          ).value;
+          payload.sicoobScopes = parseScopes(
+            document.getElementById('sicoob-scopes').value
+          );
+          payload.sicoobCertificatePem =
+            document.getElementById('sicoob-cert').value;
+          payload.sicoobPrivateKeyPem = document.getElementById('sicoob-key').value;
+        }
+
+        if (provider !== 'sicoob' && provider !== 'manual') {
+          payload.genericApiKey = document.getElementById('generic-api-key').value;
+        }
+
+        return payload;
+      }
+
+      function submitForm(event) {
+        event.preventDefault();
+        if (!state.selectedAccountId) {
+          document.getElementById('status-save').textContent =
+            'Selecione uma conta.';
+          return;
+        }
+
+        var btn = document.getElementById('btn-salvar');
+        var status = document.getElementById('status-save');
+        var payload = buildPayload();
+
+        btn.disabled = true;
+        status.textContent = 'Salvando...';
+
+        fetch(
+          API_BASE + '/superadmin/accounts/' + state.selectedAccountId + '/financial',
+          {
+            method: 'PUT',
+            headers: headers(),
+            body: JSON.stringify(payload),
+          }
+        )
+          .then(function (response) {
+            if (!response.ok) {
+              return response.json().then(function (body) {
+                throw new Error(
+                  (body && body.message) || 'Falha ao salvar financeiro.'
+                );
+              });
+            }
+            return response.json();
+          })
+          .then(function () {
+            status.textContent = 'Financeiro salvo com sucesso.';
+            loadDashboard();
+            loadFinancialConfig(state.selectedAccountId);
+          })
+          .catch(function (err) {
+            status.textContent = err.message || 'Erro ao salvar financeiro.';
+          })
+          .finally(function () {
+            btn.disabled = false;
+          });
+      }
+
+      function escapeHtml(input) {
+        return String(input || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      document
+        .getElementById('provider')
+        .addEventListener('change', updateProviderFields);
+      document
+        .getElementById('input-busca')
+        .addEventListener('input', applySearch);
+      document
+        .getElementById('btn-recarregar')
+        .addEventListener('click', loadDashboard);
+      document
+        .getElementById('form-financeiro')
+        .addEventListener('submit', submitForm);
+
+      loadDashboard();
+    })();
+  </script>
+</body>
+</html>

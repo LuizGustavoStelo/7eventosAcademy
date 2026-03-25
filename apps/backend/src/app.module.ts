@@ -15,6 +15,7 @@ import { StudentsModule } from './students/students.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { WordpressIntegrationModule } from './wordpress-integration/wordpress-integration.module';
 import { MisModule } from './mis/mis.module';
+import { SuperadminAccountsModule } from './superadmin-accounts/superadmin-accounts.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { MisModule } from './mis/mis.module';
     UploadsModule,
     WordpressIntegrationModule,
     MisModule,
+    SuperadminAccountsModule,
   ],
   controllers: [AppController],
   providers: [
