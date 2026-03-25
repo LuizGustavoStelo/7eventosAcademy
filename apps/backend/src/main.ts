@@ -42,6 +42,13 @@ async function bootstrap() {
     root: join(__dirname, '..', 'public'),
     prefix: '/api/',
     decorateReply: false,
+    // Garante que ativos estáticos (como fontes e CSS) tenham CORS habilitado,
+    // mesmo para iframes em domínios diferentes.
+    setHeaders: (res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    },
   });
 
   // ── Upload multipart ───────────────────────────────────────────────────────
