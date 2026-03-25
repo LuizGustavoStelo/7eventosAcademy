@@ -50,7 +50,7 @@ class Seven_Academy_License
 
         delete_transient(self::CACHE_KEY);
         delete_transient('seven_academy_connection_cache');
-        delete_site_transient('seven_academy_update_cache');
+        Seven_Academy_Updater::clear_update_cache();
         self::redirect_with_notice('success', 'Licenca ativada com sucesso.');
     }
 
@@ -68,7 +68,7 @@ class Seven_Academy_License
 
         delete_transient(self::CACHE_KEY);
         delete_transient('seven_academy_connection_cache');
-        delete_site_transient('seven_academy_update_cache');
+        Seven_Academy_Updater::clear_update_cache();
         self::redirect_with_notice('success', 'Licenca removida do site.');
     }
 

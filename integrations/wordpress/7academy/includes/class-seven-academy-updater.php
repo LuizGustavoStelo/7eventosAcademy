@@ -77,7 +77,14 @@ class Seven_Academy_Updater
         ];
     }
 
-    private static function fetch_update_data(): array
+    public static function clear_update_cache(): void
+    {
+        delete_site_transient(self::UPDATE_CACHE_KEY);
+        // Force WordPress to re-scan for updates
+        delete_site_transient('update_plugins');
+    }
+
+    public static function fetch_update_data(): array
     {
         // Return cached result immediately if available - avoids any HTTP call.
         $cached = get_site_transient(self::UPDATE_CACHE_KEY);
