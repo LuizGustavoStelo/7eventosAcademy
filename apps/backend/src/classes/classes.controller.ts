@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -59,6 +60,11 @@ export class ClassesController {
     return this.classesService.updateStatus(classId, dto.status);
   }
 
+  @Delete(':classId')
+  async remove(@Param('classId') classId: string) {
+    return this.classesService.remove(classId);
+  }
+
   @Get(':classId/materials')
   async getMaterials(@Param('classId') classId: string) {
     return this.materialsService.getMaterials(classId);
@@ -112,6 +118,44 @@ export class ClassesController {
       externalUrl: fields.externalUrl,
       publishedBy: request.user.sub,
       file,
+    });
+  }
+
+  @Post(':classId/materials/upload-batch')
+  async createMaterialsWithFiles(
+    @Param('classId') classId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    const fields: Record<string, string> = {};
+    const files: MultipartFile[] = [];
+
+    for await (const part of request.parts()) {
+      if (part.type === 'file') {
+        if (part.fieldname === 'files' || part.fieldname === 'file') {
+          files.push(part);
+        } else {
+          await part.toBuffer();
+        }
+        continue;
+      }
+
+      fields[part.fieldname] = String(part.value ?? '');
+    }
+
+    if (files.length === 0) {
+      throw new BadRequestException(
+        'Envie ao menos um arquivo no campo files para cadastrar materiais.',
+      );
+    }
+
+    return this.materialsService.createMaterialsWithFiles({
+      classId,
+      title: fields.title ?? '',
+      description: fields.description,
+      kind: fields.kind,
+      externalUrl: fields.externalUrl,
+      publishedBy: request.user.sub,
+      files,
     });
   }
 

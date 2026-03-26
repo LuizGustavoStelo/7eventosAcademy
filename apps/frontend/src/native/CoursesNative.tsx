@@ -20,6 +20,7 @@ type Course = {
   installmentMonths?: number | null;
   installmentValue?: number | null;
   bannerUrl?: string | null;
+  enrolledStudentsCount?: number;
 };
 
 type CourseFormState = {
@@ -471,6 +472,10 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       </small>
                       <small className="full">
                         Pagamento: <strong>{paymentSummary}</strong>
+                      </small>
+                      <small className="full">
+                        Alunos matriculados:{' '}
+                        <strong>{Number(course.enrolledStudentsCount ?? 0)}</strong>
                       </small>
                     </div>
 

@@ -78,9 +78,14 @@ class Seven_Academy_License
         self::redirect_with_notice('success', 'Licenca removida do site.');
     }
 
-    public static function get_license_status(array $settings): array
+    public static function get_license_status(array $settings, bool $bypassCache = false): array
     {
-        $cached = get_transient(self::CACHE_KEY);
+        if (!$bypassCache) {
+            $cached = get_transient(self::CACHE_KEY);
+        } else {
+            $cached = false;
+        }
+
         if (is_array($cached)) {
             return $cached;
         }
@@ -106,7 +111,9 @@ class Seven_Academy_License
                 'active'  => false,
                 'message' => 'Licenca invalida ou nao validada.',
             ];
-            set_transient(self::CACHE_KEY, $result, MINUTE_IN_SECONDS * 10);
+            if (!$bypassCache) {
+                set_transient(self::CACHE_KEY, $result, MINUTE_IN_SECONDS * 10);
+            }
             return $result;
         }
 
@@ -114,7 +121,9 @@ class Seven_Academy_License
             'active'  => true,
             'message' => 'Licenca ativa para o dominio atual.',
         ];
-        set_transient(self::CACHE_KEY, $result, MINUTE_IN_SECONDS * 10);
+        if (!$bypassCache) {
+            set_transient(self::CACHE_KEY, $result, MINUTE_IN_SECONDS * 10);
+        }
         return $result;
     }
 

@@ -65,6 +65,13 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const [state, setState] = useState('');
   const [notes, setNotes] = useState('');
 
+  const buildPortalLink = (app: 'student' | 'student-register') => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('embed', '1');
+    params.set('app', app);
+    return `/?${params.toString()}`;
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
@@ -151,7 +158,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
         {error ? <p className="native-error">{error}</p> : null}
         {success ? (
           <p className="native-success">
-            {success} <a href="/?embed=1&app=student">Ir para login</a>
+            {success} <a href={buildPortalLink('student')}>Ir para login</a>
           </p>
         ) : null}
 
@@ -331,7 +338,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
           </label>
 
           <div className="native-modal-actions">
-            <a className="ghost" href="/?embed=1&app=student">
+            <a className="ghost" href={buildPortalLink('student')}>
               Já tenho acesso
             </a>
             <button type="submit" disabled={loading}>

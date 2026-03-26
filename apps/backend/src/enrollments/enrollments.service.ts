@@ -5,6 +5,7 @@
 } from '@nestjs/common';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { PrismaService } from '../database/prisma.service';
+import { StudentCourseStatus } from '@prisma/client';
 
 @Injectable()
 export class EnrollmentsService {
@@ -54,6 +55,29 @@ export class EnrollmentsService {
 
     if (!student || student.role !== 'USER') {
       throw new NotFoundException('Aluno não encontrado.');
+    }
+
+    const studentCourse = await this.prisma.studentCourse.findUnique({
+      where: {
+        studentId_courseId: {
+          studentId: dto.studentId,
+          courseId: schoolClass.course.id,
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (
+      !studentCourse ||
+      (studentCourse.status !== StudentCourseStatus.INTERESTED &&
+        studentCourse.status !== StudentCourseStatus.ACTIVE)
+    ) {
+      throw new BadRequestException(
+        'Aluno não está matriculado no curso desta turma.',
+      );
     }
 
     const existingEnrollment = await this.prisma.enrollment.findUnique({
@@ -125,6 +149,18 @@ export class EnrollmentsService {
           })),
         });
       }
+
+      await tx.studentCourse.update({
+        where: {
+          studentId_courseId: {
+            studentId: dto.studentId,
+            courseId: schoolClass.course.id,
+          },
+        },
+        data: {
+          status: StudentCourseStatus.ACTIVE,
+        },
+      });
 
       return createdEnrollment;
     });

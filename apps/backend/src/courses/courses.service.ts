@@ -1,6 +1,11 @@
 ﻿import { Injectable, NotFoundException } from '@nestjs/common';
 import { MultipartFile } from '@fastify/multipart';
-import { CoursePaymentModel, Prisma, UploadOwnerType } from '@prisma/client';
+import {
+  CoursePaymentModel,
+  Prisma,
+  StudentCourseStatus,
+  UploadOwnerType,
+} from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
@@ -44,11 +49,32 @@ export class CoursesService {
   }
 
   async findAll() {
-    const courses = await this.prisma.course.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
+    const [courses, studentCounts] = await Promise.all([
+      this.prisma.course.findMany({
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.studentCourse.groupBy({
+        by: ['courseId'],
+        where: {
+          status: {
+            in: [StudentCourseStatus.INTERESTED, StudentCourseStatus.ACTIVE],
+          },
+        },
+        _count: {
+          _all: true,
+        },
+      }),
+    ]);
 
-    return this.attachBanners(courses);
+    const countByCourseId = new Map(
+      studentCounts.map((item) => [item.courseId, item._count._all]),
+    );
+    const withBanners = await this.attachBanners(courses);
+
+    return withBanners.map((course) => ({
+      ...course,
+      enrolledStudentsCount: countByCourseId.get(course.id) ?? 0,
+    }));
   }
 
   async update(id: string, dto: UpdateCourseDto) {

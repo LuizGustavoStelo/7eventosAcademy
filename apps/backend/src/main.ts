@@ -10,10 +10,27 @@ import {
 import { join } from 'path';
 import { AppModule } from './app.module';
 
+function readEnvMegabytes(name: string, fallbackMb: number): number {
+  const raw = Number(process.env[name] ?? '');
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return fallbackMb;
+  }
+  return Math.floor(raw);
+}
+
 async function bootstrap() {
+  const multipartMaxFileSizeMb = readEnvMegabytes(
+    'MULTIPART_MAX_FILE_SIZE_MB',
+    32,
+  );
+  const httpBodyLimitMb = readEnvMegabytes('HTTP_BODY_LIMIT_MB', 40);
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: false }),
+    new FastifyAdapter({
+      logger: false,
+      bodyLimit: httpBodyLimitMb * 1024 * 1024,
+    }),
   );
 
   // ── Cabeçalhos de segurança HTTP (Helmet) ──────────────────────────────────
@@ -54,8 +71,8 @@ async function bootstrap() {
   // ── Upload multipart ───────────────────────────────────────────────────────
   await app.register(multipart, {
     limits: {
-      fileSize: 5 * 1024 * 1024, // 5 MB
-      files: 1,
+      fileSize: multipartMaxFileSizeMb * 1024 * 1024,
+      files: 20,
     },
   });
 

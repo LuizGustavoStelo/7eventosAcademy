@@ -52,6 +52,16 @@ class Seven_Academy_Shortcodes
             'area-do-aluno'
         );
 
+        $settings      = Seven_Academy_Admin::get_settings();
+        $licenseStatus = Seven_Academy_License::get_license_status($settings, true);
+
+        if (empty($licenseStatus['active'])) {
+            return self::render_license_blocked_screen(
+                'Acesso indisponível',
+                'A licença deste site está inativa, expirada ou ainda não foi validada. Ative a licença no painel do plugin para liberar o Portal do Aluno.'
+            );
+        }
+
         $base_url = rtrim((string) SEVEN_ACADEMY_API_BASE_URL, '/');
 
         if ($base_url === '') {
@@ -59,7 +69,16 @@ class Seven_Academy_Shortcodes
         }
 
         // Portal nativo React (substitui tela MIS legada).
-        $src = $base_url . '/?embed=1&app=student';
+        $src = add_query_arg(
+            [
+                'embed'          => '1',
+                'app'            => 'student',
+                'licenseToken'   => (string) ($settings['activation_token'] ?? ''),
+                'licenseDomain'  => self::current_domain(),
+                'licenseSiteUrl' => home_url('/'),
+            ],
+            $base_url . '/'
+        );
 
         wp_enqueue_style('seven-academy-mis');
         wp_enqueue_script('seven-academy-mis');
@@ -86,13 +105,32 @@ class Seven_Academy_Shortcodes
             'formulario-cadastro-aluno'
         );
 
+        $settings      = Seven_Academy_Admin::get_settings();
+        $licenseStatus = Seven_Academy_License::get_license_status($settings, true);
+
+        if (empty($licenseStatus['active'])) {
+            return self::render_license_blocked_screen(
+                'Cadastro indisponível',
+                'A licença deste site está inativa, expirada ou ainda não foi validada. Ative a licença no painel do plugin para liberar o formulário de cadastro.'
+            );
+        }
+
         $base_url = rtrim((string) SEVEN_ACADEMY_API_BASE_URL, '/');
 
         if ($base_url === '') {
             return '<p>' . esc_html__('Plugin 7academy: URL da Academy nao configurada.', 'seven-academy') . '</p>';
         }
 
-        $src = $base_url . '/?embed=1&app=student-register';
+        $src = add_query_arg(
+            [
+                'embed'          => '1',
+                'app'            => 'student-register',
+                'licenseToken'   => (string) ($settings['activation_token'] ?? ''),
+                'licenseDomain'  => self::current_domain(),
+                'licenseSiteUrl' => home_url('/'),
+            ],
+            $base_url . '/'
+        );
 
         wp_enqueue_style('seven-academy-mis');
         wp_enqueue_script('seven-academy-mis');
@@ -138,6 +176,25 @@ class Seven_Academy_Shortcodes
         );
     }
 
+    private static function render_license_blocked_screen(string $title, string $message): string
+    {
+        return sprintf(
+            '<div class="seven-academy-license-blocked" style="max-width: 920px; margin: 32px auto; padding: 28px; border: 1px solid #d0d5dd; border-radius: 20px; background: linear-gradient(180deg, #ffffff 0%%, #f8fafc 100%%); box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);">'
+            . '<div style="display:flex; align-items:flex-start; gap:16px;">'
+            . '<div style="width:56px; height:56px; border-radius:16px; background:#fee4e2; color:#b42318; display:flex; align-items:center; justify-content:center; flex:0 0 auto;">'
+            . '<span class="dashicons dashicons-lock" style="font-size:28px; width:28px; height:28px; line-height:28px;"></span>'
+            . '</div>'
+            . '<div style="flex:1;">'
+            . '<h2 style="margin:0 0 8px; font-size:24px; line-height:1.2; color:#102a43;">%s</h2>'
+            . '<p style="margin:0; font-size:16px; line-height:1.6; color:#52667a;">%s</p>'
+            . '</div>'
+            . '</div>'
+            . '</div>',
+            esc_html($title),
+            esc_html($message)
+        );
+    }
+
     private static function parse_css_height_to_px(string $css_height): int
     {
         if (preg_match('/^\\s*(\\d+)\\s*px\\s*$/i', $css_height, $matches) === 1) {
@@ -156,5 +213,11 @@ class Seven_Academy_Shortcodes
         }
         $normalized = strtolower(trim((string) $value));
         return in_array($normalized, ['1', 'true', 'yes', 'y', 'on'], true);
+    }
+
+    private static function current_domain(): string
+    {
+        $host = wp_parse_url(home_url('/'), PHP_URL_HOST);
+        return is_string($host) ? strtolower($host) : '';
     }
 }

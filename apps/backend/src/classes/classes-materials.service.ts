@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   Injectable,
   NotFoundException,
@@ -9,6 +9,32 @@ import { PrismaService } from '../database/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 
 const CLASS_MATERIAL_KIND_PREFIX = 'CLASS_MATERIAL_';
+const MATERIAL_ALLOWED_EXTENSIONS = new Set([
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.ppt',
+  '.pptx',
+  '.xls',
+  '.xlsx',
+  '.txt',
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.gif',
+  '.webp',
+]);
+const MATERIAL_ALLOWED_EXACT_MIME = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+]);
+const MATERIAL_ALLOWED_MIME_PREFIX = ['image/'];
 
 @Injectable()
 export class ClassesMaterialsService {
@@ -71,6 +97,8 @@ export class ClassesMaterialsService {
       );
     }
 
+    this.validateMaterialFile(dto.file);
+
     const material = await this.prisma.studyMaterial.create({
       data: {
         classId: dto.classId,
@@ -109,6 +137,56 @@ export class ClassesMaterialsService {
     }
   }
 
+  async createMaterialsWithFiles(dto: {
+    classId: string;
+    title: string;
+    description?: string;
+    kind?: string;
+    externalUrl?: string;
+    publishedBy?: string;
+    files: MultipartFile[];
+  }) {
+    await this.ensureClassExists(dto.classId);
+
+    const created: Awaited<ReturnType<typeof this.createMaterialWithFile>>[] = [];
+    const rejected: Array<{ fileName: string; reason: string }> = [];
+
+    for (const [index, file] of dto.files.entries()) {
+      const baseTitle = this.resolveBatchTitle(dto.title, file.filename, index);
+
+      try {
+        const material = await this.createMaterialWithFile({
+          classId: dto.classId,
+          title: baseTitle,
+          description: dto.description,
+          kind: dto.kind,
+          externalUrl: dto.externalUrl,
+          publishedBy: dto.publishedBy,
+          file,
+        });
+        created.push(material);
+      } catch (error) {
+        rejected.push({
+          fileName: file.filename || `arquivo-${index + 1}`,
+          reason:
+            error instanceof Error
+              ? error.message
+              : 'Falha ao processar este arquivo.',
+        });
+      }
+    }
+
+    return {
+      created,
+      rejected,
+      summary: {
+        total: dto.files.length,
+        created: created.length,
+        rejected: rejected.length,
+      },
+    };
+  }
+
   async getMaterials(classId: string) {
     await this.ensureClassExists(classId);
 
@@ -142,6 +220,41 @@ export class ClassesMaterialsService {
 
     if (!schoolClass) {
       throw new NotFoundException('Turma não encontrada.');
+    }
+  }
+
+  private resolveBatchTitle(baseTitle: string, fileName: string, index: number) {
+    const fromInput = (baseTitle || '').trim();
+    const cleanedFileName = (fileName || '').trim();
+    const titleFromFile = cleanedFileName.replace(/\.[^/.]+$/, '').trim();
+    const fallback = titleFromFile || `Material ${index + 1}`;
+
+    if (!fromInput) {
+      return fallback;
+    }
+
+    return index === 0 ? fromInput : `${fromInput} - ${fallback}`;
+  }
+
+  private validateMaterialFile(file: MultipartFile) {
+    const fileName = (file.filename || '').trim().toLowerCase();
+    const extensionMatch = fileName.match(/\.[a-z0-9]+$/i);
+    const extension = extensionMatch?.[0] ?? '';
+    const mimeType = (file.mimetype || '').toLowerCase();
+
+    const extensionAllowed = extension
+      ? MATERIAL_ALLOWED_EXTENSIONS.has(extension)
+      : false;
+    const mimeAllowed =
+      MATERIAL_ALLOWED_EXACT_MIME.has(mimeType) ||
+      MATERIAL_ALLOWED_MIME_PREFIX.some((prefix) =>
+        mimeType.startsWith(prefix),
+      );
+
+    if (!extensionAllowed && !mimeAllowed) {
+      throw new BadRequestException(
+        'Formato não suportado. Use PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, JPG, JPEG, PNG, GIF ou WEBP.',
+      );
     }
   }
 }

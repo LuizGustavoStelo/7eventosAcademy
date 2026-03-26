@@ -30,6 +30,16 @@ type StudyMaterial = {
   };
 };
 
+type UploadBatchResponse = {
+  created: StudyMaterial[];
+  rejected: Array<{ fileName: string; reason: string }>;
+  summary: {
+    total: number;
+    created: number;
+    rejected: number;
+  };
+};
+
 type MaterialFormState = {
   classId: string;
   title: string;
@@ -42,6 +52,22 @@ type MaterialFormState = {
 type ContentNativeProps = {
   token: string;
 };
+
+const SUPPORTED_UPLOAD_EXTENSIONS = [
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.ppt',
+  '.pptx',
+  '.xls',
+  '.xlsx',
+  '.txt',
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.gif',
+  '.webp',
+];
 
 function defaultForm(): MaterialFormState {
   return {
@@ -108,7 +134,7 @@ export function ContentNative({ token }: ContentNativeProps) {
   const [feedback, setFeedback] = useState('');
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState<MaterialFormState>(() => defaultForm());
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const loadData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -188,28 +214,70 @@ export function ContentNative({ token }: ContentNativeProps) {
       return;
     }
 
-    if (form.kind === 'link' && !form.externalUrl.trim() && !selectedFile) {
+    if (form.kind === 'link' && !form.externalUrl.trim() && selectedFiles.length === 0) {
       setFormError('Para material do tipo link, informe uma URL externa.');
       return;
     }
 
+    if (selectedFiles.length > 0) {
+      const invalidFile = selectedFiles.find((file) => {
+        const lowerName = file.name.toLowerCase();
+        return !SUPPORTED_UPLOAD_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+      });
+      if (invalidFile) {
+        setFormError(
+          `Formato não suportado em "${invalidFile.name}". Use PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, JPG, JPEG, PNG, GIF ou WEBP.`,
+        );
+        return;
+      }
+    }
+
     setSaving(true);
     try {
-      if (selectedFile) {
-        const payload = new FormData();
-        payload.append('file', selectedFile);
-        payload.append('title', title);
-        payload.append('description', form.description.trim());
-        payload.append('kind', form.kind);
-        payload.append('externalUrl', form.externalUrl.trim());
-        await apiRequest<StudyMaterial>(
-          token,
-          `/classes/${form.classId}/materials/upload`,
-          {
-            method: 'POST',
-            body: payload,
-          },
-        );
+      let successMessage = 'Material cadastrado com sucesso.';
+      if (selectedFiles.length > 0) {
+        if (selectedFiles.length === 1) {
+          const payload = new FormData();
+          payload.append('file', selectedFiles[0]);
+          payload.append('title', title);
+          payload.append('description', form.description.trim());
+          payload.append('kind', form.kind);
+          payload.append('externalUrl', form.externalUrl.trim());
+          await apiRequest<StudyMaterial>(
+            token,
+            `/classes/${form.classId}/materials/upload`,
+            {
+              method: 'POST',
+              body: payload,
+            },
+          );
+        } else {
+          const payload = new FormData();
+          selectedFiles.forEach((file) => payload.append('files', file));
+          payload.append('title', title);
+          payload.append('description', form.description.trim());
+          payload.append('kind', form.kind);
+          payload.append('externalUrl', form.externalUrl.trim());
+
+          const batch = await apiRequest<UploadBatchResponse>(
+            token,
+            `/classes/${form.classId}/materials/upload-batch`,
+            {
+              method: 'POST',
+              body: payload,
+            },
+          );
+
+          if (batch.rejected.length > 0) {
+            const firstErrors = batch.rejected
+              .slice(0, 3)
+              .map((item) => `${item.fileName}: ${item.reason}`)
+              .join(' | ');
+            successMessage = `${batch.summary.created} arquivo(s) enviado(s). ${batch.summary.rejected} rejeitado(s). ${firstErrors}`;
+          } else {
+            successMessage = `${batch.summary.created} arquivo(s) enviados com sucesso.`;
+          }
+        }
       } else {
         await apiRequest<StudyMaterial>(token, `/classes/${form.classId}/materials`, {
           method: 'POST',
@@ -229,8 +297,8 @@ export function ContentNative({ token }: ContentNativeProps) {
         ...defaultForm(),
         classId: current.classId,
       }));
-      setSelectedFile(null);
-      setFeedback('Material cadastrado com sucesso.');
+      setSelectedFiles([]);
+      setFeedback(successMessage);
     } catch (submitError) {
       setFormError(
         submitError instanceof Error
@@ -243,8 +311,8 @@ export function ContentNative({ token }: ContentNativeProps) {
   };
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextFile = event.target.files?.[0] ?? null;
-    setSelectedFile(nextFile);
+    const nextFiles = Array.from(event.target.files ?? []);
+    setSelectedFiles(nextFiles);
   };
 
   return (
@@ -368,8 +436,22 @@ export function ContentNative({ token }: ContentNativeProps) {
 
               <label>
                 Arquivo (opcional)
-                <input type="file" onChange={onFileChange} />
-                {selectedFile ? <small>{selectedFile.name}</small> : null}
+                <input
+                  type="file"
+                  multiple
+                  accept={SUPPORTED_UPLOAD_EXTENSIONS.join(',')}
+                  onChange={onFileChange}
+                />
+                {selectedFiles.length > 0 ? (
+                  <small>
+                    {selectedFiles.length} arquivo(s) selecionado(s):{' '}
+                    {selectedFiles.slice(0, 2).map((file) => file.name).join(', ')}
+                    {selectedFiles.length > 2 ? '...' : ''}
+                  </small>
+                ) : null}
+                <small>
+                  Formatos aceitos: PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, JPG, JPEG, PNG, GIF, WEBP.
+                </small>
               </label>
 
               <label>

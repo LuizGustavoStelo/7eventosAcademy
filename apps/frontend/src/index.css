@@ -19,7 +19,7 @@
 
 body {
   margin: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Manrope', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: var(--cor-areia);
   color: var(--cor-preto);
 }
@@ -244,9 +244,10 @@ table button:disabled {
   background: #fbfbfb;
 }
 
-.global-topbar-search .material-symbols-outlined {
+.global-topbar-search .global-topbar-svg {
   color: #9ca3af;
-  font-size: 1.25rem;
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .global-topbar-search input {
@@ -2475,6 +2476,16 @@ table button:disabled {
   cursor: pointer;
 }
 
+.global-topbar-svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .global-topbar-icon:hover {
   background: rgba(0, 0, 0, 0.05);
   color: #1f2937;
@@ -2518,8 +2529,9 @@ table button:disabled {
   cursor: pointer;
 }
 
-.global-avatar-remove .material-symbols-outlined {
-  font-size: 14px;
+.global-avatar-remove .global-topbar-svg {
+  width: 12px;
+  height: 12px;
 }
 
 .global-avatar-remove:hover {
@@ -2629,8 +2641,13 @@ table button:disabled {
 }
 
 .global-sidebar-icon {
-  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
-  font-size: 1.15rem;
+  width: 1.08rem;
+  height: 1.08rem;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
   flex: 0 0 auto;
 }
 

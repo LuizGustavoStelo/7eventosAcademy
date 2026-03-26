@@ -152,6 +152,26 @@ export class ClassesService {
     });
   }
 
+  async remove(classId: string) {
+    const schoolClass = await this.prisma.schoolClass.findUnique({
+      where: { id: classId },
+      select: { id: true },
+    });
+
+    if (!schoolClass) {
+      throw new NotFoundException('Turma não encontrada.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.schoolClass.delete({ where: { id: classId } });
+      await tx.systemSetting.deleteMany({
+        where: { key: `agenda-class:${classId}` },
+      });
+    });
+
+    return { success: true };
+  }
+
   private toPrismaStatus(status: string) {
     const statusMap: Record<
       ClassStatusInput,

@@ -11,6 +11,14 @@ type Student = {
   id: string;
   name: string;
   email: string;
+  courses?: Array<{
+    id: string;
+    status: string;
+    course?: {
+      id: string;
+      name: string;
+    } | null;
+  }>;
 };
 
 type Enrollment = {
@@ -273,6 +281,7 @@ export function ClassesNative({ token }: ClassesNativeProps) {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingClassId, setDeletingClassId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<ClassFormState>(() => defaultClassForm());
@@ -340,15 +349,39 @@ export function ClassesNative({ token }: ClassesNativeProps) {
         .map((item) => item.studentId),
     );
 
-  const getActiveEnrollmentStudentSet = (exceptClassId?: string): Set<string> =>
+  const classById = useMemo(() => {
+    const next = new Map<string, SchoolClass>();
+    classes.forEach((item) => next.set(item.id, item));
+    return next;
+  }, [classes]);
+
+  const getActiveEnrollmentStudentSet = (
+    courseId: string,
+    exceptClassId?: string,
+  ): Set<string> =>
     new Set(
       enrollments
         .filter(
           (item) =>
             item.status === 'ACTIVE' &&
+            classById.get(item.classId)?.courseId === courseId &&
             (!exceptClassId || item.classId !== exceptClassId),
         )
         .map((item) => item.studentId),
+    );
+
+  const getCourseEligibleStudentSet = (courseId: string): Set<string> =>
+    new Set(
+      students
+        .filter((student) =>
+          (student.courses ?? []).some(
+            (studentCourse) =>
+              studentCourse.course?.id === courseId &&
+              (studentCourse.status === 'ACTIVE' ||
+                studentCourse.status === 'INTERESTED'),
+          ),
+        )
+        .map((student) => student.id),
     );
 
   const openEditModal = (schoolClass: SchoolClass) => {
@@ -395,18 +428,6 @@ export function ClassesNative({ token }: ClassesNativeProps) {
       return className.includes(query) || courseName.includes(query);
     });
   }, [classes, search]);
-
-  const activeCount = classes.filter((item) => item.status !== 'CLOSED').length;
-  const totalSeats = classes.reduce(
-    (acc, item) => acc + Number(item.totalSeats || 0),
-    0,
-  );
-  const occupiedSeats = classes.reduce((acc, item) => {
-    if (typeof item.occupiedSeats === 'number') return acc + item.occupiedSeats;
-    return acc + Number(item._count?.enrollments ?? 0);
-  }, 0);
-  const occupancyRate =
-    totalSeats > 0 ? Math.round((occupiedSeats / totalSeats) * 100) : 0;
 
   const openCreateModal = () => {
     setForm(defaultClassForm());
@@ -545,13 +566,48 @@ export function ClassesNative({ token }: ClassesNativeProps) {
   };
 
   const availableStudents = useMemo(() => {
-    const unavailable = getActiveEnrollmentStudentSet(form.id || undefined);
+    if (!form.courseId) return [];
+
+    const eligibleStudentIds = getCourseEligibleStudentSet(form.courseId);
+    const unavailable = getActiveEnrollmentStudentSet(
+      form.courseId,
+      form.id || undefined,
+    );
     const selected = new Set(form.selectedStudentIds);
 
     return students.filter(
-      (student) => !unavailable.has(student.id) || selected.has(student.id),
+      (student) =>
+        (eligibleStudentIds.has(student.id) || selected.has(student.id)) &&
+        (!unavailable.has(student.id) || selected.has(student.id)),
     );
-  }, [students, enrollments, form.id, form.selectedStudentIds]);
+  }, [
+    students,
+    enrollments,
+    classById,
+    form.id,
+    form.courseId,
+    form.selectedStudentIds,
+  ]);
+
+  useEffect(() => {
+    if (!form.courseId) {
+      if (form.selectedStudentIds.length === 0) return;
+      setForm((current) => ({ ...current, selectedStudentIds: [] }));
+      return;
+    }
+
+    const availableIds = new Set(availableStudents.map((student) => student.id));
+    const nextSelected = form.selectedStudentIds.filter((id) =>
+      availableIds.has(id),
+    );
+
+    if (nextSelected.length !== form.selectedStudentIds.length) {
+      setForm((current) => ({
+        ...current,
+        selectedStudentIds: nextSelected,
+      }));
+    }
+  }, [form.courseId, availableStudents, form.selectedStudentIds]);
 
   const saveClass = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -651,6 +707,37 @@ export function ClassesNative({ token }: ClassesNativeProps) {
     }
   };
 
+  const removeClass = async (classId: string) => {
+    if (
+      !window.confirm(
+        'Deseja realmente apagar esta turma? Os alunos continuam vinculados ao curso e poderão ser alocados em outra turma.',
+      )
+    ) {
+      return;
+    }
+
+    setError('');
+    setDeletingClassId(classId);
+    try {
+      await apiRequest<{ success: boolean }>(token, `/classes/${classId}`, {
+        method: 'DELETE',
+      });
+      await loadData();
+      if (form.id === classId) {
+        setModalOpen(false);
+        setForm(defaultClassForm());
+      }
+    } catch (removeError) {
+      setError(
+        removeError instanceof Error
+          ? removeError.message
+          : 'Falha ao apagar turma.',
+      );
+    } finally {
+      setDeletingClassId((current) => (current === classId ? null : current));
+    }
+  };
+
   return (
     <section className="native-page native-classes">
       <header className="native-page-header">
@@ -660,21 +747,6 @@ export function ClassesNative({ token }: ClassesNativeProps) {
           administrativa.
         </p>
       </header>
-
-      <div className="native-kpi-grid native-kpi-grid-small">
-        <article className="native-kpi-card">
-          <span>Turmas ativas</span>
-          <strong>{activeCount}</strong>
-          <small>{classes.length} turma(s) cadastrada(s)</small>
-        </article>
-        <article className="native-kpi-card">
-          <span>Ocupação</span>
-          <strong>{occupancyRate}%</strong>
-          <small>
-            {occupiedSeats}/{totalSeats} vagas ocupadas
-          </small>
-        </article>
-      </div>
 
       <div className="native-toolbar">
         <input
@@ -724,12 +796,23 @@ export function ClassesNative({ token }: ClassesNativeProps) {
                         {formatDate(item.startDate)} - {formatDate(item.endDate)}
                       </td>
                       <td>
-                        {occupied}/{item.totalSeats}
+                        {occupied}/{item.totalSeats}{' '}
+                        {item.totalSeats > 0
+                          ? `${Math.round((occupied / item.totalSeats) * 100)}%`
+                          : '0%'}
                       </td>
                       <td>{classStatusLabel[item.status]}</td>
                       <td>
                         <button type="button" onClick={() => openEditModal(item)}>
                           Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={() => void removeClass(item.id)}
+                          disabled={deletingClassId === item.id}
+                        >
+                          {deletingClassId === item.id ? 'Apagando...' : 'Apagar'}
                         </button>
                       </td>
                     </tr>
@@ -925,10 +1008,12 @@ export function ClassesNative({ token }: ClassesNativeProps) {
 
               <fieldset className="native-student-list">
                 <legend>
-                  Alunos disponíveis ({availableStudents.length}/{students.length})
+                  Alunos matriculados disponíveis ({availableStudents.length})
                 </legend>
-                {availableStudents.length === 0 ? (
-                  <p>Nenhum aluno disponível para esta turma.</p>
+                {!form.courseId ? (
+                  <p>Selecione um curso para listar os alunos matriculados.</p>
+                ) : availableStudents.length === 0 ? (
+                  <p>Nenhum aluno matriculado disponível para este curso.</p>
                 ) : (
                   availableStudents.map((student) => (
                     <label key={student.id}>
@@ -947,6 +1032,16 @@ export function ClassesNative({ token }: ClassesNativeProps) {
               </fieldset>
 
               <div className="native-modal-actions">
+                {form.id ? (
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => void removeClass(form.id)}
+                    disabled={Boolean(deletingClassId)}
+                  >
+                    {deletingClassId === form.id ? 'Apagando...' : 'Apagar turma'}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="ghost"

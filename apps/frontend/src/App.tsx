@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AgendaNative } from './native/AgendaNative';
 import { ClassesNative } from './native/ClassesNative';
@@ -48,6 +48,11 @@ type NavSection = {
   renderMode?: 'iframe' | 'native';
 };
 
+type PublicPortalLicenseState = {
+  status: 'loading' | 'valid' | 'blocked';
+  message: string;
+};
+
 const SESSION_TOKEN_KEY = 'academy-auth-token';
 const SESSION_USER_KEY = 'academy-auth-user';
 const IMPERSONATION_SOURCE_TOKEN_KEY = 'academy-impersonation-source-token';
@@ -65,14 +70,14 @@ const SECOES_SUPERADMIN: NavSection[] = [
   },
   {
     id: 'superadmin_gestao_contas',
-    label: 'Gestão de Contas',
+    label: 'GestÃ£o de Contas',
     subtitle: 'Template fiel: superadmin_gestao_de_contas',
     templatePath: '/templates/superadmin_gestao_de_contas/index.html',
     renderMode: 'native',
   },
   {
     id: 'superadmin_impersonacao',
-    label: 'Impersonação',
+    label: 'ImpersonaÃ§Ã£o',
     subtitle: 'Template fiel: superadmin_tela_de_impersonacao',
     templatePath: '/templates/superadmin_tela_de_impersonacao/index.html',
     renderMode: 'native',
@@ -80,7 +85,7 @@ const SECOES_SUPERADMIN: NavSection[] = [
   {
     id: 'superadmin_wordpress_plugin',
     label: 'Plugin WordPress',
-    subtitle: 'Gerenciar licenças e releases do plugin 7academy',
+    subtitle: 'Gerenciar licenÃ§as e releases do plugin 7academy',
     templatePath: '/templates/superadmin_wordpress_plugin/index.html',
     renderMode: 'native',
   },
@@ -118,7 +123,7 @@ const SECOES_ADMIN: NavSection[] = [
   {
     id: 'admin_aulas',
     label: 'Aulas',
-    subtitle: 'Lançamento de presença por aula (retroativo e bloqueio de futuras)',
+    subtitle: 'LanÃ§amento de presenÃ§a por aula (retroativo e bloqueio de futuras)',
     templatePath: '/templates/admin_professor_agenda_de_aulas_e_lives/index.html',
     renderMode: 'native',
   },
@@ -152,14 +157,14 @@ const SECOES_ADMIN: NavSection[] = [
   },
   {
     id: 'admin_relatorios',
-    label: 'RELATÓRIOS',
+    label: 'RELATÃ“RIOS',
     subtitle: 'Template fiel: admin_professor_relatorios_e_analises',
     templatePath: '/templates/admin_professor_relatorios_e_analises/index.html',
     renderMode: 'native',
   },
   {
     id: 'admin_configuracoes',
-    label: 'Configurações',
+    label: 'ConfiguraÃ§Ãµes',
     subtitle: 'Template fiel: admin_professor_configuracoes',
     templatePath: '/templates/admin_professor_configuracoes/index.html',
     renderMode: 'native',
@@ -183,6 +188,220 @@ const ICONE_POR_SECAO: Record<string, string> = {
   superadmin_impersonacao: 'fingerprint',
   superadmin_wordpress_plugin: 'extension',
 };
+
+function SidebarNavIcon({ name }: { name: string }) {
+  const classes = 'global-sidebar-icon';
+
+  if (name === 'dashboard') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <rect x="3" y="3" width="8" height="8" rx="1.5" />
+        <rect x="13" y="3" width="8" height="5" rx="1.5" />
+        <rect x="13" y="10" width="8" height="11" rx="1.5" />
+        <rect x="3" y="13" width="8" height="8" rx="1.5" />
+      </svg>
+    );
+  }
+
+  if (name === 'school') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M2 9.5L12 4l10 5.5L12 15 2 9.5z" />
+        <path d="M6 11.7V16c0 1.7 3 3 6 3s6-1.3 6-3v-4.3" />
+      </svg>
+    );
+  }
+
+  if (name === 'groups') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <circle cx="9" cy="9" r="2.7" />
+        <circle cx="16.5" cy="10.5" r="2.2" />
+        <path d="M3.5 18c.8-2.6 2.8-4 5.5-4s4.7 1.4 5.5 4" />
+        <path d="M14.5 17.5c.6-1.8 2-2.8 4-2.8 1.2 0 2.2.4 3 .9" />
+      </svg>
+    );
+  }
+
+  if (name === 'person') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <circle cx="12" cy="8" r="3.2" />
+        <path d="M5 19c1.6-3 4-4.5 7-4.5S17.4 16 19 19" />
+      </svg>
+    );
+  }
+
+  if (name === 'fact_check') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M8 8h9M8 12h7M8 16h5" />
+        <path d="M5.2 8.4l1.3 1.3 1.9-1.9M5.2 12.4l1.3 1.3 1.9-1.9" />
+      </svg>
+    );
+  }
+
+  if (name === 'calendar_today') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M3 9h18M8 3v4M16 3v4" />
+      </svg>
+    );
+  }
+
+  if (name === 'payments') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="M3 10h18M7 15h3" />
+      </svg>
+    );
+  }
+
+  if (name === 'menu_book') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M4 5.5A2.5 2.5 0 016.5 3H20v16.5h-13A2.5 2.5 0 014.5 17V6.5" />
+        <path d="M7 6.5H18M7 10h11M7 13.5h8" />
+      </svg>
+    );
+  }
+
+  if (name === 'campaign') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M3 10v4l9-2V8l-9 2z" />
+        <path d="M12 8l6-3v14l-6-3M6 14l1 4h2l-1-4" />
+      </svg>
+    );
+  }
+
+  if (name === 'bar_chart') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M4 20V9M10 20V4M16 20v7M22 20H2" />
+      </svg>
+    );
+  }
+
+  if (name === 'settings') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M12 8.5A3.5 3.5 0 1112 15.5 3.5 3.5 0 0112 8.5z" />
+        <path d="M19.4 12a7.4 7.4 0 00-.1-1.1l2-1.5-2-3.5-2.4 1a7.6 7.6 0 00-1.8-1L14.7 3h-5.4l-.4 2.9a7.6 7.6 0 00-1.8 1l-2.4-1-2 3.5 2 1.5a7.4 7.4 0 000 2.2l-2 1.5 2 3.5 2.4-1a7.6 7.6 0 001.8 1l.4 2.9h5.4l.4-2.9a7.6 7.6 0 001.8-1l2.4 1 2-3.5-2-1.5c.1-.4.1-.8.1-1.1z" />
+      </svg>
+    );
+  }
+
+  if (name === 'admin_panel_settings') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M12 3l8 4v5c0 5-3.2 8.3-8 9-4.8-.7-8-4-8-9V7l8-4z" />
+        <path d="M8.5 12.2l2.2 2.2 4.8-4.8" />
+      </svg>
+    );
+  }
+
+  if (name === 'fingerprint') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M12 4a6.5 6.5 0 016.5 6.5v2.2M12 7a3.5 3.5 0 013.5 3.5v3.5M12 10a.5.5 0 01.5.5v5.5" />
+        <path d="M8.5 11v2.5A8.5 8.5 0 0017 22M5 10.5v1.8A11.2 11.2 0 0012.7 23M3.5 8.8A8.5 8.5 0 0112 2.5" />
+      </svg>
+    );
+  }
+
+  if (name === 'extension') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M8 3h8v5a2 2 0 102 2h3v8a3 3 0 01-3 3h-5v-3a2 2 0 10-2 0v3H6a3 3 0 01-3-3v-5h5a2 2 0 100-2H3V6a3 3 0 013-3h2z" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+      <circle cx="12" cy="12" r="9" />
+    </svg>
+  );
+}
+
+function TopbarIcon({
+  name,
+}: {
+  name: 'search' | 'notifications' | 'light_mode' | 'dark_mode' | 'close';
+}) {
+  const classes = 'global-topbar-svg';
+
+  if (name === 'search') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <circle cx="11" cy="11" r="6.5" />
+        <path d="M16 16l5 5" />
+      </svg>
+    );
+  }
+
+  if (name === 'notifications') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M12 4a4 4 0 00-4 4v2.6c0 1.2-.4 2.4-1.2 3.3L5.5 15.4h13l-1.3-1.5A5 5 0 0116 10.6V8a4 4 0 00-4-4z" />
+        <path d="M9.5 17.5a2.5 2.5 0 005 0" />
+      </svg>
+    );
+  }
+
+  if (name === 'light_mode') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2.5v3M12 18.5v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2.5 12h3M18.5 12h3M4.9 19.1L7 17M17 7l2.1-2.1" />
+      </svg>
+    );
+  }
+
+  if (name === 'dark_mode') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M15.5 3.5a8.5 8.5 0 108 11.2 7 7 0 01-8-11.2z" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+function PublicPortalBlocked({ message }: { message: string }) {
+  return (
+    <div className="auth-shell embedded">
+      <section className="auth-card" style={{ maxWidth: '720px' }}>
+        <div className="auth-tabs">
+          <button type="button" className="active" disabled>
+            Acesso restrito
+          </button>
+        </div>
+        <h2>Portal indisponÃ­vel</h2>
+        <p className="auth-error" style={{ marginTop: 0 }}>
+          {message}
+        </p>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <p style={{ margin: 0, color: 'var(--text-secondary, #52667a)', lineHeight: 1.6 }}>
+            Se vocÃª Ã© aluno ou responsÃ¡vel, confirme com a instituiÃ§Ã£o se a licenÃ§a estÃ¡ ativa.
+          </p>
+          <a href="/" style={{ color: 'var(--accent-primary, #139395)', fontWeight: 600 }}>
+            Recarregar
+          </a>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 export default function App() {
   const [modoCadastro, setModoCadastro] = useState(false);
@@ -224,8 +443,16 @@ export default function App() {
   const appMode = queryParams.get('app');
   const isStudentPortalMode = appMode === 'student';
   const isStudentRegisterMode = appMode === 'student-register';
+  const isPublicStudentPortal = isStudentPortalMode || isStudentRegisterMode;
+  const portalLicenseToken = queryParams.get('licenseToken') ?? '';
+  const portalLicenseDomain = queryParams.get('licenseDomain') ?? '';
+  const portalLicenseSiteUrl = queryParams.get('licenseSiteUrl') ?? '';
   const autenticado = Boolean(token && usuario);
   const secoes = usuario?.role === 'superadmin' ? SECOES_SUPERADMIN : SECOES_ADMIN;
+  const [publicPortalLicense, setPublicPortalLicense] = useState<PublicPortalLicenseState>(() => ({
+    status: isPublicStudentPortal ? 'loading' : 'valid',
+    message: '',
+  }));
 
   useEffect(() => {
     if (!isEmbedded) return;
@@ -306,15 +533,75 @@ export default function App() {
     document.body.classList.toggle('dark', temaEscuro);
   }, [temaEscuro]);
 
+  useEffect(() => {
+    if (!isPublicStudentPortal) {
+      setPublicPortalLicense({ status: 'valid', message: '' });
+      return;
+    }
+
+    if (!portalLicenseToken || !portalLicenseDomain || !portalLicenseSiteUrl) {
+      setPublicPortalLicense({
+        status: 'blocked',
+        message: 'LicenÃ§a nÃ£o informada para este portal.',
+      });
+      return;
+    }
+
+    let cancelled = false;
+    setPublicPortalLicense({ status: 'loading', message: '' });
+
+    void (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/wordpress/license/validate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            activationToken: portalLicenseToken,
+            domain: portalLicenseDomain,
+            siteUrl: portalLicenseSiteUrl,
+          }),
+        });
+
+        const data = (await response.json().catch(() => null)) as {
+          valid?: boolean;
+          reason?: string;
+        } | null;
+
+        if (cancelled) return;
+
+        if (!response.ok || !data?.valid) {
+          setPublicPortalLicense({
+            status: 'blocked',
+            message: 'LicenÃ§a expirada, inativa ou invÃ¡lida para este portal.',
+          });
+          return;
+        }
+
+        setPublicPortalLicense({ status: 'valid', message: '' });
+      } catch {
+        if (!cancelled) {
+          setPublicPortalLicense({
+            status: 'blocked',
+            message: 'NÃ£o foi possÃ­vel validar a licenÃ§a deste portal.',
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPublicStudentPortal, portalLicenseToken, portalLicenseDomain, portalLicenseSiteUrl]);
+
   const lerErroApi = async (response: Response) => {
     try {
       const data = (await response.json()) as { message?: string | string[] };
       if (Array.isArray(data.message)) return data.message.join(' ');
       if (typeof data.message === 'string') return data.message;
     } catch {
-      return 'Falha na operação.';
+      return 'Falha na operaÃ§Ã£o.';
     }
-    return 'Falha na operação.';
+    return 'Falha na operaÃ§Ã£o.';
   };
 
   const limparImpersonacao = () => {
@@ -408,7 +695,7 @@ export default function App() {
       const me = (await response.json()) as AuthUser;
       atualizarUsuarioSessao(me);
     } catch {
-      // ignora erro de atualização de perfil
+      // ignora erro de atualizaÃ§Ã£o de perfil
     }
   };
 
@@ -471,7 +758,7 @@ export default function App() {
 
       persistirSessao((await response.json()) as AuthResponse);
     } catch {
-      setErro('Não foi possível conectar com o backend.');
+      setErro('NÃ£o foi possÃ­vel conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -487,7 +774,7 @@ export default function App() {
     }
 
     if (senha !== confirmacaoSenha) {
-      setErro('A confirmação de senha não confere.');
+      setErro('A confirmaÃ§Ã£o de senha nÃ£o confere.');
       return;
     }
 
@@ -510,7 +797,7 @@ export default function App() {
       setConfirmacaoSenha('');
       setSenha('');
     } catch {
-      setErro('Não foi possível conectar com o backend.');
+      setErro('NÃ£o foi possÃ­vel conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -556,6 +843,21 @@ export default function App() {
     atualizarUsuarioSessao(nextUser);
   };
 
+  if (isPublicStudentPortal && publicPortalLicense.status === 'loading') {
+    return (
+      <div className={`auth-shell ${isEmbedded ? 'embedded' : ''}`}>
+        <section className="auth-card">
+          <h2>Verificando licenÃ§a</h2>
+          <p>Preparando o portal com validaÃ§Ã£o de acesso...</p>
+        </section>
+      </div>
+    );
+  }
+
+  if (isPublicStudentPortal && publicPortalLicense.status === 'blocked') {
+    return <PublicPortalBlocked message={publicPortalLicense.message} />;
+  }
+
   if (!autenticado) {
     if (isStudentRegisterMode) {
       return <StudentRegistrationNative embedded={isEmbedded} />;
@@ -575,10 +877,10 @@ export default function App() {
               </div>
             </div>
 
-            <h1>Bem-vindo à plataforma Academy</h1>
+            <h1>Bem-vindo Ã  plataforma Academy</h1>
             <p>
-              Ambiente para gestão de contas, turmas, matrículas, financeiro e operação
-              acadêmica.
+              Ambiente para gestÃ£o de contas, turmas, matrÃ­culas, financeiro e operaÃ§Ã£o
+              acadÃªmica.
             </p>
           </section>
         )}
@@ -699,9 +1001,7 @@ export default function App() {
               className={secaoAtiva === item.id ? 'active' : ''}
               onClick={() => setSecaoAtiva(item.id)}
             >
-              <span className="material-symbols-outlined global-sidebar-icon">
-                {ICONE_POR_SECAO[item.id] ?? 'dashboard'}
-              </span>
+              <SidebarNavIcon name={ICONE_POR_SECAO[item.id] ?? 'dashboard'} />
               <span className="global-sidebar-label">{item.label}</span>
             </button>
           ))}
@@ -723,24 +1023,24 @@ export default function App() {
         <header className="global-topbar-shell">
           <div className="global-topbar-left">
             <label className="global-topbar-search" htmlFor="global-search">
-              <span className="material-symbols-outlined">search</span>
+              <TopbarIcon name="search" />
               <input
                 id="global-search"
                 type="text"
                 placeholder="Buscar alunos, turmas ou materiais..."
               />
             </label>
-            <nav className="global-topbar-tabs" aria-label="Navegação superior">
+            <nav className="global-topbar-tabs" aria-label="NavegaÃ§Ã£o superior">
               <button type="button" className="active">
-                Visão geral
+                VisÃ£o geral
               </button>
-              <button type="button">Análises</button>
-              <button type="button">Relatórios</button>
+              <button type="button">AnÃ¡lises</button>
+              <button type="button">RelatÃ³rios</button>
             </nav>
           </div>
           <div className="global-topbar-right">
-            <button type="button" className="global-topbar-icon" aria-label="Notificações">
-              <span className="material-symbols-outlined">notifications</span>
+            <button type="button" className="global-topbar-icon" aria-label="NotificaÃ§Ãµes">
+              <TopbarIcon name="notifications" />
               <span className="global-topbar-dot" />
             </button>
             <button
@@ -749,9 +1049,7 @@ export default function App() {
               aria-label="Alternar tema"
               onClick={() => setTemaEscuro((current) => !current)}
             >
-              <span className="material-symbols-outlined">
-                {temaEscuro ? 'light_mode' : 'dark_mode'}
-              </span>
+              <TopbarIcon name={temaEscuro ? 'light_mode' : 'dark_mode'} />
             </button>
             <div className="global-topbar-user">
               <input
@@ -768,7 +1066,7 @@ export default function App() {
                     const message =
                       error instanceof Error
                         ? error.message
-                        : 'Não foi possível atualizar a foto de perfil.';
+                        : 'NÃ£o foi possÃ­vel atualizar a foto de perfil.';
                     window.alert(message);
                   } finally {
                     event.target.value = '';
@@ -777,7 +1075,7 @@ export default function App() {
               />
               <img
                 className="global-topbar-avatar"
-                alt="Avatar do usuário"
+                alt="Avatar do usuÃ¡rio"
                 src={
                   usuario?.avatarUrl ||
                   'https://lh3.googleusercontent.com/aida-public/AB6AXuDDw0TJspg79mG5fWY5VjXS8gA3CE9GPLyYCbl0ZwS48kInu_yAIMZeKLC-OO1TctEVlEQysf1QpBPTp8Ml57g9o3zSmOUvPKnOaJm_IE9_7ZO_Tx_aDraQVsQLeQvThBrV9idAYpQDADLvjejTx6ovynKPs6bTZNhy1nmT1Ns-q5zbuMwFPjqqLe6Xs_P8CYwLK3gFTRvheh09Ut1P3UIbNyqcLVWrchzSNWi-sAIj_dgvKhNaNS7dwFGFCfE7NgF_XgphKdfvTwbQ'
@@ -796,12 +1094,12 @@ export default function App() {
                       const message =
                         error instanceof Error
                           ? error.message
-                          : 'Não foi possível remover a foto de perfil.';
+                          : 'NÃ£o foi possÃ­vel remover a foto de perfil.';
                       window.alert(message);
                     }
                   }}
                 >
-                  <span className="material-symbols-outlined">close</span>
+                  <TopbarIcon name="close" />
                 </button>
               ) : null}
               <div className="global-topbar-user-meta">
@@ -816,10 +1114,10 @@ export default function App() {
           <section className="native-impersonation-banner">
             <div>
               <strong>
-                Sessão de impersonação ativa: {impersonationMeta.actorName}
+                SessÃ£o de impersonaÃ§Ã£o ativa: {impersonationMeta.actorName}
               </strong>
               <small>
-                Motivo: {impersonationMeta.reason} • Expira em{' '}
+                Motivo: {impersonationMeta.reason} â€¢ Expira em{' '}
                 {new Intl.DateTimeFormat('pt-BR', {
                   day: '2-digit',
                   month: '2-digit',
@@ -829,7 +1127,7 @@ export default function App() {
               </small>
             </div>
             <button type="button" onClick={encerrarImpersonacao}>
-              Encerrar impersonação
+              Encerrar impersonaÃ§Ã£o
             </button>
           </section>
         ) : null}
@@ -919,3 +1217,5 @@ export default function App() {
     </div>
   );
 }
+
+
