@@ -42,7 +42,6 @@ Aplicação dedicada da Academy em arquitetura de monorepo, com frontend React +
 
 Documentação base:
 
-- Plano técnico: `docs/PLANO_PLUGIN_WORDPRESS_MIS.md`
 - Guia de setup: `docs/wordpress-plugin-setup.md`
 - Código do plugin: `integrations/wordpress/7academy`
 

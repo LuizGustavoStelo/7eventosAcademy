@@ -10,6 +10,8 @@ import { NoticesNative } from './native/NoticesNative';
 import { ReportsNative } from './native/ReportsNative';
 import { SettingsNative } from './native/SettingsNative';
 import { StudentsNative } from './native/StudentsNative';
+import { StudentAreaNative } from './native/StudentAreaNative';
+import { StudentRegistrationNative } from './native/StudentRegistrationNative';
 import { SuperadminAccountsNative } from './native/SuperadminAccountsNative';
 import { SuperadminDashboardNative } from './native/SuperadminDashboardNative';
 import { SuperadminImpersonationNative } from './native/SuperadminImpersonationNative';
@@ -208,7 +210,11 @@ export default function App() {
   });
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
-  const isEmbedded = new URLSearchParams(window.location.search).get('embed') === '1';
+  const queryParams = new URLSearchParams(window.location.search);
+  const isEmbedded = queryParams.get('embed') === '1';
+  const appMode = queryParams.get('app');
+  const isStudentPortalMode = appMode === 'student';
+  const isStudentRegisterMode = appMode === 'student-register';
   const autenticado = Boolean(token && usuario);
   const secoes = usuario?.role === 'superadmin' ? SECOES_SUPERADMIN : SECOES_ADMIN;
 
@@ -475,6 +481,12 @@ export default function App() {
   };
 
   if (!autenticado) {
+    if (isStudentRegisterMode) {
+      return <StudentRegistrationNative embedded={isEmbedded} />;
+    }
+
+    const modoCadastroAtivo = isStudentPortalMode ? false : modoCadastro;
+
     return (
       <div className={`auth-shell ${isEmbedded ? 'embedded' : ''}`}>
         {!isEmbedded && (
@@ -496,35 +508,37 @@ export default function App() {
         )}
 
         <section className="auth-card">
-          <div className="auth-tabs">
-            <button
-              type="button"
-              className={!modoCadastro ? 'active' : ''}
-              onClick={() => {
-                setErro('');
-                setModoCadastro(false);
-              }}
-              disabled={carregando}
-            >
-              Entrar
-            </button>
-            <button
-              type="button"
-              className={modoCadastro ? 'active' : ''}
-              onClick={() => {
-                setErro('');
-                setModoCadastro(true);
-              }}
-              disabled={carregando}
-            >
-              Cadastrar
-            </button>
-          </div>
+          {isStudentPortalMode ? null : (
+            <div className="auth-tabs">
+              <button
+                type="button"
+                className={!modoCadastroAtivo ? 'active' : ''}
+                onClick={() => {
+                  setErro('');
+                  setModoCadastro(false);
+                }}
+                disabled={carregando}
+              >
+                Entrar
+              </button>
+              <button
+                type="button"
+                className={modoCadastroAtivo ? 'active' : ''}
+                onClick={() => {
+                  setErro('');
+                  setModoCadastro(true);
+                }}
+                disabled={carregando}
+              >
+                Cadastrar
+              </button>
+            </div>
+          )}
 
-          <h2>{modoCadastro ? 'Criar conta' : 'Entrar'}</h2>
+          <h2>{modoCadastroAtivo ? 'Criar conta' : 'Entrar'}</h2>
 
-          <form className="auth-form" onSubmit={modoCadastro ? cadastrar : entrar}>
-            {modoCadastro ? (
+          <form className="auth-form" onSubmit={modoCadastroAtivo ? cadastrar : entrar}>
+            {modoCadastroAtivo ? (
               <>
                 <label htmlFor="nome">Nome completo</label>
                 <input
@@ -555,7 +569,7 @@ export default function App() {
               disabled={carregando}
             />
 
-            {modoCadastro ? (
+            {modoCadastroAtivo ? (
               <>
                 <label htmlFor="confirmacaoSenha">Confirmar senha</label>
                 <input
@@ -573,7 +587,7 @@ export default function App() {
             <button type="submit" disabled={carregando}>
               {carregando
                 ? 'Processando...'
-                : modoCadastro
+                : modoCadastroAtivo
                   ? 'Cadastrar e continuar'
                   : 'Entrar na plataforma'}
             </button>
@@ -581,6 +595,10 @@ export default function App() {
         </section>
       </div>
     );
+  }
+
+  if (usuario?.role === 'user') {
+    return <StudentAreaNative token={token} user={usuario} onLogout={sair} />;
   }
 
   const impersonando = Boolean(impersonationMeta && usuario?.role !== 'superadmin');

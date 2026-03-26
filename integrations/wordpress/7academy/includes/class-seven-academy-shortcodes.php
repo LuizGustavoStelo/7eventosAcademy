@@ -1,10 +1,10 @@
 <?php
 /**
- * Shortcodes do Modulo Incorporado Seguro (MIS)
+ * Shortcodes de integração da Área do Aluno
  *
  * Disponibiliza dois shortcodes para uso em paginas do WordPress:
- *   [area-do-aluno]              - Portal do aluno autenticado
- *   [formulario-cadastro-aluno]  - Formulario de pre-matricula publico
+ *   [area-do-aluno]              - Portal do aluno autenticado (nativo React)
+ *   [formulario-cadastro-aluno]  - Formulário de pré-matrícula público (nativo React)
  */
 
 if (!defined('ABSPATH')) {
@@ -59,7 +59,8 @@ class Seven_Academy_Shortcodes
             return '<p>' . esc_html__('Plugin 7academy: URL da Academy nao configurada.', 'seven-academy') . '</p>';
         }
 
-        $src = $base_url . '/api/mis/area-do-aluno.html?embed=1';
+        // Portal nativo React (substitui tela MIS legada).
+        $src = $base_url . '/?embed=1&app=student';
 
         wp_enqueue_style('seven-academy-mis');
         wp_enqueue_script('seven-academy-mis');
@@ -92,7 +93,7 @@ class Seven_Academy_Shortcodes
             return '<p>' . esc_html__('Plugin 7academy: URL da Academy nao configurada.', 'seven-academy') . '</p>';
         }
 
-        $src = $base_url . '/api/mis/cadastro-aluno.html?embed=1';
+        $src = $base_url . '/?embed=1&app=student-register';
 
         wp_enqueue_style('seven-academy-mis');
         wp_enqueue_script('seven-academy-mis');

@@ -2935,3 +2935,635 @@ table button {
   }
 
 }
+/* ==========================================================
+   Área do Aluno Nativa (React)
+   ========================================================== */
+
+.native-student-shell {
+  --student-primary: #139395;
+  --student-primary-strong: #0f7f81;
+  --student-secondary: #283e6e;
+  --student-secondary-strong: #1f3158;
+  --student-bg: #f4f8fb;
+  --student-surface: #ffffff;
+  --student-surface-soft: #f5f9fe;
+  --student-border: #d8e5f2;
+  --student-text: #17243a;
+  --student-muted: #60708a;
+  --student-shadow: 0 14px 34px rgba(40, 62, 110, 0.1);
+
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top right, rgba(19, 147, 149, 0.15), transparent 44%),
+    linear-gradient(180deg, #f8fcff 0%, var(--student-bg) 100%);
+  color: var(--student-text);
+}
+
+.native-student-topbar {
+  height: 72px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(216, 229, 242, 0.85);
+}
+
+.native-student-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.native-student-brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, var(--student-primary), var(--student-secondary));
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+
+.native-student-brand strong {
+  display: block;
+  color: var(--student-secondary);
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+.native-student-brand small {
+  color: var(--student-muted);
+  font-size: 0.74rem;
+}
+
+.native-student-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.native-student-topbar-actions span {
+  color: var(--student-muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.native-student-topbar-actions button {
+  border: 1px solid rgba(180, 54, 43, 0.28);
+  border-radius: 999px;
+  background: #fff;
+  color: #b4362b;
+  padding: 0.36rem 0.78rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.native-student-layout {
+  width: min(1240px, 100%);
+  margin: 0 auto;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.native-student-sidebar {
+  align-self: start;
+  position: sticky;
+  top: 88px;
+  display: grid;
+  gap: 14px;
+}
+
+.native-student-sidebar nav {
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 16px;
+  box-shadow: var(--student-shadow);
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.native-student-sidebar nav button {
+  border: 0;
+  background: transparent;
+  color: #4d607c;
+  border-radius: 10px;
+  padding: 10px 11px;
+  text-align: left;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.native-student-sidebar nav button:hover {
+  background: rgba(19, 147, 149, 0.09);
+  color: var(--student-primary-strong);
+}
+
+.native-student-sidebar nav button.active {
+  background: linear-gradient(90deg, rgba(19, 147, 149, 0.14), rgba(40, 62, 110, 0.1));
+  color: var(--student-secondary);
+}
+
+.native-student-support {
+  background: linear-gradient(145deg, var(--student-secondary), var(--student-primary));
+  color: #fff;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: var(--student-shadow);
+}
+
+.native-student-support h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.native-student-support p {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  opacity: 0.9;
+}
+
+.native-student-main {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  padding-bottom: 72px;
+}
+
+.native-student-main .native-error button {
+  margin-left: 8px;
+  border: 0;
+  background: transparent;
+  color: #b42318;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.native-student-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.native-student-hero-card,
+.native-student-highlight-card,
+.native-student-card,
+.native-student-kpi-card {
+  border-radius: 16px;
+  box-shadow: var(--student-shadow);
+}
+
+.native-student-hero-card {
+  padding: 18px;
+  color: #fff;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.24), transparent 45%),
+    linear-gradient(135deg, var(--student-secondary), #2f4f86 56%, var(--student-primary));
+}
+
+.native-student-chip {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 0.24rem 0.6rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.native-student-hero-card h1 {
+  margin: 11px 0 7px;
+  font-size: clamp(1.2rem, 2vw, 1.6rem);
+  letter-spacing: -0.01em;
+}
+
+.native-student-hero-card p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.94);
+}
+
+.native-student-hero-meta {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.native-student-hero-meta div {
+  border-radius: 11px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.native-student-hero-meta small {
+  display: block;
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.88;
+}
+
+.native-student-hero-meta strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.9rem;
+}
+
+.native-student-highlight-card {
+  padding: 16px;
+  background: linear-gradient(180deg, #fff, var(--student-surface-soft));
+  display: grid;
+  align-content: center;
+  gap: 6px;
+}
+
+.native-student-highlight-card span {
+  color: var(--student-muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.native-student-highlight-card strong {
+  color: var(--student-secondary);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.native-student-highlight-card p {
+  margin: 0;
+  color: var(--student-muted);
+  font-size: 0.8rem;
+}
+
+.native-student-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.native-student-kpi-card {
+  background: var(--student-surface);
+  padding: 14px;
+  display: grid;
+  gap: 4px;
+}
+
+.native-student-kpi-card span {
+  color: var(--student-muted);
+  font-size: 0.69rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.native-student-kpi-card strong {
+  color: var(--student-secondary);
+  font-size: 1.48rem;
+  line-height: 1;
+}
+
+.native-student-kpi-card small {
+  color: var(--student-muted);
+  font-size: 0.76rem;
+}
+
+.native-student-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.native-student-card {
+  background: rgba(255, 255, 255, 0.94);
+  padding: 16px;
+}
+
+.native-student-card h2 {
+  margin: 0 0 12px;
+  color: var(--student-secondary);
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+.native-student-stack {
+  display: grid;
+  gap: 9px;
+}
+
+.native-student-item {
+  background: var(--student-surface-soft);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 9px;
+}
+
+.native-student-item header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.native-student-item h3 {
+  margin: 0;
+  color: var(--student-secondary);
+  font-size: 0.93rem;
+  letter-spacing: -0.01em;
+}
+
+.native-student-item p {
+  margin: 2px 0 0;
+  color: var(--student-muted);
+  font-size: 0.81rem;
+}
+
+.native-student-item footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--student-muted);
+  font-size: 0.75rem;
+}
+
+.native-student-item footer a {
+  color: #fff;
+  text-decoration: none;
+  border-radius: 999px;
+  padding: 0.26rem 0.66rem;
+  font-size: 0.69rem;
+  font-weight: 700;
+  background: linear-gradient(90deg, var(--student-primary-strong), var(--student-primary));
+}
+
+.native-student-link-disabled {
+  color: #7a8ca8;
+  background: #d2dbe8;
+  border-radius: 999px;
+  padding: 0.26rem 0.66rem;
+  font-size: 0.69rem;
+  font-weight: 700;
+}
+
+.native-student-profile {
+  display: grid;
+  gap: 12px;
+}
+
+.native-student-profile-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.native-student-profile-head img,
+.native-student-profile-head span {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+
+.native-student-profile-head img {
+  object-fit: cover;
+}
+
+.native-student-profile-head span {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.8rem;
+  background: linear-gradient(135deg, var(--student-primary), var(--student-secondary));
+}
+
+.native-student-profile-head strong {
+  display: block;
+  color: var(--student-secondary);
+}
+
+.native-student-profile-head small {
+  color: var(--student-muted);
+  font-size: 0.83rem;
+}
+
+.native-student-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.native-student-profile-grid article {
+  background: var(--student-surface-soft);
+  border-radius: 11px;
+  padding: 10px;
+  display: grid;
+  gap: 2px;
+}
+
+.native-student-profile-grid span {
+  color: var(--student-muted);
+  font-size: 0.67rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.native-student-profile-grid strong {
+  color: var(--student-text);
+  font-size: 0.88rem;
+}
+
+.native-student-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  height: 58px;
+  display: none;
+  align-items: center;
+  justify-content: space-around;
+  gap: 5px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.92);
+  border-top: 1px solid rgba(216, 229, 242, 0.94);
+  backdrop-filter: blur(10px);
+}
+
+.native-student-bottom-nav button {
+  border: 0;
+  background: transparent;
+  color: #587192;
+  font-size: 0.67rem;
+  font-weight: 700;
+  border-radius: 9px;
+  padding: 7px 8px;
+  flex: 1;
+}
+
+.native-student-bottom-nav button.active {
+  color: var(--student-primary-strong);
+  background: rgba(19, 147, 149, 0.11);
+}
+
+@media (max-width: 1100px) {
+  .native-student-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .native-student-sidebar {
+    position: static;
+  }
+
+  .native-student-sidebar nav {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow-x: auto;
+  }
+
+  .native-student-sidebar nav button {
+    white-space: nowrap;
+  }
+
+  .native-student-support {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .native-student-hero-grid,
+  .native-student-kpi-grid,
+  .native-student-grid,
+  .native-student-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .native-student-topbar {
+    height: auto;
+    padding: 10px 12px;
+  }
+
+  .native-student-topbar-actions span {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .native-student-layout {
+    padding: 10px;
+  }
+
+  .native-student-sidebar nav {
+    display: none;
+  }
+
+  .native-student-main {
+    padding-bottom: 84px;
+  }
+
+  .native-student-bottom-nav {
+    display: flex;
+  }
+}
+
+/* Cadastro nativo de aluno */
+.native-student-register {
+  min-height: 100vh;
+  padding: 22px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at top right, rgba(19, 147, 149, 0.15), transparent 42%),
+    linear-gradient(180deg, #f8fcff 0%, #f4f8fb 100%);
+}
+
+.native-student-register.is-embedded {
+  min-height: calc(100vh - 8px);
+  padding: 12px;
+}
+
+.native-student-register-card {
+  width: min(940px, 100%);
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 18px;
+  box-shadow: 0 16px 36px rgba(40, 62, 110, 0.12);
+  padding: 20px;
+}
+
+.native-student-register-card header h1 {
+  margin: 0;
+  color: #283e6e;
+  font-size: 1.5rem;
+}
+
+.native-student-register-card header p {
+  margin: 6px 0 16px;
+  color: #60708a;
+}
+
+.native-student-register-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.native-student-register-form label.full {
+  grid-column: 1 / -1;
+}
+
+.native-student-register-form textarea {
+  width: 100%;
+  border: 1px solid rgba(40, 62, 110, 0.22);
+  border-radius: 10px;
+  padding: 0.65rem 0.7rem;
+  font: inherit;
+  resize: vertical;
+}
+
+.native-student-register-form .native-modal-actions {
+  grid-column: 1 / -1;
+}
+
+.native-student-register-form .native-modal-actions .ghost {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.native-success a {
+  margin-left: 6px;
+  color: #0f7f81;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .native-student-register {
+    padding: 10px;
+  }
+
+  .native-student-register-card {
+    padding: 14px;
+  }
+
+  .native-student-register-form {
+    grid-template-columns: 1fr;
+  }
+}
