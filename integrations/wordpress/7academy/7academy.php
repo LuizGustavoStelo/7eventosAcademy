@@ -17,6 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 define('SEVEN_ACADEMY_VERSION', '1.0.29');
+define('SEVEN_ACADEMY_API_BASE_URL', 'https://academy.7eventos.com');
 define('SEVEN_ACADEMY_PLUGIN_FILE', __FILE__);
 define('SEVEN_ACADEMY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SEVEN_ACADEMY_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -34,9 +35,6 @@ require_once SEVEN_ACADEMY_PLUGIN_DIR . 'includes/class-seven-academy-updater.ph
  */
 function seven_academy_activate(): void
 {
-    // Pre-fill connection cache: will be refreshed lazily on next check.
-    set_transient('seven_academy_connection_cache', ['ok' => false, 'message' => 'Verificando...'], MINUTE_IN_SECONDS * 2);
-
     // Pre-fill license cache: no license checked yet.
     set_transient('seven_academy_license_validation_cache', ['active' => false, 'message' => 'Licenca nao verificada ainda.'], MINUTE_IN_SECONDS * 2);
 
@@ -50,7 +48,6 @@ register_activation_hook(__FILE__, 'seven_academy_activate');
  */
 function seven_academy_deactivate(): void
 {
-    delete_transient('seven_academy_connection_cache');
     delete_transient('seven_academy_license_validation_cache');
     delete_site_transient('seven_academy_update_cache');
 }

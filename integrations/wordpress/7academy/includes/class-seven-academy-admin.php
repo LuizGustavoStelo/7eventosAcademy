@@ -11,7 +11,6 @@ class Seven_Academy_Admin
     public static function init(): void
     {
         add_action('admin_menu', [self::class, 'register_menu']);
-        add_action('admin_init', [self::class, 'register_settings']);
         add_action('admin_post_seven_academy_force_update', [self::class, 'handle_force_update']);
     }
 
@@ -28,99 +27,6 @@ class Seven_Academy_Admin
         );
     }
 
-    public static function register_settings(): void
-    {
-        register_setting(
-            'seven_academy_settings_group',
-            self::OPTION_KEY,
-            [
-                'type'              => 'array',
-                'sanitize_callback' => [self::class, 'sanitize_settings'],
-                'default'           => self::default_settings(),
-            ]
-        );
-
-        add_settings_section(
-            'seven_academy_main_section',
-            'Configuracao de conexao',
-            '__return_false',
-            'seven-academy'
-        );
-
-        add_settings_field(
-            'base_url',
-            'URL base da Academy',
-            [self::class, 'render_base_url_field'],
-            'seven-academy',
-            'seven_academy_main_section'
-        );
-
-        add_settings_field(
-            'health_path',
-            'Rota de health check',
-            [self::class, 'render_health_path_field'],
-            'seven-academy',
-            'seven_academy_main_section'
-        );
-
-        add_settings_field(
-            'tenant_slug',
-            'Tenant publico (opcional)',
-            [self::class, 'render_tenant_slug_field'],
-            'seven-academy',
-            'seven_academy_main_section'
-        );
-
-        add_settings_field(
-            'license_key',
-            'Chave de licenca',
-            [self::class, 'render_license_key_field'],
-            'seven-academy',
-            'seven_academy_main_section'
-        );
-    }
-
-    public static function sanitize_settings(array $input): array
-    {
-        $defaults = self::default_settings();
-        $current  = self::get_settings();
-
-        $baseUrl    = isset($input['base_url'])    ? esc_url_raw(trim((string) $input['base_url']))               : $defaults['base_url'];
-        $healthPath = isset($input['health_path']) ? trim((string) $input['health_path'])                          : $defaults['health_path'];
-        $tenantSlug = isset($input['tenant_slug']) ? sanitize_text_field((string) $input['tenant_slug'])           : '';
-        $licenseKey = isset($input['license_key']) ? sanitize_text_field((string) $input['license_key'])           : '';
-
-        // Se a chave vier vazia do formulário mas já temos uma salva, mantemos a antiga
-        // (comportamento de campo de senha/protegido para não apagar por acidente)
-        if ($licenseKey === '' && !empty($current['license_key'])) {
-            $licenseKey = (string) $current['license_key'];
-        }
-
-        if ($healthPath === '' || $healthPath[0] !== '/') {
-            $healthPath = '/api/health';
-        }
-
-        $activationToken    = isset($input['activation_token'])     ? sanitize_text_field((string) $input['activation_token'])     : (string) ($current['activation_token']    ?? '');
-        $licenseActivatedAt = isset($input['license_activated_at']) ? sanitize_text_field((string) $input['license_activated_at']) : (string) ($current['license_activated_at'] ?? '');
-
-        if ($licenseKey !== (string) ($current['license_key'] ?? '')) {
-            $activationToken    = '';
-            $licenseActivatedAt = '';
-            delete_transient('seven_academy_license_validation_cache');
-            delete_transient('seven_academy_connection_cache');
-            Seven_Academy_Updater::clear_update_cache();
-        }
-
-        return [
-            'base_url'            => rtrim($baseUrl, '/'),
-            'health_path'         => $healthPath,
-            'tenant_slug'         => $tenantSlug,
-            'license_key'         => $licenseKey,
-            'activation_token'    => $activationToken,
-            'license_activated_at' => $licenseActivatedAt,
-        ];
-    }
-
     public static function render_page(): void
     {
         if (!current_user_can('manage_options')) {
@@ -128,11 +34,11 @@ class Seven_Academy_Admin
         }
 
         $settings      = self::get_settings();
-        $connection    = self::check_connection($settings['base_url'], $settings['health_path']);
         $licenseStatus = Seven_Academy_License::get_license_status($settings);
         $notice        = self::read_notice();
         $updateInfo    = Seven_Academy_Updater::fetch_update_data();
         $hasUpdate     = $updateInfo['ok'] && !empty($updateInfo['data']['updateAvailable']);
+        $hasLicense    = !empty($settings['license_key']);
         ?>
         <div class="wrap">
             <h1>7academy</h1>
@@ -147,17 +53,7 @@ class Seven_Academy_Admin
             <table class="widefat striped" style="max-width: 960px; margin: 16px 0;">
                 <tbody>
                     <tr>
-                        <td style="width: 260px;"><strong>Status de conexao</strong></td>
-                        <td>
-                            <?php if ($connection['ok']) : ?>
-                                <span style="color: #146c2e;"><strong>Conectado</strong></span>
-                            <?php else : ?>
-                                <span style="color: #b42318;"><strong>Indisponivel</strong></span>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><strong>Status da licenca</strong></td>
+                        <td style="width: 260px;"><strong>Status da licenca</strong></td>
                         <td>
                             <?php if (!empty($licenseStatus['active'])) : ?>
                                 <span style="color: #146c2e;"><strong>Ativa</strong></span>
@@ -172,7 +68,7 @@ class Seven_Academy_Admin
                         <td>
                             <?php echo esc_html(SEVEN_ACADEMY_VERSION); ?>
                             <?php if ($hasUpdate) : ?>
-                                <span style="margin-left: 10px; color: #b42318; font-weight: bold;">Nova v<?php echo esc_html((string)$updateInfo['data']['latestVersion']); ?> disponivel.</span>
+                                <span style="margin-left: 10px; color: #b42318; font-weight: bold;">Nova v<?php echo esc_html((string) $updateInfo['data']['latestVersion']); ?> disponivel.</span>
                                 <?php
                                 $upgradeUrl = wp_nonce_url(
                                     admin_url('update.php?action=upgrade-plugin&plugin=' . urlencode(plugin_basename(SEVEN_ACADEMY_PLUGIN_FILE))),
@@ -185,44 +81,48 @@ class Seven_Academy_Admin
                             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display: inline-block; margin-left: 10px;">
                                 <?php wp_nonce_field('seven_academy_force_update'); ?>
                                 <input type="hidden" name="action" value="seven_academy_force_update" />
-                                <button type="submit" class="button button-small" title="Limpa o cache e verifica atualizações agora">Verificar</button>
+                                <button type="submit" class="button button-small" title="Limpa o cache e verifica atualizacoes agora">Verificar</button>
                             </form>
                         </td>
-                    </tr>
-                    <tr>
-                        <td><strong>URL da Academy</strong></td>
-                        <td><?php echo esc_html($settings['base_url'] ?: 'Nao configurada'); ?></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Dominio do site</strong></td>
-                        <td><?php echo esc_html((string) wp_parse_url(home_url('/'), PHP_URL_HOST)); ?></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Detalhe tecnico</strong></td>
-                        <td><?php echo esc_html($connection['message']); ?></td>
                     </tr>
                 </tbody>
             </table>
 
-            <form method="post" action="options.php" style="max-width: 960px;">
-                <?php
-                settings_fields('seven_academy_settings_group');
-                do_settings_sections('seven-academy');
-                submit_button('Salvar configuracoes');
-                ?>
-            </form>
-
-            <div style="max-width: 960px; margin-top: 20px; display: flex; gap: 8px; align-items: center;">
-                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <div style="max-width: 960px; margin-top: 20px;">
+                <h2 style="margin: 0 0 12px;">Ativar licenca</h2>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="max-width: 520px;">
                     <?php wp_nonce_field('seven_academy_activate_license'); ?>
                     <input type="hidden" name="action" value="seven_academy_activate_license" />
-                    <?php submit_button('Ativar licenca', 'primary', 'submit', false); ?>
-                </form>
 
-                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                    <?php wp_nonce_field('seven_academy_deactivate_license'); ?>
-                    <input type="hidden" name="action" value="seven_academy_deactivate_license" />
-                    <?php submit_button('Remover licenca do site', 'secondary', 'submit', false); ?>
+                    <div id="seven-academy-license-wrapper">
+                        <?php if ($hasLicense) : ?>
+                            <div class="seven-academy-key-status" style="margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
+                                <span class="dashicons dashicons-lock" style="color: #146c2e;"></span>
+                                <span style="font-weight: 500; color: #146c2e;">Chave de licenca configurada e protegida</span>
+                                <button
+                                    type="button"
+                                    class="button button-secondary button-small"
+                                    onclick="document.getElementById('seven-academy-license-input-wrap').style.display='block'; this.parentElement.style.display='none';"
+                                >
+                                    Trocar Chave
+                                </button>
+                            </div>
+                        <?php endif; ?>
+
+                        <div id="seven-academy-license-input-wrap" style="<?php echo $hasLicense ? 'display: none;' : ''; ?>">
+                            <input
+                                type="password"
+                                class="regular-text"
+                                name="license_key"
+                                value=""
+                                placeholder="XXXX-XXXX-XXXX-XXXX"
+                                autocomplete="off"
+                            />
+                            <p class="description">Insira a chave de licenca fornecida pela Academy.</p>
+                        </div>
+                    </div>
+
+                    <?php submit_button($hasLicense ? 'Reativar licenca' : 'Ativar licenca', 'primary', 'submit', false); ?>
                 </form>
             </div>
 
@@ -260,80 +160,6 @@ class Seven_Academy_Admin
         <?php
     }
 
-    public static function render_base_url_field(): void
-    {
-        $settings = self::get_settings();
-        ?>
-        <input
-            type="url"
-            class="regular-text"
-            name="<?php echo esc_attr(self::OPTION_KEY); ?>[base_url]"
-            value="<?php echo esc_attr($settings['base_url']); ?>"
-            placeholder="https://academy.7eventos.com"
-        />
-        <p class="description">Dominio principal da Academy, sem barra no final.</p>
-        <?php
-    }
-
-    public static function render_health_path_field(): void
-    {
-        $settings = self::get_settings();
-        ?>
-        <input
-            type="text"
-            class="regular-text"
-            name="<?php echo esc_attr(self::OPTION_KEY); ?>[health_path]"
-            value="<?php echo esc_attr($settings['health_path']); ?>"
-            placeholder="/api/health"
-        />
-        <p class="description">Rota usada para validar disponibilidade da API.</p>
-        <?php
-    }
-
-    public static function render_tenant_slug_field(): void
-    {
-        $settings = self::get_settings();
-        ?>
-        <input
-            type="text"
-            class="regular-text"
-            name="<?php echo esc_attr(self::OPTION_KEY); ?>[tenant_slug]"
-            value="<?php echo esc_attr($settings['tenant_slug']); ?>"
-            placeholder="instituicao-x"
-        />
-        <p class="description">Identificador publico da instituicao, quando necessario.</p>
-        <?php
-    }
-
-    public static function render_license_key_field(): void
-    {
-        $settings = self::get_settings();
-        $has_key  = !empty($settings['license_key']);
-        ?>
-        <div id="seven-academy-license-wrapper">
-            <?php if ($has_key) : ?>
-                <div class="seven-academy-key-status" style="margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
-                    <span class="dashicons dashicons-lock" style="color: #146c2e;"></span>
-                    <span style="font-weight: 500; color: #146c2e;">Chave de licença configurada e protegida</span>
-                    <button type="button" class="button button-secondary button-small" onclick="document.getElementById('seven-academy-license-input-wrap').style.display='block'; this.parentElement.style.display='none';">Trocar Chave</button>
-                </div>
-            <?php endif; ?>
-
-            <div id="seven-academy-license-input-wrap" style="<?php echo $has_key ? 'display: none;' : ''; ?>">
-                <input
-                    type="password"
-                    class="regular-text"
-                    name="<?php echo esc_attr(self::OPTION_KEY); ?>[license_key]"
-                    value=""
-                    placeholder="XXXX-XXXX-XXXX-XXXX"
-                    autocomplete="off"
-                />
-                <p class="description">Insira a nova chave de licença fornecida pela Academy.</p>
-            </div>
-        </div>
-        <?php
-    }
-
     public static function get_settings(): array
     {
         $saved = get_option(self::OPTION_KEY, []);
@@ -350,6 +176,15 @@ class Seven_Academy_Admin
         update_option(self::OPTION_KEY, $merged);
     }
 
+    public static function default_settings(): array
+    {
+        return [
+            'license_key'         => '',
+            'activation_token'    => '',
+            'license_activated_at' => '',
+        ];
+    }
+
     public static function handle_force_update(): void
     {
         check_admin_referer('seven_academy_force_update');
@@ -361,7 +196,7 @@ class Seven_Academy_Admin
         Seven_Academy_Updater::clear_update_cache();
 
         $query = [
-            'page'                          => 'seven-academy',
+            'page'                         => 'seven-academy',
             'seven_academy_notice_type'    => 'success',
             'seven_academy_notice_message' => rawurlencode('Notificacoes de atualizacao verificadas com sucesso. Se uma nova versao for encontrada, ela aparecera abaixo.'),
         ];
@@ -370,58 +205,10 @@ class Seven_Academy_Admin
         exit;
     }
 
-    public static function default_settings(): array
-    {
-        return [
-            'base_url'            => 'https://academy.7eventos.com',
-            'health_path'         => '/api/health',
-            'tenant_slug'         => '',
-            'license_key'         => '',
-            'activation_token'    => '',
-            'license_activated_at' => '',
-        ];
-    }
-
-    private static function check_connection(string $baseUrl, string $healthPath): array
-    {
-        if ($baseUrl === '') {
-            return [
-                'ok'      => false,
-                'message' => 'URL base nao configurada.',
-            ];
-        }
-
-        $cacheKey = 'seven_academy_connection_cache';
-        $cached   = get_transient($cacheKey);
-        if (is_array($cached)) {
-            return $cached;
-        }
-
-        $result = Seven_Academy_Api_Client::get_json($baseUrl, $healthPath);
-        if ($result['ok']) {
-            $outcome = [
-                'ok'      => true,
-                'message' => 'Conexao validada com sucesso.',
-            ];
-            set_transient($cacheKey, $outcome, MINUTE_IN_SECONDS * 5);
-            return $outcome;
-        }
-
-        $status  = (int) ($result['status'] ?? 0);
-        $message = (string) ($result['message'] ?? 'Falha ao conectar na API.');
-
-        $outcome = [
-            'ok'      => false,
-            'message' => $status > 0 ? 'HTTP ' . $status . ': ' . $message : $message,
-        ];
-        set_transient($cacheKey, $outcome, MINUTE_IN_SECONDS * 2);
-        return $outcome;
-    }
-
     private static function read_notice(): ?array
     {
-        $type    = isset($_GET['seven_academy_notice_type'])    ? sanitize_text_field((string) $_GET['seven_academy_notice_type'])    : '';
-        $message = isset($_GET['seven_academy_notice_message']) ? rawurldecode((string) $_GET['seven_academy_notice_message'])         : '';
+        $type    = isset($_GET['seven_academy_notice_type']) ? sanitize_text_field((string) $_GET['seven_academy_notice_type']) : '';
+        $message = isset($_GET['seven_academy_notice_message']) ? rawurldecode((string) $_GET['seven_academy_notice_message']) : '';
 
         if ($type === '' || $message === '') {
             return null;

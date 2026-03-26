@@ -23,11 +23,19 @@ class Seven_Academy_License
         check_admin_referer('seven_academy_activate_license');
 
         $settings   = Seven_Academy_Admin::get_settings();
+        $postedKey  = isset($_POST['license_key']) ? sanitize_text_field(wp_unslash((string) $_POST['license_key'])) : '';
+        if ($postedKey !== '') {
+            $settings['license_key'] = $postedKey;
+            $settings['activation_token'] = '';
+            $settings['license_activated_at'] = '';
+            Seven_Academy_Admin::save_settings($settings);
+        }
+
         $licenseKey = trim((string) ($settings['license_key'] ?? ''));
-        $baseUrl    = rtrim((string) ($settings['base_url'] ?? ''), '/');
+        $baseUrl    = rtrim((string) SEVEN_ACADEMY_API_BASE_URL, '/');
 
         if ($licenseKey === '' || $baseUrl === '') {
-            self::redirect_with_notice('error', 'Defina URL base e chave de licenca antes de ativar.');
+            self::redirect_with_notice('error', 'Informe a chave de licenca antes de ativar.');
         }
 
         $payload = [
@@ -49,7 +57,6 @@ class Seven_Academy_License
         Seven_Academy_Admin::save_settings($settings);
 
         delete_transient(self::CACHE_KEY);
-        delete_transient('seven_academy_connection_cache');
         Seven_Academy_Updater::clear_update_cache();
         self::redirect_with_notice('success', 'Licenca ativada com sucesso.');
     }
@@ -67,7 +74,6 @@ class Seven_Academy_License
         Seven_Academy_Admin::save_settings($settings);
 
         delete_transient(self::CACHE_KEY);
-        delete_transient('seven_academy_connection_cache');
         Seven_Academy_Updater::clear_update_cache();
         self::redirect_with_notice('success', 'Licenca removida do site.');
     }
@@ -79,10 +85,9 @@ class Seven_Academy_License
             return $cached;
         }
 
-        $baseUrl = rtrim((string) ($settings['base_url'] ?? ''), '/');
         $token   = trim((string) ($settings['activation_token'] ?? ''));
 
-        if ($baseUrl === '' || $token === '') {
+        if ($token === '') {
             return [
                 'active'  => false,
                 'message' => 'Licenca nao ativada.',
@@ -95,7 +100,7 @@ class Seven_Academy_License
             'siteUrl'         => home_url('/'),
         ];
 
-        $response = Seven_Academy_Api_Client::post_json($baseUrl, '/api/wordpress/license/validate', $payload);
+        $response = Seven_Academy_Api_Client::post_json(SEVEN_ACADEMY_API_BASE_URL, '/api/wordpress/license/validate', $payload);
         if (!$response['ok'] || !is_array($response['data']) || empty($response['data']['valid'])) {
             $result = [
                 'active'  => false,

@@ -13,9 +13,8 @@ export class CheckUpdatesDto {
   @MinLength(3)
   pluginVersion!: string;
 
-  @IsOptional()
   @IsString()
-  siteUrl?: string;
+  siteUrl!: string;
 
   @IsOptional()
   @IsString()

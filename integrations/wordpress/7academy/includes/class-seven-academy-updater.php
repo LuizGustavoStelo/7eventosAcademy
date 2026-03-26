@@ -93,7 +93,7 @@ class Seven_Academy_Updater
         }
 
         $settings = Seven_Academy_Admin::get_settings();
-        $baseUrl  = rtrim((string) ($settings['base_url'] ?? ''), '/');
+        $baseUrl  = rtrim((string) SEVEN_ACADEMY_API_BASE_URL, '/');
         $token    = trim((string) ($settings['activation_token'] ?? ''));
         $domain   = wp_parse_url(home_url('/'), PHP_URL_HOST);
 

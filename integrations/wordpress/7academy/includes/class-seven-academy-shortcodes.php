@@ -52,8 +52,7 @@ class Seven_Academy_Shortcodes
             'area-do-aluno'
         );
 
-        $settings = Seven_Academy_Admin::get_settings();
-        $base_url = rtrim((string) $settings['base_url'], '/');
+        $base_url = rtrim((string) SEVEN_ACADEMY_API_BASE_URL, '/');
 
         if ($base_url === '') {
             return '<p>' . esc_html__('Plugin 7academy: URL da Academy nao configurada.', 'seven-academy') . '</p>';
@@ -87,8 +86,7 @@ class Seven_Academy_Shortcodes
             'formulario-cadastro-aluno'
         );
 
-        $settings = Seven_Academy_Admin::get_settings();
-        $base_url = rtrim((string) $settings['base_url'], '/');
+        $base_url = rtrim((string) SEVEN_ACADEMY_API_BASE_URL, '/');
 
         if ($base_url === '') {
             return '<p>' . esc_html__('Plugin 7academy: URL da Academy nao configurada.', 'seven-academy') . '</p>';

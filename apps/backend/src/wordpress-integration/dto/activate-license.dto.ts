@@ -9,9 +9,8 @@ export class ActivateLicenseDto {
   @MinLength(3)
   domain!: string;
 
-  @IsOptional()
   @IsString()
-  siteUrl?: string;
+  siteUrl!: string;
 
   @IsOptional()
   @IsString()

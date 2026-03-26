@@ -5216,6 +5216,14 @@ table button {
 }
 
 @media (max-width: 980px) {
+  html,
+  body,
+  #root,
+  .student-template-shell,
+  .student-template-main {
+    min-height: 100dvh;
+  }
+
   .student-template-sidebar {
     display: none;
   }
@@ -5249,7 +5257,7 @@ table button {
   }
 
   .student-template-content {
-    padding: 1rem 0.75rem 5rem;
+    padding: 1rem 0.75rem calc(5.2rem + env(safe-area-inset-bottom));
   }
 
   .student-mobile-section-tabs {
@@ -5301,6 +5309,13 @@ table button {
 
   .student-template-bottom-nav {
     display: grid;
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw;
+    margin: 0;
+    transform: translateZ(0);
   }
 }
 

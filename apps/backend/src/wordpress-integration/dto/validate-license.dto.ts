@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsString, MinLength } from 'class-validator';
 
 export class ValidateLicenseDto {
   @IsString()
@@ -9,7 +9,6 @@ export class ValidateLicenseDto {
   @MinLength(3)
   domain!: string;
 
-  @IsOptional()
   @IsString()
-  siteUrl?: string;
+  siteUrl!: string;
 }

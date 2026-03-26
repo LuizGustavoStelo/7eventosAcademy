@@ -27,7 +27,16 @@ export class WordpressIntegrationService {
   async activateLicense(dto: ActivateLicenseDto) {
     const normalizedKey = this.normalizeLicenseKey(dto.licenseKey);
     const keyHash = this.hashLicenseKey(normalizedKey);
-    const normalizedDomain = this.normalizeDomain(dto.domain);
+    const normalizedDomain = this.normalizeHost(dto.domain);
+    const normalizedSiteHost = this.normalizeHost(dto.siteUrl);
+
+    if (!normalizedDomain || !normalizedSiteHost) {
+      throw new ForbiddenException('Dominio ou URL do site invalidos.');
+    }
+
+    if (normalizedSiteHost !== normalizedDomain) {
+      throw new ForbiddenException('Site URL nao corresponde ao dominio informado.');
+    }
 
     const license = await this.prisma.wordpressPluginLicense.findUnique({
       where: { keyHash },
@@ -92,7 +101,16 @@ export class WordpressIntegrationService {
   }
 
   async validateLicense(dto: ValidateLicenseDto) {
-    const normalizedDomain = this.normalizeDomain(dto.domain);
+    const normalizedDomain = this.normalizeHost(dto.domain);
+    const normalizedSiteHost = this.normalizeHost(dto.siteUrl);
+
+    if (!normalizedDomain || !normalizedSiteHost) {
+      return {
+        valid: false,
+        reason: 'invalid_or_revoked',
+      };
+    }
+
     const activation = await this.prisma.wordpressPluginActivation.findUnique({
       where: { activationToken: dto.activationToken.trim() },
       include: { license: true },
@@ -102,7 +120,9 @@ export class WordpressIntegrationService {
       !activation ||
       activation.revokedAt ||
       !activation.license.isActive ||
-      activation.domain !== normalizedDomain
+      activation.domain !== normalizedDomain ||
+      normalizedSiteHost !== normalizedDomain ||
+      this.normalizeHost(activation.siteUrl ?? undefined) !== normalizedDomain
     ) {
       return {
         valid: false,
@@ -142,13 +162,16 @@ export class WordpressIntegrationService {
       const isLegacyVersion = this.compareVersions('1.0.17', dto.pluginVersion);
 
       if (isLegacyVersion) {
-        const normalizedDomain = this.normalizeDomain(dto.domain);
+        const normalizedDomain = this.normalizeHost(dto.domain);
         const hasValidLicenseForDomain =
           await this.prisma.wordpressPluginLicense.findFirst({
             where: {
               isActive: true,
               activations: {
-                some: { domain: normalizedDomain, revokedAt: null },
+                some: {
+                  domain: normalizedDomain ?? '',
+                  revokedAt: null,
+                },
               },
             },
           });
@@ -347,8 +370,25 @@ export class WordpressIntegrationService {
     return createHash('sha256').update(value).digest('hex');
   }
 
-  private normalizeDomain(domain: string): string {
-    return domain.trim().toLowerCase();
+  private normalizeHost(value?: string): string | null {
+    if (!value) {
+      return null;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed === '') {
+      return null;
+    }
+
+    try {
+      const parsed = trimmed.includes('://')
+        ? new URL(trimmed)
+        : new URL(`https://${trimmed}`);
+
+      return parsed.hostname.trim().toLowerCase().replace(/^www\./, '');
+    } catch {
+      return trimmed.toLowerCase().replace(/^www\./, '');
+    }
   }
 
   private generateActivationToken(): string {
