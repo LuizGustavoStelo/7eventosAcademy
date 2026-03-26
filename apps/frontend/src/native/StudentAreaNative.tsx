@@ -169,6 +169,8 @@ const SECTION_META: Record<SectionId, { title: string; subtitle: string }> = {
 
 const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const WEEKDAY_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const WEEKDAY_TINY = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+const SECTION_HASH_PREFIX = 'tab=';
 
 function firstName(name: string | undefined) {
   if (!name) return 'Aluno(a)';
@@ -190,6 +192,24 @@ function toDate(value: string | null | undefined): Date | null {
   if (!value) return null;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function toDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function parseSectionFromHash(hash: string): SectionId | null {
+  const normalized = hash.startsWith('#') ? hash.slice(1) : hash;
+  const candidate = normalized.startsWith(SECTION_HASH_PREFIX)
+    ? normalized.slice(SECTION_HASH_PREFIX.length)
+    : normalized;
+  if ((SECTION_IDS as readonly string[]).includes(candidate)) {
+    return candidate as SectionId;
+  }
+  return null;
 }
 
 function formatDate(dateLike: string | null | undefined) {
@@ -557,6 +577,21 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     };
   }, []);
 
+  useEffect(() => {
+    const applyHash = () => {
+      const sectionFromHash = parseSectionFromHash(window.location.hash);
+      if (sectionFromHash) {
+        setActiveSection(sectionFromHash);
+      }
+    };
+
+    applyHash();
+    window.addEventListener('hashchange', applyHash);
+    return () => {
+      window.removeEventListener('hashchange', applyHash);
+    };
+  }, []);
+
   const me = dashboard?.me;
   const matriculas = dashboard?.matriculas ?? [];
   const materiais = dashboard?.materiais ?? [];
@@ -596,12 +631,12 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     });
   }, [matriculas]);
 
-  const recentNotices = useMemo(() => avisos.slice(0, 2), [avisos]);
-  const recentMaterials = useMemo(() => materiais.slice(0, 4), [materiais]);
+  const recentNotices = useMemo(() => avisos.slice(0, 6), [avisos]);
+  const recentMaterials = useMemo(() => materiais.slice(0, 12), [materiais]);
 
-  const liveMaterial = useMemo(
+  const liveMaterials = useMemo(
     () =>
-      materiais.find((material) => {
+      materiais.filter((material) => {
         const haystack = `${material.kind} ${material.title}`.toLowerCase();
         return (
           haystack.includes('live') ||
@@ -609,9 +644,23 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           haystack.includes('aula') ||
           haystack.includes('transmiss')
         );
-      }) ?? null,
+      }),
     [materiais],
   );
+
+  const liveMaterial = liveMaterials[0] ?? null;
+  const archivedLives = liveMaterials.slice(1, 6);
+
+  const materialsByClass = useMemo(() => {
+    const map = new Map<string, StudentMaterial[]>();
+    for (const material of recentMaterials) {
+      const key = material.className || 'Sem turma';
+      const list = map.get(key) ?? [];
+      list.push(material);
+      map.set(key, list);
+    }
+    return Array.from(map.entries());
+  }, [recentMaterials]);
 
   const nextEventLabel = upcomingClasses[0]?.day
     ? formatDayMonth(upcomingClasses[0]?.startDate)
@@ -632,6 +681,65 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     if (!city) return '-';
     return state ? `${city} - ${state}` : city;
   }, [me?.studentProfile?.city, me?.studentProfile?.state]);
+
+  const attendanceStats = useMemo(() => {
+    const total = upcomingClasses.length;
+    const attended = upcomingClasses.filter((item) => {
+      const start = toDate(item.startDate);
+      return start ? start.getTime() <= Date.now() : false;
+    }).length;
+    const pending = Math.max(total - attended, 0);
+    const percent = total > 0 ? Math.round((attended / total) * 100) : 0;
+    return { total, attended, pending, percent };
+  }, [upcomingClasses]);
+
+  const calendarData = useMemo(() => {
+    const now = new Date();
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    const firstDay = new Date(year, month, 1);
+    const startWeekday = firstDay.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const marks = new Set(
+      upcomingClasses
+        .map((item) => toDate(item.startDate))
+        .filter((value): value is Date => Boolean(value))
+        .map((date) => toDateKey(date)),
+    );
+
+    const todayKey = toDateKey(now);
+    const cells: Array<{ day: number | null; key: string; isMarked: boolean; isToday: boolean }> = [];
+
+    for (let i = 0; i < startWeekday; i += 1) {
+      cells.push({ day: null, key: `empty-${i}`, isMarked: false, isToday: false });
+    }
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = new Date(year, month, day);
+      const key = toDateKey(date);
+      cells.push({
+        day,
+        key,
+        isMarked: marks.has(key),
+        isToday: key === todayKey,
+      });
+    }
+
+    while (cells.length % 7 !== 0) {
+      cells.push({
+        day: null,
+        key: `tail-${cells.length}`,
+        isMarked: false,
+        isToday: false,
+      });
+    }
+
+    return {
+      monthLabel: `${MONTH_SHORT[month]} ${year}`,
+      cells,
+    };
+  }, [upcomingClasses]);
 
   const subtitle =
     periodProgress === null
@@ -662,12 +770,421 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
     window.scrollTo({
       top: 0,
-      behavior: 'smooth',
+      behavior: 'auto',
     });
 
     if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', `#${sectionId}`);
+      window.history.replaceState(null, '', `#${SECTION_HASH_PREFIX}${sectionId}`);
     }
+  };
+
+  const renderDedicatedPage = () => {
+    if (activeSection === 'st-student-classes') {
+      return (
+        <section className="student-page-layout">
+          <div className="student-page-grid cols-2">
+            <article className="student-page-card is-hero">
+              <div className="student-page-chip-row">
+                <span>Minha matrícula</span>
+                <span>{normalizeStatus(matriculaPrincipal?.status)}</span>
+              </div>
+              <h3>{matriculaPrincipal?.courseName || 'Sem curso ativo'}</h3>
+              <p>
+                {matriculaPrincipal
+                  ? `Turma ${matriculaPrincipal.className} • ${normalizeModality(matriculaPrincipal.modality)}`
+                  : 'Nenhuma matrícula ativa no momento.'}
+              </p>
+              <div className="student-page-kpis">
+                <article>
+                  <span>Início</span>
+                  <strong>{formatDate(matriculaPrincipal?.startDate)}</strong>
+                </article>
+                <article>
+                  <span>Término</span>
+                  <strong>{formatDate(matriculaPrincipal?.endDate)}</strong>
+                </article>
+                <article>
+                  <span>Progresso</span>
+                  <strong>{periodProgress === null ? 'N/D' : `${periodProgress}%`}</strong>
+                </article>
+              </div>
+            </article>
+
+            <article className="student-page-card">
+              <h4>Turmas matriculadas</h4>
+              {matriculas.length === 0 ? (
+                <p className="student-template-empty">Nenhuma turma ativa para exibir.</p>
+              ) : (
+                <div className="student-page-list">
+                  {matriculas.map((item) => (
+                    <article key={item.enrollmentId} className="student-page-list-item">
+                      <div>
+                        <strong>{item.className}</strong>
+                        <small>{item.courseName}</small>
+                      </div>
+                      <span>{normalizeStatus(item.status)}</span>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </article>
+          </div>
+        </section>
+      );
+    }
+
+    if (activeSection === 'st-student-agenda') {
+      return (
+        <section className="student-page-layout">
+          <div className="student-page-grid cols-2">
+            <article className="student-page-card">
+              <div className="student-page-card-head">
+                <h4>{calendarData.monthLabel}</h4>
+                <small>Calendário acadêmico</small>
+              </div>
+              <div className="student-calendar-weekdays">
+                {WEEKDAY_TINY.map((weekday) => (
+                  <span key={weekday}>{weekday}</span>
+                ))}
+              </div>
+              <div className="student-calendar-days">
+                {calendarData.cells.map((cell) => (
+                  <div
+                    key={cell.key}
+                    className={`student-calendar-day ${cell.day === null ? 'is-empty' : ''} ${
+                      cell.isToday ? 'is-today' : ''
+                    } ${cell.isMarked ? 'is-marked' : ''}`}
+                  >
+                    {cell.day}
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="student-page-card">
+              <h4>Próximos eventos</h4>
+              {upcomingClasses.length === 0 ? (
+                <p className="student-template-empty">Nenhum evento agendado para este mês.</p>
+              ) : (
+                <div className="student-page-list">
+                  {upcomingClasses.map((item) => (
+                    <article key={`${item.id}-agenda`} className="student-page-list-item is-calendar">
+                      <div>
+                        <strong>{item.title}</strong>
+                        <small>{item.period}</small>
+                      </div>
+                      <span>{item.modality}</span>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </article>
+          </div>
+        </section>
+      );
+    }
+
+    if (activeSection === 'st-student-live') {
+      const liveHistory = archivedLives.length > 0 ? archivedLives : liveMaterials;
+      return (
+        <section className="student-page-layout">
+          <article className="student-page-card is-live-highlight">
+            <div>
+              <small>Transmissão em destaque</small>
+              <h3>{liveMaterial?.title || 'Nenhuma transmissão no momento'}</h3>
+              <p>
+                {liveMaterial?.description ||
+                  'As transmissões ao vivo e gravações aparecerão aqui conforme publicação da turma.'}
+              </p>
+            </div>
+            {liveMaterial?.externalUrl || liveMaterial?.fileUrl ? (
+              <a
+                href={liveMaterial.externalUrl || liveMaterial.fileUrl || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Assistir agora
+              </a>
+            ) : (
+              <button type="button" disabled>
+                Indisponível
+              </button>
+            )}
+          </article>
+
+          <article className="student-page-card">
+            <h4>Transmissões publicadas</h4>
+            {liveHistory.length === 0 ? (
+              <p className="student-template-empty">Nenhuma transmissão disponível.</p>
+            ) : (
+              <div className="student-page-list">
+                {liveHistory.map((material) => (
+                  <article key={material.id} className="student-page-list-item">
+                    <div>
+                      <strong>{material.title}</strong>
+                      <small>{material.className}</small>
+                    </div>
+                    {material.externalUrl || material.fileUrl ? (
+                      <a
+                        href={material.externalUrl || material.fileUrl || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Abrir
+                      </a>
+                    ) : (
+                      <span>Sem link</span>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </article>
+        </section>
+      );
+    }
+
+    if (activeSection === 'st-student-course') {
+      return (
+        <section className="student-page-layout">
+          <article className="student-page-card">
+            <div className="student-page-card-head">
+              <h4>Frequência geral</h4>
+              <strong>{attendanceStats.percent}%</strong>
+            </div>
+            <div className="student-template-progress-bar" aria-hidden="true">
+              <span style={{ width: `${attendanceStats.percent}%` }} />
+            </div>
+            <div className="student-page-kpis">
+              <article>
+                <span>Aulas previstas</span>
+                <strong>{attendanceStats.total}</strong>
+              </article>
+              <article>
+                <span>Aulas registradas</span>
+                <strong>{attendanceStats.attended}</strong>
+              </article>
+              <article>
+                <span>Próximas aulas</span>
+                <strong>{attendanceStats.pending}</strong>
+              </article>
+            </div>
+          </article>
+
+          <article className="student-page-card">
+            <h4>Histórico de presença</h4>
+            {upcomingClasses.length === 0 ? (
+              <p className="student-template-empty">Sem eventos suficientes para cálculo de frequência.</p>
+            ) : (
+              <div className="student-page-list">
+                {upcomingClasses.map((item) => {
+                  const started = toDate(item.startDate)?.getTime();
+                  const present = started ? started <= Date.now() : false;
+                  return (
+                    <article key={`${item.id}-freq`} className="student-page-list-item">
+                      <div>
+                        <strong>{item.title}</strong>
+                        <small>{item.period}</small>
+                      </div>
+                      <span>{present ? 'Registrada' : 'Pendente'}</span>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </article>
+        </section>
+      );
+    }
+
+    if (activeSection === 'st-student-finance') {
+      return (
+        <section className="student-page-layout">
+          <div className="student-page-grid cols-3">
+            <article className="student-page-card">
+              <h4>Status atual</h4>
+              <strong className="student-page-big">
+                {matriculaPrincipal ? normalizeStatus(matriculaPrincipal.status) : 'Sem matrícula ativa'}
+              </strong>
+              <p>
+                {matriculaPrincipal
+                  ? 'Sua matrícula está ativa e vinculada a uma turma em andamento.'
+                  : 'Nenhuma matrícula ativa encontrada para gerar status financeiro detalhado.'}
+              </p>
+            </article>
+            <article className="student-page-card">
+              <h4>Próximo evento</h4>
+              <strong className="student-page-big">{nextEventLabel}</strong>
+              <p>{nextEventDescription}</p>
+            </article>
+            <article className="student-page-card">
+              <h4>Materiais liberados</h4>
+              <strong className="student-page-big">{materialsWithAccess}</strong>
+              <p>Conteúdos com link ativo para consulta imediata.</p>
+            </article>
+          </div>
+          <article className="student-page-card">
+            <h4>Resumo operacional</h4>
+            <p>
+              Não há endpoint financeiro público do aluno retornando cobranças nesta conta no momento.
+              Assim que a integração publicar parcelas e vencimentos, esta página exibirá o extrato.
+            </p>
+          </article>
+        </section>
+      );
+    }
+
+    if (activeSection === 'st-student-materials') {
+      return (
+        <section className="student-page-layout">
+          <article className="student-page-card">
+            <h4>Biblioteca por turma</h4>
+            {materialsByClass.length === 0 ? (
+              <p className="student-template-empty">Nenhum material disponível para suas turmas.</p>
+            ) : (
+              <div className="student-material-groups">
+                {materialsByClass.map(([className, items]) => (
+                  <section key={className}>
+                    <header>
+                      <strong>{className}</strong>
+                      <small>{items.length} item(ns)</small>
+                    </header>
+                    <ul>
+                      {items.map((material) => (
+                        <li key={material.id}>
+                          <div>
+                            <h5>{material.title}</h5>
+                            <p>{material.description || `Tipo: ${material.kind}`}</p>
+                            <small>{formatDateTime(material.publishedAt)}</small>
+                          </div>
+                          {material.fileUrl || material.externalUrl ? (
+                            <a
+                              href={material.fileUrl || material.externalUrl || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Abrir
+                            </a>
+                          ) : (
+                            <span>Sem link</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+            )}
+          </article>
+        </section>
+      );
+    }
+
+    if (activeSection === 'st-student-notices') {
+      return (
+        <section className="student-page-layout">
+          <article className="student-page-card">
+            <h4>Mural de avisos</h4>
+            {recentNotices.length === 0 ? (
+              <p className="student-template-empty">Nenhum aviso publicado no momento.</p>
+            ) : (
+              <div className="student-notice-feed">
+                {recentNotices.map((aviso) => (
+                  <article key={aviso.id} className={aviso.priority === 'high' ? 'is-priority' : ''}>
+                    <header>
+                      <strong>{aviso.title}</strong>
+                      <span>{formatRelative(aviso.publishedAt)}</span>
+                    </header>
+                    <small>{aviso.className}</small>
+                    <p>{aviso.body}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </article>
+        </section>
+      );
+    }
+
+    if (activeSection === 'st-student-certificate') {
+      return (
+        <section className="student-page-layout">
+          <article className="student-page-card">
+            <h4>Certificado de conclusão</h4>
+            {matriculas.length === 0 ? (
+              <p className="student-template-empty">Sem matrícula ativa para emissão de certificado.</p>
+            ) : (
+              <div className="student-page-list">
+                {matriculas.map((item) => {
+                  const status = normalizeStatus(item.status);
+                  const isConcluded = status.toLowerCase().includes('conclu');
+                  return (
+                    <article key={`${item.enrollmentId}-cert`} className="student-page-list-item">
+                      <div>
+                        <strong>{item.courseName}</strong>
+                        <small>
+                          {item.className} • {status}
+                        </small>
+                      </div>
+                      {isConcluded ? <button type="button">Baixar PDF</button> : <span>Pendente</span>}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </article>
+        </section>
+      );
+    }
+
+    if (activeSection === 'st-student-profile') {
+      return (
+        <section className="student-page-layout">
+          <div className="student-page-grid cols-2">
+            <article className="student-page-card">
+              <div className="student-template-profile-row">
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt={`Avatar de ${titleName}`} />
+                ) : (
+                  <span>{initials(titleName)}</span>
+                )}
+                <div>
+                  <strong>{titleName}</strong>
+                  <small>{me?.email || user.email}</small>
+                </div>
+              </div>
+              <dl className="student-profile-grid">
+                <div>
+                  <dt>CPF</dt>
+                  <dd>{me?.studentProfile?.documentCpf || '-'}</dd>
+                </div>
+                <div>
+                  <dt>Telefone</dt>
+                  <dd>{me?.studentProfile?.phone || '-'}</dd>
+                </div>
+                <div>
+                  <dt>Nascimento</dt>
+                  <dd>{formatDate(me?.studentProfile?.birthDate)}</dd>
+                </div>
+                <div>
+                  <dt>Cidade/UF</dt>
+                  <dd>{profileCityState}</dd>
+                </div>
+              </dl>
+            </article>
+            <article className="student-page-card">
+              <h4>Suporte acadêmico</h4>
+              <p>
+                Para atualização cadastral, documentos e dúvidas administrativas, utilize a Secretaria
+                Virtual no menu lateral.
+              </p>
+            </article>
+          </div>
+        </section>
+      );
+    }
+
+    return null;
   };
 
   const studentId = me?.id ? me.id.slice(0, 8).toUpperCase() : '---';
@@ -778,6 +1295,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 <p>{currentSubtitle}</p>
               </section>
 
+              {isPanelView ? (
+                <>
               <div className={`student-template-bento-grid ${isPanelView ? '' : 'is-single-view'}`}>
                 {showCourse ? (
                 <article
@@ -1088,6 +1607,10 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 ) : null}
               </section>
               ) : null}
+                </>
+              ) : (
+                renderDedicatedPage()
+              )}
             </>
           )}
         </div>
