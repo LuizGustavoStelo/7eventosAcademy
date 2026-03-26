@@ -47,7 +47,7 @@ class Seven_Academy_Shortcodes
     public static function render_area_do_aluno(array $atts = []): string
     {
         $atts = shortcode_atts(
-            ['height' => '720px'],
+            ['height' => '720px', 'full' => '1'],
             $atts,
             'area-do-aluno'
         );
@@ -68,7 +68,8 @@ class Seven_Academy_Shortcodes
         return self::render_iframe(
             $src,
             __('Area do Aluno - 7Eventos Academy', 'seven-academy'),
-            (string) $atts['height']
+            (string) $atts['height'],
+            self::to_bool($atts['full']) ? 'is-fullscreen' : ''
         );
     }
 
@@ -105,26 +106,57 @@ class Seven_Academy_Shortcodes
         );
     }
 
-    private static function render_iframe(string $src, string $title, string $min_height = '720px'): string
+    private static function render_iframe(
+        string $src,
+        string $title,
+        string $min_height = '720px',
+        string $extra_class = ''
+    ): string
     {
         $safe_src    = esc_url($src);
         $safe_title  = esc_attr($title);
         $safe_height = esc_attr($min_height);
+        $class_name  = trim('seven-academy-container is-loading ' . $extra_class);
+        $safe_class  = esc_attr($class_name);
+        $min_height_px = self::parse_css_height_to_px($min_height);
 
         return sprintf(
-            '<div class="seven-academy-container is-loading">'
+            '<div class="%s">'
             . '<iframe'
             . ' src="%s"'
             . ' title="%s"'
             . ' loading="eager"'
             . ' referrerpolicy="strict-origin-when-cross-origin"'
             . ' style="width:100%%;min-height:%s;border:0;"'
+            . ' data-min-height-px="%d"'
             . ' allow="fullscreen"'
             . '></iframe>'
             . '</div>',
+            $safe_class,
             $safe_src,
             $safe_title,
-            $safe_height
+            $safe_height,
+            $min_height_px
         );
+    }
+
+    private static function parse_css_height_to_px(string $css_height): int
+    {
+        if (preg_match('/^\\s*(\\d+)\\s*px\\s*$/i', $css_height, $matches) === 1) {
+            return (int) $matches[1];
+        }
+        if (preg_match('/^\\s*(\\d+)\\s*$/', $css_height, $matches) === 1) {
+            return (int) $matches[1];
+        }
+        return 720;
+    }
+
+    private static function to_bool($value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        $normalized = strtolower(trim((string) $value));
+        return in_array($normalized, ['1', 'true', 'yes', 'y', 'on'], true);
     }
 }

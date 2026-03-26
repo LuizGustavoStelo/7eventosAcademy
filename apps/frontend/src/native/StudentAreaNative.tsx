@@ -70,6 +70,7 @@ const SECTION_IDS = [
   'st-student-panel',
   'st-student-course',
   'st-student-classes',
+  'st-student-agenda',
   'st-student-finance',
   'st-student-live',
   'st-student-notices',
@@ -80,16 +81,32 @@ const SECTION_IDS = [
 
 type SectionId = (typeof SECTION_IDS)[number];
 
+type IconName =
+  | 'dashboard'
+  | 'school'
+  | 'calendar_month'
+  | 'live_tv'
+  | 'checklist_rtl'
+  | 'payments'
+  | 'folder_open'
+  | 'notifications_active'
+  | 'verified'
+  | 'person'
+  | 'search'
+  | 'help'
+  | 'event_note'
+  | 'headset_mic';
+
 type NavItem = {
   label: string;
-  icon: string;
+  icon: IconName;
   target: SectionId;
 };
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Painel', icon: 'dashboard', target: 'st-student-panel' },
   { label: 'Aulas', icon: 'school', target: 'st-student-classes' },
-  { label: 'Agenda', icon: 'calendar_month', target: 'st-student-classes' },
+  { label: 'Agenda', icon: 'calendar_month', target: 'st-student-agenda' },
   { label: 'Transmissões', icon: 'live_tv', target: 'st-student-live' },
   { label: 'Frequência', icon: 'checklist_rtl', target: 'st-student-course' },
   { label: 'Financeiro', icon: 'payments', target: 'st-student-finance' },
@@ -261,11 +278,143 @@ function progressFromDateRange(startDate: string | null | undefined, endDate: st
   return Math.round((elapsed / total) * 100);
 }
 
+function StudentIcon({ name, className }: { name: IconName; className?: string }) {
+  const classes = ['student-template-icon', className].filter(Boolean).join(' ');
+
+  if (name === 'dashboard') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <rect x="3" y="3" width="8" height="8" rx="1.5" />
+        <rect x="13" y="3" width="8" height="5" rx="1.5" />
+        <rect x="13" y="10" width="8" height="11" rx="1.5" />
+        <rect x="3" y="13" width="8" height="8" rx="1.5" />
+      </svg>
+    );
+  }
+
+  if (name === 'school') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M2 9.5L12 4l10 5.5L12 15 2 9.5z" />
+        <path d="M6 11.7V16c0 1.7 3 3 6 3s6-1.3 6-3v-4.3" />
+      </svg>
+    );
+  }
+
+  if (name === 'calendar_month') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M3 9h18M8 3v4M16 3v4" />
+      </svg>
+    );
+  }
+
+  if (name === 'live_tv') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <rect x="3" y="5" width="18" height="13" rx="2" />
+        <path d="M8 21h8M12 18v3M10 9l5 2.5-5 2.5V9z" />
+      </svg>
+    );
+  }
+
+  if (name === 'checklist_rtl') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M9 7h10M9 12h10M9 17h10" />
+        <path d="M3.8 7.2l1.6 1.6L7.8 6.4M3.8 12.2l1.6 1.6 2.4-2.4M3.8 17.2l1.6 1.6 2.4-2.4" />
+      </svg>
+    );
+  }
+
+  if (name === 'payments') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="M3 10h18M7 15h3" />
+      </svg>
+    );
+  }
+
+  if (name === 'folder_open') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M3 7a2 2 0 012-2h5l2 2h7a2 2 0 012 2v1H3V7z" />
+        <path d="M3 10h18l-2 8a2 2 0 01-2 1H5a2 2 0 01-2-2v-7z" />
+      </svg>
+    );
+  }
+
+  if (name === 'notifications_active') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M6 10a6 6 0 1112 0v4l2 2H4l2-2v-4z" />
+        <path d="M10 18a2 2 0 004 0" />
+      </svg>
+    );
+  }
+
+  if (name === 'verified') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M12 3l3 1.5 3.3-.3 1 3.1 2.7 2-1.6 2.9.2 3.3-3 1.3-2 2.7-3-1.2-3 1.2-2-2.7-3-1.3.2-3.3-1.6-2.9 2.7-2 1-3.1L9 4.5 12 3z" />
+        <path d="M8.5 12.3l2.2 2.2 4.8-4.8" />
+      </svg>
+    );
+  }
+
+  if (name === 'person') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <circle cx="12" cy="8" r="3.2" />
+        <path d="M5 19c1.6-3 4-4.5 7-4.5S17.4 16 19 19" />
+      </svg>
+    );
+  }
+
+  if (name === 'search') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <circle cx="11" cy="11" r="6.5" />
+        <path d="M16 16l4.5 4.5" />
+      </svg>
+    );
+  }
+
+  if (name === 'help') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9.8 9.5a2.4 2.4 0 114.6 1c-.5 1-1.8 1.4-2.1 2.4v.6" />
+        <circle cx="12" cy="16.8" r="0.8" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+
+  if (name === 'event_note') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+        <path d="M8 2v4M16 2v4M8 11h8M8 15h5M4 8h16" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+      <path d="M12 3a9 9 0 100 18 9 9 0 000-18z" />
+      <path d="M7 12h10M12 7v10" />
+    </svg>
+  );
+}
+
 export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativeProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashboard, setDashboard] = useState<StudentDashboardPayload | null>(null);
   const [activeSection, setActiveSection] = useState<SectionId>('st-student-panel');
+  const [fontsReady, setFontsReady] = useState(false);
 
   const loadFallback = async (bypassCache = false): Promise<StudentDashboardPayload> => {
     const [me, matriculas, materiais, avisos] = await Promise.all([
@@ -340,6 +489,30 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       window.clearInterval(intervalId);
     };
   }, [token]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const waitFonts = async () => {
+      try {
+        const fontReady = typeof document !== 'undefined' && 'fonts' in document
+          ? (document as Document & { fonts: FontFaceSet }).fonts.ready
+          : Promise.resolve();
+        const timeout = new Promise<void>((resolve) => {
+          window.setTimeout(() => resolve(), 1200);
+        });
+        await Promise.race([fontReady, timeout]);
+      } finally {
+        if (mounted) setFontsReady(true);
+      }
+    };
+
+    void waitFonts();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const me = dashboard?.me;
   const matriculas = dashboard?.matriculas ?? [];
@@ -424,16 +597,34 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
   const scrollToSection = (sectionId: SectionId) => {
     setActiveSection(sectionId);
-    document.getElementById(sectionId)?.scrollIntoView({
+    const target = document.getElementById(sectionId);
+    target?.scrollIntoView({
       behavior: 'smooth',
       block: 'start',
     });
+    target?.classList.add('is-focus-highlight');
+    window.setTimeout(() => target?.classList.remove('is-focus-highlight'), 900);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `#${sectionId}`);
+    }
   };
 
   const studentId = me?.id ? me.id.slice(0, 8).toUpperCase() : '---';
+  const showBootOverlay = loading || !fontsReady;
 
   return (
-    <section className="student-template-shell">
+    <section className={`student-template-shell ${showBootOverlay ? 'is-booting' : ''}`}>
+      {showBootOverlay ? (
+        <div className="student-template-boot" role="status" aria-live="polite">
+          <div className="student-template-boot-card">
+            <img src="/7eventos_academy_logo.png" alt="7Eventos Academy" />
+            <strong>Carregando Portal do Aluno</strong>
+            <p>Preparando layout e dados com estabilidade visual...</p>
+            <span className="student-template-boot-spinner" aria-hidden="true" />
+          </div>
+        </div>
+      ) : null}
+
       <aside className="student-template-sidebar" aria-label="Navegação principal do aluno">
         <div className="student-template-brand">
           <img src="/7eventos_academy_logo.png" alt="7Eventos Academy" />
@@ -451,9 +642,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               className={activeSection === item.target ? 'active' : ''}
               onClick={() => scrollToSection(item.target)}
             >
-              <span className="material-symbols-outlined" aria-hidden="true">
-                {item.icon}
-              </span>
+              <StudentIcon name={item.icon} />
               <span>{item.label}</span>
             </button>
           ))}
@@ -467,9 +656,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       <main className="student-template-main">
         <header className="student-template-topbar">
           <label className="student-template-search" htmlFor="student-search">
-            <span className="material-symbols-outlined" aria-hidden="true">
-              search
-            </span>
+            <StudentIcon name="search" />
             <input
               id="student-search"
               type="text"
@@ -481,11 +668,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
           <div className="student-template-topbar-right">
             <button type="button" className="student-template-icon-btn" aria-label="Notificações">
-              <span className="material-symbols-outlined">notifications</span>
+              <StudentIcon name="notifications_active" />
               {avisos.length > 0 ? <span className="student-template-icon-dot" /> : null}
             </button>
             <button type="button" className="student-template-icon-btn" aria-label="Ajuda">
-              <span className="material-symbols-outlined">help</span>
+              <StudentIcon name="help" />
             </button>
 
             <div className="student-template-user">
@@ -533,10 +720,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       <span>Curso atual</span>
                       <span>{normalizeModality(matriculaPrincipal?.modality)}</span>
                     </div>
-                    <span className="material-symbols-outlined" aria-hidden="true">
-                      school
-                    </span>
                   </div>
+                  <StudentIcon name="school" className="student-template-course-watermark" />
 
                   <h3>{matriculaPrincipal?.courseName || 'Nenhum curso ativo'}</h3>
                   <p>
@@ -565,9 +750,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 <div className="student-template-side-stack">
                   <article id="st-student-finance" className="student-template-next-due-card">
                     <div>
-                      <span className="material-symbols-outlined" aria-hidden="true">
-                        payments
-                      </span>
+                      <StudentIcon name="payments" />
                       <small>Próximo evento</small>
                     </div>
                     <strong>{nextEventLabel}</strong>
@@ -576,9 +759,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
                   <article className="student-template-credit-card">
                     <div>
-                      <span className="material-symbols-outlined" aria-hidden="true">
-                        checklist_rtl
-                      </span>
+                      <StudentIcon name="checklist_rtl" />
                       <small>Materiais liberados</small>
                     </div>
                     <strong>
@@ -593,9 +774,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 <article id="st-student-classes" className="student-template-classes-card">
                   <div className="student-template-card-title">
                     <h4>
-                      <span className="material-symbols-outlined" aria-hidden="true">
-                        event_note
-                      </span>
+                      <StudentIcon name="event_note" />
                       Próximas aulas
                     </h4>
                     <button type="button" onClick={() => scrollToSection('st-student-materials')}>
@@ -630,9 +809,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 <div className="student-template-right-column">
                   <article id="st-student-live" className="student-template-live-card">
                     <div>
-                      <span className="material-symbols-outlined" aria-hidden="true">
-                        live_tv
-                      </span>
+                      <StudentIcon name="live_tv" />
                       <div>
                         <h4>{liveMaterial ? 'Transmissão em destaque' : 'Sem transmissão no momento'}</h4>
                         <p>
@@ -661,9 +838,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   <article id="st-student-notices" className="student-template-notices-card">
                     <div className="student-template-card-title">
                       <h4>
-                        <span className="material-symbols-outlined" aria-hidden="true">
-                          notifications_active
-                        </span>
+                        <StudentIcon name="notifications_active" />
                         Avisos recentes
                       </h4>
                     </div>
@@ -696,9 +871,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
               <footer className="student-template-support">
                 <div className="student-template-support-main">
-                  <span className="material-symbols-outlined" aria-hidden="true">
-                    headset_mic
-                  </span>
+                  <StudentIcon name="headset_mic" />
                   <div>
                     <h4>Precisa de auxílio acadêmico?</h4>
                     <p>Nosso time está disponível de segunda a sexta, das 09h às 21h.</p>
@@ -711,6 +884,25 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               </footer>
 
               <section className="student-template-lower-grid">
+                <article id="st-student-agenda" className="student-template-lower-card">
+                  <h4>Agenda acadêmica</h4>
+                  {upcomingClasses.length === 0 ? (
+                    <p className="student-template-empty">Nenhum evento acadêmico próximo.</p>
+                  ) : (
+                    <ul>
+                      {upcomingClasses.map((item) => (
+                        <li key={`${item.id}-agenda`}>
+                          <div>
+                            <strong>{item.title}</strong>
+                            <small>{item.period}</small>
+                          </div>
+                          <span>{item.modality}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </article>
+
                 <article id="st-student-materials" className="student-template-lower-card">
                   <h4>Materiais de apoio</h4>
                   {recentMaterials.length === 0 ? (
@@ -802,9 +994,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
             className={activeSection === item.target ? 'active' : ''}
             onClick={() => scrollToSection(item.target)}
           >
-            <span className="material-symbols-outlined" aria-hidden="true">
-              {item.icon}
-            </span>
+            <StudentIcon name={item.icon} />
             <span>{item.label}</span>
           </button>
         ))}

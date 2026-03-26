@@ -219,6 +219,68 @@ export default function App() {
   const secoes = usuario?.role === 'superadmin' ? SECOES_SUPERADMIN : SECOES_ADMIN;
 
   useEffect(() => {
+    if (!isEmbedded) return;
+
+    let resizeObserver: ResizeObserver | null = null;
+    let mutationObserver: MutationObserver | null = null;
+    let intervalId = 0;
+
+    const postEmbedHeight = () => {
+      const body = document.body;
+      const doc = document.documentElement;
+      const nextHeight = Math.max(
+        body?.scrollHeight ?? 0,
+        body?.offsetHeight ?? 0,
+        doc?.scrollHeight ?? 0,
+        doc?.offsetHeight ?? 0,
+        doc?.clientHeight ?? 0,
+      );
+
+      if (nextHeight <= 0) return;
+
+      window.parent.postMessage(
+        {
+          type: 'seven-academy:resize',
+          height: nextHeight,
+        },
+        '*',
+      );
+    };
+
+    const schedulePost = () => {
+      window.requestAnimationFrame(postEmbedHeight);
+    };
+
+    schedulePost();
+    window.setTimeout(schedulePost, 120);
+    intervalId = window.setInterval(schedulePost, 1200);
+    window.addEventListener('resize', schedulePost);
+    window.addEventListener('load', schedulePost);
+
+    if ('ResizeObserver' in window) {
+      resizeObserver = new ResizeObserver(schedulePost);
+      resizeObserver.observe(document.documentElement);
+      resizeObserver.observe(document.body);
+    }
+
+    mutationObserver = new MutationObserver(schedulePost);
+    mutationObserver.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      characterData: true,
+    });
+
+    return () => {
+      if (intervalId) window.clearInterval(intervalId);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+      window.removeEventListener('resize', schedulePost);
+      window.removeEventListener('load', schedulePost);
+    };
+  }, [isEmbedded, appMode, autenticado, secaoAtiva, usuario?.role]);
+
+  useEffect(() => {
     if (!autenticado || secoes.length === 0) return;
     if (!secoes.some((item) => item.id === secaoAtiva)) {
       setSecaoAtiva(secoes[0].id);

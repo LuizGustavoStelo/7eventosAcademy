@@ -3511,6 +3511,79 @@ table button {
   font-family: 'Manrope', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+.student-template-shell.is-booting {
+  overflow: hidden;
+}
+
+.student-template-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(19, 147, 149, 0.14), transparent 42%),
+    radial-gradient(circle at 82% 14%, rgba(40, 62, 110, 0.09), transparent 38%),
+    #eff3f4;
+  display: grid;
+  place-items: center;
+}
+
+.student-template-boot-card {
+  width: min(430px, calc(100% - 2rem));
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(214, 224, 231, 0.95);
+  box-shadow: 0 18px 40px rgba(20, 36, 62, 0.12);
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  padding: 1.35rem 1.1rem 1.2rem;
+  text-align: center;
+}
+
+.student-template-boot-card img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.student-template-boot-card strong {
+  color: #134f53;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+.student-template-boot-card p {
+  margin: 0;
+  color: #68809b;
+  font-size: 0.86rem;
+}
+
+.student-template-boot-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 2px solid rgba(19, 147, 149, 0.2);
+  border-top-color: #139395;
+  animation: student-spin 0.8s linear infinite;
+}
+
+@keyframes student-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.student-template-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  flex-shrink: 0;
+}
+
 .student-template-sidebar {
   width: 248px;
   position: fixed;
@@ -3580,8 +3653,9 @@ table button {
   transition: background 0.18s ease, color 0.18s ease;
 }
 
-.student-template-menu button .material-symbols-outlined {
-  font-size: 1.5rem;
+.student-template-menu button .student-template-icon {
+  width: 1.18rem;
+  height: 1.18rem;
   color: #4b5d75;
 }
 
@@ -3590,7 +3664,7 @@ table button {
   color: var(--st-primary-strong);
 }
 
-.student-template-menu button:hover .material-symbols-outlined {
+.student-template-menu button:hover .student-template-icon {
   color: var(--st-primary-strong);
 }
 
@@ -3600,7 +3674,7 @@ table button {
   box-shadow: inset -4px 0 0 var(--st-primary);
 }
 
-.student-template-menu button.active .material-symbols-outlined {
+.student-template-menu button.active .student-template-icon {
   color: #1a6f70;
 }
 
@@ -3649,8 +3723,9 @@ table button {
   padding: 0.7rem 0.95rem;
 }
 
-.student-template-search .material-symbols-outlined {
-  font-size: 1.3rem;
+.student-template-search .student-template-icon {
+  width: 1.12rem;
+  height: 1.12rem;
   color: #7b8a9c;
 }
 
@@ -3691,8 +3766,9 @@ table button {
   background: #edf2f5;
 }
 
-.student-template-icon-btn .material-symbols-outlined {
-  font-size: 1.25rem;
+.student-template-icon-btn .student-template-icon {
+  width: 1.08rem;
+  height: 1.08rem;
 }
 
 .student-template-icon-dot {
@@ -3837,6 +3913,25 @@ table button {
   box-shadow: var(--st-shadow-card);
 }
 
+.student-template-course-card.is-focus-highlight,
+.student-template-next-due-card.is-focus-highlight,
+.student-template-credit-card.is-focus-highlight,
+.student-template-classes-card.is-focus-highlight,
+.student-template-live-card.is-focus-highlight,
+.student-template-notices-card.is-focus-highlight,
+.student-template-lower-card.is-focus-highlight {
+  animation: student-focus-pulse 0.9s ease;
+}
+
+@keyframes student-focus-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(19, 147, 149, 0.34);
+  }
+  100% {
+    box-shadow: var(--st-shadow-card);
+  }
+}
+
 .student-template-course-card {
   grid-column: span 8;
   padding: 1.35rem 1.5rem;
@@ -3845,25 +3940,19 @@ table button {
   min-height: 252px;
 }
 
-.student-template-course-card::after {
-  content: 'school';
-  font-family: 'Material Symbols Outlined';
-  position: absolute;
-  top: 1.8rem;
-  right: 1.6rem;
-  color: rgba(18, 28, 40, 0.12);
-  font-size: 4.8rem;
-  line-height: 1;
-}
-
 .student-template-course-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.student-template-course-header > .material-symbols-outlined {
-  visibility: hidden;
+.student-template-course-watermark {
+  position: absolute;
+  top: 1.8rem;
+  right: 1.6rem;
+  width: 4.4rem;
+  height: 4.4rem;
+  color: rgba(18, 28, 40, 0.12);
 }
 
 .student-template-course-badges {
@@ -3969,7 +4058,7 @@ table button {
   gap: 0.8rem;
 }
 
-.student-template-next-due-card .material-symbols-outlined {
+.student-template-next-due-card .student-template-icon {
   width: 2.25rem;
   height: 2.25rem;
   border-radius: 0.45rem;
@@ -4012,7 +4101,7 @@ table button {
   justify-content: space-between;
 }
 
-.student-template-credit-card .material-symbols-outlined {
+.student-template-credit-card .student-template-icon {
   width: 2.25rem;
   height: 2.25rem;
   border-radius: 0.45rem;
@@ -4085,9 +4174,10 @@ table button {
   gap: 0.45rem;
 }
 
-.student-template-card-title .material-symbols-outlined {
+.student-template-card-title .student-template-icon {
   color: var(--st-primary);
-  font-size: 1.65rem;
+  width: 1.35rem;
+  height: 1.35rem;
 }
 
 .student-template-card-title button {
@@ -4224,7 +4314,7 @@ table button {
   min-width: 0;
 }
 
-.student-template-live-card .material-symbols-outlined {
+.student-template-live-card .student-template-icon {
   width: 2.55rem;
   height: 2.55rem;
   border-radius: 999px;
@@ -4349,7 +4439,7 @@ table button {
   gap: 0.9rem;
 }
 
-.student-template-support-main .material-symbols-outlined {
+.student-template-support-main .student-template-icon {
   width: 3.15rem;
   height: 3.15rem;
   border-radius: 999px;
@@ -4358,7 +4448,7 @@ table button {
   color: #169596;
   background: #fff;
   box-shadow: var(--st-shadow-soft);
-  font-size: 1.8rem;
+  stroke-width: 1.7;
 }
 
 .student-template-support h4 {
@@ -4573,8 +4663,9 @@ table button {
   cursor: pointer;
 }
 
-.student-template-bottom-nav button .material-symbols-outlined {
-  font-size: 1.1rem;
+.student-template-bottom-nav button .student-template-icon {
+  width: 1rem;
+  height: 1rem;
 }
 
 .student-template-bottom-nav button span:last-child {
