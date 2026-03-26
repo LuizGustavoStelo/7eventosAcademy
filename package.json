@@ -7,7 +7,7 @@
     "apps/*"
   ],
   "scripts": {
-    "prepare": "node scripts/setup-git-hooks.mjs",
+    "prepare": "node -e \"const fs=require('fs');const cp=require('child_process');if(!fs.existsSync('scripts/setup-git-hooks.mjs')){console.log('[prepare] setup-git-hooks ausente, ignorado neste ambiente.');process.exit(0);}try{cp.execSync('node scripts/setup-git-hooks.mjs',{stdio:'inherit'});}catch{console.log('[prepare] setup-git-hooks ignorado.');}\"",
     "dev:frontend": "npm run dev --workspace frontend",
     "dev:backend": "npm run start:dev --workspace backend",
     "build:frontend": "npm run build --workspace frontend",
