@@ -9,7 +9,7 @@ import {
   Logger
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { UploadOwnerType } from '@prisma/client';
+import { UploadOwnerType, UserRole } from '@prisma/client';
 import { MultipartFile } from '@fastify/multipart';
 import { dirname, extname, join, resolve } from 'path';
 import { PrismaService } from '../database/prisma.service';
@@ -49,7 +49,7 @@ export class UploadsService implements OnModuleInit {
     }
 
     const extension = this.resolveExtension(file);
-    const relativePath = this.buildRelativePath({
+    const relativePath = await this.buildRelativePath({
       ownerType,
       ownerId,
       kind,
@@ -274,7 +274,7 @@ export class UploadsService implements OnModuleInit {
     }
   }
 
-  private buildRelativePath(input: {
+  private async buildRelativePath(input: {
     ownerType: UploadOwnerType;
     ownerId: string;
     kind: string;
@@ -284,7 +284,8 @@ export class UploadsService implements OnModuleInit {
     const fileName = `${Date.now()}-${randomUUID()}${extension}`;
 
     if (ownerType === UploadOwnerType.COURSE && kind === 'COURSE_BANNER') {
-      return `banners/cursos/${this.safeSegment(ownerId)}/${fileName}`;
+      const courseFolder = await this.resolveCourseFolder(ownerId);
+      return `banners/cursos/${courseFolder}/${fileName}`;
     }
 
     if (
@@ -292,7 +293,8 @@ export class UploadsService implements OnModuleInit {
         ownerType === UploadOwnerType.STUDENT) &&
       (kind === 'PROFILE_AVATAR' || kind === 'STUDENT_AVATAR')
     ) {
-      return `perfil/${ownerType.toLowerCase()}/${this.safeSegment(ownerId)}/${fileName}`;
+      const profileFolder = await this.resolveProfileFolder(ownerType, ownerId);
+      return `perfil/${profileFolder}/${fileName}`;
     }
 
     if (ownerType === UploadOwnerType.CLASS && kind.startsWith('CLASS_MATERIAL_')) {
@@ -306,8 +308,56 @@ export class UploadsService implements OnModuleInit {
     return `outros/${ownerType.toLowerCase()}/${this.safeSegment(ownerId)}/${this.safeSegment(kind)}/${fileName}`;
   }
 
+  private async resolveCourseFolder(courseId: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { name: true },
+    });
+
+    if (!course?.name) {
+      return this.safeSegment(courseId);
+    }
+
+    return this.safeSegment(course.name);
+  }
+
+  private async resolveProfileFolder(ownerType: UploadOwnerType, ownerId: string) {
+    if (ownerType === UploadOwnerType.STUDENT) {
+      const student = await this.prisma.user.findUnique({
+        where: { id: ownerId },
+        select: { name: true },
+      });
+      const nameSegment = this.safeSegment(student?.name ?? ownerId);
+      return `alunos/${nameSegment}`;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: ownerId },
+      select: { name: true, role: true },
+    });
+
+    const roleSegment =
+      user?.role === UserRole.USER
+        ? 'alunos'
+        : user?.role === UserRole.ADMIN
+          ? 'professores'
+          : user?.role === UserRole.SUPERADMIN
+            ? 'superadmin'
+            : 'usuarios';
+
+    const nameSegment = this.safeSegment(user?.name ?? ownerId);
+    return `${roleSegment}/${nameSegment}`;
+  }
+
   private safeSegment(value: string) {
-    const cleaned = value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+    const cleaned = value
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
     return cleaned || 'sem-id';
   }
 
