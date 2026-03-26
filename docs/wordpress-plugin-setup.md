@@ -1,4 +1,4 @@
-﻿# Setup do Plugin 7academy (Passo a passo)
+# Setup do Plugin 7academy (Passo a passo)
 
 Data: `20/03/2026`
 

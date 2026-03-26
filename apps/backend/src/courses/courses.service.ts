@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { MultipartFile } from '@fastify/multipart';
 import {
   CoursePaymentModel,

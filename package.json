@@ -7,12 +7,14 @@
     "apps/*"
   ],
   "scripts": {
+    "prepare": "node scripts/setup-git-hooks.mjs",
     "dev:frontend": "npm run dev --workspace frontend",
     "dev:backend": "npm run start:dev --workspace backend",
     "build:frontend": "npm run build --workspace frontend",
     "build:backend": "npm run build --workspace backend",
     "build": "npm run build:backend && npm run build:frontend",
     "check:encoding": "node scripts/check-encoding.mjs",
+    "check:encoding:staged": "node scripts/check-encoding.mjs --staged",
     "test:backend": "npm run test --workspace backend",
     "lint:backend": "npm run lint --workspace backend"
   },

@@ -1,4 +1,4 @@
-﻿import { Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { UploadsModule } from '../uploads/uploads.module';
 import { CoursesController } from './courses.controller';
 import { CoursesService } from './courses.service';

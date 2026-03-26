@@ -1,4 +1,4 @@
-﻿import { Controller, Get, Param, Res, StreamableFile } from '@nestjs/common';
+import { Controller, Get, Param, Res, StreamableFile } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import { Public } from '../auth/decorators/public.decorator';
 import { UploadsService } from './uploads.service';

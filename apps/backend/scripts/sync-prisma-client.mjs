@@ -1,4 +1,4 @@
-﻿import { cpSync, existsSync, mkdirSync, rmSync } from 'fs';
+import { cpSync, existsSync, mkdirSync, rmSync } from 'fs';
 import { resolve } from 'path';
 
 const workspaceRoot = process.cwd();

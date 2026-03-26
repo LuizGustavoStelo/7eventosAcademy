@@ -1,4 +1,4 @@
-﻿export type AppRole = 'user' | 'admin' | 'superadmin';
+export type AppRole = 'user' | 'admin' | 'superadmin';
 
 export type JwtPayload = {
   sub: string;

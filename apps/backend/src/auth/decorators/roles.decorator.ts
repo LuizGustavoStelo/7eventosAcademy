@@ -1,4 +1,4 @@
-﻿import { SetMetadata } from '@nestjs/common';
+import { SetMetadata } from '@nestjs/common';
 import { AppRole } from '../types/app-role.type';
 
 export const ROLES_KEY = 'roles';

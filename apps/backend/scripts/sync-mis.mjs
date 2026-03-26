@@ -1,4 +1,4 @@
-﻿import {
+import {
   existsSync,
   mkdirSync,
 } from 'node:fs';

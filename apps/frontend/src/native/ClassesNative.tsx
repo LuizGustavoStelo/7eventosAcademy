@@ -82,8 +82,54 @@ type ClassEventMeta = {
   weeklyDays: number[];
 };
 
+type ClassSession = {
+  id: string;
+  title: string;
+  datetime: string;
+  canMark: boolean;
+  presentCount: number;
+  absentCount: number;
+  pendingCount: number;
+  updatedAt: string | null;
+};
+
+type SessionStudent = {
+  studentId: string;
+  name: string;
+  email: string;
+  enrollmentStatus: string;
+  present: boolean | null;
+  note: string | null;
+  markedAt: string | null;
+};
+
+type SessionRoster = {
+  classId: string;
+  session: {
+    id: string;
+    title: string;
+    datetime: string;
+  };
+  canMark: boolean;
+  students: SessionStudent[];
+};
+
+type StudentFrequency = {
+  present: number;
+  absent: number;
+  frequency: number;
+  status: 'present' | 'absent' | 'pending';
+};
+
+type AttendanceClassCache = {
+  sessions: ClassSession[];
+  latestRoster: SessionRoster | null;
+  studentFrequencyById: Record<string, StudentFrequency>;
+};
+
 type ClassesNativeProps = {
   token: string;
+  onNavigate?: (sectionId: string) => void;
 };
 
 const OPEN_CLASS_EDITOR_KEY = 'academy-open-class-editor';
@@ -113,11 +159,30 @@ const weekdayOptions: Array<{ value: number; label: string }> = [
   { value: 6, label: 'Sáb' },
 ];
 
+function normalizeFrequency(present: number, absent: number): number {
+  const evaluated = present + absent;
+  if (evaluated <= 0) return 100;
+  return Math.max(0, Math.min(100, Math.round((present / evaluated) * 100)));
+}
+
 function formatDate(value: string | null): string {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
   return new Intl.DateTimeFormat('pt-BR').format(date);
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
 }
 
 function toLocalDateTimeInput(value: string | null): string {
@@ -273,7 +338,7 @@ function defaultClassForm(): ClassFormState {
   };
 }
 
-export function ClassesNative({ token }: ClassesNativeProps) {
+export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -289,6 +354,15 @@ export function ClassesNative({ token }: ClassesNativeProps) {
     null,
   );
   const [classEventMetaByClassId, setClassEventMetaByClassId] = useState<Record<string, ClassEventMeta>>({});
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [selectedTab, setSelectedTab] = useState<'students' | 'agenda' | 'materials' | 'attendance'>(
+    'attendance',
+  );
+  const [sessionRoster, setSessionRoster] = useState<SessionRoster | null>(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceCacheByClassId, setAttendanceCacheByClassId] = useState<
+    Record<string, AttendanceClassCache>
+  >({});
 
   const loadData = async () => {
     setError('');
@@ -302,10 +376,15 @@ export function ClassesNative({ token }: ClassesNativeProps) {
           apiRequest<ClassEventMeta[]>(token, '/agenda/class-events/meta'),
         ]);
 
-      setClasses(Array.isArray(classesData) ? classesData : []);
+      const normalizedClasses = Array.isArray(classesData) ? classesData : [];
+      setClasses(normalizedClasses);
       setCourses(Array.isArray(coursesData) ? coursesData : []);
       setStudents(Array.isArray(studentsData) ? studentsData : []);
       setEnrollments(Array.isArray(enrollmentsData) ? enrollmentsData : []);
+      setSelectedClassId((current) => {
+        if (current && normalizedClasses.some((item) => item.id === current)) return current;
+        return normalizedClasses[0]?.id ?? null;
+      });
       const byClass: Record<string, ClassEventMeta> = {};
       if (Array.isArray(classMetaData)) {
         classMetaData.forEach((item) => {
@@ -428,6 +507,41 @@ export function ClassesNative({ token }: ClassesNativeProps) {
       return className.includes(query) || courseName.includes(query);
     });
   }, [classes, search]);
+
+  const selectedClass = useMemo(
+    () => classes.find((item) => item.id === selectedClassId) ?? null,
+    [classes, selectedClassId],
+  );
+
+  const classesStats = useMemo(() => {
+    const active = classes.filter((item) => item.status !== 'CLOSED').length;
+    const occupied = classes.reduce((acc, item) => {
+      const total = typeof item.occupiedSeats === 'number'
+        ? item.occupiedSeats
+        : Number(item._count?.enrollments ?? 0);
+      return acc + Math.max(0, total);
+    }, 0);
+    const totalSeats = classes.reduce((acc, item) => acc + Math.max(0, Number(item.totalSeats || 0)), 0);
+    const occupancyRate = totalSeats > 0 ? Math.round((occupied / totalSeats) * 100) : 0;
+    const classesStartingToday = classes.filter((item) => {
+      const start = new Date(item.startDate);
+      const now = new Date();
+      return (
+        start.getFullYear() === now.getFullYear() &&
+        start.getMonth() === now.getMonth() &&
+        start.getDate() === now.getDate()
+      );
+    }).length;
+
+    return {
+      active,
+      occupied,
+      totalSeats,
+      occupancyRate,
+      classesStartingToday,
+      planningCount: classes.filter((item) => item.status === 'PLANNING').length,
+    };
+  }, [classes]);
 
   const openCreateModal = () => {
     setForm(defaultClassForm());
@@ -589,6 +703,162 @@ export function ClassesNative({ token }: ClassesNativeProps) {
     form.selectedStudentIds,
   ]);
 
+  const selectedClassStudents = useMemo(() => {
+    if (!selectedClass) return [];
+    const selectedEnrollments = enrollments.filter(
+      (item) => item.classId === selectedClass.id && item.status === 'ACTIVE',
+    );
+    return selectedEnrollments
+      .map((enrollment) => {
+        const student = students.find((item) => item.id === enrollment.studentId);
+        if (!student) return null;
+        return {
+          id: student.id,
+          name: student.name,
+          email: student.email,
+        };
+      })
+      .filter((item): item is { id: string; name: string; email: string } => Boolean(item));
+  }, [selectedClass, enrollments, students]);
+
+  useEffect(() => {
+    if (!selectedClassId) {
+      setSessionRoster(null);
+      return;
+    }
+    if (selectedTab !== 'attendance') return;
+
+    const cached = attendanceCacheByClassId[selectedClassId];
+    if (cached) {
+      setSessionRoster(cached.latestRoster);
+      return;
+    }
+
+    let cancelled = false;
+    const loadAttendancePreview = async () => {
+      setAttendanceLoading(true);
+      try {
+        const sessions = await apiRequest<ClassSession[]>(
+          token,
+          `/attendance/teacher/classes/${selectedClassId}/sessions`,
+        );
+        if (cancelled) return;
+        const normalizedSessions = Array.isArray(sessions) ? sessions : [];
+
+        const now = Date.now();
+        const pastSessions = normalizedSessions.filter(
+          (session) => new Date(session.datetime).getTime() <= now,
+        );
+        const targetSession = pastSessions.at(-1) ?? normalizedSessions[0] ?? null;
+
+        if (!targetSession) {
+          setSessionRoster(null);
+          return;
+        }
+
+        const roster = await apiRequest<SessionRoster>(
+          token,
+          `/attendance/teacher/classes/${selectedClassId}/sessions/${targetSession.id}`,
+        );
+        if (cancelled) return;
+        setSessionRoster(roster);
+
+        const historyRosters: SessionRoster[] = [];
+        const chunkSize = 4;
+        for (let index = 0; index < pastSessions.length; index += chunkSize) {
+          const chunk = pastSessions.slice(index, index + chunkSize);
+          const batch = await Promise.all(
+            chunk.map((session) =>
+              apiRequest<SessionRoster>(
+                token,
+                `/attendance/teacher/classes/${selectedClassId}/sessions/${session.id}`,
+              ).catch(() => null),
+            ),
+          );
+          if (cancelled) return;
+          historyRosters.push(
+            ...batch.filter((item): item is SessionRoster => Boolean(item)),
+          );
+        }
+
+        const stats = new Map<string, StudentFrequency>();
+        historyRosters.forEach((item) => {
+          item.students.forEach((student) => {
+            const current = stats.get(student.studentId) ?? {
+              present: 0,
+              absent: 0,
+              frequency: 100,
+              status: 'pending' as const,
+            };
+            if (student.present === true) current.present += 1;
+            if (student.present === false) current.absent += 1;
+            stats.set(student.studentId, current);
+          });
+        });
+
+        roster.students.forEach((student) => {
+          const current = stats.get(student.studentId) ?? {
+            present: 0,
+            absent: 0,
+            frequency: 100,
+            status: 'pending' as const,
+          };
+          current.status =
+            student.present === true
+              ? 'present'
+              : student.present === false
+                ? 'absent'
+                : 'pending';
+          current.frequency = normalizeFrequency(current.present, current.absent);
+          stats.set(student.studentId, current);
+        });
+
+        const studentFrequencyById: Record<string, StudentFrequency> = {};
+        stats.forEach((value, key) => {
+          studentFrequencyById[key] = value;
+        });
+
+        setAttendanceCacheByClassId((current) => ({
+          ...current,
+          [selectedClassId]: {
+            sessions: normalizedSessions,
+            latestRoster: roster,
+            studentFrequencyById,
+          },
+        }));
+      } catch {
+        if (!cancelled) {
+          setSessionRoster(null);
+        }
+      } finally {
+        if (!cancelled) setAttendanceLoading(false);
+      }
+    };
+
+    void loadAttendancePreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, selectedClassId, selectedTab, attendanceCacheByClassId]);
+
+  const attendanceByStudentId = useMemo(() => {
+    const cached = selectedClassId ? attendanceCacheByClassId[selectedClassId] : null;
+    const byId = cached?.studentFrequencyById ?? {};
+    const summary = new Map<string, StudentFrequency>();
+
+    selectedClassStudents.forEach((student) => {
+      const item = byId[student.id];
+      summary.set(student.id, {
+        present: item?.present ?? 0,
+        absent: item?.absent ?? 0,
+        frequency: item?.frequency ?? 100,
+        status: item?.status ?? 'pending',
+      });
+    });
+
+    return summary;
+  }, [selectedClassStudents, selectedClassId, attendanceCacheByClassId]);
+
   useEffect(() => {
     if (!form.courseId) {
       if (form.selectedStudentIds.length === 0) return;
@@ -723,6 +993,7 @@ export function ClassesNative({ token }: ClassesNativeProps) {
         method: 'DELETE',
       });
       await loadData();
+      setSelectedClassId((current) => (current === classId ? null : current));
       if (form.id === classId) {
         setModalOpen(false);
         setForm(defaultClassForm());
@@ -739,89 +1010,295 @@ export function ClassesNative({ token }: ClassesNativeProps) {
   };
 
   return (
-    <section className="native-page native-classes">
-      <header className="native-page-header">
-        <h2>Gestão de turmas</h2>
-        <p>
-          Versão nativa em React com recorrência e sincronização da agenda
-          administrativa.
-        </p>
+    <section className="native-page native-classes native-classes-pro">
+      <header className="native-classes-pro-header">
+        <div>
+          <h2>Gestão de turmas</h2>
+          <p>Controle operacional dos ciclos acadêmicos e disponibilidade das turmas.</p>
+        </div>
+        <div className="native-classes-pro-header-actions">
+          <button type="button">Filtro rápido</button>
+          <button type="button" className="is-primary" onClick={openCreateModal}>
+            Nova turma
+          </button>
+        </div>
       </header>
 
-      <div className="native-toolbar">
-        <input
-          type="text"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Buscar por turma ou curso..."
-        />
-        <button type="button" onClick={openCreateModal}>
-          Nova turma
-        </button>
-      </div>
+      <section className="native-classes-pro-kpis" aria-label="Indicadores de turmas">
+        <article className="native-classes-pro-kpi is-accent">
+          <span>Turmas ativas</span>
+          <strong>{classesStats.active}</strong>
+          <small>{classes.length} turma(s) no total</small>
+        </article>
+        <article className="native-classes-pro-kpi is-info">
+          <span>Ocupação total</span>
+          <strong>{classesStats.occupancyRate}%</strong>
+          <small>
+            {classesStats.occupied}/{classesStats.totalSeats} vagas ocupadas
+          </small>
+        </article>
+        <article className="native-classes-pro-kpi is-accent">
+          <span>Aulas hoje</span>
+          <strong>{classesStats.classesStartingToday}</strong>
+          <small>Inícios programados para hoje</small>
+        </article>
+        <article className="native-classes-pro-kpi is-muted">
+          <span>Planejamento</span>
+          <strong>{classesStats.planningCount}</strong>
+          <small>Turmas aguardando abertura</small>
+        </article>
+      </section>
 
       {loading ? <p className="native-info">Carregando turmas...</p> : null}
       {error ? <p className="native-error">{error}</p> : null}
 
       {!loading ? (
-        <div className="native-panel native-table-wrap">
-          <table className="native-table">
-            <thead>
-              <tr>
-                <th>Turma</th>
-                <th>Curso</th>
-                <th>Período</th>
-                <th>Vagas</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
+        <section className="native-classes-pro-main">
+          <aside className="native-classes-pro-list">
+            <div className="native-classes-pro-section-head">
+              <h3>Registro de turmas</h3>
+              <button type="button" onClick={openCreateModal}>
+                Ver todas
+              </button>
+            </div>
+            <div className="native-classes-pro-search">
+              <input
+                type="text"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar por turma ou curso..."
+              />
+            </div>
+            <div className="native-classes-pro-items">
               {filteredClasses.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>Nenhuma turma encontrada.</td>
-                </tr>
+                <p className="native-info">Nenhuma turma encontrada.</p>
               ) : (
                 filteredClasses.map((item) => {
                   const occupied =
                     typeof item.occupiedSeats === 'number'
                       ? item.occupiedSeats
                       : Number(item._count?.enrollments ?? 0);
+                  const occupancy = item.totalSeats > 0
+                    ? Math.round((occupied / item.totalSeats) * 100)
+                    : 0;
 
                   return (
-                    <tr key={item.id}>
-                      <td>{item.name}</td>
-                      <td>{item.course?.name ?? '-'}</td>
-                      <td>
-                        {formatDate(item.startDate)} - {formatDate(item.endDate)}
-                      </td>
-                      <td>
-                        {occupied}/{item.totalSeats}{' '}
-                        {item.totalSeats > 0
-                          ? `${Math.round((occupied / item.totalSeats) * 100)}%`
-                          : '0%'}
-                      </td>
-                      <td>{classStatusLabel[item.status]}</td>
-                      <td>
-                        <button type="button" onClick={() => openEditModal(item)}>
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          className="danger"
-                          onClick={() => void removeClass(item.id)}
-                          disabled={deletingClassId === item.id}
-                        >
-                          {deletingClassId === item.id ? 'Apagando...' : 'Apagar'}
-                        </button>
-                      </td>
-                    </tr>
+                    <button
+                      type="button"
+                      key={item.id}
+                      className={`native-classes-pro-item ${selectedClassId === item.id ? 'active' : ''}`}
+                      onClick={() => setSelectedClassId(item.id)}
+                    >
+                      <div className="native-classes-pro-item-top">
+                        <span>{classStatusLabel[item.status]}</span>
+                        <small>{formatDate(item.startDate)}</small>
+                      </div>
+                      <strong>{item.name}</strong>
+                      <p>{item.course?.name ?? '-'}</p>
+                      <div className="native-classes-pro-item-bottom">
+                        <small>
+                          {occupied}/{item.totalSeats} vagas
+                        </small>
+                        <small>{occupancy}%</small>
+                      </div>
+                    </button>
                   );
                 })
               )}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          </aside>
+
+          <article className="native-classes-pro-detail">
+            {selectedClass ? (
+              <>
+                <header className="native-classes-pro-detail-head">
+                  <div>
+                    <small>Curso / Turma</small>
+                    <h3>{selectedClass.name}</h3>
+                    <p>
+                      Responsável: {getCurrentUserName()} • {formatDate(selectedClass.startDate)} a{' '}
+                      {formatDate(selectedClass.endDate)}
+                    </p>
+                  </div>
+                  <div className="native-classes-pro-detail-actions">
+                    <button type="button" onClick={() => openEditModal(selectedClass)}>
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={() => void removeClass(selectedClass.id)}
+                      disabled={deletingClassId === selectedClass.id}
+                    >
+                      {deletingClassId === selectedClass.id ? 'Apagando...' : 'Apagar'}
+                    </button>
+                  </div>
+                </header>
+
+                <nav className="native-classes-pro-tabs">
+                  <button
+                    type="button"
+                    className={selectedTab === 'students' ? 'active' : ''}
+                    onClick={() => setSelectedTab('students')}
+                  >
+                    Alunos
+                  </button>
+                  <button
+                    type="button"
+                    className={selectedTab === 'agenda' ? 'active' : ''}
+                    onClick={() => setSelectedTab('agenda')}
+                  >
+                    Agenda
+                  </button>
+                  <button
+                    type="button"
+                    className={selectedTab === 'materials' ? 'active' : ''}
+                    onClick={() => setSelectedTab('materials')}
+                  >
+                    Materiais
+                  </button>
+                  <button
+                    type="button"
+                    className={selectedTab === 'attendance' ? 'active' : ''}
+                    onClick={() => setSelectedTab('attendance')}
+                  >
+                    Presença
+                  </button>
+                </nav>
+
+                {selectedTab === 'attendance' ? (
+                  <section className="native-classes-pro-attendance">
+                    <header>
+                      <h4>Registro de presença</h4>
+                      <small>
+                        {sessionRoster?.session
+                          ? `Sessão base: ${sessionRoster.session.title} • ${formatDateTime(sessionRoster.session.datetime)}`
+                          : 'Sem sessões registradas para esta turma.'}
+                      </small>
+                    </header>
+                    <div className="native-panel native-table-wrap">
+                      <table className="native-table native-classes-pro-attendance-table">
+                        <thead>
+                          <tr>
+                            <th>Aluno</th>
+                            <th>Status</th>
+                            <th>Frequência</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {attendanceLoading ? (
+                            <tr>
+                              <td colSpan={3}>Carregando presença...</td>
+                            </tr>
+                          ) : selectedClassStudents.length === 0 ? (
+                            <tr>
+                              <td colSpan={3}>Nenhum aluno ativo nesta turma.</td>
+                            </tr>
+                          ) : (
+                            selectedClassStudents.map((student) => {
+                              const preview = attendanceByStudentId.get(student.id);
+                              const status = preview?.status ?? 'pending';
+                              const frequency = preview?.frequency ?? 100;
+                              return (
+                                <tr key={student.id}>
+                                  <td>
+                                    <strong>{student.name}</strong>
+                                    <small>{student.email}</small>
+                                  </td>
+                                  <td>
+                                    <span
+                                      className={`native-status-chip ${
+                                        status === 'present'
+                                          ? 'is-success'
+                                          : status === 'absent'
+                                            ? 'is-danger'
+                                            : 'is-warning'
+                                      }`}
+                                    >
+                                      {status === 'present'
+                                        ? 'Presente'
+                                        : status === 'absent'
+                                          ? 'Falta'
+                                          : 'Pendente'}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <strong>{frequency}%</strong>
+                                    <span
+                                      className={`native-status-chip ${
+                                        frequency >= 75
+                                          ? 'is-success'
+                                          : frequency >= 60
+                                            ? 'is-warning'
+                                            : 'is-danger'
+                                      }`}
+                                    >
+                                      {frequency >= 75
+                                        ? 'Boa'
+                                        : frequency >= 60
+                                          ? 'Atenção'
+                                          : 'Crítica'}
+                                    </span>
+                                    <small>
+                                      P: {preview?.present ?? 0} • F: {preview?.absent ?? 0}
+                                    </small>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="native-classes-pro-attendance-actions">
+                      <button type="button" onClick={() => onNavigate?.('admin_aulas')}>
+                        Abrir tela de presença
+                      </button>
+                    </div>
+                  </section>
+                ) : selectedTab === 'students' ? (
+                  <section className="native-classes-pro-attendance">
+                    <header>
+                      <h4>Alunos vinculados</h4>
+                      <small>{selectedClassStudents.length} aluno(s) ativo(s) nesta turma.</small>
+                    </header>
+                    <div className="native-classes-pro-attendance-actions">
+                      <button type="button" onClick={() => openEditModal(selectedClass)}>
+                        Gerenciar matrículas da turma
+                      </button>
+                    </div>
+                  </section>
+                ) : selectedTab === 'agenda' ? (
+                  <section className="native-classes-pro-attendance">
+                    <header>
+                      <h4>Agenda da turma</h4>
+                      <small>Sincronização de agenda ativa para esta turma.</small>
+                    </header>
+                    <div className="native-classes-pro-attendance-actions">
+                      <button type="button" onClick={() => onNavigate?.('admin_agenda')}>
+                        Abrir agenda
+                      </button>
+                    </div>
+                  </section>
+                ) : (
+                  <section className="native-classes-pro-attendance">
+                    <header>
+                      <h4>Materiais da turma</h4>
+                      <small>Publicações e arquivos de apoio vinculados às aulas.</small>
+                    </header>
+                    <div className="native-classes-pro-attendance-actions">
+                      <button type="button" onClick={() => onNavigate?.('admin_conteudo')}>
+                        Abrir materiais
+                      </button>
+                    </div>
+                  </section>
+                )}
+              </>
+            ) : (
+              <p className="native-info">Selecione uma turma para ver os detalhes.</p>
+            )}
+          </article>
+        </section>
       ) : null}
 
       {modalOpen ? (

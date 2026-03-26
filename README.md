@@ -1,4 +1,4 @@
-﻿# 7Eventos Academy
+# 7Eventos Academy
 
 Aplicação dedicada da Academy em arquitetura de monorepo, com frontend React + Vite e backend NestJS + Fastify.
 

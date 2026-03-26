@@ -30,6 +30,27 @@ type DashboardSummary = {
   };
 };
 
+type ClassNotice = {
+  id: string;
+  classId: string;
+  title: string;
+  body: string;
+  priority: 'normal' | 'importante' | 'urgente' | string;
+  createdAt: string;
+  schoolClass?: {
+    name: string;
+  };
+};
+
+type AgendaEvent = {
+  id: string;
+  type: 'class' | 'live';
+  title: string;
+  classId?: string | null;
+  className?: string;
+  datetime: string;
+};
+
 type DashboardNativeProps = {
   token: string;
   onNavigate: (sectionId: string) => void;
@@ -37,31 +58,66 @@ type DashboardNativeProps = {
 
 const REFRESH_MS = 120_000;
 
-const statusLabel: Record<string, string> = {
-  PLANNING: 'Planejamento',
-  ENROLLMENTS_OPEN: 'Matrículas abertas',
-  IN_PROGRESS: 'Em andamento',
-  CLOSED: 'Encerrada',
-};
+function formatMonthDay(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+  }).format(date);
+}
+
+function formatHour(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--:--';
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function isToday(value: string): boolean {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const now = new Date();
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  );
+}
+
+function currentGreeting(name?: string): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return `Bom dia, ${name || 'professor(a)'}`;
+  if (hour < 18) return `Boa tarde, ${name || 'professor(a)'}`;
+  return `Boa noite, ${name || 'professor(a)'}`;
+}
 
 export function DashboardNative({ token, onNavigate }: DashboardNativeProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [notices, setNotices] = useState<ClassNotice[]>([]);
+  const [events, setEvents] = useState<AgendaEvent[]>([]);
 
   const load = async () => {
     try {
       setError('');
-      const next = await apiRequest<DashboardSummary>(
-        token,
-        '/finance/dashboard-summary',
-      );
-      setSummary(next);
+      const [summaryData, noticesData, eventsData] = await Promise.all([
+        apiRequest<DashboardSummary>(token, '/finance/dashboard-summary'),
+        apiRequest<ClassNotice[]>(token, '/classes/notices/all'),
+        apiRequest<AgendaEvent[]>(token, '/agenda/events'),
+      ]);
+
+      setSummary(summaryData);
+      setNotices(Array.isArray(noticesData) ? noticesData : []);
+      setEvents(Array.isArray(eventsData) ? eventsData : []);
     } catch (loadError) {
       setError(
         loadError instanceof Error
           ? loadError.message
-          : 'Falha ao carregar o dashboard.',
+          : 'Falha ao carregar o painel.',
       );
     } finally {
       setLoading(false);
@@ -76,58 +132,112 @@ export function DashboardNative({ token, onNavigate }: DashboardNativeProps) {
       void load();
     }, REFRESH_MS);
 
-    return () => {
-      window.clearInterval(intervalId);
-    };
+    return () => window.clearInterval(intervalId);
   }, [token]);
+
+  const todayAgenda = useMemo(() => {
+    return events
+      .filter((item) => isToday(item.datetime))
+      .sort(
+        (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime(),
+      )
+      .slice(0, 2);
+  }, [events]);
+
+  const firstAgenda = todayAgenda[0] ?? null;
+  const secondAgenda = todayAgenda[1] ?? null;
+  const firstClass = summary?.upcomingClasses?.[0] ?? null;
+  const latestNotices = notices.slice(0, 3);
+  const urgentOperations =
+    (summary?.classesToday ?? 0) + (summary?.pendingChargesCount ?? 0);
 
   const operations = useMemo(() => {
     if (!summary) return [];
 
-    const items: Array<{ title: string; subtitle: string; urgent: boolean }> = [];
+    const list: Array<{
+      id: string;
+      title: string;
+      subtitle: string;
+      actionLabel: string;
+      actionTarget: string;
+      urgent?: boolean;
+    }> = [];
+
     if (summary.classesToday > 0) {
-      items.push({
-        title: `Preparar ${summary.classesToday} aula(s) de hoje`,
-        subtitle: 'Confirme presença, materiais e comunicação da turma.',
+      list.push({
+        id: 'op-presenca',
+        title: `Lançar presença das ${summary.classesToday} aula(s) de hoje`,
+        subtitle: 'Libere presença e finalize a chamada na aba Aulas.',
+        actionLabel: 'Lançar presença',
+        actionTarget: 'admin_aulas',
         urgent: true,
-      });
-    }
-    if (summary.pendingChargesCount > 0) {
-      items.push({
-        title: 'Revisar inadimplência',
-        subtitle: `${summary.pendingChargesCount} cobrança(s) pendente(s), total ${formatCurrency(summary.pendingAmount)}.`,
-        urgent: true,
-      });
-    }
-    if (summary.planningClasses > 0) {
-      items.push({
-        title: 'Publicar turmas em planejamento',
-        subtitle: `${summary.planningClasses} turma(s) aguardando abertura de matrículas.`,
-        urgent: false,
-      });
-    }
-    if (items.length === 0) {
-      items.push({
-        title: 'Operação estável',
-        subtitle: 'Nenhuma pendência crítica identificada no momento.',
-        urgent: false,
       });
     }
 
-    return items;
+    if (summary.pendingChargesCount > 0) {
+      list.push({
+        id: 'op-financeiro',
+        title: 'Revisar mensalidades pendentes',
+        subtitle: `${summary.pendingChargesCount} cobrança(s) em aberto (${formatCurrency(summary.pendingAmount)}).`,
+        actionLabel: 'Abrir financeiro',
+        actionTarget: 'admin_financeiro',
+        urgent: true,
+      });
+    }
+
+    if (summary.planningClasses > 0) {
+      list.push({
+        id: 'op-turmas',
+        title: 'Ativar turmas em planejamento',
+        subtitle: `${summary.planningClasses} turma(s) aguardando publicação.`,
+        actionLabel: 'Gerenciar turmas',
+        actionTarget: 'admin_gestao_turmas',
+      });
+    }
+
+    if (list.length === 0) {
+      list.push({
+        id: 'op-stable',
+        title: 'Operação estável',
+        subtitle: 'Não há pendências críticas no momento.',
+        actionLabel: 'Abrir painel de aulas',
+        actionTarget: 'admin_aulas',
+      });
+    }
+
+    return list;
   }, [summary]);
 
-  const firstClass = summary?.upcomingClasses?.[0] ?? null;
-  const secondClass = summary?.upcomingClasses?.[1] ?? null;
+  const roleName = useMemo(() => {
+    try {
+      const raw = window.localStorage.getItem('academy-auth-user');
+      if (!raw) return 'professor(a)';
+      const parsed = JSON.parse(raw) as { name?: string };
+      return parsed.name || 'professor(a)';
+    } catch {
+      return 'professor(a)';
+    }
+  }, []);
 
   return (
-    <section className="native-page native-dashboard">
-      <header className="native-page-header">
-        <h2>Visão geral da operação acadêmica</h2>
-        <p>
-          Painel nativo em React com atualização leve e sem recarregar template
-          completo.
-        </p>
+    <section className="native-page native-dashboard-pro">
+      <header className="native-dashboard-pro-header">
+        <div>
+          <h2>{currentGreeting(roleName)}</h2>
+          <p>Aqui está o que precisa da sua atenção hoje.</p>
+        </div>
+        <div className="native-dashboard-pro-actions">
+          <button type="button" onClick={() => onNavigate('admin_agenda')}>
+            Ver agenda
+          </button>
+          <button
+            type="button"
+            className="is-primary"
+            onClick={() => onNavigate('admin_gestao_turmas')}
+          >
+            Nova turma
+          </button>
+        </div>
       </header>
 
       {loading ? <p className="native-info">Carregando indicadores...</p> : null}
@@ -135,102 +245,156 @@ export function DashboardNative({ token, onNavigate }: DashboardNativeProps) {
 
       {!summary || error ? null : (
         <>
-          <div className="native-kpi-grid">
-            <article className="native-kpi-card">
+          <div className="native-dashboard-pro-kpis">
+            <article className="native-dashboard-pro-kpi is-accent">
               <span>Alunos ativos</span>
               <strong>{summary.studentsCount}</strong>
               <small>{summary.activeEnrollments} matrícula(s) ativa(s)</small>
             </article>
-            <article className="native-kpi-card">
+            <article className="native-dashboard-pro-kpi">
               <span>Turmas abertas</span>
               <strong>{summary.openClasses}</strong>
               <small>{summary.classesCount} turma(s) no total</small>
             </article>
-            <article className="native-kpi-card">
-              <span>Ocupação de vagas</span>
+            <article className="native-dashboard-pro-kpi">
+              <span>Ocupação geral</span>
               <strong>{summary.occupancyRate.toFixed(1)}%</strong>
               <small>
                 {summary.occupiedSeats}/{summary.totalSeats} vagas ocupadas
               </small>
             </article>
-            <article className="native-kpi-card">
+            <article className="native-dashboard-pro-kpi is-danger">
               <span>Mensalidades pendentes</span>
               <strong>{formatCurrency(summary.pendingAmount)}</strong>
-              <small>{summary.pendingChargesCount} pendência(s)</small>
+              <small>{summary.pendingChargesCount} cobrança(s) em aberto</small>
             </article>
           </div>
 
-          <div className="native-grid-2">
-            <article className="native-panel">
-              <header className="native-panel-header">
-                <h3>Próximas ações</h3>
-                <button type="button" onClick={() => onNavigate('admin_agenda')}>
-                  Abrir agenda
-                </button>
+          <div className="native-dashboard-pro-main">
+            <div className="native-dashboard-pro-left">
+              <article className="native-dashboard-pro-agenda">
+                <header className="native-dashboard-pro-section-head">
+                  <h3>Agenda acadêmica de hoje</h3>
+                  <button type="button" onClick={() => onNavigate('admin_agenda')}>
+                    Ver calendário
+                  </button>
+                </header>
+
+                <div className="native-dashboard-pro-agenda-grid">
+                  <div className="native-dashboard-pro-live-card">
+                    <span className="native-dashboard-pro-pill">Aula ao vivo</span>
+                    <h4>{firstAgenda?.title || firstClass?.name || 'Sem aula ao vivo no horário'}</h4>
+                    <p>
+                      {firstAgenda?.className ||
+                        firstClass?.course?.name ||
+                        'Acompanhe suas próximas aulas e transmissões.'}
+                    </p>
+                    <div className="native-dashboard-pro-live-footer">
+                      <small>
+                        {firstAgenda
+                          ? `${formatHour(firstAgenda.datetime)}`
+                          : firstClass
+                            ? formatDateTime(firstClass.startDate)
+                            : 'Sem horário definido'}
+                      </small>
+                      <button type="button" onClick={() => onNavigate('admin_aulas')}>
+                        Lançar chamada
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="native-dashboard-pro-class-card">
+                    <div className="native-dashboard-pro-class-top">
+                      <span className="native-dashboard-pro-pill muted">
+                        {secondAgenda?.type === 'live' ? 'Live' : 'Presencial'}
+                      </span>
+                      <small>
+                        {secondAgenda
+                          ? formatHour(secondAgenda.datetime)
+                          : firstClass
+                            ? formatDateTime(firstClass.startDate)
+                            : '--:--'}
+                      </small>
+                    </div>
+                    <h4>{secondAgenda?.title || firstClass?.name || 'Sem aula programada'}</h4>
+                    <p>
+                      {secondAgenda?.className ||
+                        firstClass?.course?.name ||
+                        'Sem turma vinculada no momento.'}
+                    </p>
+                    <div className="native-dashboard-pro-class-actions">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onNavigate(secondAgenda?.type === 'live' ? 'admin_agenda' : 'admin_aulas')
+                        }
+                      >
+                        {secondAgenda?.type === 'live'
+                          ? 'Abrir transmissão'
+                          : 'Marcar presença'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <article className="native-dashboard-pro-ops">
+                <header className="native-dashboard-pro-section-head">
+                  <h3>Operações pendentes</h3>
+                  <span className={`native-dashboard-pro-urgency ${urgentOperations > 0 ? 'is-active' : ''}`}>
+                    {urgentOperations > 0
+                      ? `${urgentOperations} urgente(s)`
+                      : 'Sem urgências'}
+                  </span>
+                </header>
+
+                <ul className="native-dashboard-pro-ops-list">
+                  {operations.map((item) => (
+                    <li key={item.id}>
+                      <div>
+                        <strong>{item.title}</strong>
+                        <small>{item.subtitle}</small>
+                      </div>
+                      <button
+                        type="button"
+                        className={item.urgent ? 'is-urgent' : ''}
+                        onClick={() => onNavigate(item.actionTarget)}
+                      >
+                        {item.actionLabel}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            </div>
+
+            <aside className="native-dashboard-pro-notices">
+              <header className="native-dashboard-pro-section-head">
+                <h3>Avisos recentes</h3>
               </header>
 
-              {firstClass ? (
-                <div className="native-item">
-                  <strong>{firstClass.name}</strong>
-                  <small>
-                    {firstClass.course?.name ?? 'Curso'} •{' '}
-                    {statusLabel[firstClass.status] ?? firstClass.status}
-                  </small>
-                  <small>{formatDateTime(firstClass.startDate)}</small>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('admin_gestao_turmas')}
-                  >
-                    Abrir turma
-                  </button>
-                </div>
+              {latestNotices.length === 0 ? (
+                <p className="native-info">Nenhum aviso recente.</p>
               ) : (
-                <p className="native-info">Nenhuma turma futura no momento.</p>
+                <ul className="native-dashboard-pro-notice-list">
+                  {latestNotices.map((item) => (
+                    <li key={item.id}>
+                      <small>{formatMonthDay(item.createdAt)}</small>
+                      <strong>{item.title}</strong>
+                      <p>{item.body}</p>
+                    </li>
+                  ))}
+                </ul>
               )}
 
-              {secondClass ? (
-                <div className="native-item">
-                  <strong>{secondClass.name}</strong>
-                  <small>
-                    {secondClass.course?.name ?? 'Curso'} •{' '}
-                    {statusLabel[secondClass.status] ?? secondClass.status}
-                  </small>
-                  <small>{formatDateTime(secondClass.startDate)}</small>
-                </div>
-              ) : summary.firstPendingCharge ? (
-                <div className="native-item">
-                  <strong>
-                    Cobrança de {summary.firstPendingCharge.studentName ?? 'aluno'}
-                  </strong>
-                  <small>
-                    {summary.firstPendingCharge.className ?? 'Turma'} • vence em{' '}
-                    {formatDateTime(summary.firstPendingCharge.dueDate)}
-                  </small>
-                  <small>{formatCurrency(summary.firstPendingCharge.amount)}</small>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('admin_financeiro')}
-                  >
-                    Abrir financeiro
-                  </button>
-                </div>
-              ) : null}
-            </article>
-
-            <article className="native-panel">
-              <header className="native-panel-header">
-                <h3>Operações pendentes</h3>
-              </header>
-              <ul className="native-ops-list">
-                {operations.map((item) => (
-                  <li key={item.title}>
-                    <strong>{item.title}</strong>
-                    <small>{item.subtitle}</small>
-                    {item.urgent ? <span className="native-badge">Urgente</span> : null}
-                  </li>
-                ))}
-              </ul>
-            </article>
+              <button
+                type="button"
+                className="native-dashboard-pro-browse-btn"
+                onClick={() => onNavigate('admin_avisos')}
+              >
+                Ver todos os avisos
+              </button>
+            </aside>
           </div>
         </>
       )}
