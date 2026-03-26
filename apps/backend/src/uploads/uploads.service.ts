@@ -36,6 +36,7 @@ export class UploadsService implements OnModuleInit {
 
   async onModuleInit() {
     await mkdir(this.uploadRoot, { recursive: true });
+    this.logger.log(`Diretório de uploads ativo: ${this.uploadRoot}`);
   }
 
   async bindFileToOwner(input: BindFileInput) {
