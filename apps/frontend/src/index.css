@@ -3899,6 +3899,14 @@ table button {
   gap: 1.05rem;
 }
 
+.student-template-bento-grid.is-single-view {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.student-template-bento-grid .is-full-span {
+  grid-column: 1 / -1 !important;
+}
+
 .student-template-course-card,
 .student-template-next-due-card,
 .student-template-credit-card,
@@ -4494,6 +4502,14 @@ table button {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
+}
+
+.student-template-lower-grid.is-single-view {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.student-template-lower-grid .is-full-span {
+  grid-column: 1 / -1;
 }
 
 .student-template-lower-card {

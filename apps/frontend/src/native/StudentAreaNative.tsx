@@ -124,6 +124,49 @@ const MOBILE_NAV_ITEMS: NavItem[] = [
   { label: 'Perfil', icon: 'person', target: 'st-student-profile' },
 ];
 
+const SECTION_META: Record<SectionId, { title: string; subtitle: string }> = {
+  'st-student-panel': {
+    title: 'Bem-vindo de volta, aluno!',
+    subtitle: 'Seu painel acadêmico está sincronizado. Continue acompanhando suas atualizações.',
+  },
+  'st-student-course': {
+    title: 'Frequência e desempenho',
+    subtitle: 'Visão detalhada do andamento da sua jornada acadêmica.',
+  },
+  'st-student-classes': {
+    title: 'Aulas',
+    subtitle: 'Acompanhe as próximas aulas e a programação da sua turma.',
+  },
+  'st-student-agenda': {
+    title: 'Agenda acadêmica',
+    subtitle: 'Eventos organizados para você acompanhar os próximos compromissos.',
+  },
+  'st-student-finance': {
+    title: 'Financeiro',
+    subtitle: 'Resumo rápido dos próximos eventos e status de materiais liberados.',
+  },
+  'st-student-live': {
+    title: 'Transmissões',
+    subtitle: 'Conteúdos ao vivo e aulas em destaque.',
+  },
+  'st-student-notices': {
+    title: 'Avisos e comunicados',
+    subtitle: 'Mensagens recentes da coordenação e da secretaria.',
+  },
+  'st-student-materials': {
+    title: 'Materiais de apoio',
+    subtitle: 'Arquivos e conteúdos liberados para suas turmas.',
+  },
+  'st-student-certificate': {
+    title: 'Certificado',
+    subtitle: 'Acompanhe o status para emissão do seu certificado.',
+  },
+  'st-student-profile': {
+    title: 'Meu perfil',
+    subtitle: 'Dados pessoais e informações acadêmicas de cadastro.',
+  },
+};
+
 const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const WEEKDAY_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -595,15 +638,33 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       ? 'Seu painel acadêmico está sincronizado. Continue acompanhando suas atualizações.'
       : `Seu período letivo está ${periodProgress}% concluído. Continue nesse ritmo.`;
 
-  const scrollToSection = (sectionId: SectionId) => {
+  const isPanelView = activeSection === 'st-student-panel';
+  const currentMeta = SECTION_META[activeSection];
+  const currentSubtitle =
+    activeSection === 'st-student-panel'
+      ? periodProgress === null
+        ? subtitle
+        : `Seu progresso acadêmico está em ${periodProgress}%. Continue acompanhando suas atualizações.`
+      : currentMeta.subtitle;
+
+  const showCourse = isPanelView || activeSection === 'st-student-course';
+  const showFinance = isPanelView || activeSection === 'st-student-finance';
+  const showClasses = isPanelView || activeSection === 'st-student-classes';
+  const showLive = isPanelView || activeSection === 'st-student-live';
+  const showNotices = isPanelView || activeSection === 'st-student-notices';
+  const showAgenda = isPanelView || activeSection === 'st-student-agenda';
+  const showMaterials = isPanelView || activeSection === 'st-student-materials';
+  const showCertificate = isPanelView || activeSection === 'st-student-certificate';
+  const showProfile = isPanelView || activeSection === 'st-student-profile';
+
+  const openSection = (sectionId: SectionId) => {
     setActiveSection(sectionId);
-    const target = document.getElementById(sectionId);
-    target?.scrollIntoView({
+
+    window.scrollTo({
+      top: 0,
       behavior: 'smooth',
-      block: 'start',
     });
-    target?.classList.add('is-focus-highlight');
-    window.setTimeout(() => target?.classList.remove('is-focus-highlight'), 900);
+
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', `#${sectionId}`);
     }
@@ -636,15 +697,15 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
         <nav className="student-template-menu">
           {NAV_ITEMS.map((item) => (
-            <button
-              key={`${item.label}-${item.target}`}
-              type="button"
-              className={activeSection === item.target ? 'active' : ''}
-              onClick={() => scrollToSection(item.target)}
-            >
-              <StudentIcon name={item.icon} />
-              <span>{item.label}</span>
-            </button>
+              <button
+                key={`${item.label}-${item.target}`}
+                type="button"
+                className={activeSection === item.target ? 'active' : ''}
+                onClick={() => openSection(item.target)}
+              >
+                <StudentIcon name={item.icon} />
+                <span>{item.label}</span>
+              </button>
           ))}
         </nav>
 
@@ -709,12 +770,20 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           {!dashboard || error ? null : (
             <>
               <section id="st-student-panel" className="student-template-welcome">
-                <h2>Bem-vindo de volta, {firstName(titleName)}!</h2>
-                <p>{subtitle}</p>
+                <h2>
+                  {activeSection === 'st-student-panel'
+                    ? `Bem-vindo de volta, ${firstName(titleName)}!`
+                    : currentMeta.title}
+                </h2>
+                <p>{currentSubtitle}</p>
               </section>
 
-              <div className="student-template-bento-grid">
-                <article id="st-student-course" className="student-template-course-card">
+              <div className={`student-template-bento-grid ${isPanelView ? '' : 'is-single-view'}`}>
+                {showCourse ? (
+                <article
+                  id="st-student-course"
+                  className={`student-template-course-card ${isPanelView ? '' : 'is-full-span'}`}
+                >
                   <div className="student-template-course-header">
                     <div className="student-template-course-badges">
                       <span>Curso atual</span>
@@ -746,8 +815,10 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     <span style={{ width: `${periodProgress ?? 0}%` }} />
                   </div>
                 </article>
+                ) : null}
 
-                <div className="student-template-side-stack">
+                {showFinance ? (
+                <div className={`student-template-side-stack ${isPanelView ? '' : 'is-full-span'}`}>
                   <article id="st-student-finance" className="student-template-next-due-card">
                     <div>
                       <StudentIcon name="payments" />
@@ -770,14 +841,19 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     </div>
                   </article>
                 </div>
+                ) : null}
 
-                <article id="st-student-classes" className="student-template-classes-card">
+                {showClasses ? (
+                <article
+                  id="st-student-classes"
+                  className={`student-template-classes-card ${isPanelView ? '' : 'is-full-span'}`}
+                >
                   <div className="student-template-card-title">
                     <h4>
                       <StudentIcon name="event_note" />
                       Próximas aulas
                     </h4>
-                    <button type="button" onClick={() => scrollToSection('st-student-materials')}>
+                    <button type="button" onClick={() => openSection('st-student-materials')}>
                       Ver materiais
                     </button>
                   </div>
@@ -805,8 +881,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     </div>
                   )}
                 </article>
+                ) : null}
 
-                <div className="student-template-right-column">
+                {(showLive || showNotices) ? (
+                <div className={`student-template-right-column ${isPanelView ? '' : 'is-full-span'}`}>
+                  {showLive ? (
                   <article id="st-student-live" className="student-template-live-card">
                     <div>
                       <StudentIcon name="live_tv" />
@@ -834,7 +913,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       </button>
                     )}
                   </article>
+                  ) : null}
 
+                  {showNotices ? (
                   <article id="st-student-notices" className="student-template-notices-card">
                     <div className="student-template-card-title">
                       <h4>
@@ -862,13 +943,16 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       </div>
                     )}
 
-                    <button type="button" onClick={() => scrollToSection('st-student-notices')}>
+                    <button type="button" onClick={() => openSection('st-student-notices')}>
                       Ver todos os avisos
                     </button>
                   </article>
+                  ) : null}
                 </div>
+                ) : null}
               </div>
 
+              {isPanelView ? (
               <footer className="student-template-support">
                 <div className="student-template-support-main">
                   <StudentIcon name="headset_mic" />
@@ -882,9 +966,15 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   <button type="button">Falar com suporte</button>
                 </div>
               </footer>
+              ) : null}
 
-              <section className="student-template-lower-grid">
-                <article id="st-student-agenda" className="student-template-lower-card">
+              {(showAgenda || showMaterials || showCertificate || showProfile) ? (
+              <section className={`student-template-lower-grid ${isPanelView ? '' : 'is-single-view'}`}>
+                {showAgenda ? (
+                <article
+                  id="st-student-agenda"
+                  className={`student-template-lower-card ${isPanelView ? '' : 'is-full-span'}`}
+                >
                   <h4>Agenda acadêmica</h4>
                   {upcomingClasses.length === 0 ? (
                     <p className="student-template-empty">Nenhum evento acadêmico próximo.</p>
@@ -902,8 +992,13 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     </ul>
                   )}
                 </article>
+                ) : null}
 
-                <article id="st-student-materials" className="student-template-lower-card">
+                {showMaterials ? (
+                <article
+                  id="st-student-materials"
+                  className={`student-template-lower-card ${isPanelView ? '' : 'is-full-span'}`}
+                >
                   <h4>Materiais de apoio</h4>
                   {recentMaterials.length === 0 ? (
                     <p className="student-template-empty">Nenhum material publicado para suas turmas.</p>
@@ -933,8 +1028,13 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     </ul>
                   )}
                 </article>
+                ) : null}
 
-                <article id="st-student-certificate" className="student-template-lower-card">
+                {showCertificate ? (
+                <article
+                  id="st-student-certificate"
+                  className={`student-template-lower-card ${isPanelView ? '' : 'is-full-span'}`}
+                >
                   <h4>Certificado</h4>
                   <p>
                     {matriculaPrincipal
@@ -946,8 +1046,13 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     download neste painel.
                   </p>
                 </article>
+                ) : null}
 
-                <article id="st-student-profile" className="student-template-lower-card">
+                {showProfile ? (
+                <article
+                  id="st-student-profile"
+                  className={`student-template-lower-card ${isPanelView ? '' : 'is-full-span'}`}
+                >
                   <h4>Meu perfil</h4>
                   <div className="student-template-profile-row">
                     {user.avatarUrl ? (
@@ -980,7 +1085,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     </div>
                   </dl>
                 </article>
+                ) : null}
               </section>
+              ) : null}
             </>
           )}
         </div>
@@ -992,7 +1099,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
             key={`${item.label}-${item.target}`}
             type="button"
             className={activeSection === item.target ? 'active' : ''}
-            onClick={() => scrollToSection(item.target)}
+            onClick={() => openSection(item.target)}
           >
             <StudentIcon name={item.icon} />
             <span>{item.label}</span>
