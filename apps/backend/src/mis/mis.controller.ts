@@ -44,6 +44,14 @@ export class MisController {
 
   @SkipThrottle()
   @Roles('user', 'admin', 'superadmin')
+  @Get('aluno/dashboard')
+  async getDashboard(@Req() req: FastifyRequest) {
+    const user = (req as any).user;
+    return this.misService.getAlunoDashboard(user?.sub);
+  }
+
+  @SkipThrottle()
+  @Roles('user', 'admin', 'superadmin')
   @Get('aluno/materiais')
   async getMateriais(@Req() req: FastifyRequest) {
     const user = (req as any).user;

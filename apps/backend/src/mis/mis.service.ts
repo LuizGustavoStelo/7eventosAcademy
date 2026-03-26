@@ -32,16 +32,64 @@ export class MisService {
   }
 
   async getAlunoMatriculas(userId: string) {
-    // Busca todas as matrículas ativas do aluno
-    const enrollments = await this.prisma.enrollment.findMany({
+    const enrollments = await this.fetchActiveEnrollments(userId);
+    return this.mapMatriculas(enrollments);
+  }
+
+  async getAlunoMateriais(userId: string) {
+    const classIds = await this.fetchActiveClassIds(userId);
+    if (classIds.length === 0) {
+      return [];
+    }
+
+    return this.fetchMateriaisByClassIds(classIds);
+  }
+
+  async getAlunoAvisos(userId: string) {
+    const classIds = await this.fetchActiveClassIds(userId);
+    if (classIds.length === 0) {
+      return [];
+    }
+
+    return this.fetchAvisosByClassIds(classIds);
+  }
+
+  async getAlunoDashboard(userId: string) {
+    const [me, enrollments] = await Promise.all([
+      this.getAlunoMe(userId),
+      this.fetchActiveEnrollments(userId),
+    ]);
+
+    const matriculas = this.mapMatriculas(enrollments);
+    const classIds = this.uniqueClassIds(enrollments.map((en) => en.classId));
+
+    if (classIds.length === 0) {
+      return { me, matriculas, materiais: [], avisos: [] };
+    }
+
+    const [materiais, avisos] = await Promise.all([
+      this.fetchMateriaisByClassIds(classIds),
+      this.fetchAvisosByClassIds(classIds),
+    ]);
+
+    return { me, matriculas, materiais, avisos };
+  }
+
+  private async fetchActiveEnrollments(userId: string) {
+    return this.prisma.enrollment.findMany({
       where: { studentId: userId, status: 'ACTIVE' },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        classId: true,
         schoolClass: {
-          include: {
+          select: {
+            name: true,
+            startDate: true,
+            endDate: true,
             course: {
               select: {
                 name: true,
-                description: true,
                 modality: true,
               },
             },
@@ -50,7 +98,9 @@ export class MisService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
 
+  private mapMatriculas(enrollments: Awaited<ReturnType<MisService['fetchActiveEnrollments']>>) {
     return enrollments.map((en) => ({
       enrollmentId: en.id,
       status: en.status,
@@ -62,23 +112,25 @@ export class MisService {
     }));
   }
 
-  async getAlunoMateriais(userId: string) {
-    // Primeiro encontra as turmas que o aluno está ativamente matriculado
+  private async fetchActiveClassIds(userId: string) {
     const activeEnrollments = await this.prisma.enrollment.findMany({
       where: { studentId: userId, status: 'ACTIVE' },
       select: { classId: true },
     });
+    return this.uniqueClassIds(activeEnrollments.map((e) => e.classId));
+  }
 
-    const classIds = activeEnrollments.map((e) => e.classId);
-
-    if (classIds.length === 0) {
-      return [];
-    }
-
-    // Busca materiais das turmas ativas
+  private async fetchMateriaisByClassIds(classIds: string[]) {
     const materials = await this.prisma.studyMaterial.findMany({
       where: { classId: { in: classIds } },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        kind: true,
+        fileUrl: true,
+        externalUrl: true,
+        publishedAt: true,
         schoolClass: { select: { name: true } },
       },
       orderBy: { publishedAt: 'desc' },
@@ -96,22 +148,15 @@ export class MisService {
     }));
   }
 
-  async getAlunoAvisos(userId: string) {
-    const activeEnrollments = await this.prisma.enrollment.findMany({
-      where: { studentId: userId, status: 'ACTIVE' },
-      select: { classId: true },
-    });
-
-    const classIds = activeEnrollments.map((e) => e.classId);
-
-    if (classIds.length === 0) {
-      return [];
-    }
-
-    // Busca avisos das turmas ativas
+  private async fetchAvisosByClassIds(classIds: string[]) {
     const notices = await this.prisma.classNotice.findMany({
       where: { classId: { in: classIds } },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        priority: true,
+        publishedAt: true,
         schoolClass: { select: { name: true } },
       },
       orderBy: { publishedAt: 'desc' },
@@ -125,5 +170,9 @@ export class MisService {
       className: notice.schoolClass.name,
       publishedAt: notice.publishedAt,
     }));
+  }
+
+  private uniqueClassIds(classIds: string[]) {
+    return Array.from(new Set(classIds));
   }
 }

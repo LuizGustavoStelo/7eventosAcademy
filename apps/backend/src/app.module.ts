@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
@@ -22,19 +22,19 @@ import { SuperadminAccountsModule } from './superadmin-accounts/superadmin-accou
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
 
-    // ── Rate Limiting ──────────────────────────────────────────────────────
-    // Perfil "default": 120 req / 60 s por IP — proteção geral da API
-    // Perfil "public-mis": 10 req / 60 s por IP — cadastro público (anti-bot)
+    // Rate limiting global por IP.
+    // default: alta capacidade para navegação do painel sem travar UX.
+    // public-mis: agressivo para proteger cadastro público contra abuso.
     ThrottlerModule.forRoot([
       {
         name: 'default',
-        ttl: 60_000,  // janela de 60 segundos (ms)
-        limit: 1000,   // máx. 1000 requisições por IP nessa janela
+        ttl: 10_000,  // janela de 10 segundos
+        limit: 220,   // ~1320 req/min por IP, com reset rápido
       },
       {
         name: 'public-mis',
         ttl: 60_000,  // janela de 60 segundos
-        limit: 10,    // máx. 10 requisições por IP — muito restritivo intencionalmente
+        limit: 10,    // máximo de 10 req/min por IP
       },
     ]),
 
@@ -61,3 +61,5 @@ import { SuperadminAccountsModule } from './superadmin-accounts/superadmin-accou
   ],
 })
 export class AppModule {}
+
+

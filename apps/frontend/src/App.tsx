@@ -590,8 +590,11 @@ export default function App() {
     <div className="app-shell">
       <aside className="global-sidebar">
         <div className="global-sidebar-brand">
-          <strong>7Eventos</strong>
-          <small>ACADEMY MANAGER</small>
+          <img
+            className="global-sidebar-brand-logo"
+            src="/7eventos_academy_logo.png"
+            alt="7Eventos Academy Manager"
+          />
         </div>
 
         <nav className="global-sidebar-nav">

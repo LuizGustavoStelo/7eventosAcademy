@@ -28,6 +28,14 @@ class Seven_Academy_Shortcodes
             [],
             SEVEN_ACADEMY_VERSION
         );
+
+        wp_register_script(
+            'seven-academy-mis',
+            SEVEN_ACADEMY_PLUGIN_URL . 'assets/js/academy-mis.js',
+            [],
+            SEVEN_ACADEMY_VERSION,
+            true
+        );
     }
 
     /**
@@ -54,6 +62,7 @@ class Seven_Academy_Shortcodes
         $src = $base_url . '/api/mis/area-do-aluno.html?embed=1';
 
         wp_enqueue_style('seven-academy-mis');
+        wp_enqueue_script('seven-academy-mis');
 
         return self::render_iframe(
             $src,
@@ -86,6 +95,7 @@ class Seven_Academy_Shortcodes
         $src = $base_url . '/api/mis/cadastro-aluno.html?embed=1';
 
         wp_enqueue_style('seven-academy-mis');
+        wp_enqueue_script('seven-academy-mis');
 
         return self::render_iframe(
             $src,
@@ -101,11 +111,11 @@ class Seven_Academy_Shortcodes
         $safe_height = esc_attr($min_height);
 
         return sprintf(
-            '<div class="seven-academy-container">'
+            '<div class="seven-academy-container is-loading">'
             . '<iframe'
             . ' src="%s"'
             . ' title="%s"'
-            . ' loading="lazy"'
+            . ' loading="eager"'
             . ' referrerpolicy="strict-origin-when-cross-origin"'
             . ' style="width:100%%;min-height:%s;border:0;"'
             . ' allow="fullscreen"'

@@ -2571,20 +2571,12 @@ table button:disabled {
   padding: 0 0.6rem;
 }
 
-.global-sidebar-brand strong {
-  font-size: 2.1rem;
-  line-height: 1;
-  color: #f25c05;
-  font-family: Manrope, 'Segoe UI', sans-serif;
-  font-weight: 800;
-}
-
-.global-sidebar-brand small {
-  color: #8f98a3;
-  font-size: 0.72rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  font-weight: 700;
+.global-sidebar-brand-logo {
+  display: block;
+  width: 100%;
+  max-width: 176px;
+  height: auto;
+  object-fit: contain;
 }
 
 .global-sidebar-nav {
@@ -2805,8 +2797,8 @@ table button {
     box-shadow: none;
   }
 
-  .global-sidebar-brand strong {
-    font-size: 1.8rem;
+  .global-sidebar-brand-logo {
+    max-width: 150px;
   }
 
   .app-content {
