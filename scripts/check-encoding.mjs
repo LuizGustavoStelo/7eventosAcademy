@@ -25,8 +25,9 @@ const ignoredDirs = new Set([
   '.next',
   'build',
 ]);
-const ignoredFiles = new Set([path.join('scripts', 'check-encoding.mjs')]);
-const mojibakePattern = /(?:Ã[\u0080-\u00BF]|Â[^\s]|�)/u;
+const normalizePath = (value) => value.split(path.sep).join('/');
+const ignoredFiles = new Set(['scripts/check-encoding.mjs']);
+const mojibakePattern = /(?:Ãƒ[\u0080-\u00BF]|Ã‚[^\s]|ï¿½)/u;
 const stagedOnly = process.argv.includes('--staged');
 
 const bomFindings = [];
@@ -40,8 +41,9 @@ const hasBom = (buffer) =>
 
 const shouldCheckFile = (relativePath) => {
   if (!relativePath) return false;
-  if (ignoredFiles.has(relativePath)) return false;
-  return allowedExtensions.has(path.extname(relativePath));
+  const normalizedRelativePath = normalizePath(relativePath);
+  if (ignoredFiles.has(normalizedRelativePath)) return false;
+  return allowedExtensions.has(path.extname(normalizedRelativePath));
 };
 
 const collectRepoFiles = (currentDir, output) => {
@@ -49,7 +51,7 @@ const collectRepoFiles = (currentDir, output) => {
 
   for (const name of entries) {
     const absolutePath = path.join(currentDir, name);
-    const relativePath = path.relative(repoRoot, absolutePath);
+    const relativePath = normalizePath(path.relative(repoRoot, absolutePath));
     const stats = statSync(absolutePath);
 
     if (stats.isDirectory()) {
@@ -79,6 +81,7 @@ const collectStagedFiles = () => {
       .split(/\r?\n/)
       .map((item) => item.trim())
       .filter(Boolean)
+      .map((item) => normalizePath(item))
       .filter((relativePath) => shouldCheckFile(relativePath));
   } catch {
     return [];
