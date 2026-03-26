@@ -4,6 +4,7 @@
   Controller,
   Delete,
   Get,
+  Patch,
   Post,
   Req,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import { Public } from './decorators/public.decorator';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { UpdateMeDto } from './dto/update-me.dto';
 
 type AuthenticatedRequest = FastifyRequest & {
   user: {
@@ -40,6 +42,14 @@ export class AuthController {
   @Get('me')
   async me(@Req() request: AuthenticatedRequest) {
     return this.authService.getMe(request.user.sub);
+  }
+
+  @Patch('me')
+  async updateMe(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: UpdateMeDto,
+  ) {
+    return this.authService.updateMe(request.user.sub, dto);
   }
 
   @Post('me/avatar')

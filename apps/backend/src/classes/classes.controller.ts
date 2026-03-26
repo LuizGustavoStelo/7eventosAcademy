@@ -1,11 +1,17 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
+import { CreateClassMaterialDto } from './dto/create-class-material.dto';
 import { UpdateClassStatusDto } from './dto/update-class-status.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 import { ClassesMaterialsService } from './classes-materials.service';
 import { ClassesNoticesService } from './classes-notices.service';
+
+type AuthenticatedRequest = FastifyRequest & {
+  user: { sub: string };
+};
 
 @Roles('admin', 'superadmin')
 @Controller('classes')
@@ -42,6 +48,19 @@ export class ClassesController {
   @Get(':classId/materials')
   async getMaterials(@Param('classId') classId: string) {
     return this.materialsService.getMaterials(classId);
+  }
+
+  @Post(':classId/materials')
+  async createMaterial(
+    @Param('classId') classId: string,
+    @Body() dto: CreateClassMaterialDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.materialsService.createMaterial({
+      classId,
+      ...dto,
+      publishedBy: request.user.sub,
+    });
   }
 
   @Get('materials/all')

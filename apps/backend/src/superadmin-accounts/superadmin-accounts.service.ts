@@ -4,12 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../database/prisma.service';
 import { SecretsService } from '../security/secrets/secrets.service';
 import {
   FinancialProvider,
   UpsertAccountFinancialConfigDto,
 } from './dto/upsert-account-financial-config.dto';
+import { CreateImpersonationSessionDto } from './dto/create-impersonation-session.dto';
 
 type SicoobSettings = {
   clientId: string;
@@ -50,6 +52,7 @@ export class SuperadminAccountsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly secrets: SecretsService,
+    private readonly authService: AuthService,
   ) {}
 
   async getAccountsDashboard() {
@@ -270,6 +273,19 @@ export class SuperadminAccountsService {
         updatedAt: saved.updatedAt,
       },
     };
+  }
+
+  async createImpersonationSession(
+    superadminUserId: string,
+    targetUserId: string,
+    dto: CreateImpersonationSessionDto,
+  ) {
+    return this.authService.createImpersonatedAuthPayload({
+      actorUserId: superadminUserId,
+      targetUserId,
+      reason: dto.reason,
+      durationMinutes: dto.durationMinutes,
+    });
   }
 
   private buildSettings(

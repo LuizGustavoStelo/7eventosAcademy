@@ -208,6 +208,7 @@ export class WordpressIntegrationService {
       isActive: license.isActive,
       maxActivations: license.maxActivations,
       activations: license.activations,
+      expiresAt: license.expiresAt,
       createdAt: license.createdAt,
       updatedAt: license.updatedAt,
     }));

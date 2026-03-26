@@ -29,6 +29,11 @@ export class FinanceController {
     return this.financeService.getOverview();
   }
 
+  @Get('dashboard-summary')
+  async getDashboardSummary() {
+    return this.financeService.getDashboardSummary();
+  }
+
   @Get('charges')
   async findCharges() {
     return this.financeService.findCharges();

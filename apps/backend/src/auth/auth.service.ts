@@ -1,17 +1,19 @@
 ﻿import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { MultipartFile } from '@fastify/multipart';
 import { JwtService } from '@nestjs/jwt';
-import { UploadOwnerType } from '@prisma/client';
+import { UploadOwnerType, UserRole } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
 import { PrismaService } from '../database/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { UpdateMeDto } from './dto/update-me.dto';
 
 type AppRole = 'user' | 'admin' | 'superadmin';
 
@@ -26,6 +28,19 @@ type AuthUserPayload = {
 type AuthPayload = {
   accessToken: string;
   user: AuthUserPayload;
+};
+
+type ImpersonationAuthPayload = AuthPayload & {
+  impersonation: {
+    active: true;
+    actorId: string;
+    actorName: string;
+    actorEmail: string;
+    reason: string;
+    durationMinutes: number;
+    startedAt: string;
+    expiresAt: string;
+  };
 };
 
 const PROFILE_AVATAR_KIND = 'PROFILE_AVATAR';
@@ -86,6 +101,55 @@ export class AuthService {
     return this.buildUserPayload(user);
   }
 
+  async updateMe(userId: string, dto: UpdateMeDto): Promise<AuthUserPayload> {
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+
+    if (!currentUser) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const dataToUpdate: { name?: string; email?: string } = {};
+
+    if (dto.name !== undefined) {
+      const trimmedName = dto.name.trim();
+      if (trimmedName.length < 3) {
+        throw new BadRequestException('Nome deve ter pelo menos 3 caracteres.');
+      }
+      dataToUpdate.name = trimmedName;
+    }
+
+    if (dto.email !== undefined) {
+      const normalizedEmail = dto.email.trim().toLowerCase();
+      if (normalizedEmail !== currentUser.email) {
+        const existingUser = await this.prisma.user.findUnique({
+          where: { email: normalizedEmail },
+          select: { id: true },
+        });
+
+        if (existingUser && existingUser.id !== userId) {
+          throw new BadRequestException(
+            'Já existe um usuário com este e-mail.',
+          );
+        }
+      }
+      dataToUpdate.email = normalizedEmail;
+    }
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      return this.getMe(userId);
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: dataToUpdate,
+    });
+
+    return this.buildUserPayload(updated);
+  }
+
   async uploadMyAvatar(
     userId: string,
     file: MultipartFile,
@@ -112,6 +176,71 @@ export class AuthService {
     );
 
     return this.getMe(userId);
+  }
+
+  async createImpersonatedAuthPayload(params: {
+    actorUserId: string;
+    targetUserId: string;
+    reason?: string;
+    durationMinutes?: number;
+  }): Promise<ImpersonationAuthPayload> {
+    const actor = await this.prisma.user.findUnique({
+      where: { id: params.actorUserId },
+      select: { id: true, name: true, email: true, role: true },
+    });
+    if (!actor || actor.role !== UserRole.SUPERADMIN) {
+      throw new ForbiddenException(
+        'Somente superadmin pode iniciar impersonação.',
+      );
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: params.targetUserId },
+      select: { id: true, name: true, email: true, role: true },
+    });
+    if (!target || target.role !== UserRole.ADMIN) {
+      throw new NotFoundException('Conta admin/professor não encontrada.');
+    }
+    if (target.id === actor.id) {
+      throw new BadRequestException('Não é possível impersonar a própria conta.');
+    }
+
+    const reason = params.reason?.trim() || 'Suporte operacional';
+    const rawDuration = params.durationMinutes ?? 20;
+    const durationMinutes = Math.max(5, Math.min(180, rawDuration));
+    const startedAtDate = new Date();
+    const expiresAtDate = new Date(
+      startedAtDate.getTime() + durationMinutes * 60 * 1000,
+    );
+
+    const accessToken = await this.jwtService.signAsync(
+      {
+        sub: target.id,
+        email: target.email,
+        role: this.mapRole(target.role),
+        impersonatedBy: actor.id,
+        impersonationReason: reason,
+        impersonationStartedAt: startedAtDate.toISOString(),
+      },
+      {
+        expiresIn: durationMinutes * 60,
+      },
+    );
+
+    return {
+      accessToken,
+      user: await this.buildUserPayload(target),
+      impersonation: {
+        active: true,
+        actorId: actor.id,
+        actorName: actor.name,
+        actorEmail: actor.email,
+        reason,
+        durationMinutes,
+        startedAt: startedAtDate.toISOString(),
+        expiresAt: expiresAtDate.toISOString(),
+      },
+    };
   }
 
   private async buildAuthPayload(user: {
@@ -164,3 +293,5 @@ export class AuthService {
     return 'user';
   }
 }
+
+

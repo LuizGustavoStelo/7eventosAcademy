@@ -13,6 +13,12 @@ type TransactionStatusInput = 'pending' | 'success' | 'failed' | 'refunded';
 
 @Injectable()
 export class FinanceService {
+  private readonly dashboardSummaryTtlMs = 15_000;
+  private dashboardSummaryCache:
+    | { value: Record<string, unknown>; expiresAt: number }
+    | null = null;
+  private dashboardSummaryInFlight: Promise<Record<string, unknown>> | null = null;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async getOverview() {
@@ -41,6 +47,205 @@ export class FinanceService {
         amount: Number(item._sum.amount ?? 0),
       })),
     };
+  }
+
+  async getDashboardSummary() {
+    const nowMs = Date.now();
+    if (
+      this.dashboardSummaryCache &&
+      this.dashboardSummaryCache.expiresAt > nowMs
+    ) {
+      return this.dashboardSummaryCache.value;
+    }
+
+    if (this.dashboardSummaryInFlight) {
+      return this.dashboardSummaryInFlight;
+    }
+
+    this.dashboardSummaryInFlight = this.buildDashboardSummary()
+      .then((summary) => {
+        this.dashboardSummaryCache = {
+          value: summary,
+          expiresAt: Date.now() + this.dashboardSummaryTtlMs,
+        };
+        return summary;
+      })
+      .finally(() => {
+        this.dashboardSummaryInFlight = null;
+      });
+
+    return this.dashboardSummaryInFlight;
+  }
+
+  private async buildDashboardSummary() {
+    const now = new Date();
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+    const endOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+    );
+
+    const pendingStatuses: Array<'PENDING' | 'OVERDUE'> = [
+      'PENDING',
+      'OVERDUE',
+    ];
+
+    const [
+      studentsCount,
+      activeEnrollments,
+      classesCount,
+      openClasses,
+      planningClasses,
+      classesToday,
+      seatTotals,
+      pendingChargesCount,
+      pendingAmountAggregate,
+      upcomingClasses,
+      firstPendingCharge,
+    ] = await Promise.all([
+      this.prisma.user.count({
+        where: { role: 'USER' },
+      }),
+      this.prisma.enrollment.count({
+        where: { status: 'ACTIVE' },
+      }),
+      this.prisma.schoolClass.count(),
+      this.prisma.schoolClass.count({
+        where: { status: { not: 'CLOSED' } },
+      }),
+      this.prisma.schoolClass.count({
+        where: { status: 'PLANNING' },
+      }),
+      this.prisma.schoolClass.count({
+        where: {
+          startDate: {
+            gte: startOfToday,
+            lt: endOfToday,
+          },
+        },
+      }),
+      this.prisma.schoolClass.aggregate({
+        _sum: {
+          totalSeats: true,
+          occupiedSeats: true,
+        },
+      }),
+      this.prisma.monthlyCharge.count({
+        where: {
+          status: {
+            in: pendingStatuses,
+          },
+        },
+      }),
+      this.prisma.monthlyCharge.aggregate({
+        where: {
+          status: {
+            in: pendingStatuses,
+          },
+        },
+        _sum: {
+          amount: true,
+        },
+      }),
+      this.prisma.schoolClass.findMany({
+        where: {
+          startDate: { gte: now },
+          status: { not: 'CLOSED' },
+        },
+        orderBy: { startDate: 'asc' },
+        take: 2,
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          startDate: true,
+          course: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      }),
+      this.prisma.monthlyCharge.findFirst({
+        where: {
+          status: {
+            in: pendingStatuses,
+          },
+        },
+        orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          dueDate: true,
+          amount: true,
+          enrollment: {
+            select: {
+              student: {
+                select: {
+                  name: true,
+                },
+              },
+              schoolClass: {
+                select: {
+                  name: true,
+                  course: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const totalSeats = Number(seatTotals._sum.totalSeats ?? 0);
+    const occupiedSeats = Number(seatTotals._sum.occupiedSeats ?? 0);
+    const occupancyRate =
+      totalSeats > 0 ? Number(((occupiedSeats / totalSeats) * 100).toFixed(1)) : 0;
+
+    return {
+      generatedAt: now.toISOString(),
+      studentsCount,
+      activeEnrollments,
+      classesCount,
+      openClasses,
+      planningClasses,
+      classesToday,
+      totalSeats,
+      occupiedSeats,
+      occupancyRate,
+      pendingChargesCount,
+      pendingAmount: Number(pendingAmountAggregate._sum?.amount ?? 0),
+      upcomingClasses: upcomingClasses.map((item) => ({
+        id: item.id,
+        name: item.name,
+        status: item.status,
+        startDate: item.startDate,
+        course: item.course,
+      })),
+      firstPendingCharge: firstPendingCharge
+        ? {
+            id: firstPendingCharge.id,
+            dueDate: firstPendingCharge.dueDate,
+            amount: Number(firstPendingCharge.amount),
+            studentName: firstPendingCharge.enrollment.student?.name ?? null,
+            className: firstPendingCharge.enrollment.schoolClass?.name ?? null,
+            courseName:
+              firstPendingCharge.enrollment.schoolClass?.course?.name ?? null,
+          }
+        : null,
+    };
+  }
+
+  private invalidateDashboardSummaryCache() {
+    this.dashboardSummaryCache = null;
   }
 
   async findCharges() {
@@ -116,6 +321,8 @@ export class FinanceService {
       },
     });
 
+    this.invalidateDashboardSummaryCache();
+
     return {
       ...charge,
       amount: Number(charge.amount),
@@ -156,6 +363,8 @@ export class FinanceService {
         },
       },
     });
+
+    this.invalidateDashboardSummaryCache();
 
     return {
       ...updatedCharge,
@@ -235,6 +444,8 @@ export class FinanceService {
 
       return createdTransaction;
     });
+
+    this.invalidateDashboardSummaryCache();
 
     return {
       ...transaction,

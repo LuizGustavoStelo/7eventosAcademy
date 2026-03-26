@@ -1,5 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { AgendaNative } from './native/AgendaNative';
+import { ClassesNative } from './native/ClassesNative';
+import { ContentNative } from './native/ContentNative';
+import { CoursesNative } from './native/CoursesNative';
+import { DashboardNative } from './native/DashboardNative';
+import { FinanceNative } from './native/FinanceNative';
+import { NoticesNative } from './native/NoticesNative';
+import { ReportsNative } from './native/ReportsNative';
+import { SettingsNative } from './native/SettingsNative';
+import { StudentsNative } from './native/StudentsNative';
+import { SuperadminAccountsNative } from './native/SuperadminAccountsNative';
+import { SuperadminDashboardNative } from './native/SuperadminDashboardNative';
+import { SuperadminImpersonationNative } from './native/SuperadminImpersonationNative';
+import { SuperadminWordpressNative } from './native/SuperadminWordpressNative';
 
 type Role = 'user' | 'admin' | 'superadmin';
 type AuthUser = {
@@ -9,23 +23,34 @@ type AuthUser = {
   role: Role;
   avatarUrl?: string | null;
 };
-type AuthResponse = { accessToken: string; user: AuthUser };
+type AuthResponse = {
+  accessToken: string;
+  user: AuthUser;
+  impersonation?: {
+    active: true;
+    actorId: string;
+    actorName: string;
+    actorEmail: string;
+    reason: string;
+    durationMinutes: number;
+    startedAt: string;
+    expiresAt: string;
+  };
+};
 type NavSection = {
   id: string;
   label: string;
   subtitle: string;
   templatePath: string;
-};
-
-type NavigateMessage = {
-  type: 'academy:navigate';
-  section: string;
+  renderMode?: 'iframe' | 'native';
 };
 
 const SESSION_TOKEN_KEY = 'academy-auth-token';
-const SESSION_USER_KEY  = 'academy-auth-user';
+const SESSION_USER_KEY = 'academy-auth-user';
+const IMPERSONATION_SOURCE_TOKEN_KEY = 'academy-impersonation-source-token';
+const IMPERSONATION_SOURCE_USER_KEY = 'academy-impersonation-source-user';
+const IMPERSONATION_META_KEY = 'academy-impersonation-meta';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
-
 
 const SECOES_SUPERADMIN: NavSection[] = [
   {
@@ -33,24 +58,28 @@ const SECOES_SUPERADMIN: NavSection[] = [
     label: 'Dashboard Global',
     subtitle: 'Template fiel: superadmin_dashboard_global',
     templatePath: '/templates/superadmin_dashboard_global/index.html',
+    renderMode: 'native',
   },
   {
     id: 'superadmin_gestao_contas',
     label: 'Gestão de Contas',
     subtitle: 'Template fiel: superadmin_gestao_de_contas',
     templatePath: '/templates/superadmin_gestao_de_contas/index.html',
+    renderMode: 'native',
   },
   {
     id: 'superadmin_impersonacao',
     label: 'Impersonação',
     subtitle: 'Template fiel: superadmin_tela_de_impersonacao',
     templatePath: '/templates/superadmin_tela_de_impersonacao/index.html',
+    renderMode: 'native',
   },
   {
     id: 'superadmin_wordpress_plugin',
     label: 'Plugin WordPress',
     subtitle: 'Gerenciar licenças e releases do plugin 7academy',
     templatePath: '/templates/superadmin_wordpress_plugin/index.html',
+    renderMode: 'native',
   },
 ];
 
@@ -60,60 +89,70 @@ const SECOES_ADMIN: NavSection[] = [
     label: 'Painel',
     subtitle: 'Template fiel: admin_professor_dashboard_da_conta',
     templatePath: '/templates/admin_professor_dashboard_da_conta/index.html',
+    renderMode: 'native',
   },
   {
     id: 'admin_cursos',
     label: 'CURSOS',
     subtitle: 'Template fiel: admin_professor_cursos',
     templatePath: '/templates/admin_professor_cursos/index.html',
+    renderMode: 'native',
   },
   {
     id: 'admin_gestao_turmas',
     label: 'Turmas',
     subtitle: 'Template fiel: admin_professor_gestao_de_turmas',
     templatePath: '/templates/admin_professor_gestao_de_turmas/index.html',
+    renderMode: 'native',
   },
   {
     id: 'admin_alunos_matriculas',
     label: 'ALUNOS',
     subtitle: 'Template fiel: admin_professor_alunos_e_matriculas',
     templatePath: '/templates/admin_professor_alunos_e_matriculas/index.html',
+    renderMode: 'native',
   },
   {
     id: 'admin_agenda',
     label: 'Agenda',
     subtitle: 'Template fiel: admin_professor_agenda_de_aulas_e_lives',
     templatePath: '/templates/admin_professor_agenda_de_aulas_e_lives/index.html',
+    renderMode: 'native',
   },
   {
     id: 'admin_financeiro',
     label: 'Financeiro',
     subtitle: 'Template fiel: admin_professor_financeiro',
     templatePath: '/templates/admin_professor_financeiro/index.html',
+    renderMode: 'native',
   },
   {
     id: 'admin_conteudo',
     label: 'MATERIAIS',
     subtitle: 'Template fiel: admin_professor_conteudo_e_materiais',
     templatePath: '/templates/admin_professor_conteudo_e_materiais/index.html',
+    renderMode: 'native',
   },
   {
     id: 'admin_avisos',
     label: 'AVISOS',
     subtitle: 'Template fiel: admin_professor_avisos_e_comunicacao',
     templatePath: '/templates/admin_professor_avisos_e_comunicacao/index.html',
+    renderMode: 'native',
   },
   {
     id: 'admin_relatorios',
     label: 'RELATÓRIOS',
     subtitle: 'Template fiel: admin_professor_relatorios_e_analises',
     templatePath: '/templates/admin_professor_relatorios_e_analises/index.html',
+    renderMode: 'native',
   },
   {
     id: 'admin_configuracoes',
     label: 'Configurações',
     subtitle: 'Template fiel: admin_professor_configuracoes',
     templatePath: '/templates/admin_professor_configuracoes/index.html',
+    renderMode: 'native',
   },
 ];
 
@@ -157,15 +196,21 @@ export default function App() {
   });
 
   const [secaoAtiva, setSecaoAtiva] = useState('');
-  const [frameCarregando, setFrameCarregando] = useState(true);
   const [temaEscuro, setTemaEscuro] = useState(false);
-  const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const [impersonationMeta, setImpersonationMeta] = useState<AuthResponse['impersonation'] | null>(() => {
+    try {
+      const raw = window.localStorage.getItem(IMPERSONATION_META_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw) as AuthResponse['impersonation'];
+    } catch {
+      return null;
+    }
+  });
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const isEmbedded = new URLSearchParams(window.location.search).get('embed') === '1';
   const autenticado = Boolean(token && usuario);
   const secoes = usuario?.role === 'superadmin' ? SECOES_SUPERADMIN : SECOES_ADMIN;
-  const secaoAtual = secoes.find((item) => item.id === secaoAtiva) ?? secoes[0];
 
   useEffect(() => {
     if (!autenticado || secoes.length === 0) return;
@@ -175,59 +220,9 @@ export default function App() {
   }, [autenticado, secoes, secaoAtiva]);
 
   useEffect(() => {
-    setFrameCarregando(true);
-  }, [secaoAtiva]);
-
-  useEffect(() => {
-    if (!autenticado) return;
-
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-
-      const data = event.data as Partial<NavigateMessage>;
-      if (data?.type !== 'academy:navigate' || typeof data.section !== 'string') {
-        return;
-      }
-
-      if (!secoes.some((item) => item.id === data.section)) return;
-      setSecaoAtiva(data.section);
-    };
-
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, [autenticado, secoes]);
-
-  const aplicarTemaNoFrame = () => {
-    const frameDoc = frameRef.current?.contentDocument;
-    if (!frameDoc) return;
-
-    let styleTag = frameDoc.getElementById('academy-global-frame-style') as HTMLStyleElement | null;
-    if (!styleTag) {
-      styleTag = frameDoc.createElement('style');
-      styleTag.id = 'academy-global-frame-style';
-      styleTag.textContent = `
-        body > header {
-          display: none !important;
-        }
-        body > main > header:first-child {
-          display: none !important;
-        }
-        header.sticky.top-0 {
-          display: none !important;
-        }
-      `;
-      frameDoc.head.appendChild(styleTag);
-    }
-
-    frameDoc.documentElement.classList.toggle('dark', temaEscuro);
-    frameDoc.body?.classList.toggle('dark', temaEscuro);
-  };
-
-  useEffect(() => {
     document.documentElement.classList.toggle('dark', temaEscuro);
     document.body.classList.toggle('dark', temaEscuro);
-    aplicarTemaNoFrame();
-  }, [temaEscuro, secaoAtiva]);
+  }, [temaEscuro]);
 
   const lerErroApi = async (response: Response) => {
     try {
@@ -240,13 +235,75 @@ export default function App() {
     return 'Falha na operação.';
   };
 
+  const limparImpersonacao = () => {
+    try {
+      window.localStorage.removeItem(IMPERSONATION_SOURCE_TOKEN_KEY);
+      window.localStorage.removeItem(IMPERSONATION_SOURCE_USER_KEY);
+      window.localStorage.removeItem(IMPERSONATION_META_KEY);
+    } catch {}
+    setImpersonationMeta(null);
+  };
+
   const persistirSessao = (auth: AuthResponse) => {
+    limparImpersonacao();
     try {
       window.localStorage.setItem(SESSION_TOKEN_KEY, auth.accessToken);
       window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(auth.user));
     } catch {}
     setToken(auth.accessToken);
     setUsuario(auth.user);
+  };
+
+  const iniciarImpersonacao = (auth: AuthResponse) => {
+    if (!usuario || usuario.role !== 'superadmin') return;
+
+    try {
+      window.localStorage.setItem(IMPERSONATION_SOURCE_TOKEN_KEY, token);
+      window.localStorage.setItem(
+        IMPERSONATION_SOURCE_USER_KEY,
+        JSON.stringify(usuario),
+      );
+      window.localStorage.setItem(SESSION_TOKEN_KEY, auth.accessToken);
+      window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(auth.user));
+      if (auth.impersonation) {
+        window.localStorage.setItem(
+          IMPERSONATION_META_KEY,
+          JSON.stringify(auth.impersonation),
+        );
+      }
+    } catch {}
+
+    setToken(auth.accessToken);
+    setUsuario(auth.user);
+    setImpersonationMeta(auth.impersonation ?? null);
+    setSecaoAtiva('admin_dashboard_conta');
+  };
+
+  const encerrarImpersonacao = () => {
+    let sourceToken = '';
+    let sourceUser: AuthUser | null = null;
+    try {
+      sourceToken = window.localStorage.getItem(IMPERSONATION_SOURCE_TOKEN_KEY) ?? '';
+      const rawSourceUser = window.localStorage.getItem(IMPERSONATION_SOURCE_USER_KEY);
+      if (rawSourceUser) {
+        sourceUser = JSON.parse(rawSourceUser) as AuthUser;
+      }
+    } catch {}
+
+    if (!sourceToken || !sourceUser) {
+      limparImpersonacao();
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(SESSION_TOKEN_KEY, sourceToken);
+      window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(sourceUser));
+    } catch {}
+
+    limparImpersonacao();
+    setToken(sourceToken);
+    setUsuario(sourceUser);
+    setSecaoAtiva('superadmin_dashboard_global');
   };
 
   const atualizarUsuarioSessao = (nextUser: AuthUser) => {
@@ -278,7 +335,26 @@ export default function App() {
     void carregarPerfilAtual();
   }, [autenticado, token]);
 
+  useEffect(() => {
+    if (!autenticado || !impersonationMeta) return;
+    if (usuario?.role === 'superadmin') {
+      limparImpersonacao();
+      return;
+    }
+
+    try {
+      const sourceToken = window.localStorage.getItem(IMPERSONATION_SOURCE_TOKEN_KEY);
+      const sourceUser = window.localStorage.getItem(IMPERSONATION_SOURCE_USER_KEY);
+      if (!sourceToken || !sourceUser) {
+        limparImpersonacao();
+      }
+    } catch {
+      limparImpersonacao();
+    }
+  }, [autenticado, impersonationMeta, usuario?.role]);
+
   const sair = () => {
+    limparImpersonacao();
     try {
       window.localStorage.removeItem(SESSION_TOKEN_KEY);
       window.localStorage.removeItem(SESSION_USER_KEY);
@@ -507,6 +583,9 @@ export default function App() {
     );
   }
 
+  const impersonando = Boolean(impersonationMeta && usuario?.role !== 'superadmin');
+  const roleLabel = impersonando ? 'Administrador (Impersonado)' : usuario?.role === 'superadmin' ? 'Superadmin' : 'Professor';
+
   return (
     <div className="app-shell">
       <aside className="global-sidebar">
@@ -630,29 +709,110 @@ export default function App() {
               ) : null}
               <div className="global-topbar-user-meta">
                 <span className="global-topbar-user-name">{usuario?.name ?? 'Professor'}</span>
-                <span className="global-topbar-user-role">Professor</span>
+                <span className="global-topbar-user-role">{roleLabel}</span>
               </div>
             </div>
           </div>
         </header>
 
-        <div className="template-frame-wrap" style={{ position: 'relative' }}>
-          {frameCarregando && (
-            <div className="absolute inset-0 flex items-center justify-center bg-surface z-10 transition-opacity duration-300">
-              <span className="material-symbols-outlined animate-spin text-primary" style={{ fontSize: '2rem' }}>progress_activity</span>
+        {impersonando && impersonationMeta ? (
+          <section className="native-impersonation-banner">
+            <div>
+              <strong>
+                Sessão de impersonação ativa: {impersonationMeta.actorName}
+              </strong>
+              <small>
+                Motivo: {impersonationMeta.reason} • Expira em{' '}
+                {new Intl.DateTimeFormat('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }).format(new Date(impersonationMeta.expiresAt))}
+              </small>
             </div>
-          )}
-          <iframe
-            ref={frameRef}
-            key={secaoAtual?.id}
-            className={`template-frame-full transition-opacity duration-300 ${frameCarregando ? 'opacity-0' : 'opacity-100'}`}
-            src={`${secaoAtual?.templatePath}?token=${encodeURIComponent(token)}&usr=${encodeURIComponent(JSON.stringify(usuario))}`}
-            title={secaoAtual?.label ?? 'Template'}
-            onLoad={() => {
-              aplicarTemaNoFrame();
-              setTimeout(() => setFrameCarregando(false), 100);
-            }}
-          />
+            <button type="button" onClick={encerrarImpersonacao}>
+              Encerrar impersonação
+            </button>
+          </section>
+        ) : null}
+
+        <div className="template-frame-wrap">
+          <div className="native-content-wrap">
+            {secaoAtiva === 'superadmin_dashboard_global' ? (
+              <SuperadminDashboardNative
+                token={token}
+                onNavigate={(sectionId) => setSecaoAtiva(sectionId)}
+              />
+            ) : null}
+
+            {secaoAtiva === 'superadmin_gestao_contas' ? (
+              <SuperadminAccountsNative token={token} />
+            ) : null}
+
+            {secaoAtiva === 'superadmin_impersonacao' ? (
+              <SuperadminImpersonationNative
+                token={token}
+                onNavigate={(sectionId) => setSecaoAtiva(sectionId)}
+                onImpersonated={(session) => iniciarImpersonacao(session)}
+              />
+            ) : null}
+
+            {secaoAtiva === 'superadmin_wordpress_plugin' ? (
+              <SuperadminWordpressNative token={token} />
+            ) : null}
+
+            {secaoAtiva === 'admin_dashboard_conta' ? (
+              <DashboardNative
+                token={token}
+                onNavigate={(sectionId) => setSecaoAtiva(sectionId)}
+              />
+            ) : null}
+
+            {secaoAtiva === 'admin_gestao_turmas' ? (
+              <ClassesNative token={token} />
+            ) : null}
+
+            {secaoAtiva === 'admin_cursos' ? (
+              <CoursesNative token={token} />
+            ) : null}
+
+            {secaoAtiva === 'admin_alunos_matriculas' ? (
+              <StudentsNative token={token} />
+            ) : null}
+
+            {secaoAtiva === 'admin_agenda' ? (
+              <AgendaNative
+                token={token}
+                onNavigate={(sectionId) => setSecaoAtiva(sectionId)}
+              />
+            ) : null}
+
+            {secaoAtiva === 'admin_financeiro' ? (
+              <FinanceNative token={token} />
+            ) : null}
+
+            {secaoAtiva === 'admin_conteudo' ? (
+              <ContentNative token={token} />
+            ) : null}
+
+            {secaoAtiva === 'admin_avisos' ? (
+              <NoticesNative token={token} />
+            ) : null}
+
+            {secaoAtiva === 'admin_relatorios' ? (
+              <ReportsNative token={token} />
+            ) : null}
+
+            {secaoAtiva === 'admin_configuracoes' ? (
+              <SettingsNative
+                token={token}
+                isDarkTheme={temaEscuro}
+                onToggleTheme={() => setTemaEscuro((current) => !current)}
+                onProfileUpdated={(nextUser) => atualizarUsuarioSessao(nextUser)}
+              />
+            ) : null}
+          </div>
         </div>
       </main>
     </div>
