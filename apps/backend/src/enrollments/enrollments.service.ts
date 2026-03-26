@@ -3,14 +3,17 @@
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '../database/prisma.service';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
+import { PrismaService } from '../database/prisma.service';
 
 @Injectable()
 export class EnrollmentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateEnrollmentDto) {
+  async create(
+    dto: CreateEnrollmentDto,
+    context?: { actorUserId?: string; actorRole?: string },
+  ) {
     const schoolClass = await this.prisma.schoolClass.findUnique({
       where: { id: dto.classId },
       select: {
@@ -18,6 +21,15 @@ export class EnrollmentsService {
         totalSeats: true,
         occupiedSeats: true,
         status: true,
+        startDate: true,
+        course: {
+          select: {
+            id: true,
+            paymentModel: true,
+            installmentMonths: true,
+            installmentValue: true,
+          },
+        },
       },
     });
 
@@ -58,6 +70,18 @@ export class EnrollmentsService {
       throw new BadRequestException('Este aluno já está matriculado na turma.');
     }
 
+    const installmentCharges = this.buildInstallmentCharges({
+      classStartDate: schoolClass.startDate,
+      installmentMonths: schoolClass.course.installmentMonths,
+      installmentValue: schoolClass.course.installmentValue,
+      paymentModel: schoolClass.course.paymentModel,
+    });
+
+    const ownerAdminId =
+      context?.actorUserId && context.actorRole?.toLowerCase() === 'admin'
+        ? context.actorUserId
+        : null;
+
     const enrollment = await this.prisma.$transaction(async (tx) => {
       const createdEnrollment = await tx.enrollment.create({
         data: {
@@ -89,6 +113,18 @@ export class EnrollmentsService {
           },
         },
       });
+
+      if (installmentCharges.length > 0) {
+        await tx.monthlyCharge.createMany({
+          data: installmentCharges.map((item) => ({
+            enrollmentId: createdEnrollment.id,
+            ownerAdminId,
+            dueDate: item.dueDate,
+            amount: item.amount,
+            status: item.status,
+          })),
+        });
+      }
 
       return createdEnrollment;
     });
@@ -157,5 +193,48 @@ export class EnrollmentsService {
         createdAt: 'desc',
       },
     });
+  }
+
+  private buildInstallmentCharges(input: {
+    classStartDate: Date;
+    paymentModel: string;
+    installmentMonths: number | null;
+    installmentValue: { toNumber: () => number } | null;
+  }) {
+    if (String(input.paymentModel).toUpperCase() !== 'INSTALLMENTS') {
+      return [] as Array<{
+        dueDate: Date;
+        amount: number;
+        status: 'PENDING' | 'OVERDUE';
+      }>;
+    }
+
+    const months = Number(input.installmentMonths ?? 0);
+    const value = Number(input.installmentValue?.toNumber?.() ?? 0);
+    if (!Number.isFinite(months) || months <= 0 || !Number.isFinite(value) || value <= 0) {
+      return [];
+    }
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const base = new Date(input.classStartDate);
+    const result: Array<{
+      dueDate: Date;
+      amount: number;
+      status: 'PENDING' | 'OVERDUE';
+    }> = [];
+
+    for (let index = 0; index < months; index += 1) {
+      const dueDate = new Date(base.getTime());
+      dueDate.setMonth(dueDate.getMonth() + index);
+      const dueDateStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+      result.push({
+        dueDate,
+        amount: value,
+        status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+      });
+    }
+
+    return result;
   }
 }

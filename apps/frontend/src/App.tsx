@@ -9,6 +9,7 @@ import { FinanceNative } from './native/FinanceNative';
 import { NoticesNative } from './native/NoticesNative';
 import { ReportsNative } from './native/ReportsNative';
 import { SettingsNative } from './native/SettingsNative';
+import { LessonsNative } from './native/LessonsNative';
 import { StudentsNative } from './native/StudentsNative';
 import { StudentAreaNative } from './native/StudentAreaNative';
 import { StudentRegistrationNative } from './native/StudentRegistrationNative';
@@ -115,6 +116,13 @@ const SECOES_ADMIN: NavSection[] = [
     renderMode: 'native',
   },
   {
+    id: 'admin_aulas',
+    label: 'Aulas',
+    subtitle: 'Lançamento de presença por aula (retroativo e bloqueio de futuras)',
+    templatePath: '/templates/admin_professor_agenda_de_aulas_e_lives/index.html',
+    renderMode: 'native',
+  },
+  {
     id: 'admin_agenda',
     label: 'Agenda',
     subtitle: 'Template fiel: admin_professor_agenda_de_aulas_e_lives',
@@ -163,6 +171,7 @@ const ICONE_POR_SECAO: Record<string, string> = {
   admin_cursos: 'school',
   admin_gestao_turmas: 'groups',
   admin_alunos_matriculas: 'person',
+  admin_aulas: 'fact_check',
   admin_agenda: 'calendar_today',
   admin_financeiro: 'payments',
   admin_conteudo: 'menu_book',
@@ -228,13 +237,18 @@ export default function App() {
     const postEmbedHeight = () => {
       const body = document.body;
       const doc = document.documentElement;
-      const nextHeight = Math.max(
-        body?.scrollHeight ?? 0,
-        body?.offsetHeight ?? 0,
-        doc?.scrollHeight ?? 0,
-        doc?.offsetHeight ?? 0,
-        doc?.clientHeight ?? 0,
-      );
+      const isStudentMobileViewport =
+        appMode === 'student' && window.matchMedia('(max-width: 980px)').matches;
+
+      const nextHeight = isStudentMobileViewport
+        ? Math.max(window.innerHeight || 0, doc?.clientHeight ?? 0, 620)
+        : Math.max(
+            body?.scrollHeight ?? 0,
+            body?.offsetHeight ?? 0,
+            doc?.scrollHeight ?? 0,
+            doc?.offsetHeight ?? 0,
+            doc?.clientHeight ?? 0,
+          );
 
       if (nextHeight <= 0) return;
 
@@ -869,6 +883,10 @@ export default function App() {
                 token={token}
                 onNavigate={(sectionId) => setSecaoAtiva(sectionId)}
               />
+            ) : null}
+
+            {secaoAtiva === 'admin_aulas' ? (
+              <LessonsNative token={token} />
             ) : null}
 
             {secaoAtiva === 'admin_financeiro' ? (

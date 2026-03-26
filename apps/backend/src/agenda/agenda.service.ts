@@ -16,14 +16,36 @@ type AgendaEventRecord = {
   provider: string | null;
 };
 
+type ClassEventMetaRecord = {
+  classId: string;
+  className: string;
+  teacher: string;
+  recurrenceKind: 'none' | 'weekly' | 'monthly';
+  repeatUntil: string | null;
+  monthDay: number | null;
+  weeklyDays: number[];
+  events: AgendaEventRecord[];
+};
+
 @Injectable()
 export class AgendaService {
   private readonly maxEvents = 1000;
+  private readonly classEventKeyPrefix = 'agenda-class:';
 
   constructor(private readonly prisma: PrismaService) {}
 
   async getEvents(user: JwtPayload) {
-    return this.readEvents(user);
+    const [userEvents, classEvents] = await Promise.all([
+      this.readEvents(user),
+      this.readAllClassEvents(),
+    ]);
+    return [...classEvents, ...userEvents]
+      .sort((a, b) => {
+        const first = new Date(a.datetime).getTime();
+        const second = new Date(b.datetime).getTime();
+        return first - second;
+      })
+      .slice(0, this.maxEvents);
   }
 
   async createEvent(
@@ -69,8 +91,114 @@ export class AgendaService {
     return nextEvent;
   }
 
+  async getClassEventsMeta() {
+    const schedules = await this.readClassEventMetaRecords();
+    return schedules.map((item) => ({
+      classId: item.classId,
+      className: item.className,
+      teacher: item.teacher,
+      recurrenceKind: item.recurrenceKind,
+      repeatUntil: item.repeatUntil,
+      monthDay: item.monthDay,
+      weeklyDays: item.weeklyDays,
+    }));
+  }
+
+  async syncClassEvents(
+    input: {
+      classId?: string;
+      className?: string;
+      teacher?: string;
+      recurrenceKind?: 'none' | 'weekly' | 'monthly';
+      repeatUntil?: string | null;
+      monthDay?: number | null;
+      weeklyDays?: number[];
+      events?: Array<{
+        type?: string;
+        title?: string;
+        datetime?: string;
+        provider?: string | null;
+      }>;
+    },
+  ) {
+    const classId = String(input.classId ?? '').trim();
+    if (!classId) {
+      throw new Error('ClassId é obrigatório para sincronizar agenda da turma.');
+    }
+
+    const className = String(input.className ?? '').trim() || 'Turma';
+    const teacher = String(input.teacher ?? '').trim() || 'Professor(a)';
+    const recurrenceKind =
+      input.recurrenceKind === 'weekly' || input.recurrenceKind === 'monthly'
+        ? input.recurrenceKind
+        : 'none';
+    const repeatUntil = input.repeatUntil ? String(input.repeatUntil) : null;
+    const monthDay =
+      typeof input.monthDay === 'number' && Number.isFinite(input.monthDay)
+        ? input.monthDay
+        : null;
+    const weeklyDays = Array.isArray(input.weeklyDays)
+      ? input.weeklyDays
+          .map((value) => Number(value))
+          .filter((value) => Number.isFinite(value) && value >= 0 && value <= 6)
+      : [];
+
+    const rawEvents = Array.isArray(input.events) ? input.events : [];
+    const events: AgendaEventRecord[] = [];
+    rawEvents.forEach((eventItem) => {
+      const title = String(eventItem.title ?? '').trim() || className;
+      const type = eventItem.type === 'live' ? 'live' : 'class';
+      const provider =
+        type === 'live'
+          ? String(eventItem.provider ?? '').trim() || 'YouTube'
+          : null;
+      const datetime = String(eventItem.datetime ?? '').trim();
+      const parsedDate = new Date(datetime);
+      if (!datetime || Number.isNaN(parsedDate.getTime())) {
+        return;
+      }
+      events.push({
+        id: String(randomUUID()),
+        type,
+        title,
+        classId,
+        className,
+        teacher,
+        datetime: parsedDate.toISOString(),
+        provider,
+      });
+    });
+
+    const payload: ClassEventMetaRecord = {
+      classId,
+      className,
+      teacher,
+      recurrenceKind,
+      repeatUntil,
+      monthDay,
+      weeklyDays,
+      events,
+    };
+
+    const key = this.buildClassEventKey(classId);
+    await this.prisma.systemSetting.upsert({
+      where: { key },
+      update: { value: JSON.stringify(payload) },
+      create: { key, value: JSON.stringify(payload) },
+    });
+
+    return {
+      classId,
+      saved: events.length,
+    };
+  }
+
   private buildKey(user: JwtPayload) {
     return `agenda-events:${user.role}:${user.sub}`;
+  }
+
+  private buildClassEventKey(classId: string) {
+    return `${this.classEventKeyPrefix}${classId}`;
   }
 
   private async readEvents(user: JwtPayload): Promise<AgendaEventRecord[]> {
@@ -102,6 +230,38 @@ export class AgendaService {
     });
   }
 
+  private async readAllClassEvents(): Promise<AgendaEventRecord[]> {
+    const schedules = await this.readClassEventMetaRecords();
+    return schedules.flatMap((item) =>
+      item.events.filter((eventItem) => this.isAgendaEventRecord(eventItem)),
+    );
+  }
+
+  private async readClassEventMetaRecords(): Promise<ClassEventMetaRecord[]> {
+    const rows = await this.prisma.systemSetting.findMany({
+      where: {
+        key: {
+          startsWith: this.classEventKeyPrefix,
+        },
+      },
+      select: {
+        value: true,
+      },
+    });
+
+    return rows
+      .map((row) => {
+        try {
+          const parsed = JSON.parse(row.value) as unknown;
+          if (!this.isClassEventMetaRecord(parsed)) return null;
+          return parsed;
+        } catch {
+          return null;
+        }
+      })
+      .filter((item): item is ClassEventMetaRecord => item !== null);
+  }
+
   private isAgendaEventRecord(value: unknown): value is AgendaEventRecord {
     if (!value || typeof value !== 'object') return false;
     const event = value as Partial<AgendaEventRecord>;
@@ -111,5 +271,14 @@ export class AgendaService {
       typeof event.title === 'string' &&
       typeof event.datetime === 'string'
     );
+  }
+
+  private isClassEventMetaRecord(value: unknown): value is ClassEventMetaRecord {
+    if (!value || typeof value !== 'object') return false;
+    const record = value as Partial<ClassEventMetaRecord>;
+    if (typeof record.classId !== 'string') return false;
+    if (typeof record.className !== 'string') return false;
+    if (!Array.isArray(record.events)) return false;
+    return true;
   }
 }

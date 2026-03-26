@@ -58,6 +58,12 @@ export class MisService {
     return this.fetchCobrancasByStudentId(userId);
   }
 
+  async getAlunoAgenda(userId: string) {
+    const classIds = await this.fetchActiveClassIds(userId);
+    if (classIds.length === 0) return [];
+    return this.fetchAgendaByClassIds(classIds);
+  }
+
   async getAlunoDashboard(userId: string) {
     const [me, enrollments, cobrancas] = await Promise.all([
       this.getAlunoMe(userId),
@@ -69,15 +75,16 @@ export class MisService {
     const classIds = this.uniqueClassIds(enrollments.map((en) => en.classId));
 
     if (classIds.length === 0) {
-      return { me, matriculas, materiais: [], avisos: [], cobrancas };
+      return { me, matriculas, materiais: [], avisos: [], cobrancas, agenda: [] };
     }
 
-    const [materiais, avisos] = await Promise.all([
+    const [materiais, avisos, agenda] = await Promise.all([
       this.fetchMateriaisByClassIds(classIds),
       this.fetchAvisosByClassIds(classIds),
+      this.fetchAgendaByClassIds(classIds),
     ]);
 
-    return { me, matriculas, materiais, avisos, cobrancas };
+    return { me, matriculas, materiais, avisos, cobrancas, agenda };
   }
 
   private async fetchActiveEnrollments(userId: string) {
@@ -175,6 +182,74 @@ export class MisService {
       className: notice.schoolClass.name,
       publishedAt: notice.publishedAt,
     }));
+  }
+
+  private async fetchAgendaByClassIds(classIds: string[]) {
+    const keys = classIds.map((classId) => `agenda-class:${classId}`);
+    if (keys.length === 0) return [];
+
+    const rows = await this.prisma.systemSetting.findMany({
+      where: {
+        key: {
+          in: keys,
+        },
+      },
+      select: {
+        value: true,
+      },
+    });
+
+    const events: Array<{
+      id: string;
+      type: string;
+      title: string;
+      classId: string | null;
+      className: string;
+      teacher: string;
+      datetime: string;
+      provider: string | null;
+    }> = [];
+
+    rows.forEach((row) => {
+      try {
+        const parsed = JSON.parse(row.value) as {
+          events?: Array<{
+            id?: string;
+            type?: string;
+            title?: string;
+            classId?: string | null;
+            className?: string;
+            teacher?: string;
+            datetime?: string;
+            provider?: string | null;
+          }>;
+        };
+        if (!Array.isArray(parsed.events)) return;
+        parsed.events.forEach((eventItem) => {
+          if (!eventItem?.datetime) return;
+          events.push({
+            id: String(eventItem.id ?? `${Date.now()}-${Math.random()}`),
+            type: eventItem.type === 'live' ? 'live' : 'class',
+            title: String(eventItem.title ?? 'Evento'),
+            classId: eventItem.classId ?? null,
+            className: String(eventItem.className ?? 'Turma'),
+            teacher: String(eventItem.teacher ?? 'Professor(a)'),
+            datetime: String(eventItem.datetime),
+            provider: eventItem.provider ?? null,
+          });
+        });
+      } catch {
+        // ignora payload inválido de configuração
+      }
+    });
+
+    return events
+      .sort((a, b) => {
+        const first = new Date(a.datetime).getTime();
+        const second = new Date(b.datetime).getTime();
+        return first - second;
+      })
+      .slice(0, 120);
   }
 
   private async fetchCobrancasByStudentId(userId: string) {

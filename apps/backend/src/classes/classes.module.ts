@@ -3,8 +3,10 @@ import { ClassesController } from './classes.controller';
 import { ClassesService } from './classes.service';
 import { ClassesMaterialsService } from './classes-materials.service';
 import { ClassesNoticesService } from './classes-notices.service';
+import { UploadsModule } from '../uploads/uploads.module';
 
 @Module({
+  imports: [UploadsModule],
   controllers: [ClassesController],
   providers: [ClassesService, ClassesMaterialsService, ClassesNoticesService],
 })

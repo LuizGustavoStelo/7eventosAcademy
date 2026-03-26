@@ -18,6 +18,11 @@ export class AgendaController {
     return this.agendaService.getEvents(request.user);
   }
 
+  @Get('class-events/meta')
+  async getClassEventsMeta() {
+    return this.agendaService.getClassEventsMeta();
+  }
+
   @Post('events')
   async createEvent(
     @Body()
@@ -33,5 +38,27 @@ export class AgendaController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.agendaService.createEvent(request.user, body);
+  }
+
+  @Post('class-events/sync')
+  async syncClassEvents(
+    @Body()
+    body: {
+      classId?: string;
+      className?: string;
+      teacher?: string;
+      recurrenceKind?: 'none' | 'weekly' | 'monthly';
+      repeatUntil?: string | null;
+      monthDay?: number | null;
+      weeklyDays?: number[];
+      events?: Array<{
+        type?: string;
+        title?: string;
+        datetime?: string;
+        provider?: string | null;
+      }>;
+    },
+  ) {
+    return this.agendaService.syncClassEvents(body);
   }
 }

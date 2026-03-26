@@ -30,7 +30,7 @@ services:
     environment:
       # Caminho interno do container (arquivo real no host: /var/www/7eventosAcademy/secrets/academy_master_key.txt)
       SECRETS_MASTER_KEY_FILE: /run/secrets/academy_master_key
-      UPLOADS_DIR: /app/storage/uploads
+      UPLOADS_DIR: /var/www/7eventosAcademy/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -44,7 +44,7 @@ services:
       sh -c "npx prisma migrate deploy --schema /app/apps/backend/prisma/schema.prisma
       && node dist/main.js"
     volumes:
-      - /var/www/7eventosAcademy/storage/uploads:/app/storage/uploads
+      - /var/www/7eventosAcademy/uploads:/var/www/7eventosAcademy/uploads
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3210/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
       interval: 30s

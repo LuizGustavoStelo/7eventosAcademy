@@ -4587,6 +4587,44 @@ table button {
   font-size: 0.78rem;
 }
 
+.student-template-profile-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: -0.2rem 0 0.75rem;
+}
+
+.student-template-profile-btn {
+  border: 1px solid #d4dee9;
+  background: #fff;
+  color: #214161;
+  border-radius: 999px;
+  padding: 0.36rem 0.78rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.student-template-profile-btn:hover:not(:disabled) {
+  border-color: #139395;
+  color: #116e70;
+}
+
+.student-template-profile-btn.ghost {
+  color: #7d5062;
+}
+
+.student-template-profile-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.student-template-profile-feedback {
+  color: #60738a;
+  font-size: 0.75rem;
+}
+
 .student-template-lower-card dl {
   margin: 0;
   display: grid;
@@ -4735,6 +4773,24 @@ table button {
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.7rem;
+}
+
+.student-page-month-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.student-page-month-nav button {
+  border: 1px solid #d4dee8;
+  background: #f8fbfc;
+  color: #375373;
+  border-radius: 0.5rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  min-width: 2rem;
+  height: 2rem;
 }
 
 .student-page-card-head small {

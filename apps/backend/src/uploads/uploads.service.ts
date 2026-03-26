@@ -24,8 +24,12 @@ type BindFileInput = {
 @Injectable()
 export class UploadsService implements OnModuleInit {
   private readonly logger = new Logger(UploadsService.name);
+  private readonly defaultUploadRoot =
+    process.platform === 'win32'
+      ? join(process.cwd(), 'storage', 'uploads')
+      : '/var/www/7eventosAcademy/uploads';
   private readonly uploadRoot = resolve(
-    process.env.UPLOADS_DIR ?? join(process.cwd(), 'storage', 'uploads'),
+    process.env.UPLOADS_DIR ?? this.defaultUploadRoot,
   );
 
   constructor(private readonly prisma: PrismaService) {}
@@ -36,7 +40,7 @@ export class UploadsService implements OnModuleInit {
 
   async bindFileToOwner(input: BindFileInput) {
     const { ownerType, ownerId, kind, file } = input;
-    this.assertDocumentOrMedia(file);
+    this.assertAllowedByKind(file, kind);
 
     const buffer = await file.toBuffer();
     if (!buffer.length) {
@@ -44,7 +48,12 @@ export class UploadsService implements OnModuleInit {
     }
 
     const extension = this.resolveExtension(file);
-    const relativePath = `${ownerType.toLowerCase()}/${ownerId}/${Date.now()}-${randomUUID()}${extension}`;
+    const relativePath = this.buildRelativePath({
+      ownerType,
+      ownerId,
+      kind,
+      extension,
+    });
     const absolutePath = join(this.uploadRoot, ...relativePath.split('/'));
 
     await mkdir(dirname(absolutePath), { recursive: true });
@@ -232,13 +241,73 @@ export class UploadsService implements OnModuleInit {
   private buildAssetUrl(assetId: string) {
     return `/api/uploads/assets/${assetId}`;
   }
-
-  private assertDocumentOrMedia(file: MultipartFile) {
-    const allowedPrefixes = ['image/', 'video/', 'application/pdf', 'application/vnd', 'application/msword', 'audio/'];
-    const isAllowed = allowedPrefixes.some(prefix => file.mimetype.startsWith(prefix));
-    if (!isAllowed) {
-      throw new BadRequestException('Formato de arquivo não suportado para materiais.');
+  private assertAllowedByKind(file: MultipartFile, kind: string) {
+    if (
+      kind === 'PROFILE_AVATAR' ||
+      kind === 'STUDENT_AVATAR' ||
+      kind === 'COURSE_BANNER'
+    ) {
+      if (!file.mimetype.startsWith('image/')) {
+        throw new BadRequestException(
+          'Envie uma imagem válida para este tipo de upload.',
+        );
+      }
+      return;
     }
+
+    const allowedPrefixes = [
+      'image/',
+      'video/',
+      'application/pdf',
+      'application/vnd',
+      'application/msword',
+      'audio/',
+    ];
+    const isAllowed = allowedPrefixes.some((prefix) =>
+      file.mimetype.startsWith(prefix),
+    );
+    if (!isAllowed) {
+      throw new BadRequestException(
+        'Formato de arquivo não suportado para materiais.',
+      );
+    }
+  }
+
+  private buildRelativePath(input: {
+    ownerType: UploadOwnerType;
+    ownerId: string;
+    kind: string;
+    extension: string;
+  }) {
+    const { ownerType, ownerId, kind, extension } = input;
+    const fileName = `${Date.now()}-${randomUUID()}${extension}`;
+
+    if (ownerType === UploadOwnerType.COURSE && kind === 'COURSE_BANNER') {
+      return `banners/cursos/${this.safeSegment(ownerId)}/${fileName}`;
+    }
+
+    if (
+      (ownerType === UploadOwnerType.USER ||
+        ownerType === UploadOwnerType.STUDENT) &&
+      (kind === 'PROFILE_AVATAR' || kind === 'STUDENT_AVATAR')
+    ) {
+      return `perfil/${ownerType.toLowerCase()}/${this.safeSegment(ownerId)}/${fileName}`;
+    }
+
+    if (ownerType === UploadOwnerType.CLASS && kind.startsWith('CLASS_MATERIAL_')) {
+      const rawProfessorId = kind.replace('CLASS_MATERIAL_', '');
+      const professorId = this.safeSegment(
+        (rawProfessorId.split('__')[0] || 'desconhecido').trim(),
+      );
+      return `materiais/professor-${professorId}/turma-${this.safeSegment(ownerId)}/${fileName}`;
+    }
+
+    return `outros/${ownerType.toLowerCase()}/${this.safeSegment(ownerId)}/${this.safeSegment(kind)}/${fileName}`;
+  }
+
+  private safeSegment(value: string) {
+    const cleaned = value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+    return cleaned || 'sem-id';
   }
 
   private resolveExtension(file: MultipartFile) {

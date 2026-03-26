@@ -66,11 +66,18 @@ type AgendaEvent = {
   seriesId?: string;
 };
 
+type ClassEventMeta = {
+  classId: string;
+  recurrenceKind: RecurrenceKind;
+  repeatUntil: string | null;
+  monthDay: number | null;
+  weeklyDays: number[];
+};
+
 type ClassesNativeProps = {
   token: string;
 };
 
-const AGENDA_STORAGE_KEY = 'academy-agenda-events-v1';
 const OPEN_CLASS_EDITOR_KEY = 'academy-open-class-editor';
 const SESSION_USER_KEY = 'academy-auth-user';
 
@@ -119,20 +126,6 @@ function toLocalDateTimeInput(value: string | null): string {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-function readAgendaEvents(): AgendaEvent[] {
-  try {
-    const raw = window.localStorage.getItem(AGENDA_STORAGE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(parsed) ? (parsed as AgendaEvent[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeAgendaEvents(events: AgendaEvent[]): void {
-  window.localStorage.setItem(AGENDA_STORAGE_KEY, JSON.stringify(events));
-}
-
 function getCurrentUserName(): string {
   try {
     const raw = window.localStorage.getItem(SESSION_USER_KEY);
@@ -144,12 +137,8 @@ function getCurrentUserName(): string {
   }
 }
 
-function getClassRecurrenceMetadata(classId: string) {
-  const classEvents = readAgendaEvents().filter(
-    (event) => event?.type === 'class' && event.classId === classId,
-  );
-
-  if (classEvents.length === 0) {
+function getClassRecurrenceMetadata(meta?: ClassEventMeta) {
+  if (!meta) {
     return {
       recurrenceKind: 'none' as RecurrenceKind,
       repeatUntil: '',
@@ -158,22 +147,14 @@ function getClassRecurrenceMetadata(classId: string) {
     };
   }
 
-  const first = classEvents[0];
-  const weeklyDays = Array.isArray(first.recurrenceWeekdays)
-    ? first.recurrenceWeekdays
-        .map((value) => Number(value))
-        .filter((value) => !Number.isNaN(value))
-    : [];
-
   return {
-    recurrenceKind: (first.recurrenceKind ?? 'none') as RecurrenceKind,
-    repeatUntil: first.recurrenceUntil ?? '',
+    recurrenceKind: meta.recurrenceKind ?? 'none',
+    repeatUntil: meta.repeatUntil ?? '',
     monthDay:
-      first.recurrenceMonthDay !== undefined &&
-      first.recurrenceMonthDay !== null
-        ? String(first.recurrenceMonthDay)
+      meta.monthDay !== undefined && meta.monthDay !== null
+        ? String(meta.monthDay)
         : '',
-    weeklyDays,
+    weeklyDays: Array.isArray(meta.weeklyDays) ? meta.weeklyDays : [],
   };
 }
 
@@ -298,22 +279,31 @@ export function ClassesNative({ token }: ClassesNativeProps) {
   const [pendingClassFromAgenda, setPendingClassFromAgenda] = useState<string | null>(
     null,
   );
+  const [classEventMetaByClassId, setClassEventMetaByClassId] = useState<Record<string, ClassEventMeta>>({});
 
   const loadData = async () => {
     setError('');
     try {
-      const [classesData, coursesData, studentsData, enrollmentsData] =
+      const [classesData, coursesData, studentsData, enrollmentsData, classMetaData] =
         await Promise.all([
           apiRequest<SchoolClass[]>(token, '/classes'),
           apiRequest<Course[]>(token, '/courses'),
           apiRequest<Student[]>(token, '/students'),
           apiRequest<Enrollment[]>(token, '/enrollments'),
+          apiRequest<ClassEventMeta[]>(token, '/agenda/class-events/meta'),
         ]);
 
       setClasses(Array.isArray(classesData) ? classesData : []);
       setCourses(Array.isArray(coursesData) ? coursesData : []);
       setStudents(Array.isArray(studentsData) ? studentsData : []);
       setEnrollments(Array.isArray(enrollmentsData) ? enrollmentsData : []);
+      const byClass: Record<string, ClassEventMeta> = {};
+      if (Array.isArray(classMetaData)) {
+        classMetaData.forEach((item) => {
+          if (item?.classId) byClass[item.classId] = item;
+        });
+      }
+      setClassEventMetaByClassId(byClass);
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -365,7 +355,7 @@ export function ClassesNative({ token }: ClassesNativeProps) {
     const selectedStudentIds = Array.from(
       getClassEnrollmentStudentSet(schoolClass.id),
     );
-    const recurrence = getClassRecurrenceMetadata(schoolClass.id);
+    const recurrence = getClassRecurrenceMetadata(classEventMetaByClassId[schoolClass.id]);
 
     setForm({
       id: schoolClass.id,
@@ -394,7 +384,7 @@ export function ClassesNative({ token }: ClassesNativeProps) {
     setPendingClassFromAgenda(null);
     if (!targetClass) return;
     openEditModal(targetClass);
-  }, [pendingClassFromAgenda, classes, enrollments]);
+  }, [pendingClassFromAgenda, classes, enrollments, classEventMetaByClassId]);
 
   const filteredClasses = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -504,7 +494,7 @@ export function ClassesNative({ token }: ClassesNativeProps) {
     }
   };
 
-  const syncClassEventsToAgenda = (params: {
+  const syncClassEventsToAgenda = async (params: {
     classId: string;
     className: string;
     startDateTime: string;
@@ -513,10 +503,6 @@ export function ClassesNative({ token }: ClassesNativeProps) {
     weeklyDays: number[];
     monthDay: string;
   }) => {
-    const allEvents = readAgendaEvents();
-    const preservedEvents = allEvents.filter(
-      (event) => !(event.type === 'class' && event.classId === params.classId),
-    );
     const occurrenceDates = buildOccurrenceDates({
       startDateTime: params.startDateTime,
       recurrenceKind: params.recurrenceKind,
@@ -525,10 +511,9 @@ export function ClassesNative({ token }: ClassesNativeProps) {
       monthDay: params.monthDay,
     });
 
-    const seriesId = window.crypto?.randomUUID?.() ?? `series-${Date.now()}`;
     const teacherName = getCurrentUserName();
     const classEvents: AgendaEvent[] = occurrenceDates.map((date) => ({
-      id: window.crypto?.randomUUID?.() ?? `evt-${Date.now()}-${Math.random()}`,
+      id: '',
       type: 'class',
       title: params.className,
       classId: params.classId,
@@ -536,15 +521,27 @@ export function ClassesNative({ token }: ClassesNativeProps) {
       teacher: teacherName,
       datetime: formatDateForEvent(date),
       provider: null,
-      recurrenceKind: params.recurrenceKind,
-      recurrenceUntil: params.repeatUntil || null,
-      recurrenceWeekdays: params.weeklyDays,
-      recurrenceMonthDay:
-        params.monthDay.trim() === '' ? null : Number(params.monthDay),
-      seriesId,
     }));
 
-    writeAgendaEvents([...preservedEvents, ...classEvents]);
+    await apiRequest(token, '/agenda/class-events/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        classId: params.classId,
+        className: params.className,
+        teacher: teacherName,
+        recurrenceKind: params.recurrenceKind,
+        repeatUntil: params.repeatUntil || null,
+        monthDay: params.monthDay.trim() === '' ? null : Number(params.monthDay),
+        weeklyDays: params.weeklyDays,
+        events: classEvents.map((item) => ({
+          type: item.type,
+          title: item.title,
+          datetime: item.datetime,
+          provider: item.provider ?? null,
+        })),
+      }),
+    });
   };
 
   const availableStudents = useMemo(() => {
@@ -630,7 +627,7 @@ export function ClassesNative({ token }: ClassesNativeProps) {
       }
 
       await syncEnrollments(classId, form.selectedStudentIds);
-      syncClassEventsToAgenda({
+      await syncClassEventsToAgenda({
         classId,
         className: form.name.trim(),
         startDateTime: form.startDateTime,

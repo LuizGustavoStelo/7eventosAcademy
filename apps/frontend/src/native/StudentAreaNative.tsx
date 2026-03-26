@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { apiRequest } from './api';
 
 type StudentProfile = {
@@ -46,12 +47,45 @@ type StudentNotice = {
   publishedAt: string | null;
 };
 
+type StudentAgendaEvent = {
+  id: string;
+  type: 'class' | 'live' | string;
+  title: string;
+  classId: string | null;
+  className: string;
+  teacher: string;
+  datetime: string;
+  provider: string | null;
+};
+
+type StudentAttendanceHistoryItem = {
+  id: string;
+  classId: string;
+  className: string;
+  courseName: string;
+  title: string;
+  datetime: string;
+  status: 'present' | 'absent' | 'pending';
+  note: string | null;
+};
+
+type StudentAttendanceSummary = {
+  totalOccurred: number;
+  present: number;
+  absent: number;
+  pending: number;
+  evaluated: number;
+  frequencyPercent: number;
+  history: StudentAttendanceHistoryItem[];
+};
+
 type StudentDashboardPayload = {
   me: StudentMe;
   matriculas: StudentEnrollment[];
   materiais: StudentMaterial[];
   avisos: StudentNotice[];
   cobrancas: StudentCharge[];
+  agenda: StudentAgendaEvent[];
 };
 
 type StudentCharge = {
@@ -380,6 +414,15 @@ function normalizeStatus(status: string | null | undefined) {
   return status;
 }
 
+function formatHour(dateLike: string | null | undefined) {
+  const date = toDate(dateLike);
+  if (!date) return '--:--';
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
 function normalizeChargeStatus(status: string | null | undefined) {
   if (!status) return 'Pendente';
   const normalized = status.trim().toUpperCase();
@@ -558,6 +601,14 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const [dashboard, setDashboard] = useState<StudentDashboardPayload | null>(null);
   const [activeSection, setActiveSection] = useState<SectionId>('st-student-panel');
   const [fontsReady, setFontsReady] = useState(false);
+  const [agendaMonthCursor, setAgendaMonthCursor] = useState(() => new Date());
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(
+    user.avatarUrl ?? null,
+  );
+  const [attendanceSummary, setAttendanceSummary] = useState<StudentAttendanceSummary | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarFeedback, setAvatarFeedback] = useState('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadFallback = async (bypassCache = false): Promise<StudentDashboardPayload> => {
     const [me, matriculas, materiais, avisos] = await Promise.all([
@@ -580,6 +631,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     ]);
 
     let cobrancas: StudentCharge[] = [];
+    let agenda: StudentAgendaEvent[] = [];
     try {
       cobrancas = await apiRequest<StudentCharge[]>(token, '/mis/v1/aluno/cobrancas', undefined, {
         cacheTtlMs: STUDENT_CACHE_TTL_MS,
@@ -590,7 +642,17 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       if (status !== 404) throw chargesError;
     }
 
-    return { me, matriculas, materiais, avisos, cobrancas };
+    try {
+      agenda = await apiRequest<StudentAgendaEvent[]>(token, '/mis/v1/aluno/agenda', undefined, {
+        cacheTtlMs: STUDENT_CACHE_TTL_MS,
+        bypassCache,
+      });
+    } catch (agendaError) {
+      const status = extractStatusFromError(agendaError);
+      if (status !== 404) throw agendaError;
+    }
+
+    return { me, matriculas, materiais, avisos, cobrancas, agenda };
   };
 
   const loadDashboard = async (options?: { bypassCache?: boolean }) => {
@@ -620,6 +682,20 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       }
 
       setDashboard(payload);
+      try {
+        const summary = await apiRequest<StudentAttendanceSummary>(
+          token,
+          '/attendance/student/summary',
+          undefined,
+          {
+            cacheTtlMs: STUDENT_CACHE_TTL_MS,
+            bypassCache,
+          },
+        );
+        setAttendanceSummary(summary);
+      } catch {
+        setAttendanceSummary(null);
+      }
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -669,6 +745,76 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   }, []);
 
   useEffect(() => {
+    setProfileAvatarUrl(user.avatarUrl ?? null);
+  }, [user.avatarUrl]);
+
+  const uploadProfileAvatar = async (file: File) => {
+    setAvatarBusy(true);
+    setAvatarFeedback('');
+    try {
+      const body = new FormData();
+      body.append('avatar', file);
+      const nextUser = await apiRequest<{ avatarUrl?: string | null }>(
+        token,
+        '/auth/me/avatar',
+        {
+          method: 'POST',
+          body,
+        },
+      );
+      setProfileAvatarUrl(nextUser.avatarUrl ?? null);
+      setAvatarFeedback('Foto atualizada com sucesso.');
+    } catch (uploadError) {
+      setAvatarFeedback(
+        uploadError instanceof Error
+          ? uploadError.message
+          : 'Falha ao enviar imagem de perfil.',
+      );
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const removeProfileAvatar = async () => {
+    setAvatarBusy(true);
+    setAvatarFeedback('');
+    try {
+      await apiRequest<{ avatarUrl?: string | null }>(token, '/auth/me/avatar', {
+        method: 'DELETE',
+      });
+      setProfileAvatarUrl(null);
+      setAvatarFeedback('Foto removida com sucesso.');
+    } catch (removeError) {
+      setAvatarFeedback(
+        removeError instanceof Error
+          ? removeError.message
+          : 'Falha ao remover imagem de perfil.',
+      );
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const handleProfileAvatarInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarFeedback('Selecione apenas imagens para foto de perfil.');
+      return;
+    }
+
+    const maxSizeBytes = 6 * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+      setAvatarFeedback('A imagem deve ter no máximo 6 MB.');
+      return;
+    }
+
+    void uploadProfileAvatar(file);
+  };
+
+  useEffect(() => {
     const applyHash = () => {
       const sectionFromHash = parseSectionFromHash(window.location.hash);
       if (sectionFromHash) {
@@ -688,6 +834,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const materiais = dashboard?.materiais ?? [];
   const avisos = dashboard?.avisos ?? [];
   const cobrancas = dashboard?.cobrancas ?? [];
+  const agenda = dashboard?.agenda ?? [];
 
   const matriculaPrincipal = matriculas[0] ?? null;
 
@@ -697,13 +844,46 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   );
 
   const upcomingClasses = useMemo(() => {
+    const nowTime = Date.now();
+    const fromAgenda = [...agenda]
+      .map((item) => {
+        const start = toDate(item.datetime);
+        return {
+          raw: item,
+          start,
+          time: start?.getTime() ?? Number.MAX_SAFE_INTEGER,
+        };
+      })
+      .filter((item) => item.start && item.time >= nowTime)
+      .sort((a, b) => a.time - b.time)
+      .slice(0, 12)
+      .map((item) => {
+        const modality = item.raw.type === 'live' ? 'Ao vivo' : 'Presencial';
+        const badge = formatCalendarBadge(item.raw.datetime);
+        return {
+          id: item.raw.id,
+          title: item.raw.title || item.raw.className,
+          subtitle: `${item.raw.className}${item.raw.teacher ? ` • ${item.raw.teacher}` : ''}`,
+          startDate: item.raw.datetime,
+          period: item.raw.datetime
+            ? `${formatDate(item.raw.datetime)} às ${formatHour(item.raw.datetime)}`
+            : 'Data da aula não informada',
+          modality,
+          modalityTone: modalityTone(modality),
+          dayLabel: badge.label,
+          day: badge.day,
+        };
+      });
+
+    if (fromAgenda.length > 0) return fromAgenda;
+
     const sorted = [...matriculas].sort((a, b) => {
       const aDate = toDate(a.startDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
       const bDate = toDate(b.startDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
       return aDate - bDate;
     });
 
-    return sorted.slice(0, 3).map((item) => {
+    return sorted.slice(0, 12).map((item) => {
       const badge = formatCalendarBadge(item.startDate);
       const modality = normalizeModality(item.modality);
 
@@ -721,7 +901,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         day: badge.day,
       };
     });
-  }, [matriculas]);
+  }, [agenda, matriculas]);
 
   const recentNotices = useMemo(() => avisos.slice(0, 6), [avisos]);
   const recentMaterials = useMemo(() => materiais.slice(0, 12), [materiais]);
@@ -801,6 +981,18 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   }, [me?.studentProfile?.city, me?.studentProfile?.state]);
 
   const attendanceStats = useMemo(() => {
+    if (attendanceSummary) {
+      return {
+        total: attendanceSummary.totalOccurred,
+        attended: attendanceSummary.present,
+        absent: attendanceSummary.absent,
+        pending: attendanceSummary.pending,
+        evaluated: attendanceSummary.evaluated,
+        percent: attendanceSummary.frequencyPercent,
+        history: attendanceSummary.history,
+      };
+    }
+
     const total = upcomingClasses.length;
     const attended = upcomingClasses.filter((item) => {
       const start = toDate(item.startDate);
@@ -808,23 +1000,30 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     }).length;
     const pending = Math.max(total - attended, 0);
     const percent = total > 0 ? Math.round((attended / total) * 100) : 0;
-    return { total, attended, pending, percent };
-  }, [upcomingClasses]);
+    return {
+      total,
+      attended,
+      absent: 0,
+      pending,
+      evaluated: attended,
+      percent,
+      history: [],
+    };
+  }, [attendanceSummary, agenda, agendaMonthCursor, upcomingClasses]);
 
   const calendarData = useMemo(() => {
     const now = new Date();
-    const month = now.getMonth();
-    const year = now.getFullYear();
+    const month = agendaMonthCursor.getMonth();
+    const year = agendaMonthCursor.getFullYear();
     const firstDay = new Date(year, month, 1);
     const startWeekday = firstDay.getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-    const marks = new Set(
-      upcomingClasses
-        .map((item) => toDate(item.startDate))
-        .filter((value): value is Date => Boolean(value))
-        .map((date) => toDateKey(date)),
-    );
+    const eventSource =
+      agenda.length > 0
+        ? agenda.map((item) => item.datetime)
+        : upcomingClasses.map((item) => item.startDate);
+    const marks = new Set(eventSource.map((value) => toDate(value)).filter((value): value is Date => Boolean(value)).map((date) => toDateKey(date)));
 
     const todayKey = toDateKey(now);
     const cells: Array<{ day: number | null; key: string; isMarked: boolean; isToday: boolean }> = [];
@@ -857,7 +1056,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       monthLabel: `${MONTH_SHORT[month]} ${year}`,
       cells,
     };
-  }, [upcomingClasses]);
+  }, [agenda, agendaMonthCursor, upcomingClasses]);
 
   const subtitle =
     periodProgress === null
@@ -891,6 +1090,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
   const openSection = (sectionId: SectionId) => {
     setActiveSection(sectionId);
+    if (sectionId === 'st-student-agenda') {
+      setAgendaMonthCursor(new Date());
+    }
 
     window.scrollTo({
       top: 0,
@@ -901,6 +1103,37 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       window.history.replaceState(null, '', `#${SECTION_HASH_PREFIX}${sectionId}`);
     }
   };
+
+  const renderProfileAvatarActions = () => (
+    <div className="student-template-profile-actions">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleProfileAvatarInputChange}
+        hidden
+      />
+      <button
+        type="button"
+        className="student-template-profile-btn"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={avatarBusy}
+      >
+        {avatarBusy ? 'Processando...' : 'Trocar foto'}
+      </button>
+      {profileAvatarUrl ? (
+        <button
+          type="button"
+          className="student-template-profile-btn ghost"
+          onClick={() => void removeProfileAvatar()}
+          disabled={avatarBusy}
+        >
+          Remover foto
+        </button>
+      ) : null}
+      {avatarFeedback ? <small className="student-template-profile-feedback">{avatarFeedback}</small> : null}
+    </div>
+  );
 
   const renderDedicatedPage = () => {
     if (activeSection === 'st-student-classes') {
@@ -964,7 +1197,26 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
             <article className="student-page-card">
               <div className="student-page-card-head">
                 <h4>{calendarData.monthLabel}</h4>
-                <small>Calendário acadêmico</small>
+                <div className="student-page-month-nav">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAgendaMonthCursor((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))
+                    }
+                    aria-label="Mês anterior"
+                  >
+                    {'<'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAgendaMonthCursor((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))
+                    }
+                    aria-label="Próximo mês"
+                  >
+                    {'>'}
+                  </button>
+                </div>
               </div>
               <div className="student-calendar-weekdays">
                 {WEEKDAY_TINY.map((weekday) => (
@@ -988,7 +1240,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
             <article className="student-page-card">
               <h4>Próximos eventos</h4>
               {upcomingClasses.length === 0 ? (
-                <p className="student-template-empty">Nenhum evento agendado para este mês.</p>
+                <p className="student-template-empty">Nenhum evento agendado no momento.</p>
               ) : (
                 <div className="student-page-list">
                   {upcomingClasses.map((item) => (
@@ -1081,36 +1333,42 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
             </div>
             <div className="student-page-kpis">
               <article>
-                <span>Aulas previstas</span>
+                <span>Aulas realizadas</span>
                 <strong>{attendanceStats.total}</strong>
               </article>
               <article>
-                <span>Aulas registradas</span>
+                <span>Presenças registradas</span>
                 <strong>{attendanceStats.attended}</strong>
               </article>
               <article>
-                <span>Próximas aulas</span>
-                <strong>{attendanceStats.pending}</strong>
+                <span>Faltas registradas</span>
+                <strong>{attendanceStats.absent}</strong>
               </article>
             </div>
           </article>
 
           <article className="student-page-card">
             <h4>Histórico de presença</h4>
-            {upcomingClasses.length === 0 ? (
+            {attendanceStats.history.length === 0 ? (
               <p className="student-template-empty">Sem eventos suficientes para cálculo de frequência.</p>
             ) : (
               <div className="student-page-list">
-                {upcomingClasses.map((item) => {
-                  const started = toDate(item.startDate)?.getTime();
-                  const present = started ? started <= Date.now() : false;
+                {attendanceStats.history.map((item) => {
+                  const statusLabel =
+                    item.status === 'present'
+                      ? 'Presente'
+                      : item.status === 'absent'
+                        ? 'Falta'
+                        : 'Pendente';
                   return (
                     <article key={`${item.id}-freq`} className="student-page-list-item">
                       <div>
                         <strong>{item.title}</strong>
-                        <small>{item.period}</small>
+                        <small>
+                          {item.className} • {formatDate(item.datetime)} às {formatHour(item.datetime)}
+                        </small>
                       </div>
-                      <span>{present ? 'Registrada' : 'Pendente'}</span>
+                      <span>{statusLabel}</span>
                     </article>
                   );
                 })}
@@ -1274,8 +1532,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           <div className="student-page-grid cols-2">
             <article className="student-page-card">
               <div className="student-template-profile-row">
-                {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt={`Avatar de ${titleName}`} />
+                {profileAvatarUrl ? (
+                  <img src={profileAvatarUrl} alt={`Avatar de ${titleName}`} />
                 ) : (
                   <span>{initials(titleName)}</span>
                 )}
@@ -1284,6 +1542,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   <small>{me?.email || user.email}</small>
                 </div>
               </div>
+              {renderProfileAvatarActions()}
               <dl className="student-profile-grid">
                 <div>
                   <dt>CPF</dt>
@@ -1382,8 +1641,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 <small>ID: {studentId}</small>
               </div>
 
-              {user.avatarUrl ? (
-                <img src={user.avatarUrl} alt={`Avatar de ${titleName}`} />
+              {profileAvatarUrl ? (
+                <img src={profileAvatarUrl} alt={`Avatar de ${titleName}`} />
               ) : (
                 <span className="student-template-user-fallback">{initials(titleName)}</span>
               )}
@@ -1712,8 +1971,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 >
                   <h4>Meu perfil</h4>
                   <div className="student-template-profile-row">
-                    {user.avatarUrl ? (
-                      <img src={user.avatarUrl} alt={`Avatar de ${titleName}`} />
+                    {profileAvatarUrl ? (
+                      <img src={profileAvatarUrl} alt={`Avatar de ${titleName}`} />
                     ) : (
                       <span>{initials(titleName)}</span>
                     )}
@@ -1722,6 +1981,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       <small>{me?.email || user.email}</small>
                     </div>
                   </div>
+                  {renderProfileAvatarActions()}
 
                   <dl>
                     <div>

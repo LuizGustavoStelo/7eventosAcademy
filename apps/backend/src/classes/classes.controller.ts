@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
+import { MultipartFile } from '@fastify/multipart';
 import type { FastifyRequest } from 'fastify';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ClassesService } from './classes.service';
@@ -11,6 +21,10 @@ import { ClassesNoticesService } from './classes-notices.service';
 
 type AuthenticatedRequest = FastifyRequest & {
   user: { sub: string };
+  parts: () => AsyncIterable<
+    | (MultipartFile & { type: 'file'; fieldname: string })
+    | { type: 'field'; fieldname: string; value: string }
+  >;
 };
 
 @Roles('admin', 'superadmin')
@@ -60,6 +74,44 @@ export class ClassesController {
       classId,
       ...dto,
       publishedBy: request.user.sub,
+    });
+  }
+
+  @Post(':classId/materials/upload')
+  async createMaterialWithFile(
+    @Param('classId') classId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    const fields: Record<string, string> = {};
+    let file: MultipartFile | undefined;
+
+    for await (const part of request.parts()) {
+      if (part.type === 'file') {
+        if (part.fieldname === 'file') {
+          file = part;
+        } else {
+          await part.toBuffer();
+        }
+        continue;
+      }
+
+      fields[part.fieldname] = String(part.value ?? '');
+    }
+
+    if (!file) {
+      throw new BadRequestException(
+        'Envie um arquivo no campo file para cadastrar o material.',
+      );
+    }
+
+    return this.materialsService.createMaterialWithFile({
+      classId,
+      title: fields.title ?? '',
+      description: fields.description,
+      kind: fields.kind,
+      externalUrl: fields.externalUrl,
+      publishedBy: request.user.sub,
+      file,
     });
   }
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { apiRequest } from './api';
 
 type SchoolClass = {
@@ -108,6 +108,7 @@ export function ContentNative({ token }: ContentNativeProps) {
   const [feedback, setFeedback] = useState('');
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState<MaterialFormState>(() => defaultForm());
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const loadData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -187,30 +188,48 @@ export function ContentNative({ token }: ContentNativeProps) {
       return;
     }
 
-    if (form.kind === 'link' && !form.externalUrl.trim()) {
+    if (form.kind === 'link' && !form.externalUrl.trim() && !selectedFile) {
       setFormError('Para material do tipo link, informe uma URL externa.');
       return;
     }
 
     setSaving(true);
     try {
-      await apiRequest<StudyMaterial>(token, `/classes/${form.classId}/materials`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          description: form.description.trim() || undefined,
-          kind: form.kind,
-          mimeType: materialMimeType(form.materialType),
-          externalUrl: form.externalUrl.trim() || undefined,
-        }),
-      });
+      if (selectedFile) {
+        const payload = new FormData();
+        payload.append('file', selectedFile);
+        payload.append('title', title);
+        payload.append('description', form.description.trim());
+        payload.append('kind', form.kind);
+        payload.append('externalUrl', form.externalUrl.trim());
+        await apiRequest<StudyMaterial>(
+          token,
+          `/classes/${form.classId}/materials/upload`,
+          {
+            method: 'POST',
+            body: payload,
+          },
+        );
+      } else {
+        await apiRequest<StudyMaterial>(token, `/classes/${form.classId}/materials`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            description: form.description.trim() || undefined,
+            kind: form.kind,
+            mimeType: materialMimeType(form.materialType),
+            externalUrl: form.externalUrl.trim() || undefined,
+          }),
+        });
+      }
 
       await loadData(false);
       setForm((current) => ({
         ...defaultForm(),
         classId: current.classId,
       }));
+      setSelectedFile(null);
       setFeedback('Material cadastrado com sucesso.');
     } catch (submitError) {
       setFormError(
@@ -221,6 +240,11 @@ export function ContentNative({ token }: ContentNativeProps) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextFile = event.target.files?.[0] ?? null;
+    setSelectedFile(nextFile);
   };
 
   return (
@@ -343,6 +367,12 @@ export function ContentNative({ token }: ContentNativeProps) {
               </label>
 
               <label>
+                Arquivo (opcional)
+                <input type="file" onChange={onFileChange} />
+                {selectedFile ? <small>{selectedFile.name}</small> : null}
+              </label>
+
+              <label>
                 Descrição (opcional)
                 <textarea
                   rows={4}
@@ -440,6 +470,11 @@ export function ContentNative({ token }: ContentNativeProps) {
                     {material.externalUrl ? (
                       <a href={material.externalUrl} target="_blank" rel="noreferrer">
                         Abrir link externo
+                      </a>
+                    ) : null}
+                    {material.fileUrl ? (
+                      <a href={material.fileUrl} target="_blank" rel="noreferrer">
+                        Baixar arquivo
                       </a>
                     ) : null}
                   </div>
