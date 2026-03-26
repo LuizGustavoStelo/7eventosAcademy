@@ -51,6 +51,26 @@ type StudentDashboardPayload = {
   matriculas: StudentEnrollment[];
   materiais: StudentMaterial[];
   avisos: StudentNotice[];
+  cobrancas: StudentCharge[];
+};
+
+type StudentCharge = {
+  id: string;
+  enrollmentId: string;
+  dueDate: string | null;
+  amount: number;
+  status: string;
+  externalChargeId: string | null;
+  className: string;
+  courseName: string;
+  lastTransaction: {
+    id: string;
+    provider: string;
+    status: string;
+    amount: number;
+    paidAt: string | null;
+    createdAt: string | null;
+  } | null;
 };
 
 type StudentAreaNativeProps = {
@@ -103,6 +123,10 @@ type NavItem = {
   target: SectionId;
 };
 
+type MobileNavItem = NavItem & {
+  sections: SectionId[];
+};
+
 const NAV_ITEMS: NavItem[] = [
   { label: 'Painel', icon: 'dashboard', target: 'st-student-panel' },
   { label: 'Aulas', icon: 'school', target: 'st-student-classes' },
@@ -116,12 +140,37 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Perfil', icon: 'person', target: 'st-student-profile' },
 ];
 
-const MOBILE_NAV_ITEMS: NavItem[] = [
-  { label: 'Painel', icon: 'dashboard', target: 'st-student-panel' },
-  { label: 'Aulas', icon: 'school', target: 'st-student-classes' },
-  { label: 'Avisos', icon: 'notifications_active', target: 'st-student-notices' },
-  { label: 'Materiais', icon: 'folder_open', target: 'st-student-materials' },
-  { label: 'Perfil', icon: 'person', target: 'st-student-profile' },
+const MOBILE_NAV_ITEMS: MobileNavItem[] = [
+  {
+    label: 'Painel',
+    icon: 'dashboard',
+    target: 'st-student-panel',
+    sections: ['st-student-panel'],
+  },
+  {
+    label: 'Aulas',
+    icon: 'school',
+    target: 'st-student-classes',
+    sections: ['st-student-classes', 'st-student-agenda', 'st-student-live', 'st-student-course'],
+  },
+  {
+    label: 'Financeiro',
+    icon: 'payments',
+    target: 'st-student-finance',
+    sections: ['st-student-materials', 'st-student-finance'],
+  },
+  {
+    label: 'Avisos',
+    icon: 'notifications_active',
+    target: 'st-student-notices',
+    sections: ['st-student-notices', 'st-student-certificate'],
+  },
+  {
+    label: 'Perfil',
+    icon: 'person',
+    target: 'st-student-profile',
+    sections: ['st-student-profile'],
+  },
 ];
 
 const SECTION_META: Record<SectionId, { title: string; subtitle: string }> = {
@@ -143,7 +192,7 @@ const SECTION_META: Record<SectionId, { title: string; subtitle: string }> = {
   },
   'st-student-finance': {
     title: 'Financeiro',
-    subtitle: 'Resumo rápido dos próximos eventos e status de materiais liberados.',
+    subtitle: 'Acompanhe mensalidades, vencimentos e status das suas cobranças.',
   },
   'st-student-live': {
     title: 'Transmissões',
@@ -165,6 +214,19 @@ const SECTION_META: Record<SectionId, { title: string; subtitle: string }> = {
     title: 'Meu perfil',
     subtitle: 'Dados pessoais e informações acadêmicas de cadastro.',
   },
+};
+
+const SECTION_MOBILE_LABEL: Record<SectionId, string> = {
+  'st-student-panel': 'Painel',
+  'st-student-course': 'Frequência',
+  'st-student-classes': 'Aulas',
+  'st-student-agenda': 'Agenda',
+  'st-student-finance': 'Financeiro',
+  'st-student-live': 'Transmissões',
+  'st-student-notices': 'Avisos',
+  'st-student-materials': 'Materiais',
+  'st-student-certificate': 'Certificado',
+  'st-student-profile': 'Perfil',
 };
 
 const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -316,6 +378,24 @@ function normalizeStatus(status: string | null | undefined) {
   if (normalized === 'CANCELLED') return 'Cancelada';
   if (normalized === 'COMPLETED') return 'Concluída';
   return status;
+}
+
+function normalizeChargeStatus(status: string | null | undefined) {
+  if (!status) return 'Pendente';
+  const normalized = status.trim().toUpperCase();
+  if (normalized === 'PENDING') return 'Pendente';
+  if (normalized === 'PAID') return 'Pago';
+  if (normalized === 'OVERDUE') return 'Atrasado';
+  if (normalized === 'CANCELED' || normalized === 'CANCELLED') return 'Cancelado';
+  return status;
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 function modalityTone(modality: string) {
@@ -499,7 +579,18 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       }),
     ]);
 
-    return { me, matriculas, materiais, avisos };
+    let cobrancas: StudentCharge[] = [];
+    try {
+      cobrancas = await apiRequest<StudentCharge[]>(token, '/mis/v1/aluno/cobrancas', undefined, {
+        cacheTtlMs: STUDENT_CACHE_TTL_MS,
+        bypassCache,
+      });
+    } catch (chargesError) {
+      const status = extractStatusFromError(chargesError);
+      if (status !== 404) throw chargesError;
+    }
+
+    return { me, matriculas, materiais, avisos, cobrancas };
   };
 
   const loadDashboard = async (options?: { bypassCache?: boolean }) => {
@@ -596,6 +687,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const matriculas = dashboard?.matriculas ?? [];
   const materiais = dashboard?.materiais ?? [];
   const avisos = dashboard?.avisos ?? [];
+  const cobrancas = dashboard?.cobrancas ?? [];
 
   const matriculaPrincipal = matriculas[0] ?? null;
 
@@ -662,17 +754,43 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     return Array.from(map.entries());
   }, [recentMaterials]);
 
-  const nextEventLabel = upcomingClasses[0]?.day
-    ? formatDayMonth(upcomingClasses[0]?.startDate)
-    : 'Sem data';
+  const financeMetrics = useMemo(() => {
+    const sorted = [...cobrancas].sort((a, b) => {
+      const aTime = toDate(a.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      const bTime = toDate(b.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      return aTime - bTime;
+    });
 
-  const nextEventDescription = upcomingClasses[0]
-    ? `Próxima aula: ${upcomingClasses[0].title}`
-    : 'Nenhuma aula agendada no momento';
+    const pending = sorted.filter((item) => {
+      const status = item.status.toUpperCase();
+      return status === 'PENDING' || status === 'OVERDUE';
+    });
+    const paid = sorted.filter((item) => item.status.toUpperCase() === 'PAID');
+    const overdue = pending.filter((item) => item.status.toUpperCase() === 'OVERDUE');
+    const nextCharge = pending[0] ?? null;
+    const pendingAmount = pending.reduce((sum, item) => sum + item.amount, 0);
+    const overdueAmount = overdue.reduce((sum, item) => sum + item.amount, 0);
 
-  const materialsWithAccess = materiais.filter((item) => item.fileUrl || item.externalUrl).length;
-  const materialsProgress =
-    materiais.length > 0 ? Math.round((materialsWithAccess / materiais.length) * 100) : 0;
+    return {
+      sorted,
+      pending,
+      paid,
+      overdue,
+      nextCharge,
+      pendingAmount,
+      overdueAmount,
+    };
+  }, [cobrancas]);
+
+  const nextChargeLabel = financeMetrics.nextCharge
+    ? formatDayMonth(financeMetrics.nextCharge.dueDate)
+    : 'Sem cobrança';
+
+  const nextChargeDescription = financeMetrics.nextCharge
+    ? `${normalizeChargeStatus(financeMetrics.nextCharge.status)} • ${formatCurrency(financeMetrics.nextCharge.amount)}`
+    : 'Nenhuma mensalidade pendente no momento';
+  const financeProgress =
+    cobrancas.length > 0 ? Math.round((financeMetrics.paid.length / cobrancas.length) * 100) : 0;
 
   const titleName = me?.name || user.name;
   const profileCityState = useMemo(() => {
@@ -754,6 +872,12 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         ? subtitle
         : `Seu progresso acadêmico está em ${periodProgress}%. Continue acompanhando suas atualizações.`
       : currentMeta.subtitle;
+
+  const activeMobileGroup = useMemo(
+    () =>
+      MOBILE_NAV_ITEMS.find((item) => item.sections.includes(activeSection)) ?? MOBILE_NAV_ITEMS[0],
+    [activeSection],
+  );
 
   const showCourse = isPanelView || activeSection === 'st-student-course';
   const showFinance = isPanelView || activeSection === 'st-student-finance';
@@ -1002,33 +1126,40 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         <section className="student-page-layout">
           <div className="student-page-grid cols-3">
             <article className="student-page-card">
-              <h4>Status atual</h4>
-              <strong className="student-page-big">
-                {matriculaPrincipal ? normalizeStatus(matriculaPrincipal.status) : 'Sem matrícula ativa'}
-              </strong>
-              <p>
-                {matriculaPrincipal
-                  ? 'Sua matrícula está ativa e vinculada a uma turma em andamento.'
-                  : 'Nenhuma matrícula ativa encontrada para gerar status financeiro detalhado.'}
-              </p>
+              <h4>Mensalidades pendentes</h4>
+              <strong className="student-page-big">{financeMetrics.pending.length}</strong>
+              <p>Total em aberto: {formatCurrency(financeMetrics.pendingAmount)}</p>
             </article>
             <article className="student-page-card">
-              <h4>Próximo evento</h4>
-              <strong className="student-page-big">{nextEventLabel}</strong>
-              <p>{nextEventDescription}</p>
+              <h4>Mensalidades vencidas</h4>
+              <strong className="student-page-big">{financeMetrics.overdue.length}</strong>
+              <p>Total vencido: {formatCurrency(financeMetrics.overdueAmount)}</p>
             </article>
             <article className="student-page-card">
-              <h4>Materiais liberados</h4>
-              <strong className="student-page-big">{materialsWithAccess}</strong>
-              <p>Conteúdos com link ativo para consulta imediata.</p>
+              <h4>Próxima mensalidade</h4>
+              <strong className="student-page-big">{nextChargeLabel}</strong>
+              <p>{nextChargeDescription}</p>
             </article>
           </div>
           <article className="student-page-card">
-            <h4>Resumo operacional</h4>
-            <p>
-              Não há endpoint financeiro público do aluno retornando cobranças nesta conta no momento.
-              Assim que a integração publicar parcelas e vencimentos, esta página exibirá o extrato.
-            </p>
+            <h4>Extrato de cobranças</h4>
+            {financeMetrics.sorted.length === 0 ? (
+              <p className="student-template-empty">Nenhuma cobrança encontrada para este aluno.</p>
+            ) : (
+              <div className="student-page-list">
+                {financeMetrics.sorted.map((charge) => (
+                  <article key={charge.id} className="student-page-list-item">
+                    <div>
+                      <strong>{formatCurrency(charge.amount)}</strong>
+                      <small>
+                        {charge.className} • Vencimento {formatDate(charge.dueDate)}
+                      </small>
+                    </div>
+                    <span>{normalizeChargeStatus(charge.status)}</span>
+                  </article>
+                ))}
+              </div>
+            )}
           </article>
         </section>
       );
@@ -1195,8 +1326,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       {showBootOverlay ? (
         <div className="student-template-boot" role="status" aria-live="polite">
           <div className="student-template-boot-card">
-            <img src="/7eventos_academy_logo.png" alt="7Eventos Academy" />
-            <strong>Carregando Portal do Aluno</strong>
+            <img src="/Logo-IPESK.png" alt="IPESK" />
+            <strong>Carregando ambiente do aluno</strong>
             <p>Preparando layout e dados com estabilidade visual...</p>
             <span className="student-template-boot-spinner" aria-hidden="true" />
           </div>
@@ -1205,11 +1336,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
       <aside className="student-template-sidebar" aria-label="Navegação principal do aluno">
         <div className="student-template-brand">
-          <img src="/7eventos_academy_logo.png" alt="7Eventos Academy" />
-          <div>
-            <h1>Portal do Aluno</h1>
-            <p>Pós-graduação Premium</p>
-          </div>
+          <img src="/Logo-IPESK.png" alt="IPESK" />
         </div>
 
         <nav className="student-template-menu">
@@ -1225,10 +1352,6 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               </button>
           ))}
         </nav>
-
-        <button type="button" className="student-template-secretary">
-          Secretaria Virtual
-        </button>
       </aside>
 
       <main className="student-template-main">
@@ -1295,6 +1418,21 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 <p>{currentSubtitle}</p>
               </section>
 
+              {activeMobileGroup.sections.length > 1 ? (
+                <nav className="student-mobile-section-tabs" aria-label="Seções do grupo ativo">
+                  {activeMobileGroup.sections.map((sectionId) => (
+                    <button
+                      key={`mobile-subtab-${sectionId}`}
+                      type="button"
+                      className={activeSection === sectionId ? 'active' : ''}
+                      onClick={() => openSection(sectionId)}
+                    >
+                      {SECTION_MOBILE_LABEL[sectionId]}
+                    </button>
+                  ))}
+                </nav>
+              ) : null}
+
               {isPanelView ? (
                 <>
               <div className={`student-template-bento-grid ${isPanelView ? '' : 'is-single-view'}`}>
@@ -1341,22 +1479,22 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   <article id="st-student-finance" className="student-template-next-due-card">
                     <div>
                       <StudentIcon name="payments" />
-                      <small>Próximo evento</small>
+                      <small>Próxima mensalidade</small>
                     </div>
-                    <strong>{nextEventLabel}</strong>
-                    <p>{nextEventDescription}</p>
+                    <strong>{nextChargeLabel}</strong>
+                    <p>{nextChargeDescription}</p>
                   </article>
 
                   <article className="student-template-credit-card">
                     <div>
                       <StudentIcon name="checklist_rtl" />
-                      <small>Materiais liberados</small>
+                      <small>Mensalidades</small>
                     </div>
                     <strong>
-                      {materiais.length} <em>/ {materialsWithAccess} com acesso</em>
+                      {financeMetrics.pending.length} <em>/ {cobrancas.length} pendente(s)</em>
                     </strong>
                     <div className="student-template-progress-mini" aria-hidden="true">
-                      <span style={{ width: `${materialsProgress}%` }} />
+                      <span style={{ width: `${financeProgress}%` }} />
                     </div>
                   </article>
                 </div>
@@ -1621,7 +1759,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           <button
             key={`${item.label}-${item.target}`}
             type="button"
-            className={activeSection === item.target ? 'active' : ''}
+            className={item.sections.includes(activeSection) ? 'active' : ''}
             onClick={() => openSection(item.target)}
           >
             <StudentIcon name={item.icon} />

@@ -3509,6 +3509,7 @@ table button {
   background: var(--st-bg);
   color: var(--st-text);
   font-family: 'Manrope', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  overflow-x: clip;
 }
 
 .student-template-shell.is-booting {
@@ -3541,8 +3542,8 @@ table button {
 }
 
 .student-template-boot-card img {
-  width: 40px;
-  height: 40px;
+  width: min(220px, 72%);
+  height: auto;
   object-fit: contain;
 }
 
@@ -3600,34 +3601,15 @@ table button {
 }
 
 .student-template-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.125rem 0.25rem;
+  display: grid;
+  justify-items: start;
+  padding: 0.25rem 0.25rem 0.5rem;
 }
 
 .student-template-brand img {
-  width: 36px;
-  height: 36px;
+  width: min(210px, 100%);
+  height: auto;
   object-fit: contain;
-}
-
-.student-template-brand h1 {
-  margin: 0;
-  color: #114d54;
-  font-size: 2rem;
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.student-template-brand p {
-  margin: 0.375rem 0 0;
-  font-size: 0.7rem;
-  color: var(--st-primary-strong);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-weight: 700;
 }
 
 .student-template-menu {
@@ -3676,21 +3658,6 @@ table button {
 
 .student-template-menu button.active .student-template-icon {
   color: #1a6f70;
-}
-
-.student-template-secretary {
-  margin-top: auto;
-  border: 0;
-  border-radius: 0.75rem;
-  background: var(--st-primary-strong);
-  color: #fff;
-  font: inherit;
-  font-size: 1.4rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  padding: 0.9rem 1rem;
-  cursor: pointer;
-  box-shadow: 0 10px 20px rgba(15, 127, 129, 0.24);
 }
 
 .student-template-main {
@@ -3891,6 +3858,10 @@ table button {
   color: #5f7289;
   font-size: 1.62rem;
   font-weight: 500;
+}
+
+.student-mobile-section-tabs {
+  display: none;
 }
 
 .student-template-bento-grid {
@@ -5120,7 +5091,7 @@ table button {
   background: rgba(246, 250, 251, 0.96);
   backdrop-filter: blur(8px);
   border-top: 1px solid #d6e0e8;
-  padding: 0.32rem 0.55rem;
+  padding: 0.32rem 0.55rem calc(0.32rem + env(safe-area-inset-bottom));
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.2rem;
 }
@@ -5136,6 +5107,7 @@ table button {
   padding: 0.32rem 0.2rem;
   font: inherit;
   cursor: pointer;
+  min-width: 0;
 }
 
 .student-template-bottom-nav button .student-template-icon {
@@ -5222,6 +5194,39 @@ table button {
 
   .student-template-content {
     padding: 1rem 0.75rem 5rem;
+  }
+
+  .student-mobile-section-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0.42rem;
+    overflow-x: auto;
+    margin: -0.1rem 0 0.95rem;
+    padding-bottom: 0.14rem;
+    scrollbar-width: none;
+  }
+
+  .student-mobile-section-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .student-mobile-section-tabs button {
+    border: 1px solid #d3dee8;
+    background: #f8fbfc;
+    color: #4c617c;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    padding: 0.38rem 0.72rem;
+    white-space: nowrap;
+  }
+
+  .student-mobile-section-tabs button.active {
+    border-color: rgba(19, 147, 149, 0.38);
+    color: #0f7779;
+    background: rgba(19, 147, 149, 0.11);
   }
 
   .student-template-support {

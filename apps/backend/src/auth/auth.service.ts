@@ -44,6 +44,7 @@ type ImpersonationAuthPayload = AuthPayload & {
 };
 
 const PROFILE_AVATAR_KIND = 'PROFILE_AVATAR';
+const ACCESS_TOKEN_TTL_SECONDS = 86_400;
 
 @Injectable()
 export class AuthService {
@@ -206,11 +207,10 @@ export class AuthService {
     }
 
     const reason = params.reason?.trim() || 'Suporte operacional';
-    const rawDuration = params.durationMinutes ?? 20;
-    const durationMinutes = Math.max(5, Math.min(180, rawDuration));
+    const durationMinutes = Math.floor(ACCESS_TOKEN_TTL_SECONDS / 60);
     const startedAtDate = new Date();
     const expiresAtDate = new Date(
-      startedAtDate.getTime() + durationMinutes * 60 * 1000,
+      startedAtDate.getTime() + ACCESS_TOKEN_TTL_SECONDS * 1000,
     );
 
     const accessToken = await this.jwtService.signAsync(
@@ -223,7 +223,7 @@ export class AuthService {
         impersonationStartedAt: startedAtDate.toISOString(),
       },
       {
-        expiresIn: durationMinutes * 60,
+        expiresIn: ACCESS_TOKEN_TTL_SECONDS,
       },
     );
 

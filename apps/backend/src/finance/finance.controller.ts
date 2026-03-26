@@ -25,31 +25,35 @@ export class FinanceController {
   constructor(private readonly financeService: FinanceService) {}
 
   @Get('overview')
-  async getOverview() {
-    return this.financeService.getOverview();
+  async getOverview(@Req() request: AuthenticatedRequest) {
+    return this.financeService.getOverview(request.user);
   }
 
   @Get('dashboard-summary')
-  async getDashboardSummary() {
-    return this.financeService.getDashboardSummary();
+  async getDashboardSummary(@Req() request: AuthenticatedRequest) {
+    return this.financeService.getDashboardSummary(request.user);
   }
 
   @Get('charges')
-  async findCharges() {
-    return this.financeService.findCharges();
+  async findCharges(@Req() request: AuthenticatedRequest) {
+    return this.financeService.findCharges(request.user);
   }
 
   @Post('charges')
-  async createCharge(@Body() dto: CreateChargeDto) {
-    return this.financeService.createCharge(dto);
+  async createCharge(
+    @Body() dto: CreateChargeDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.financeService.createCharge(dto, request.user);
   }
 
   @Patch('charges/:chargeId/status')
   async updateChargeStatus(
     @Param('chargeId') chargeId: string,
     @Body() dto: UpdateChargeStatusDto,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.financeService.updateChargeStatus(chargeId, dto);
+    return this.financeService.updateChargeStatus(chargeId, dto, request.user);
   }
 
   @Get('gateway-config')
@@ -62,6 +66,6 @@ export class FinanceController {
     @Body() dto: CreateTransactionDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.financeService.createTransaction(dto, request.user.sub);
+    return this.financeService.createTransaction(dto, request.user);
   }
 }

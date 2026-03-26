@@ -54,17 +54,22 @@ export class MisService {
     return this.fetchAvisosByClassIds(classIds);
   }
 
+  async getAlunoCobrancas(userId: string) {
+    return this.fetchCobrancasByStudentId(userId);
+  }
+
   async getAlunoDashboard(userId: string) {
-    const [me, enrollments] = await Promise.all([
+    const [me, enrollments, cobrancas] = await Promise.all([
       this.getAlunoMe(userId),
       this.fetchActiveEnrollments(userId),
+      this.getAlunoCobrancas(userId),
     ]);
 
     const matriculas = this.mapMatriculas(enrollments);
     const classIds = this.uniqueClassIds(enrollments.map((en) => en.classId));
 
     if (classIds.length === 0) {
-      return { me, matriculas, materiais: [], avisos: [] };
+      return { me, matriculas, materiais: [], avisos: [], cobrancas };
     }
 
     const [materiais, avisos] = await Promise.all([
@@ -72,7 +77,7 @@ export class MisService {
       this.fetchAvisosByClassIds(classIds),
     ]);
 
-    return { me, matriculas, materiais, avisos };
+    return { me, matriculas, materiais, avisos, cobrancas };
   }
 
   private async fetchActiveEnrollments(userId: string) {
@@ -169,6 +174,74 @@ export class MisService {
       priority: notice.priority,
       className: notice.schoolClass.name,
       publishedAt: notice.publishedAt,
+    }));
+  }
+
+  private async fetchCobrancasByStudentId(userId: string) {
+    const charges = await this.prisma.monthlyCharge.findMany({
+      where: {
+        enrollment: {
+          studentId: userId,
+        },
+      },
+      select: {
+        id: true,
+        enrollmentId: true,
+        dueDate: true,
+        amount: true,
+        status: true,
+        externalChargeId: true,
+        createdAt: true,
+        enrollment: {
+          select: {
+            schoolClass: {
+              select: {
+                name: true,
+                course: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        paymentTransactions: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            provider: true,
+            status: true,
+            amount: true,
+            paidAt: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+      take: 30,
+    });
+
+    return charges.map((charge) => ({
+      id: charge.id,
+      enrollmentId: charge.enrollmentId,
+      dueDate: charge.dueDate,
+      amount: Number(charge.amount),
+      status: charge.status,
+      externalChargeId: charge.externalChargeId,
+      className: charge.enrollment.schoolClass.name,
+      courseName: charge.enrollment.schoolClass.course.name,
+      lastTransaction: charge.paymentTransactions[0]
+        ? {
+            id: charge.paymentTransactions[0].id,
+            provider: charge.paymentTransactions[0].provider,
+            status: charge.paymentTransactions[0].status,
+            amount: Number(charge.paymentTransactions[0].amount),
+            paidAt: charge.paymentTransactions[0].paidAt,
+            createdAt: charge.paymentTransactions[0].createdAt,
+          }
+        : null,
     }));
   }
 

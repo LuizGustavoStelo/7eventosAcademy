@@ -26,7 +26,6 @@ type AgendaNativeProps = {
 };
 
 const SESSION_USER_KEY = 'academy-auth-user';
-const AGENDA_STORAGE_KEY = 'academy-agenda-events-v1';
 const OPEN_CLASS_EDITOR_KEY = 'academy-open-class-editor';
 
 function normalizeText(value: string): string {
@@ -56,26 +55,6 @@ function getCurrentUserName(): string {
   } catch {
     return 'Professor(a)';
   }
-}
-
-function readEvents(): AgendaEvent[] {
-  try {
-    const raw = window.localStorage.getItem(AGENDA_STORAGE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is AgendaEvent =>
-        Boolean(item) &&
-        typeof (item as AgendaEvent).id === 'string' &&
-        typeof (item as AgendaEvent).datetime === 'string',
-    );
-  } catch {
-    return [];
-  }
-}
-
-function writeEvents(events: AgendaEvent[]) {
-  window.localStorage.setItem(AGENDA_STORAGE_KEY, JSON.stringify(events));
 }
 
 function formatMonthTitle(date: Date): string {
@@ -118,8 +97,12 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
       setError('');
       setLoading(true);
       try {
-        const classesData = await apiRequest<SchoolClass[]>(token, '/classes');
+        const [classesData, eventsData] = await Promise.all([
+          apiRequest<SchoolClass[]>(token, '/classes'),
+          apiRequest<AgendaEvent[]>(token, '/agenda/events'),
+        ]);
         setClasses(Array.isArray(classesData) ? classesData : []);
+        setEvents(Array.isArray(eventsData) ? eventsData : []);
       } catch (loadError) {
         setError(
           loadError instanceof Error
@@ -127,22 +110,12 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
             : 'Falha ao carregar turmas da agenda.',
         );
       } finally {
-        setEvents(readEvents());
         setLoading(false);
       }
     };
 
     void load();
   }, [token]);
-
-  useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (event.key !== AGENDA_STORAGE_KEY) return;
-      setEvents(readEvents());
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
 
   const filteredEvents = useMemo(() => {
     const query = normalizeText(search);
@@ -224,14 +197,7 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
     onNavigate('admin_gestao_turmas');
   };
 
-  const createEvent = (payload: Omit<AgendaEvent, 'id'>) => {
-    const id = window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
-    const next = [...events, { id, ...payload }];
-    setEvents(next);
-    writeEvents(next);
-  };
-
-  const submitQuickCreate = (event: FormEvent<HTMLFormElement>) => {
+  const submitQuickCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
 
@@ -243,15 +209,29 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
 
     const classItem = classes.find((item) => item.id === quickClassId);
     const datetime = `${quickDate}T${quickTime}:00`;
-    createEvent({
-      type: quickType,
-      title,
-      classId: quickClassId || null,
-      className: classItem?.name || 'Sem turma',
-      teacher: getCurrentUserName(),
-      datetime,
-      provider: quickType === 'live' ? quickProvider : null,
-    });
+    try {
+      const created = await apiRequest<AgendaEvent>(token, '/agenda/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: quickType,
+          title,
+          classId: quickClassId || null,
+          className: classItem?.name || 'Sem turma',
+          teacher: getCurrentUserName(),
+          datetime,
+          provider: quickType === 'live' ? quickProvider : null,
+        }),
+      });
+      setEvents((current) => [created, ...current]);
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : 'Falha ao salvar evento na agenda.',
+      );
+      return;
+    }
 
     setQuickTitle('');
     setQuickDate('');

@@ -1,8 +1,10 @@
-﻿import {
+import {
   BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { JwtPayload } from '../auth/types/app-role.type';
 import { PrismaService } from '../database/prisma.service';
 import { CreateChargeDto } from './dto/create-charge.dto';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -14,24 +16,30 @@ type TransactionStatusInput = 'pending' | 'success' | 'failed' | 'refunded';
 @Injectable()
 export class FinanceService {
   private readonly dashboardSummaryTtlMs = 15_000;
-  private dashboardSummaryCache:
-    | { value: Record<string, unknown>; expiresAt: number }
-    | null = null;
-  private dashboardSummaryInFlight: Promise<Record<string, unknown>> | null = null;
+  private dashboardSummaryCache = new Map<
+    string,
+    { value: Record<string, unknown>; expiresAt: number }
+  >();
+  private dashboardSummaryInFlight = new Map<
+    string,
+    Promise<Record<string, unknown>>
+  >();
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async getOverview() {
+  async getOverview(user: JwtPayload) {
+    const where = this.buildChargeWhere(user);
     const [totalCharges, pendingCharges, paidCharges, overdueCharges] =
       await Promise.all([
-        this.prisma.monthlyCharge.count(),
-        this.prisma.monthlyCharge.count({ where: { status: 'PENDING' } }),
-        this.prisma.monthlyCharge.count({ where: { status: 'PAID' } }),
-        this.prisma.monthlyCharge.count({ where: { status: 'OVERDUE' } }),
+        this.prisma.monthlyCharge.count({ where }),
+        this.prisma.monthlyCharge.count({ where: { ...where, status: 'PENDING' } }),
+        this.prisma.monthlyCharge.count({ where: { ...where, status: 'PAID' } }),
+        this.prisma.monthlyCharge.count({ where: { ...where, status: 'OVERDUE' } }),
       ]);
 
     const amountByStatus = await this.prisma.monthlyCharge.groupBy({
       by: ['status'],
+      where,
       _sum: {
         amount: true,
       },
@@ -49,35 +57,36 @@ export class FinanceService {
     };
   }
 
-  async getDashboardSummary() {
+  async getDashboardSummary(user: JwtPayload) {
+    const cacheKey = this.getDashboardSummaryCacheKey(user);
     const nowMs = Date.now();
-    if (
-      this.dashboardSummaryCache &&
-      this.dashboardSummaryCache.expiresAt > nowMs
-    ) {
-      return this.dashboardSummaryCache.value;
+    const cachedSummary = this.dashboardSummaryCache.get(cacheKey);
+    if (cachedSummary && cachedSummary.expiresAt > nowMs) {
+      return cachedSummary.value;
     }
 
-    if (this.dashboardSummaryInFlight) {
-      return this.dashboardSummaryInFlight;
+    const inFlightSummary = this.dashboardSummaryInFlight.get(cacheKey);
+    if (inFlightSummary) {
+      return inFlightSummary;
     }
 
-    this.dashboardSummaryInFlight = this.buildDashboardSummary()
+    const promise = this.buildDashboardSummary(user)
       .then((summary) => {
-        this.dashboardSummaryCache = {
+        this.dashboardSummaryCache.set(cacheKey, {
           value: summary,
           expiresAt: Date.now() + this.dashboardSummaryTtlMs,
-        };
+        });
         return summary;
       })
       .finally(() => {
-        this.dashboardSummaryInFlight = null;
+        this.dashboardSummaryInFlight.delete(cacheKey);
       });
 
-    return this.dashboardSummaryInFlight;
+    this.dashboardSummaryInFlight.set(cacheKey, promise);
+    return promise;
   }
 
-  private async buildDashboardSummary() {
+  private async buildDashboardSummary(user: JwtPayload) {
     const now = new Date();
     const startOfToday = new Date(
       now.getFullYear(),
@@ -94,6 +103,7 @@ export class FinanceService {
       'PENDING',
       'OVERDUE',
     ];
+    const chargeWhere = this.buildChargeWhere(user);
 
     const [
       studentsCount,
@@ -137,6 +147,7 @@ export class FinanceService {
       }),
       this.prisma.monthlyCharge.count({
         where: {
+          ...chargeWhere,
           status: {
             in: pendingStatuses,
           },
@@ -144,6 +155,7 @@ export class FinanceService {
       }),
       this.prisma.monthlyCharge.aggregate({
         where: {
+          ...chargeWhere,
           status: {
             in: pendingStatuses,
           },
@@ -173,6 +185,7 @@ export class FinanceService {
       }),
       this.prisma.monthlyCharge.findFirst({
         where: {
+          ...chargeWhere,
           status: {
             in: pendingStatuses,
           },
@@ -245,11 +258,13 @@ export class FinanceService {
   }
 
   private invalidateDashboardSummaryCache() {
-    this.dashboardSummaryCache = null;
+    this.dashboardSummaryCache.clear();
   }
 
-  async findCharges() {
+  async findCharges(user: JwtPayload) {
+    const where = this.buildChargeWhere(user);
     const charges = await this.prisma.monthlyCharge.findMany({
+      where,
       include: {
         enrollment: {
           include: {
@@ -284,7 +299,7 @@ export class FinanceService {
     }));
   }
 
-  async createCharge(dto: CreateChargeDto) {
+  async createCharge(dto: CreateChargeDto, user: JwtPayload) {
     const enrollment = await this.prisma.enrollment.findUnique({
       where: { id: dto.enrollmentId },
       select: { id: true },
@@ -297,6 +312,7 @@ export class FinanceService {
     const charge = await this.prisma.monthlyCharge.create({
       data: {
         enrollmentId: dto.enrollmentId,
+        ownerAdminId: user.role === 'admin' ? user.sub : null,
         amount: dto.amount,
         dueDate: new Date(dto.dueDate),
         externalChargeId: dto.externalChargeId?.trim() || null,
@@ -329,9 +345,14 @@ export class FinanceService {
     };
   }
 
-  async updateChargeStatus(chargeId: string, dto: UpdateChargeStatusDto) {
-    const charge = await this.prisma.monthlyCharge.findUnique({
-      where: { id: chargeId },
+  async updateChargeStatus(
+    chargeId: string,
+    dto: UpdateChargeStatusDto,
+    user: JwtPayload,
+  ) {
+    const where = this.buildChargeWhere(user);
+    const charge = await this.prisma.monthlyCharge.findFirst({
+      where: { id: chargeId, ...where },
       select: { id: true },
     });
 
@@ -393,12 +414,14 @@ export class FinanceService {
     };
   }
 
-  async createTransaction(dto: CreateTransactionDto, userId: string) {
-    const charge = await this.prisma.monthlyCharge.findUnique({
-      where: { id: dto.monthlyChargeId },
+  async createTransaction(dto: CreateTransactionDto, user: JwtPayload) {
+    const where = this.buildChargeWhere(user);
+    const charge = await this.prisma.monthlyCharge.findFirst({
+      where: { id: dto.monthlyChargeId, ...where },
       select: {
         id: true,
         amount: true,
+        ownerAdminId: true,
       },
     });
 
@@ -415,7 +438,11 @@ export class FinanceService {
     }
 
     const status: string = dto.status ?? 'success';
-    const provider = await this.resolveProvider(dto.provider, userId);
+    const provider = await this.resolveProvider(
+      dto.provider,
+      user,
+      charge.ownerAdminId,
+    );
 
     const transaction = await this.prisma.$transaction(async (tx) => {
       const createdTransaction = await tx.paymentTransaction.create({
@@ -453,14 +480,23 @@ export class FinanceService {
     };
   }
 
-  private async resolveProvider(providerInput: string | undefined, userId: string) {
+  private async resolveProvider(
+    providerInput: string | undefined,
+    user: JwtPayload,
+    chargeOwnerAdminId: string | null,
+  ) {
     const provider = providerInput?.trim();
     if (provider) {
       return provider;
     }
 
+    const configUserId =
+      user.role === 'superadmin' && chargeOwnerAdminId
+        ? chargeOwnerAdminId
+        : user.sub;
+
     const config = await this.prisma.accountFinancialConfig.findUnique({
-      where: { userId },
+      where: { userId: configUserId },
       select: {
         provider: true,
         isActive: true,
@@ -472,6 +508,24 @@ export class FinanceService {
     }
 
     return 'manual';
+  }
+
+  private buildChargeWhere(user: JwtPayload): Prisma.MonthlyChargeWhereInput {
+    if (user.role === 'superadmin') {
+      return {};
+    }
+
+    return {
+      ownerAdminId: user.sub,
+    };
+  }
+
+  private getDashboardSummaryCacheKey(user: JwtPayload) {
+    if (user.role === 'superadmin') {
+      return 'superadmin';
+    }
+
+    return `admin:${user.sub}`;
   }
 
   private toPrismaChargeStatus(status: string) {

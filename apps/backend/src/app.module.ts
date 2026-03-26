@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { AgendaModule } from './agenda/agenda.module';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { ClassesModule } from './classes/classes.module';
@@ -41,6 +42,7 @@ import { SuperadminAccountsModule } from './superadmin-accounts/superadmin-accou
     SecretsModule,
     PrismaModule,
     AuthModule,
+    AgendaModule,
     CoursesModule,
     ClassesModule,
     StudentsModule,

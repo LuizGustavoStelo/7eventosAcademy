@@ -23,15 +23,12 @@ import { RolesGuard } from './guards/roles.guard';
           throw new Error('JWT_SECRET não configurado no ambiente.');
         }
 
-        const expiresInEnv = configService.get<string>(
-          'JWT_ACCESS_EXPIRES_IN_SECONDS',
-        );
-        const expiresIn = expiresInEnv ? Number(expiresInEnv) : 3600;
+        const expiresIn = 86_400;
 
         return {
           secret,
           signOptions: {
-            expiresIn: Number.isNaN(expiresIn) ? 3600 : expiresIn,
+            expiresIn,
           },
         };
       },
