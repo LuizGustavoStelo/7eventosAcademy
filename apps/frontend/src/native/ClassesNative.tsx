@@ -11,6 +11,8 @@ type Student = {
   id: string;
   name: string;
   email: string;
+  ra?: string | null;
+  registrationCode?: string | null;
   courses?: Array<{
     id: string;
     status: string;
@@ -183,6 +185,20 @@ function formatDateTime(value: string | null): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date);
+}
+
+function getNameInitials(name: string): string {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+  if (parts.length === 0) return 'AL';
+  return parts.map((part) => part[0]?.toUpperCase() ?? '').join('');
+}
+
+function fallbackRegistrationCode(studentId: string): string {
+  return `AC-${studentId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 }
 
 function toLocalDateTimeInput(value: string | null): string {
@@ -716,9 +732,13 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
           id: student.id,
           name: student.name,
           email: student.email,
+          ra: student.ra ?? student.registrationCode ?? null,
         };
       })
-      .filter((item): item is { id: string; name: string; email: string } => Boolean(item));
+      .filter(
+        (item): item is { id: string; name: string; email: string; ra: string | null } =>
+          Boolean(item),
+      );
   }, [selectedClass, enrollments, students]);
 
   useEffect(() => {
@@ -1239,9 +1259,6 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
                                           ? 'Atenção'
                                           : 'Crítica'}
                                     </span>
-                                    <small>
-                                      P: {preview?.present ?? 0} • F: {preview?.absent ?? 0}
-                                    </small>
                                   </td>
                                 </tr>
                               );
@@ -1262,6 +1279,46 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
                       <h4>Alunos vinculados</h4>
                       <small>{selectedClassStudents.length} aluno(s) ativo(s) nesta turma.</small>
                     </header>
+                    <div className="native-panel native-table-wrap">
+                      <table className="native-table native-classes-pro-attendance-table">
+                        <thead>
+                          <tr>
+                            <th>Aluno</th>
+                            <th>E-mail</th>
+                            <th>Matrícula</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedClassStudents.length === 0 ? (
+                            <tr>
+                              <td colSpan={3}>Nenhum aluno ativo nesta turma.</td>
+                            </tr>
+                          ) : (
+                            selectedClassStudents.map((student) => (
+                              <tr key={student.id}>
+                                <td>
+                                  <div className="native-student-cell">
+                                    <span className="native-user-initials">
+                                      {getNameInitials(student.name)}
+                                    </span>
+                                    <span>
+                                      <strong>{student.name}</strong>
+                                      <small>
+                                        RA: {student.ra?.trim() || fallbackRegistrationCode(student.id)}
+                                      </small>
+                                    </span>
+                                  </div>
+                                </td>
+                                <td>{student.email}</td>
+                                <td>
+                                  <span className="native-status-chip is-info">Ativa</span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                     <div className="native-classes-pro-attendance-actions">
                       <button type="button" onClick={() => openEditModal(selectedClass)}>
                         Gerenciar matrículas da turma
