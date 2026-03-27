@@ -131,7 +131,9 @@ jobs:
           script: |
             cd /var/www/7eventosAcademy
             docker compose pull
-            docker compose up -d --remove-orphans
-            docker compose exec -T backend npx prisma migrate deploy --schema /app/apps/backend/prisma/schema.prisma
+            docker compose up -d db redis
+            docker compose run --rm --no-deps --entrypoint sh backend -lc "npx prisma migrate resolve --rolled-back 20260327101000_class_notice_views --schema /app/apps/backend/prisma/schema.prisma || true"
+            docker compose run --rm --no-deps --entrypoint sh backend -lc "npx prisma migrate deploy --schema /app/apps/backend/prisma/schema.prisma"
+            docker compose up -d --remove-orphans backend frontend
             docker image prune -f
 
