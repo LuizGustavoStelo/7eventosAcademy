@@ -596,6 +596,8 @@ function StudentIcon({ name, className }: { name: IconName; className?: string }
 }
 
 export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativeProps) {
+  const INITIAL_PANEL_CLASSES_COUNT = 2;
+  const PANEL_CLASSES_STEP = 5;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashboard, setDashboard] = useState<StudentDashboardPayload | null>(null);
@@ -608,6 +610,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const [attendanceSummary, setAttendanceSummary] = useState<StudentAttendanceSummary | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarFeedback, setAvatarFeedback] = useState('');
+  const [panelClassesVisibleCount, setPanelClassesVisibleCount] = useState(
+    INITIAL_PANEL_CLASSES_COUNT,
+  );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadFallback = async (bypassCache = false): Promise<StudentDashboardPayload> => {
@@ -1087,6 +1092,15 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const showMaterials = isPanelView || activeSection === 'st-student-materials';
   const showCertificate = isPanelView || activeSection === 'st-student-certificate';
   const showProfile = isPanelView || activeSection === 'st-student-profile';
+  const visibleUpcomingClasses = isPanelView
+    ? upcomingClasses.slice(0, panelClassesVisibleCount)
+    : upcomingClasses;
+  const canLoadMorePanelClasses =
+    isPanelView && panelClassesVisibleCount < upcomingClasses.length;
+
+  useEffect(() => {
+    setPanelClassesVisibleCount(INITIAL_PANEL_CLASSES_COUNT);
+  }, [upcomingClasses.length]);
 
   const openSection = (sectionId: SectionId) => {
     setActiveSection(sectionId);
@@ -1778,7 +1792,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     <p className="student-template-empty">Nenhuma aula programada no momento.</p>
                   ) : (
                     <div className="student-template-class-list">
-                      {upcomingClasses.map((item) => (
+                      {visibleUpcomingClasses.map((item) => (
                         <article key={item.id} className="student-template-class-item">
                           <div className="student-template-class-date">
                             <span>{item.dayLabel}</span>
@@ -1794,6 +1808,20 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                           <span className={`student-template-class-tag ${item.modalityTone}`}>{item.modality}</span>
                         </article>
                       ))}
+
+                      {canLoadMorePanelClasses ? (
+                        <button
+                          type="button"
+                          className="student-template-class-load-more"
+                          onClick={() =>
+                            setPanelClassesVisibleCount((current) =>
+                              Math.min(upcomingClasses.length, current + PANEL_CLASSES_STEP),
+                            )
+                          }
+                        >
+                          Ver mais
+                        </button>
+                      ) : null}
                     </div>
                   )}
                 </article>
