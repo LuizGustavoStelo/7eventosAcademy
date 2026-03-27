@@ -438,6 +438,7 @@ export default function App() {
     }
   });
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const queryParams = new URLSearchParams(window.location.search);
   const isEmbedded = queryParams.get('embed') === '1';
@@ -854,6 +855,10 @@ export default function App() {
     atualizarUsuarioSessao(nextUser);
   };
 
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [secaoAtiva]);
+
   if (isPublicStudentPortal && publicPortalLicense.status === 'loading') {
     return (
       <div className={`auth-shell ${isEmbedded ? 'embedded' : ''}`}>
@@ -995,7 +1000,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <aside className="global-sidebar">
+      <aside className={`global-sidebar ${mobileMenuOpen ? 'is-mobile-open' : ''}`}>
         <div className="global-sidebar-brand">
           <img
             className="global-sidebar-brand-logo"
@@ -1010,7 +1015,10 @@ export default function App() {
               key={item.id}
               type="button"
               className={secaoAtiva === item.id ? 'active' : ''}
-              onClick={() => setSecaoAtiva(item.id)}
+              onClick={() => {
+                setSecaoAtiva(item.id);
+                setMobileMenuOpen(false);
+              }}
             >
               <SidebarNavIcon name={ICONE_POR_SECAO[item.id] ?? 'dashboard'} />
               <span className="global-sidebar-label">{item.label}</span>
@@ -1029,10 +1037,28 @@ export default function App() {
           </button>
         </div>
       </aside>
+      {mobileMenuOpen ? (
+        <button
+          type="button"
+          className="global-sidebar-backdrop"
+          aria-label="Fechar menu"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      ) : null}
 
       <main className="app-content">
         <header className="global-topbar-shell">
           <div className="global-topbar-left">
+            <button
+              type="button"
+              className="global-mobile-menu-btn"
+              aria-label="Alternar menu"
+              onClick={() => setMobileMenuOpen((current) => !current)}
+            >
+              <span className="material-symbols-outlined">
+                {mobileMenuOpen ? 'close' : 'menu'}
+              </span>
+            </button>
             <label className="global-topbar-search" htmlFor="global-search">
               <TopbarIcon name="search" />
               <input

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { apiRequest } from './api';
+import { API_BASE_URL, apiRequest } from './api';
 
 type SchoolClass = {
   id: string;
@@ -137,7 +137,8 @@ export function ContentNative({ token }: ContentNativeProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [activeTab, setActiveTab] = useState<'class' | 'all'>('class');
   const [sortMode, setSortMode] = useState<'recent' | 'size'>('recent');
-  const formPanelRef = useRef<HTMLElement | null>(null);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const loadData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -158,11 +159,7 @@ export function ContentNative({ token }: ContentNativeProps) {
         classId: current.classId || normalizedClasses[0]?.id || '',
       }));
     } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : 'Falha ao carregar materiais.',
-      );
+      setError(loadError instanceof Error ? loadError.message : 'Falha ao carregar materiais.');
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -208,6 +205,7 @@ export function ContentNative({ token }: ContentNativeProps) {
     if (storage.limitGb <= 0) return 0;
     return Math.min(100, Math.round((storage.usedGb / storage.limitGb) * 100));
   }, [storage]);
+
   const totalMaterials = materials.length;
   const visibleMaterials = filteredMaterials.length;
 
@@ -237,9 +235,51 @@ export function ContentNative({ token }: ContentNativeProps) {
     URL.revokeObjectURL(url);
   };
 
-  const goToForm = () => {
-    formPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const openUploadModal = () => {
+    setFormError('');
+    setUploadProgress(null);
+    setUploadModalOpen(true);
   };
+
+  const uploadMultipartWithProgress = async <T,>(path: string, body: FormData): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_BASE_URL}${path}`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        const percent = Math.round((event.loaded / event.total) * 100);
+        setUploadProgress(Math.max(0, Math.min(100, percent)));
+      };
+
+      xhr.onerror = () => reject(new Error('Falha de conexão durante o upload.'));
+
+      xhr.onload = () => {
+        const raw = xhr.responseText || '';
+        const payload = (() => {
+          try {
+            return raw ? (JSON.parse(raw) as { message?: string | string[] }) : null;
+          } catch {
+            return null;
+          }
+        })();
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve((payload as T) ?? (undefined as T));
+          return;
+        }
+
+        let message = `Falha na requisição (${xhr.status}).`;
+        if (payload) {
+          if (Array.isArray(payload.message)) message = payload.message.join(' ');
+          else if (typeof payload.message === 'string') message = payload.message;
+        }
+        reject(new Error(message));
+      };
+
+      xhr.send(body);
+    });
 
   const submitMaterial = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -275,6 +315,8 @@ export function ContentNative({ token }: ContentNativeProps) {
     try {
       let successMessage = 'Material cadastrado com sucesso.';
       if (selectedFiles.length > 0) {
+        setUploadProgress(0);
+
         if (selectedFiles.length === 1) {
           const payload = new FormData();
           payload.append('file', selectedFiles[0]);
@@ -282,13 +324,9 @@ export function ContentNative({ token }: ContentNativeProps) {
           payload.append('description', form.description.trim());
           payload.append('kind', form.kind);
           payload.append('externalUrl', form.externalUrl.trim());
-          await apiRequest<StudyMaterial>(
-            token,
+          await uploadMultipartWithProgress<StudyMaterial>(
             `/classes/${form.classId}/materials/upload`,
-            {
-              method: 'POST',
-              body: payload,
-            },
+            payload,
           );
         } else {
           const payload = new FormData();
@@ -298,13 +336,9 @@ export function ContentNative({ token }: ContentNativeProps) {
           payload.append('kind', form.kind);
           payload.append('externalUrl', form.externalUrl.trim());
 
-          const batch = await apiRequest<UploadBatchResponse>(
-            token,
+          const batch = await uploadMultipartWithProgress<UploadBatchResponse>(
             `/classes/${form.classId}/materials/upload-batch`,
-            {
-              method: 'POST',
-              body: payload,
-            },
+            payload,
           );
 
           if (batch.rejected.length > 0) {
@@ -332,17 +366,13 @@ export function ContentNative({ token }: ContentNativeProps) {
       }
 
       await loadData(false);
-      setForm((current) => ({
-        ...defaultForm(),
-        classId: current.classId,
-      }));
+      setForm((current) => ({ ...defaultForm(), classId: current.classId }));
       setSelectedFiles([]);
       setFeedback(successMessage);
+      setUploadModalOpen(false);
     } catch (submitError) {
       const message =
-        submitError instanceof Error
-          ? submitError.message
-          : 'Falha ao cadastrar material.';
+        submitError instanceof Error ? submitError.message : 'Falha ao cadastrar material.';
 
       if (message.includes('(504)')) {
         setFormError(
@@ -353,6 +383,7 @@ export function ContentNative({ token }: ContentNativeProps) {
       }
     } finally {
       setSaving(false);
+      setUploadProgress(null);
     }
   };
 
@@ -377,7 +408,7 @@ export function ContentNative({ token }: ContentNativeProps) {
           <button type="button" className="ghost" onClick={exportAll}>
             Exportar Tudo
           </button>
-          <button type="button" className="is-primary" onClick={goToForm}>
+          <button type="button" className="is-primary" onClick={openUploadModal}>
             Novo Material
           </button>
         </div>
@@ -385,10 +416,159 @@ export function ContentNative({ token }: ContentNativeProps) {
 
       <div className="native-content-grid">
         <aside className="native-content-side">
-          <article className="native-panel" ref={formPanelRef}>
+          <button type="button" className="native-content-upload-trigger" onClick={openUploadModal}>
+            <span className="native-content-upload-trigger-icon" aria-hidden="true">
+              +
+            </span>
+            <strong>Adicionar material</strong>
+            <small>Abra o formulário de upload em destaque</small>
+          </button>
+
+          <article className="native-panel native-content-storage-card">
             <header className="native-panel-header">
-              <h3>Upload Rápido</h3>
+              <h3>Armazenamento Usado</h3>
             </header>
+            <div className="native-storage-box">
+              <strong>{(storage?.usedGb ?? 0).toFixed(2)} GB</strong>
+              <small>de {storage?.limitGb ?? 0} GB</small>
+              <div className="native-storage-track">
+                <div
+                  className={`native-storage-fill ${storagePercent > 90 ? 'is-danger' : ''}`}
+                  style={{ width: `${storagePercent}%` }}
+                />
+              </div>
+              <small>{storagePercent}% utilizado</small>
+            </div>
+          </article>
+        </aside>
+
+        <section className="native-panel native-content-list-panel">
+          <header className="native-content-tabs">
+            <button
+              type="button"
+              className={activeTab === 'class' ? 'active' : ''}
+              onClick={() => setActiveTab('class')}
+            >
+              Materiais da Turma
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'all' ? 'active' : ''}
+              onClick={() => setActiveTab('all')}
+            >
+              Biblioteca Geral
+            </button>
+          </header>
+
+          <div className="native-content-filter-row">
+            <strong>Filtrar por:</strong>
+            <button
+              type="button"
+              className={sortMode === 'recent' ? 'active' : ''}
+              onClick={() => setSortMode('recent')}
+            >
+              Mais recentes
+            </button>
+            <button
+              type="button"
+              className={sortMode === 'size' ? 'active' : ''}
+              onClick={() => setSortMode('size')}
+            >
+              Maior tamanho
+            </button>
+          </div>
+
+          <div className="native-toolbar">
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar por título, turma ou curso..."
+            />
+            <div className="native-toolbar-actions">
+              <select
+                className="native-finance-select"
+                value={classFilter}
+                onChange={(event) => setClassFilter(event.target.value)}
+                disabled={activeTab === 'all'}
+              >
+                <option value="ALL">Todas as turmas</option>
+                {classes.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {loading ? <p className="native-info">Carregando materiais...</p> : null}
+          {error ? <p className="native-error">{error}</p> : null}
+          {feedback ? <p className="native-success">{feedback}</p> : null}
+
+          <div className="native-content-list">
+            {!loading && filteredMaterials.length === 0 ? (
+              <p className="native-info native-content-empty-state">
+                Fim da lista atual. Nenhum material encontrado.
+              </p>
+            ) : (
+              filteredMaterials.map((material) => (
+                <article key={material.id} className="native-content-item">
+                  <div className={`native-content-icon ${fileTone(material.mimeType)}`}>
+                    <span className="material-symbols-outlined">{fileIcon(material.mimeType)}</span>
+                  </div>
+                  <div className="native-content-meta">
+                    <strong>{material.title}</strong>
+                    <small>
+                      {material.schoolClass?.name || 'Turma'} •{' '}
+                      {material.schoolClass?.course?.name || 'Curso'} •{' '}
+                      {formatDate(material.createdAt)}
+                    </small>
+                    {material.description ? <p>{material.description}</p> : null}
+                    {material.externalUrl ? (
+                      <a href={material.externalUrl} target="_blank" rel="noreferrer">
+                        Abrir link externo
+                      </a>
+                    ) : null}
+                    {material.fileUrl ? (
+                      <a href={material.fileUrl} target="_blank" rel="noreferrer">
+                        Baixar arquivo
+                      </a>
+                    ) : null}
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
+
+      {uploadModalOpen ? (
+        <div
+          className="native-content-upload-backdrop"
+          onClick={() => {
+            if (saving) return;
+            setUploadModalOpen(false);
+            setFormError('');
+            setUploadProgress(null);
+          }}
+        >
+          <section className="native-content-upload-modal" onClick={(event) => event.stopPropagation()}>
+            <header>
+              <h3>Upload Rápido</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  if (saving) return;
+                  setUploadModalOpen(false);
+                  setFormError('');
+                  setUploadProgress(null);
+                }}
+              >
+                Fechar
+              </button>
+            </header>
+
             <p className="native-content-panel-hint">
               Preencha os metadados e envie um ou mais arquivos para publicar na turma.
             </p>
@@ -512,136 +692,41 @@ export function ContentNative({ token }: ContentNativeProps) {
                 />
               </label>
 
+              {uploadProgress !== null ? (
+                <div className="native-upload-progress">
+                  <div className="native-upload-progress-head">
+                    <strong>Enviando material</strong>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="native-upload-progress-track" aria-hidden="true">
+                    <div className="native-upload-progress-fill" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                </div>
+              ) : null}
+
               {formError ? <p className="native-error">{formError}</p> : null}
 
-              <div className="native-modal-actions">
-                <button type="submit" disabled={saving}>
-                  {saving ? 'Salvando...' : 'Salvar Metadados'}
+              <div className="native-modal-actions native-content-modal-actions">
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    if (saving) return;
+                    setUploadModalOpen(false);
+                    setFormError('');
+                    setUploadProgress(null);
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="native-content-submit-btn" disabled={saving}>
+                  {saving ? 'Enviando...' : 'Subir Material'}
                 </button>
               </div>
             </form>
-          </article>
-
-          <article className="native-panel native-content-storage-card">
-            <header className="native-panel-header">
-              <h3>Armazenamento Usado</h3>
-            </header>
-            <div className="native-storage-box">
-              <strong>{(storage?.usedGb ?? 0).toFixed(2)} GB</strong>
-              <small>de {storage?.limitGb ?? 0} GB</small>
-              <div className="native-storage-track">
-                <div
-                  className={`native-storage-fill ${storagePercent > 90 ? 'is-danger' : ''}`}
-                  style={{ width: `${storagePercent}%` }}
-                />
-              </div>
-              <small>{storagePercent}% utilizado</small>
-            </div>
-          </article>
-        </aside>
-
-        <section className="native-panel native-content-list-panel">
-          <header className="native-content-tabs">
-            <button
-              type="button"
-              className={activeTab === 'class' ? 'active' : ''}
-              onClick={() => setActiveTab('class')}
-            >
-              Materiais da Turma
-            </button>
-            <button
-              type="button"
-              className={activeTab === 'all' ? 'active' : ''}
-              onClick={() => setActiveTab('all')}
-            >
-              Biblioteca Geral
-            </button>
-          </header>
-
-          <div className="native-content-filter-row">
-            <strong>Filtrar por:</strong>
-            <button
-              type="button"
-              className={sortMode === 'recent' ? 'active' : ''}
-              onClick={() => setSortMode('recent')}
-            >
-              Mais recentes
-            </button>
-            <button
-              type="button"
-              className={sortMode === 'size' ? 'active' : ''}
-              onClick={() => setSortMode('size')}
-            >
-              Maior tamanho
-            </button>
-          </div>
-
-          <div className="native-toolbar">
-            <input
-              type="text"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar por título, turma ou curso..."
-            />
-            <div className="native-toolbar-actions">
-              <select
-                className="native-finance-select"
-                value={classFilter}
-                onChange={(event) => setClassFilter(event.target.value)}
-                disabled={activeTab === 'all'}
-              >
-                <option value="ALL">Todas as turmas</option>
-                {classes.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {loading ? <p className="native-info">Carregando materiais...</p> : null}
-          {error ? <p className="native-error">{error}</p> : null}
-          {feedback ? <p className="native-success">{feedback}</p> : null}
-
-          <div className="native-content-list">
-            {!loading && filteredMaterials.length === 0 ? (
-              <p className="native-info native-content-empty-state">
-                Fim da lista atual. Nenhum material encontrado.
-              </p>
-            ) : (
-              filteredMaterials.map((material) => (
-                <article key={material.id} className="native-content-item">
-                  <div className={`native-content-icon ${fileTone(material.mimeType)}`}>
-                    <span className="material-symbols-outlined">
-                      {fileIcon(material.mimeType)}
-                    </span>
-                  </div>
-                  <div className="native-content-meta">
-                    <strong>{material.title}</strong>
-                    <small>
-                      {material.schoolClass?.name || 'Turma'} â€¢{' '}
-                      {material.schoolClass?.course?.name || 'Curso'} â€¢{' '}
-                      {formatDate(material.createdAt)}
-                    </small>
-                    {material.description ? <p>{material.description}</p> : null}
-                    {material.externalUrl ? (
-                      <a href={material.externalUrl} target="_blank" rel="noreferrer">
-                        Abrir link externo
-                      </a>
-                    ) : null}
-                    {material.fileUrl ? (
-                      <a href={material.fileUrl} target="_blank" rel="noreferrer">
-                        Baixar arquivo
-                      </a>
-                    ) : null}
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-      </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }
