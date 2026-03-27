@@ -23,6 +23,12 @@ const MATERIAL_ALLOWED_EXTENSIONS = new Set([
   '.png',
   '.gif',
   '.webp',
+  '.mp4',
+  '.mov',
+  '.avi',
+  '.mkv',
+  '.webm',
+  '.m4v',
 ]);
 const MATERIAL_ALLOWED_EXACT_MIME = new Set([
   'application/pdf',
@@ -34,7 +40,7 @@ const MATERIAL_ALLOWED_EXACT_MIME = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/plain',
 ]);
-const MATERIAL_ALLOWED_MIME_PREFIX = ['image/'];
+const MATERIAL_ALLOWED_MIME_PREFIX = ['image/', 'video/'];
 
 @Injectable()
 export class ClassesMaterialsService {
@@ -57,7 +63,7 @@ export class ClassesMaterialsService {
 
     if (dto.title.trim().length < 3) {
       throw new BadRequestException(
-        'Título do material deve ter pelo menos 3 caracteres.',
+        'TÃ­tulo do material deve ter pelo menos 3 caracteres.',
       );
     }
 
@@ -93,7 +99,7 @@ export class ClassesMaterialsService {
 
     if (dto.title.trim().length < 3) {
       throw new BadRequestException(
-        'Título do material deve ter pelo menos 3 caracteres.',
+        'TÃ­tulo do material deve ter pelo menos 3 caracteres.',
       );
     }
 
@@ -219,7 +225,7 @@ export class ClassesMaterialsService {
     });
 
     if (!schoolClass) {
-      throw new NotFoundException('Turma não encontrada.');
+      throw new NotFoundException('Turma nÃ£o encontrada.');
     }
   }
 
@@ -253,8 +259,9 @@ export class ClassesMaterialsService {
 
     if (!extensionAllowed && !mimeAllowed) {
       throw new BadRequestException(
-        'Formato não suportado. Use PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, JPG, JPEG, PNG, GIF ou WEBP.',
+        'Formato não suportado. Use PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, JPG, JPEG, PNG, GIF, WEBP, MP4, MOV, AVI, MKV, WEBM ou M4V.',
       );
     }
   }
 }
+

@@ -54,6 +54,7 @@ export class UploadsService implements OnModuleInit {
       ownerId,
       kind,
       extension,
+      originalName: file.filename,
     });
     const absolutePath = join(this.uploadRoot, ...relativePath.split('/'));
 
@@ -279,9 +280,10 @@ export class UploadsService implements OnModuleInit {
     ownerId: string;
     kind: string;
     extension: string;
+    originalName?: string;
   }) {
-    const { ownerType, ownerId, kind, extension } = input;
-    const fileName = `${Date.now()}-${randomUUID()}${extension}`;
+    const { ownerType, ownerId, kind, extension, originalName } = input;
+    const fileName = this.buildHashedFileName(originalName, extension);
 
     if (ownerType === UploadOwnerType.COURSE && kind === 'COURSE_BANNER') {
       const courseFolder = await this.resolveCourseFolder(ownerId);
@@ -298,11 +300,9 @@ export class UploadsService implements OnModuleInit {
     }
 
     if (ownerType === UploadOwnerType.CLASS && kind.startsWith('CLASS_MATERIAL_')) {
-      const rawProfessorId = kind.replace('CLASS_MATERIAL_', '');
-      const professorId = this.safeSegment(
-        (rawProfessorId.split('__')[0] || 'desconhecido').trim(),
-      );
-      return `materiais/professor-${professorId}/turma-${this.safeSegment(ownerId)}/${fileName}`;
+      const professorFolder = await this.resolveProfessorFolderFromKind(kind);
+      const classFolder = await this.resolveClassFolder(ownerId);
+      return `materiais/professor-${professorFolder}/turma-${classFolder}/${fileName}`;
     }
 
     return `outros/${ownerType.toLowerCase()}/${this.safeSegment(ownerId)}/${this.safeSegment(kind)}/${fileName}`;
@@ -319,6 +319,37 @@ export class UploadsService implements OnModuleInit {
     }
 
     return this.safeSegment(course.name);
+  }
+
+  private async resolveProfessorFolderFromKind(kind: string) {
+    const professorId = this.extractProfessorIdFromKind(kind);
+    if (!professorId || professorId === 'desconhecido') {
+      return 'desconhecido';
+    }
+
+    if (!this.isUuid(professorId)) {
+      return this.safeSegment(professorId);
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: professorId },
+      select: { name: true },
+    });
+
+    return this.safeSegment(user?.name ?? professorId);
+  }
+
+  private async resolveClassFolder(classId: string) {
+    if (!this.isUuid(classId)) {
+      return this.safeSegment(classId);
+    }
+
+    const schoolClass = await this.prisma.schoolClass.findUnique({
+      where: { id: classId },
+      select: { name: true },
+    });
+
+    return this.safeSegment(schoolClass?.name ?? classId);
   }
 
   private async resolveProfileFolder(ownerType: UploadOwnerType, ownerId: string) {
@@ -359,6 +390,28 @@ export class UploadsService implements OnModuleInit {
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
     return cleaned || 'sem-id';
+  }
+
+  private extractProfessorIdFromKind(kind: string) {
+    const raw = kind.replace('CLASS_MATERIAL_', '');
+    return (raw.split('__')[0] || 'desconhecido').trim();
+  }
+
+  private isUuid(value: string) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    );
+  }
+
+  private buildHashedFileName(originalName: string | undefined, extension: string) {
+    const normalizedName = (originalName ?? '').trim();
+    const fileExtFromName = extname(normalizedName);
+    const baseName = fileExtFromName
+      ? normalizedName.slice(0, -fileExtFromName.length)
+      : normalizedName;
+    const baseSegment = this.safeSegment(baseName || 'arquivo');
+    const hash = randomUUID().replace(/-/g, '').slice(0, 10);
+    return `${baseSegment}-${hash}${extension}`;
   }
 
   private resolveExtension(file: MultipartFile) {
