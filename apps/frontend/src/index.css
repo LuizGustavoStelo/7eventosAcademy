@@ -219,7 +219,7 @@ table button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.45rem 1rem;
+  padding: 0.45rem 1.75rem;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   background: #ffffff;
 }
@@ -358,7 +358,7 @@ table button:disabled {
 }
 
 .native-page {
-  padding: 1.5rem;
+  padding: 1.9rem 1.75rem;
   display: grid;
   gap: 1rem;
 }
@@ -4785,7 +4785,7 @@ table button {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1rem;
+  padding: 1rem 1.75rem;
   background: rgba(246, 250, 250, 0.86);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--st-border);
@@ -4916,10 +4916,9 @@ table button {
 }
 
 .student-template-content {
-  width: 100%;
-  max-width: 1300px;
-  margin: 0;
-  padding: 1.6rem 1rem 5.6rem;
+  width: min(1300px, 100%);
+  margin: 0 auto;
+  padding: 1.9rem 1.75rem 5.6rem;
 }
 
 .student-template-loading,

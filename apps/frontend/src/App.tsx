@@ -101,7 +101,7 @@ const SECOES_ADMIN: NavSection[] = [
   },
   {
     id: 'admin_cursos',
-    label: 'CURSOS',
+    label: 'Cursos',
     subtitle: 'Template fiel: admin_professor_cursos',
     templatePath: '/templates/admin_professor_cursos/index.html',
     renderMode: 'native',
@@ -115,7 +115,7 @@ const SECOES_ADMIN: NavSection[] = [
   },
   {
     id: 'admin_alunos_matriculas',
-    label: 'ALUNOS',
+    label: 'Alunos',
     subtitle: 'Template fiel: admin_professor_alunos_e_matriculas',
     templatePath: '/templates/admin_professor_alunos_e_matriculas/index.html',
     renderMode: 'native',
@@ -143,21 +143,21 @@ const SECOES_ADMIN: NavSection[] = [
   },
   {
     id: 'admin_conteudo',
-    label: 'MATERIAIS',
+    label: 'Materiais',
     subtitle: 'Template fiel: admin_professor_conteudo_e_materiais',
     templatePath: '/templates/admin_professor_conteudo_e_materiais/index.html',
     renderMode: 'native',
   },
   {
     id: 'admin_avisos',
-    label: 'AVISOS',
+    label: 'Avisos',
     subtitle: 'Template fiel: admin_professor_avisos_e_comunicacao',
     templatePath: '/templates/admin_professor_avisos_e_comunicacao/index.html',
     renderMode: 'native',
   },
   {
     id: 'admin_relatorios',
-    label: 'RELATÓRIOS',
+    label: 'Relatórios',
     subtitle: 'Template fiel: admin_professor_relatorios_e_analises',
     templatePath: '/templates/admin_professor_relatorios_e_analises/index.html',
     renderMode: 'native',
