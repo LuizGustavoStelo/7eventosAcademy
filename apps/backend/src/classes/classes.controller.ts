@@ -28,6 +28,14 @@ type AuthenticatedRequest = FastifyRequest & {
   >;
 };
 
+async function toBufferedMultipartFile(part: MultipartFile): Promise<MultipartFile> {
+  const buffer = await part.toBuffer();
+  return {
+    ...part,
+    toBuffer: async () => buffer,
+  } as MultipartFile;
+}
+
 @Roles('admin', 'superadmin')
 @Controller('classes')
 export class ClassesController {
@@ -94,7 +102,7 @@ export class ClassesController {
     for await (const part of request.parts()) {
       if (part.type === 'file') {
         if (part.fieldname === 'file') {
-          file = part;
+          file = await toBufferedMultipartFile(part);
         } else {
           await part.toBuffer();
         }
@@ -132,7 +140,7 @@ export class ClassesController {
     for await (const part of request.parts()) {
       if (part.type === 'file') {
         if (part.fieldname === 'files' || part.fieldname === 'file') {
-          files.push(part);
+          files.push(await toBufferedMultipartFile(part));
         } else {
           await part.toBuffer();
         }
