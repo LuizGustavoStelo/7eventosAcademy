@@ -643,7 +643,7 @@ export function ContentNative({ token }: ContentNativeProps) {
                 </select>
               </label>
 
-              <label>
+              <label className="native-content-field-full">
                 URL externa (opcional)
                 <input
                   value={form.externalUrl}
@@ -657,7 +657,7 @@ export function ContentNative({ token }: ContentNativeProps) {
                 />
               </label>
 
-              <label>
+              <label className="native-content-field-full">
                 Arquivo (opcional)
                 <input
                   type="file"
@@ -677,7 +677,7 @@ export function ContentNative({ token }: ContentNativeProps) {
                 </small>
               </label>
 
-              <label>
+              <label className="native-content-field-full">
                 Descrição (opcional)
                 <textarea
                   rows={4}

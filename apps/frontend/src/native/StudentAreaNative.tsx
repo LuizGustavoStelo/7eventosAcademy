@@ -598,6 +598,8 @@ function StudentIcon({ name, className }: { name: IconName; className?: string }
 export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativeProps) {
   const INITIAL_PANEL_CLASSES_COUNT = 2;
   const PANEL_CLASSES_STEP = 5;
+  const INITIAL_AGENDA_EVENTS_COUNT = 3;
+  const AGENDA_EVENTS_STEP = 10;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashboard, setDashboard] = useState<StudentDashboardPayload | null>(null);
@@ -612,6 +614,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const [avatarFeedback, setAvatarFeedback] = useState('');
   const [panelClassesVisibleCount, setPanelClassesVisibleCount] = useState(
     INITIAL_PANEL_CLASSES_COUNT,
+  );
+  const [agendaEventsVisibleCount, setAgendaEventsVisibleCount] = useState(
+    INITIAL_AGENDA_EVENTS_COUNT,
   );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -1097,15 +1102,22 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     : upcomingClasses;
   const canLoadMorePanelClasses =
     isPanelView && panelClassesVisibleCount < upcomingClasses.length;
+  const visibleAgendaEvents = upcomingClasses.slice(0, agendaEventsVisibleCount);
+  const canLoadMoreAgendaEvents = agendaEventsVisibleCount < upcomingClasses.length;
 
   useEffect(() => {
     setPanelClassesVisibleCount(INITIAL_PANEL_CLASSES_COUNT);
+  }, [upcomingClasses.length]);
+
+  useEffect(() => {
+    setAgendaEventsVisibleCount(INITIAL_AGENDA_EVENTS_COUNT);
   }, [upcomingClasses.length]);
 
   const openSection = (sectionId: SectionId) => {
     setActiveSection(sectionId);
     if (sectionId === 'st-student-agenda') {
       setAgendaMonthCursor(new Date());
+      setAgendaEventsVisibleCount(INITIAL_AGENDA_EVENTS_COUNT);
     }
 
     window.scrollTo({
@@ -1257,7 +1269,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 <p className="student-template-empty">Nenhum evento agendado no momento.</p>
               ) : (
                 <div className="student-page-list">
-                  {upcomingClasses.map((item) => (
+                  {visibleAgendaEvents.map((item) => (
                     <article key={`${item.id}-agenda`} className="student-page-list-item is-calendar">
                       <div>
                         <strong>{item.title}</strong>
@@ -1266,6 +1278,19 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       <span>{item.modality}</span>
                     </article>
                   ))}
+                  {canLoadMoreAgendaEvents ? (
+                    <button
+                      type="button"
+                      className="student-template-class-load-more"
+                      onClick={() =>
+                        setAgendaEventsVisibleCount((current) =>
+                          Math.min(upcomingClasses.length, current + AGENDA_EVENTS_STEP),
+                        )
+                      }
+                    >
+                      Ver mais
+                    </button>
+                  ) : null}
                 </div>
               )}
             </article>
@@ -1924,7 +1949,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     <p className="student-template-empty">Nenhum evento acadêmico próximo.</p>
                   ) : (
                     <ul>
-                      {upcomingClasses.map((item) => (
+                      {visibleAgendaEvents.map((item) => (
                         <li key={`${item.id}-agenda`}>
                           <div>
                             <strong>{item.title}</strong>
@@ -1935,6 +1960,19 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       ))}
                     </ul>
                   )}
+                  {canLoadMoreAgendaEvents ? (
+                    <button
+                      type="button"
+                      className="student-template-class-load-more"
+                      onClick={() =>
+                        setAgendaEventsVisibleCount((current) =>
+                          Math.min(upcomingClasses.length, current + AGENDA_EVENTS_STEP),
+                        )
+                      }
+                    >
+                      Ver mais
+                    </button>
+                  ) : null}
                 </article>
                 ) : null}
 

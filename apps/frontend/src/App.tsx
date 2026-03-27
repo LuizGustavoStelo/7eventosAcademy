@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AgendaNative } from './native/AgendaNative';
 import { ClassesNative } from './native/ClassesNative';
@@ -70,14 +70,14 @@ const SECOES_SUPERADMIN: NavSection[] = [
   },
   {
     id: 'superadmin_gestao_contas',
-    label: 'Gestão de Contas',
+    label: 'GestÃ£o de Contas',
     subtitle: 'Template fiel: superadmin_gestao_de_contas',
     templatePath: '/templates/superadmin_gestao_de_contas/index.html',
     renderMode: 'native',
   },
   {
     id: 'superadmin_impersonacao',
-    label: 'Impersonação',
+    label: 'ImpersonaÃ§Ã£o',
     subtitle: 'Template fiel: superadmin_tela_de_impersonacao',
     templatePath: '/templates/superadmin_tela_de_impersonacao/index.html',
     renderMode: 'native',
@@ -85,7 +85,7 @@ const SECOES_SUPERADMIN: NavSection[] = [
   {
     id: 'superadmin_wordpress_plugin',
     label: 'Plugin WordPress',
-    subtitle: 'Gerenciar licenças e releases do plugin 7academy',
+    subtitle: 'Gerenciar licenÃ§as e releases do plugin 7academy',
     templatePath: '/templates/superadmin_wordpress_plugin/index.html',
     renderMode: 'native',
   },
@@ -123,7 +123,7 @@ const SECOES_ADMIN: NavSection[] = [
   {
     id: 'admin_aulas',
     label: 'Aulas',
-    subtitle: 'Lançamento de presença por aula (retroativo e bloqueio de futuras)',
+    subtitle: 'LanÃ§amento de presenÃ§a por aula (retroativo e bloqueio de futuras)',
     templatePath: '/templates/admin_professor_agenda_de_aulas_e_lives/index.html',
     renderMode: 'native',
   },
@@ -157,14 +157,14 @@ const SECOES_ADMIN: NavSection[] = [
   },
   {
     id: 'admin_relatorios',
-    label: 'Relatórios',
+    label: 'RelatÃ³rios',
     subtitle: 'Template fiel: admin_professor_relatorios_e_analises',
     templatePath: '/templates/admin_professor_relatorios_e_analises/index.html',
     renderMode: 'native',
   },
   {
     id: 'admin_configuracoes',
-    label: 'Configurações',
+    label: 'ConfiguraÃ§Ãµes',
     subtitle: 'Template fiel: admin_professor_configuracoes',
     templatePath: '/templates/admin_professor_configuracoes/index.html',
     renderMode: 'native',
@@ -332,7 +332,7 @@ function SidebarNavIcon({ name }: { name: string }) {
 function TopbarIcon({
   name,
 }: {
-  name: 'search' | 'notifications' | 'light_mode' | 'dark_mode' | 'close';
+  name: 'search' | 'notifications' | 'light_mode' | 'dark_mode' | 'close' | 'help';
 }) {
   const classes = 'global-topbar-svg';
 
@@ -371,11 +371,43 @@ function TopbarIcon({
     );
   }
 
+  if (name === 'help') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9.8 9.5a2.4 2.4 0 114.6 1c-.5 1-1.8 1.4-2.1 2.4v.6" />
+        <circle cx="12" cy="16.8" r="0.8" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
       <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   );
+}
+
+const SEARCH_SECTION_ALIAS: Array<{ sectionId: string; terms: string[] }> = [
+  { sectionId: 'admin_dashboard_conta', terms: ['painel', 'inicio', 'inicial', 'dashboard', 'visao geral'] },
+  { sectionId: 'admin_cursos', terms: ['curso', 'cursos'] },
+  { sectionId: 'admin_gestao_turmas', terms: ['turma', 'turmas', 'classe', 'classes'] },
+  { sectionId: 'admin_alunos_matriculas', terms: ['aluno', 'alunos', 'matricula', 'matriculas'] },
+  { sectionId: 'admin_aulas', terms: ['aula', 'aulas', 'presenca', 'presencas'] },
+  { sectionId: 'admin_agenda', terms: ['agenda', 'evento', 'eventos', 'calendario'] },
+  { sectionId: 'admin_financeiro', terms: ['financeiro', 'mensalidade', 'cobranca', 'cobrancas', 'pagamento'] },
+  { sectionId: 'admin_conteudo', terms: ['material', 'materiais', 'conteudo', 'arquivo', 'arquivos'] },
+  { sectionId: 'admin_avisos', terms: ['aviso', 'avisos', 'comunicado', 'comunicados'] },
+  { sectionId: 'admin_relatorios', terms: ['relatorio', 'relatorios', 'analise', 'analises'] },
+  { sectionId: 'admin_configuracoes', terms: ['configuracao', 'configuracoes', 'ajustes'] },
+];
+
+function normalizeSearchTerm(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
 }
 
 function PublicPortalBlocked({ message }: { message: string }) {
@@ -387,13 +419,13 @@ function PublicPortalBlocked({ message }: { message: string }) {
             Acesso restrito
           </button>
         </div>
-        <h2>Portal indisponível</h2>
+        <h2>Portal indisponÃ­vel</h2>
         <p className="auth-error" style={{ marginTop: 0 }}>
           {message}
         </p>
         <div style={{ display: 'grid', gap: 12 }}>
           <p style={{ margin: 0, color: 'var(--text-secondary, #52667a)', lineHeight: 1.6 }}>
-            Se você é aluno ou responsável, confirme com a instituição se a licença está ativa.
+            Se vocÃª Ã© aluno ou responsÃ¡vel, confirme com a instituiÃ§Ã£o se a licenÃ§a estÃ¡ ativa.
           </p>
           <a href="/" style={{ color: 'var(--accent-primary, #139395)', fontWeight: 600 }}>
             Recarregar
@@ -439,6 +471,7 @@ export default function App() {
   });
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
 
   const queryParams = new URLSearchParams(window.location.search);
   const isEmbedded = queryParams.get('embed') === '1';
@@ -554,7 +587,7 @@ export default function App() {
     if (!portalLicenseToken || !portalLicenseDomain || !portalLicenseSiteUrl) {
       setPublicPortalLicense({
         status: 'blocked',
-        message: 'Licença não informada para este portal.',
+        message: 'LicenÃ§a nÃ£o informada para este portal.',
       });
       return;
     }
@@ -584,7 +617,7 @@ export default function App() {
         if (!response.ok || !data?.valid) {
           setPublicPortalLicense({
             status: 'blocked',
-            message: 'Licença expirada, inativa ou inválida para este portal.',
+            message: 'LicenÃ§a expirada, inativa ou invÃ¡lida para este portal.',
           });
           return;
         }
@@ -594,7 +627,7 @@ export default function App() {
         if (!cancelled) {
           setPublicPortalLicense({
             status: 'blocked',
-            message: 'Não foi possível validar a licença deste portal.',
+            message: 'NÃ£o foi possÃ­vel validar a licenÃ§a deste portal.',
           });
         }
       }
@@ -611,9 +644,9 @@ export default function App() {
       if (Array.isArray(data.message)) return data.message.join(' ');
       if (typeof data.message === 'string') return data.message;
     } catch {
-      return 'Falha na operação.';
+      return 'Falha na operaÃ§Ã£o.';
     }
-    return 'Falha na operação.';
+    return 'Falha na operaÃ§Ã£o.';
   };
 
   const limparImpersonacao = () => {
@@ -707,7 +740,7 @@ export default function App() {
       const me = (await response.json()) as AuthUser;
       atualizarUsuarioSessao(me);
     } catch {
-      // ignora erro de atualização de perfil
+      // ignora erro de atualizaÃ§Ã£o de perfil
     }
   };
 
@@ -733,6 +766,25 @@ export default function App() {
       limparImpersonacao();
     }
   }, [autenticado, impersonationMeta, usuario?.role]);
+
+  const executeGlobalSearch = () => {
+    const normalizedQuery = normalizeSearchTerm(globalSearchQuery);
+    if (!normalizedQuery || usuario?.role !== 'admin') return;
+
+    const sectionByAlias = SEARCH_SECTION_ALIAS.find(({ terms }) =>
+      terms.some((term) => normalizedQuery.includes(term)),
+    )?.sectionId;
+
+    const sectionByLabel = SECOES_ADMIN.find((section) =>
+      normalizeSearchTerm(section.label).includes(normalizedQuery),
+    )?.id;
+
+    const nextSectionId = sectionByAlias ?? sectionByLabel;
+    if (!nextSectionId) return;
+
+    setSecaoAtiva(nextSectionId);
+    setMobileMenuOpen(false);
+  };
 
   const sair = () => {
     limparImpersonacao();
@@ -770,7 +822,7 @@ export default function App() {
 
       persistirSessao((await response.json()) as AuthResponse);
     } catch {
-      setErro('Não foi possível conectar com o backend.');
+      setErro('NÃ£o foi possÃ­vel conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -786,7 +838,7 @@ export default function App() {
     }
 
     if (senha !== confirmacaoSenha) {
-      setErro('A confirmação de senha não confere.');
+      setErro('A confirmaÃ§Ã£o de senha nÃ£o confere.');
       return;
     }
 
@@ -809,7 +861,7 @@ export default function App() {
       setConfirmacaoSenha('');
       setSenha('');
     } catch {
-      setErro('Não foi possível conectar com o backend.');
+      setErro('NÃ£o foi possÃ­vel conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -863,8 +915,8 @@ export default function App() {
     return (
       <div className={`auth-shell ${isEmbedded ? 'embedded' : ''}`}>
         <section className="auth-card">
-          <h2>Verificando licença</h2>
-          <p>Preparando o portal com validação de acesso...</p>
+          <h2>Verificando licenÃ§a</h2>
+          <p>Preparando o portal com validaÃ§Ã£o de acesso...</p>
         </section>
       </div>
     );
@@ -882,8 +934,12 @@ export default function App() {
     const modoCadastroAtivo = isStudentPortalMode ? false : modoCadastro;
 
     return (
-      <div className={`auth-shell ${isEmbedded ? 'embedded' : ''}`}>
-        {!isEmbedded && (
+      <div
+        className={`auth-shell ${isEmbedded ? 'embedded' : ''} ${
+          isStudentPortalMode ? 'auth-shell-plugin' : ''
+        }`}
+      >
+        {!isEmbedded && !isStudentPortalMode && (
           <section className="auth-panel">
             <div className="brand auth-brand">
               <div className="brand-mark">7E</div>
@@ -893,15 +949,21 @@ export default function App() {
               </div>
             </div>
 
-            <h1>Bem-vindo à plataforma Academy</h1>
+            <h1>Bem-vindo Ã  plataforma Academy</h1>
             <p>
-              Ambiente para gestão de contas, turmas, matrículas, financeiro e operação
-              acadêmica.
+              Ambiente para gestÃ£o de contas, turmas, matrÃ­culas, financeiro e operaÃ§Ã£o
+              acadÃªmica.
             </p>
           </section>
         )}
 
-        <section className="auth-card">
+        <section className={`auth-card ${isStudentPortalMode ? 'auth-card-plugin' : ''}`}>
+          {isStudentPortalMode ? (
+            <div className="auth-plugin-brand">
+              <img src="/Logo-IPESK.png" alt="IPESK" />
+            </div>
+          ) : null}
+
           {isStudentPortalMode ? null : (
             <div className="auth-tabs">
               <button
@@ -1027,10 +1089,6 @@ export default function App() {
         </nav>
 
         <div className="global-sidebar-footer">
-          <button type="button" className="global-sidebar-cta">
-            <span className="material-symbols-outlined">add</span>
-            Novo Evento
-          </button>
           <button type="button" className="global-sidebar-logout" onClick={sair}>
             <span className="material-symbols-outlined">logout</span>
             Sair
@@ -1059,34 +1117,35 @@ export default function App() {
                 {mobileMenuOpen ? 'close' : 'menu'}
               </span>
             </button>
+
             <label className="global-topbar-search" htmlFor="global-search">
               <TopbarIcon name="search" />
               <input
                 id="global-search"
                 type="text"
                 placeholder="Buscar alunos, turmas ou materiais..."
+                value={globalSearchQuery}
+                onChange={(event) => setGlobalSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    executeGlobalSearch();
+                  }
+                }}
               />
             </label>
-            <nav className="global-topbar-tabs" aria-label="Navegação superior">
-              <button type="button" className="active">
-                Visão geral
-              </button>
-              <button type="button">Análises</button>
-              <button type="button">Relatórios</button>
-            </nav>
           </div>
           <div className="global-topbar-right">
-            <button type="button" className="global-topbar-icon" aria-label="Notificações">
+            <button type="button" className="global-topbar-icon" aria-label="NotificaÃ§Ãµes">
               <TopbarIcon name="notifications" />
               <span className="global-topbar-dot" />
             </button>
             <button
               type="button"
               className="global-topbar-icon"
-              aria-label="Alternar tema"
-              onClick={() => setTemaEscuro((current) => !current)}
+              aria-label="Ajuda"
             >
-              <TopbarIcon name={temaEscuro ? 'light_mode' : 'dark_mode'} />
+              <TopbarIcon name="help" />
             </button>
             <div className="global-topbar-user">
               <input
@@ -1103,7 +1162,7 @@ export default function App() {
                     const message =
                       error instanceof Error
                         ? error.message
-                        : 'Não foi possível atualizar a foto de perfil.';
+                        : 'NÃ£o foi possÃ­vel atualizar a foto de perfil.';
                     window.alert(message);
                   } finally {
                     event.target.value = '';
@@ -1112,7 +1171,7 @@ export default function App() {
               />
               <img
                 className="global-topbar-avatar"
-                alt="Avatar do usuário"
+                alt="Avatar do usuÃ¡rio"
                 src={
                   usuario?.avatarUrl ||
                   'https://lh3.googleusercontent.com/aida-public/AB6AXuDDw0TJspg79mG5fWY5VjXS8gA3CE9GPLyYCbl0ZwS48kInu_yAIMZeKLC-OO1TctEVlEQysf1QpBPTp8Ml57g9o3zSmOUvPKnOaJm_IE9_7ZO_Tx_aDraQVsQLeQvThBrV9idAYpQDADLvjejTx6ovynKPs6bTZNhy1nmT1Ns-q5zbuMwFPjqqLe6Xs_P8CYwLK3gFTRvheh09Ut1P3UIbNyqcLVWrchzSNWi-sAIj_dgvKhNaNS7dwFGFCfE7NgF_XgphKdfvTwbQ'
@@ -1131,7 +1190,7 @@ export default function App() {
                       const message =
                         error instanceof Error
                           ? error.message
-                          : 'Não foi possível remover a foto de perfil.';
+                          : 'NÃ£o foi possÃ­vel remover a foto de perfil.';
                       window.alert(message);
                     }
                   }}
@@ -1144,6 +1203,9 @@ export default function App() {
                 <span className="global-topbar-user-role">{roleLabel}</span>
               </div>
             </div>
+            <button type="button" className="global-topbar-logout-btn" onClick={sair}>
+              Sair
+            </button>
           </div>
         </header>
 
@@ -1151,10 +1213,10 @@ export default function App() {
           <section className="native-impersonation-banner">
             <div>
               <strong>
-                Sessão de impersonação ativa: {impersonationMeta.actorName}
+                SessÃ£o de impersonaÃ§Ã£o ativa: {impersonationMeta.actorName}
               </strong>
               <small>
-                Motivo: {impersonationMeta.reason} â€¢ Expira em{' '}
+                Motivo: {impersonationMeta.reason} Ã¢â‚¬Â¢ Expira em{' '}
                 {new Intl.DateTimeFormat('pt-BR', {
                   day: '2-digit',
                   month: '2-digit',
@@ -1164,7 +1226,7 @@ export default function App() {
               </small>
             </div>
             <button type="button" onClick={encerrarImpersonacao}>
-              Encerrar impersonação
+              Encerrar impersonaÃ§Ã£o
             </button>
           </section>
         ) : null}
@@ -1254,5 +1316,6 @@ export default function App() {
     </div>
   );
 }
+
 
 
