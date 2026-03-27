@@ -393,17 +393,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
       {!loading ? (
         <div className="native-courses-grid">
-          <button
-            type="button"
-            className="native-course-card native-course-card-add"
-            onClick={openCreateModal}
-          >
-            <span className="native-course-card-add-icon" aria-hidden="true">
-              +
-            </span>
-            <strong>Adicionar curso</strong>
-          </button>
-
           {filteredCourses.length === 0 ? (
             <article className="native-panel native-course-empty">
               <p className="native-info">Nenhum curso encontrado.</p>
@@ -469,6 +458,17 @@ export function CoursesNative({ token }: CoursesNativeProps) {
               );
             })
           )}
+
+          <button
+            type="button"
+            className="native-course-card native-course-card-add"
+            onClick={openCreateModal}
+          >
+            <span className="native-course-card-add-icon" aria-hidden="true">
+              +
+            </span>
+            <strong>Adicionar curso</strong>
+          </button>
         </div>
       ) : null}
 

@@ -2224,7 +2224,7 @@ table button:disabled {
 
 .native-courses-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.9rem;
 }
 
@@ -2343,7 +2343,7 @@ table button:disabled {
 }
 
 .native-course-empty {
-  grid-column: span 2;
+  grid-column: span 3;
 }
 
 .native-info {
@@ -3580,9 +3580,8 @@ table button:disabled {
   z-index: 42;
   width: 264px;
   height: 100vh;
-  background: #fff;
-  border-right: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  background: #f4f5f7;
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
   padding: 1.4rem 0.8rem 1rem;
   display: grid;
   grid-template-rows: auto 1fr auto;
@@ -3634,18 +3633,18 @@ table button:disabled {
 
 .global-sidebar-nav button:hover {
   color: #6f7b86;
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .global-sidebar-nav button.active {
   color: #16181d;
-  background: #f6f6f6;
+  background: rgba(0, 0, 0, 0.04);
 }
 
-.global-sidebar-nav button.active::before {
+.global-sidebar-nav button.active::after {
   content: '';
   position: absolute;
-  left: 0;
+  right: 0;
   top: 8px;
   bottom: 8px;
   width: 4px;
@@ -4693,102 +4692,82 @@ table button {
 }
 
 .student-template-sidebar {
-  width: 264px;
+  width: 248px;
   position: fixed;
   left: 0;
   top: 0;
   bottom: 0;
-  z-index: 42;
-  background: #fff;
-  border-right: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 1.2rem;
-  padding: 1.4rem 0.8rem 1rem;
-  overflow: hidden;
+  z-index: 40;
+  background: #f4f7f8;
+  border-right: 1px solid var(--st-border);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem 1.25rem;
 }
 
 .student-template-brand {
-  display: flex;
-  justify-content: flex-start;
-  padding: 0 0.6rem;
+  display: grid;
+  justify-items: start;
+  padding: 0.25rem 0.25rem 0.5rem;
 }
 
 .student-template-brand img {
-  display: block;
-  width: 100%;
-  max-width: 176px;
+  width: min(210px, 100%);
   height: auto;
   object-fit: contain;
 }
 
 .student-template-menu {
   display: grid;
-  gap: 0.25rem;
-  margin-top: 0;
-  align-content: start;
-  padding-top: 0.6rem;
-  overflow-x: hidden;
+  gap: 0.2rem;
+  margin-top: 0.2rem;
 }
 
 .student-template-menu button {
   display: flex;
   align-items: center;
-  gap: 0.72rem;
-  border: 1px solid transparent;
-  border-radius: 0;
+  gap: 0.75rem;
+  border: 0;
+  border-radius: 0.7rem;
   background: transparent;
-  color: #97a1ab;
-  font-size: 0.88rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 0.9rem 0.75rem;
+  color: #344860;
+  font: inherit;
+  font-size: 1.5rem;
+  font-weight: 600;
+  padding: 0.72rem 0.68rem;
   cursor: pointer;
   text-align: left;
   transition: background 0.18s ease, color 0.18s ease;
-  width: 100%;
-  min-width: 0;
-  position: relative;
 }
 
 .student-template-menu button .student-template-icon {
-  width: 1.08rem;
-  height: 1.08rem;
-  color: currentColor;
+  width: 1.18rem;
+  height: 1.18rem;
+  color: #4b5d75;
 }
 
 .student-template-menu button:hover {
-  color: #6f7b86;
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba(19, 147, 149, 0.1);
+  color: var(--st-primary-strong);
 }
 
 .student-template-menu button:hover .student-template-icon {
-  color: currentColor;
+  color: var(--st-primary-strong);
 }
 
 .student-template-menu button.active {
-  background: #f6f6f6;
-  color: #16181d;
-}
-
-.student-template-menu button.active::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 4px;
-  background: var(--st-primary);
+  background: rgba(19, 147, 149, 0.12);
+  color: #13595a;
+  box-shadow: inset -4px 0 0 var(--st-primary);
 }
 
 .student-template-menu button.active .student-template-icon {
-  color: currentColor;
+  color: #1a6f70;
 }
 
 .student-template-main {
-  margin-left: 264px;
+  margin-left: 248px;
   min-height: 100vh;
 }
 
