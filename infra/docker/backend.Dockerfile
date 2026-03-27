@@ -1,5 +1,10 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
+ENV NPM_CONFIG_FETCH_RETRIES=5 \
+    NPM_CONFIG_FETCH_RETRY_FACTOR=2 \
+    NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000 \
+    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000 \
+    NPM_CONFIG_FETCH_TIMEOUT=300000
 
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/package.json
@@ -11,6 +16,8 @@ RUN npm run prisma:generate --workspace backend
 COPY apps/backend ./apps/backend
 WORKDIR /app/apps/backend
 RUN npm run build
+WORKDIR /app
+RUN npm prune --workspace backend --omit=dev --include-workspace-root=false
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
@@ -19,7 +26,8 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/package.json
 COPY apps/backend/prisma ./apps/backend/prisma
-RUN npm ci --workspace backend --omit=dev --include-workspace-root=false
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/backend/node_modules ./apps/backend/node_modules
 
 COPY --from=builder /app/apps/backend/dist    ./apps/backend/dist
 # Conteúdo público do backend (assets estáticos e arquivos servidos pela API)
