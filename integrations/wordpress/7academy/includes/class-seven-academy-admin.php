@@ -34,7 +34,7 @@ class Seven_Academy_Admin
         }
 
         $settings      = self::get_settings();
-        $licenseStatus = Seven_Academy_License::get_license_status($settings);
+        $licenseStatus = Seven_Academy_License::get_license_status($settings, true);
         $notice        = self::read_notice();
         $updateInfo    = Seven_Academy_Updater::fetch_update_data();
         $hasUpdate     = $updateInfo['ok'] && !empty($updateInfo['data']['updateAvailable']);

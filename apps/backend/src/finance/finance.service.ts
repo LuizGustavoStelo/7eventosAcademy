@@ -28,36 +28,65 @@ export class FinanceService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getOverview(user: JwtPayload) {
+    await this.syncExpiredPendingCharges(user);
+
     const where = this.buildChargeWhere(user);
+    const endOfCurrentMonth = this.getEndOfCurrentMonth();
     const [totalCharges, pendingCharges, paidCharges, overdueCharges] =
       await Promise.all([
         this.prisma.monthlyCharge.count({ where }),
-        this.prisma.monthlyCharge.count({ where: { ...where, status: 'PENDING' } }),
+        this.prisma.monthlyCharge.count({
+          where: {
+            ...where,
+            status: 'PENDING',
+            dueDate: { lte: endOfCurrentMonth },
+          },
+        }),
         this.prisma.monthlyCharge.count({ where: { ...where, status: 'PAID' } }),
         this.prisma.monthlyCharge.count({ where: { ...where, status: 'OVERDUE' } }),
       ]);
 
-    const amountByStatus = await this.prisma.monthlyCharge.groupBy({
-      by: ['status'],
-      where,
-      _sum: {
-        amount: true,
-      },
-    });
+    const [pendingAmount, paidAmount, overdueAmount, canceledAmount] =
+      await Promise.all([
+        this.prisma.monthlyCharge.aggregate({
+          where: {
+            ...where,
+            status: 'PENDING',
+            dueDate: { lte: endOfCurrentMonth },
+          },
+          _sum: { amount: true },
+        }),
+        this.prisma.monthlyCharge.aggregate({
+          where: { ...where, status: 'PAID' },
+          _sum: { amount: true },
+        }),
+        this.prisma.monthlyCharge.aggregate({
+          where: { ...where, status: 'OVERDUE' },
+          _sum: { amount: true },
+        }),
+        this.prisma.monthlyCharge.aggregate({
+          where: { ...where, status: 'CANCELED' },
+          _sum: { amount: true },
+        }),
+      ]);
 
     return {
       totalCharges,
       pendingCharges,
       paidCharges,
       overdueCharges,
-      amountByStatus: amountByStatus.map((item) => ({
-        status: item.status.toLowerCase(),
-        amount: Number(item._sum.amount ?? 0),
-      })),
+      amountByStatus: [
+        { status: 'pending', amount: Number(pendingAmount._sum.amount ?? 0) },
+        { status: 'paid', amount: Number(paidAmount._sum.amount ?? 0) },
+        { status: 'overdue', amount: Number(overdueAmount._sum.amount ?? 0) },
+        { status: 'canceled', amount: Number(canceledAmount._sum.amount ?? 0) },
+      ],
     };
   }
 
   async getDashboardSummary(user: JwtPayload) {
+    await this.syncExpiredPendingCharges(user);
+
     const cacheKey = this.getDashboardSummaryCacheKey(user);
     const nowMs = Date.now();
     const cachedSummary = this.dashboardSummaryCache.get(cacheKey);
@@ -99,10 +128,7 @@ export class FinanceService {
       now.getDate() + 1,
     );
 
-    const pendingStatuses: Array<'PENDING' | 'OVERDUE'> = [
-      'PENDING',
-      'OVERDUE',
-    ];
+    const endOfCurrentMonth = this.getEndOfCurrentMonth(now);
     const chargeWhere = this.buildChargeWhere(user);
 
     const [
@@ -148,17 +174,29 @@ export class FinanceService {
       this.prisma.monthlyCharge.count({
         where: {
           ...chargeWhere,
-          status: {
-            in: pendingStatuses,
-          },
+          OR: [
+            { status: 'OVERDUE' },
+            {
+              status: 'PENDING',
+              dueDate: {
+                lte: endOfCurrentMonth,
+              },
+            },
+          ],
         },
       }),
       this.prisma.monthlyCharge.aggregate({
         where: {
           ...chargeWhere,
-          status: {
-            in: pendingStatuses,
-          },
+          OR: [
+            { status: 'OVERDUE' },
+            {
+              status: 'PENDING',
+              dueDate: {
+                lte: endOfCurrentMonth,
+              },
+            },
+          ],
         },
         _sum: {
           amount: true,
@@ -186,9 +224,15 @@ export class FinanceService {
       this.prisma.monthlyCharge.findFirst({
         where: {
           ...chargeWhere,
-          status: {
-            in: pendingStatuses,
-          },
+          OR: [
+            { status: 'OVERDUE' },
+            {
+              status: 'PENDING',
+              dueDate: {
+                lte: endOfCurrentMonth,
+              },
+            },
+          ],
         },
         orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
         select: {
@@ -262,9 +306,25 @@ export class FinanceService {
   }
 
   async findCharges(user: JwtPayload) {
+    await this.syncExpiredPendingCharges(user);
+
     const where = this.buildChargeWhere(user);
+    const endOfCurrentMonth = this.getEndOfCurrentMonth();
     const charges = await this.prisma.monthlyCharge.findMany({
-      where,
+      where: {
+        ...where,
+        OR: [
+          { status: 'OVERDUE' },
+          { status: 'PAID' },
+          { status: 'CANCELED' },
+          {
+            status: 'PENDING',
+            dueDate: {
+              lte: endOfCurrentMonth,
+            },
+          },
+        ],
+      },
       include: {
         enrollment: {
           include: {
@@ -286,17 +346,26 @@ export class FinanceService {
           orderBy: { createdAt: 'desc' },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
     });
 
-    return charges.map((charge) => ({
+    const relevantActionableChargeIds = this.getRelevantActionableChargeIds(charges);
+
+    return charges
+      .filter((charge) => {
+        if (charge.status === 'PENDING' || charge.status === 'OVERDUE') {
+          return relevantActionableChargeIds.has(charge.id);
+        }
+        return true;
+      })
+      .map((charge) => ({
       ...charge,
       amount: Number(charge.amount),
       paymentTransactions: charge.paymentTransactions.map((transaction) => ({
         ...transaction,
         amount: Number(transaction.amount),
       })),
-    }));
+      }));
   }
 
   async createCharge(dto: CreateChargeDto, user: JwtPayload) {
@@ -526,6 +595,74 @@ export class FinanceService {
     }
 
     return `admin:${user.sub}`;
+  }
+
+  private getEndOfCurrentMonth(referenceDate = new Date()) {
+    return new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
+  }
+
+  private async syncExpiredPendingCharges(user: JwtPayload) {
+    const where = this.buildChargeWhere(user);
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    await this.prisma.monthlyCharge.updateMany({
+      where: {
+        ...where,
+        status: 'PENDING',
+        dueDate: {
+          lt: startOfToday,
+        },
+      },
+      data: {
+        status: 'OVERDUE',
+      },
+    });
+  }
+
+  private getRelevantActionableChargeIds(
+    charges: Array<{
+      id: string;
+      enrollmentId: string;
+      dueDate: Date;
+      status: 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELED';
+    }>,
+  ) {
+    const selectedIds = new Set<string>();
+    const byEnrollment = new Map<string, typeof charges>();
+
+    charges.forEach((charge) => {
+      const list = byEnrollment.get(charge.enrollmentId) ?? [];
+      list.push(charge);
+      byEnrollment.set(charge.enrollmentId, list);
+    });
+
+    byEnrollment.forEach((items) => {
+      const overdue = items
+        .filter((item) => item.status === 'OVERDUE')
+        .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+      if (overdue.length > 0) {
+        selectedIds.add(overdue[0].id);
+        return;
+      }
+
+      const pending = items
+        .filter((item) => item.status === 'PENDING')
+        .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+      if (pending.length > 0) {
+        selectedIds.add(pending[0].id);
+      }
+    });
+
+    return selectedIds;
   }
 
   private toPrismaChargeStatus(status: string) {

@@ -80,17 +80,17 @@ class Seven_Academy_License
 
     public static function get_license_status(array $settings, bool $bypassCache = false): array
     {
+        $token = trim((string) ($settings['activation_token'] ?? ''));
+
         if (!$bypassCache) {
             $cached = get_transient(self::CACHE_KEY);
         } else {
             $cached = false;
         }
 
-        if (is_array($cached)) {
+        if (is_array($cached) && self::is_authoritative_cache($cached, $token)) {
             return $cached;
         }
-
-        $token   = trim((string) ($settings['activation_token'] ?? ''));
 
         if ($token === '') {
             return [
@@ -125,6 +125,22 @@ class Seven_Academy_License
             set_transient(self::CACHE_KEY, $result, MINUTE_IN_SECONDS * 10);
         }
         return $result;
+    }
+
+    private static function is_authoritative_cache(array $cached, string $token): bool
+    {
+        if (!array_key_exists('active', $cached)) {
+            return false;
+        }
+
+        if ($token !== '' && empty($cached['active'])) {
+            $message = strtolower(trim((string) ($cached['message'] ?? '')));
+            if ($message === 'licenca nao verificada ainda.' || $message === 'licença não verificada ainda.') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function current_domain(): string

@@ -1884,7 +1884,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               </footer>
               ) : null}
 
-              {(showAgenda || showMaterials || showCertificate || showProfile) ? (
+              {!isPanelView && (showAgenda || showMaterials || showCertificate || showProfile) ? (
               <section className={`student-template-lower-grid ${isPanelView ? '' : 'is-single-view'}`}>
                 {showAgenda ? (
                 <article

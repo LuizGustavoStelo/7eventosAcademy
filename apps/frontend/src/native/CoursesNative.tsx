@@ -385,9 +385,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Buscar por curso, categoria ou coordenador..."
         />
-        <button type="button" onClick={openCreateModal}>
-          Novo curso
-        </button>
       </div>
 
       {loading ? <p className="native-info">Carregando cursos...</p> : null}
@@ -396,8 +393,19 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
       {!loading ? (
         <div className="native-courses-grid">
+          <button
+            type="button"
+            className="native-course-card native-course-card-add"
+            onClick={openCreateModal}
+          >
+            <span className="native-course-card-add-icon" aria-hidden="true">
+              +
+            </span>
+            <strong>Adicionar curso</strong>
+          </button>
+
           {filteredCourses.length === 0 ? (
-            <article className="native-panel">
+            <article className="native-panel native-course-empty">
               <p className="native-info">Nenhum curso encontrado.</p>
             </article>
           ) : (

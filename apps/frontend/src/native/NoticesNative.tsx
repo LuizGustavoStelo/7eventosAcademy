@@ -45,6 +45,7 @@ type NoticesNativeProps = {
 
 const PAGE_SIZE = 6;
 const STATUS_ORDER: NoticeStatus[] = ['programado', 'entregue', 'finalizado'];
+const UTC_MINUS_4_TIMEZONE = 'Etc/GMT+4';
 
 function defaultForm(): NoticeFormState {
   return {
@@ -96,7 +97,40 @@ function formatDateTime(value?: string | null): string {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
+    timeZone: UTC_MINUS_4_TIMEZONE,
   }).format(date);
+}
+
+function toUtcMinus4Iso(value: string): string | undefined {
+  if (!value) return undefined;
+
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/,
+  );
+  if (!match) return undefined;
+
+  const [, yearRaw, monthRaw, dayRaw, hourRaw, minuteRaw] = match;
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  const hour = Number(hourRaw);
+  const minute = Number(minuteRaw);
+
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    !Number.isFinite(hour) ||
+    !Number.isFinite(minute)
+  ) {
+    return undefined;
+  }
+
+  // O campo datetime-local é interpretado como horário UTC-4 fixo.
+  const utcMillis = Date.UTC(year, month - 1, day, hour + 4, minute, 0, 0);
+  const asDate = new Date(utcMillis);
+  return Number.isNaN(asDate.getTime()) ? undefined : asDate.toISOString();
 }
 
 export function NoticesNative({ token }: NoticesNativeProps) {
@@ -213,8 +247,8 @@ export function NoticesNative({ token }: NoticesNativeProps) {
           title,
           body,
           priority: form.priority,
-          scheduledAt: form.scheduledAt || undefined,
-          expiresAt: form.expiresAt || undefined,
+          scheduledAt: toUtcMinus4Iso(form.scheduledAt),
+          expiresAt: toUtcMinus4Iso(form.expiresAt),
         }),
       });
 
@@ -318,7 +352,7 @@ export function NoticesNative({ token }: NoticesNativeProps) {
 
             <div className="native-notice-schedule-grid">
               <label>
-                Agendar envio
+                Agendar envio (UTC-4)
                 <input
                   type="datetime-local"
                   value={form.scheduledAt}
@@ -332,7 +366,7 @@ export function NoticesNative({ token }: NoticesNativeProps) {
               </label>
 
               <label>
-                Expiração
+                Expiração (UTC-4)
                 <input
                   type="datetime-local"
                   value={form.expiresAt}
