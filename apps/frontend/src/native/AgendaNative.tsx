@@ -78,6 +78,8 @@ function formatTime(datetime: string): string {
 }
 
 export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
+  const INITIAL_UPCOMING_VISIBLE = 5;
+  const UPCOMING_STEP = 10;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [classes, setClasses] = useState<SchoolClass[]>([]);
@@ -91,6 +93,7 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
   const [quickDate, setQuickDate] = useState('');
   const [quickTime, setQuickTime] = useState('');
   const [quickProvider, setQuickProvider] = useState('YouTube');
+  const [upcomingVisibleCount, setUpcomingVisibleCount] = useState(INITIAL_UPCOMING_VISIBLE);
 
   useEffect(() => {
     const load = async () => {
@@ -184,9 +187,19 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
         const first = parseEventDate(a.datetime)?.getTime() ?? 0;
         const second = parseEventDate(b.datetime)?.getTime() ?? 0;
         return first - second;
-      })
-      .slice(0, 8);
+      });
   }, [filteredEvents]);
+
+  useEffect(() => {
+    setUpcomingVisibleCount(INITIAL_UPCOMING_VISIBLE);
+  }, [upcomingEvents.length, filter, search]);
+
+  const visibleUpcomingEvents = useMemo(
+    () => upcomingEvents.slice(0, upcomingVisibleCount),
+    [upcomingEvents, upcomingVisibleCount],
+  );
+
+  const canLoadMoreUpcoming = upcomingVisibleCount < upcomingEvents.length;
 
   const openClassEditor = (eventItem: AgendaEvent) => {
     if (eventItem.type !== 'class' || !eventItem.classId) return;
@@ -479,7 +492,7 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
               {upcomingEvents.length === 0 ? (
                 <p className="native-info">Nenhum evento para o filtro selecionado.</p>
               ) : (
-                upcomingEvents.map((eventItem) => {
+                visibleUpcomingEvents.map((eventItem) => {
                   const eventDate = parseEventDate(eventItem.datetime);
                   if (!eventDate) return null;
 
@@ -509,6 +522,19 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
                   );
                 })
               )}
+              {canLoadMoreUpcoming ? (
+                <button
+                  type="button"
+                  className="native-agenda-upcoming-more"
+                  onClick={() =>
+                    setUpcomingVisibleCount((current) =>
+                      Math.min(upcomingEvents.length, current + UPCOMING_STEP),
+                    )
+                  }
+                >
+                  Ver mais
+                </button>
+              ) : null}
             </div>
           </article>
         </div>

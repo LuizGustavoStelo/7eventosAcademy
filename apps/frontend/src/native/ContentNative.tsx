@@ -139,6 +139,7 @@ export function ContentNative({ token }: ContentNativeProps) {
   const [sortMode, setSortMode] = useState<'recent' | 'size'>('recent');
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const isLinkKind = form.kind === 'link';
 
   const loadData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -246,16 +247,21 @@ export function ContentNative({ token }: ContentNativeProps) {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${API_BASE_URL}${path}`);
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.timeout = 120_000;
 
       xhr.upload.onprogress = (event) => {
         if (!event.lengthComputable) return;
-        const percent = Math.round((event.loaded / event.total) * 100);
+        const percent = Math.round((event.loaded / event.total) * 95);
         setUploadProgress(Math.max(0, Math.min(100, percent)));
       };
 
-      xhr.onerror = () => reject(new Error('Falha de conexão durante o upload.'));
+      xhr.onerror = () => reject(new Error('Falha de conex\u00e3o durante o upload.'));
+      xhr.ontimeout = () =>
+        reject(new Error('Falha no envio por tempo limite (504). Tente novamente em instantes ou envie um arquivo menor.'));
+      xhr.onabort = () => reject(new Error('Envio cancelado pelo usu\u00e1rio.'));
 
       xhr.onload = () => {
+        setUploadProgress(100);
         const raw = xhr.responseText || '';
         const payload = (() => {
           try {
@@ -293,7 +299,7 @@ export function ContentNative({ token }: ContentNativeProps) {
       return;
     }
 
-    if (form.kind === 'link' && !form.externalUrl.trim() && selectedFiles.length === 0) {
+    if (isLinkKind && !form.externalUrl.trim()) {
       setFormError('Para material do tipo link, informe uma URL externa.');
       return;
     }
@@ -631,10 +637,17 @@ export function ContentNative({ token }: ContentNativeProps) {
                 <select
                   value={form.kind}
                   onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      kind: event.target.value as MaterialFormState['kind'],
-                    }))
+                    setForm((current) => {
+                      const nextKind = event.target.value as MaterialFormState['kind'];
+                      if (nextKind === 'link') {
+                        setSelectedFiles([]);
+                      }
+                      return {
+                        ...current,
+                        kind: nextKind,
+                        externalUrl: nextKind === 'link' ? current.externalUrl : '',
+                      };
+                    })
                   }
                 >
                   <option value="file">Arquivo</option>
@@ -643,39 +656,42 @@ export function ContentNative({ token }: ContentNativeProps) {
                 </select>
               </label>
 
-              <label className="native-content-field-full">
-                URL externa (opcional)
-                <input
-                  value={form.externalUrl}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      externalUrl: event.target.value,
-                    }))
-                  }
-                  placeholder="https://..."
-                />
-              </label>
-
-              <label className="native-content-field-full">
-                Arquivo (opcional)
-                <input
-                  type="file"
-                  multiple
-                  accept={SUPPORTED_UPLOAD_EXTENSIONS.join(',')}
-                  onChange={onFileChange}
-                />
-                {selectedFiles.length > 0 ? (
+              {isLinkKind ? (
+                <label className="native-content-field-full">
+                  URL externa
+                  <input
+                    value={form.externalUrl}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        externalUrl: event.target.value,
+                      }))
+                    }
+                    placeholder="https://..."
+                    required
+                  />
+                </label>
+              ) : (
+                <label className="native-content-field-full">
+                  Arquivo (opcional)
+                  <input
+                    type="file"
+                    multiple
+                    accept={SUPPORTED_UPLOAD_EXTENSIONS.join(',')}
+                    onChange={onFileChange}
+                  />
+                  {selectedFiles.length > 0 ? (
+                    <small>
+                      {selectedFiles.length} arquivo(s) selecionado(s):{' '}
+                      {selectedFiles.slice(0, 2).map((file) => file.name).join(', ')}
+                      {selectedFiles.length > 2 ? '...' : ''}
+                    </small>
+                  ) : null}
                   <small>
-                    {selectedFiles.length} arquivo(s) selecionado(s):{' '}
-                    {selectedFiles.slice(0, 2).map((file) => file.name).join(', ')}
-                    {selectedFiles.length > 2 ? '...' : ''}
+                    Formatos aceitos: PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, JPG, JPEG, PNG, GIF, WEBP.
                   </small>
-                ) : null}
-                <small>
-                  Formatos aceitos: PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, JPG, JPEG, PNG, GIF, WEBP.
-                </small>
-              </label>
+                </label>
+              )}
 
               <label className="native-content-field-full">
                 Descrição (opcional)

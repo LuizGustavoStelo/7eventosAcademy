@@ -70,14 +70,14 @@ const SECOES_SUPERADMIN: NavSection[] = [
   },
   {
     id: 'superadmin_gestao_contas',
-    label: 'GestÃ£o de Contas',
+    label: 'Gestão de Contas',
     subtitle: 'Template fiel: superadmin_gestao_de_contas',
     templatePath: '/templates/superadmin_gestao_de_contas/index.html',
     renderMode: 'native',
   },
   {
     id: 'superadmin_impersonacao',
-    label: 'ImpersonaÃ§Ã£o',
+    label: 'Impersonação',
     subtitle: 'Template fiel: superadmin_tela_de_impersonacao',
     templatePath: '/templates/superadmin_tela_de_impersonacao/index.html',
     renderMode: 'native',
@@ -85,7 +85,7 @@ const SECOES_SUPERADMIN: NavSection[] = [
   {
     id: 'superadmin_wordpress_plugin',
     label: 'Plugin WordPress',
-    subtitle: 'Gerenciar licenÃ§as e releases do plugin 7academy',
+    subtitle: 'Gerenciar licenças e releases do plugin 7academy',
     templatePath: '/templates/superadmin_wordpress_plugin/index.html',
     renderMode: 'native',
   },
@@ -123,7 +123,7 @@ const SECOES_ADMIN: NavSection[] = [
   {
     id: 'admin_aulas',
     label: 'Aulas',
-    subtitle: 'LanÃ§amento de presenÃ§a por aula (retroativo e bloqueio de futuras)',
+    subtitle: 'Lançamento de presença por aula (retroativo e bloqueio de futuras)',
     templatePath: '/templates/admin_professor_agenda_de_aulas_e_lives/index.html',
     renderMode: 'native',
   },
@@ -157,14 +157,14 @@ const SECOES_ADMIN: NavSection[] = [
   },
   {
     id: 'admin_relatorios',
-    label: 'RelatÃ³rios',
+    label: 'Relatórios',
     subtitle: 'Template fiel: admin_professor_relatorios_e_analises',
     templatePath: '/templates/admin_professor_relatorios_e_analises/index.html',
     renderMode: 'native',
   },
   {
     id: 'admin_configuracoes',
-    label: 'ConfiguraÃ§Ãµes',
+    label: 'Configurações',
     subtitle: 'Template fiel: admin_professor_configuracoes',
     templatePath: '/templates/admin_professor_configuracoes/index.html',
     renderMode: 'native',
@@ -426,13 +426,13 @@ function PublicPortalBlocked({ message }: { message: string }) {
             Acesso restrito
           </button>
         </div>
-        <h2>Portal indisponÃ­vel</h2>
+        <h2>Portal indisponível</h2>
         <p className="auth-error" style={{ marginTop: 0 }}>
           {message}
         </p>
         <div style={{ display: 'grid', gap: 12 }}>
           <p style={{ margin: 0, color: 'var(--text-secondary, #52667a)', lineHeight: 1.6 }}>
-            Se vocÃª Ã© aluno ou responsÃ¡vel, confirme com a instituiÃ§Ã£o se a licenÃ§a estÃ¡ ativa.
+            Se você é aluno ou responsável, confirme com a instituição se a licença está ativa.
           </p>
           <a href="/" style={{ color: 'var(--accent-primary, #139395)', fontWeight: 600 }}>
             Recarregar
@@ -594,7 +594,7 @@ export default function App() {
     if (!portalLicenseToken || !portalLicenseDomain || !portalLicenseSiteUrl) {
       setPublicPortalLicense({
         status: 'blocked',
-        message: 'LicenÃ§a nÃ£o informada para este portal.',
+        message: 'Licença não informada para este portal.',
       });
       return;
     }
@@ -624,7 +624,7 @@ export default function App() {
         if (!response.ok || !data?.valid) {
           setPublicPortalLicense({
             status: 'blocked',
-            message: 'LicenÃ§a expirada, inativa ou invÃ¡lida para este portal.',
+            message: 'Licença expirada, inativa ou inválida para este portal.',
           });
           return;
         }
@@ -634,7 +634,7 @@ export default function App() {
         if (!cancelled) {
           setPublicPortalLicense({
             status: 'blocked',
-            message: 'NÃ£o foi possÃ­vel validar a licenÃ§a deste portal.',
+            message: 'Não foi possível validar a licença deste portal.',
           });
         }
       }
@@ -651,9 +651,9 @@ export default function App() {
       if (Array.isArray(data.message)) return data.message.join(' ');
       if (typeof data.message === 'string') return data.message;
     } catch {
-      return 'Falha na operaÃ§Ã£o.';
+      return 'Falha na operação.';
     }
-    return 'Falha na operaÃ§Ã£o.';
+    return 'Falha na operação.';
   };
 
   const limparImpersonacao = () => {
@@ -747,7 +747,7 @@ export default function App() {
       const me = (await response.json()) as AuthUser;
       atualizarUsuarioSessao(me);
     } catch {
-      // ignora erro de atualizaÃ§Ã£o de perfil
+      // ignora erro de atualização de perfil
     }
   };
 
@@ -859,7 +859,7 @@ export default function App() {
 
       persistirSessao((await response.json()) as AuthResponse);
     } catch {
-      setErro('NÃ£o foi possÃ­vel conectar com o backend.');
+      setErro('Não foi possível conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -875,7 +875,7 @@ export default function App() {
     }
 
     if (senha !== confirmacaoSenha) {
-      setErro('A confirmaÃ§Ã£o de senha nÃ£o confere.');
+      setErro('A confirmação de senha não confere.');
       return;
     }
 
@@ -898,7 +898,7 @@ export default function App() {
       setConfirmacaoSenha('');
       setSenha('');
     } catch {
-      setErro('NÃ£o foi possÃ­vel conectar com o backend.');
+      setErro('Não foi possível conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -952,8 +952,8 @@ export default function App() {
     return (
       <div className={`auth-shell ${isEmbedded ? 'embedded' : ''}`}>
         <section className="auth-card">
-          <h2>Verificando licenÃ§a</h2>
-          <p>Preparando o portal com validaÃ§Ã£o de acesso...</p>
+          <h2>Verificando licença</h2>
+          <p>Preparando o portal com validação de acesso...</p>
         </section>
       </div>
     );
@@ -986,10 +986,10 @@ export default function App() {
               </div>
             </div>
 
-            <h1>Bem-vindo Ã  plataforma Academy</h1>
+            <h1>Bem-vindo à plataforma Academy</h1>
             <p>
-              Ambiente para gestÃ£o de contas, turmas, matrÃ­culas, financeiro e operaÃ§Ã£o
-              acadÃªmica.
+              Ambiente para gestão de contas, turmas, matrículas, financeiro e operação
+              acadêmica.
             </p>
           </section>
         )}
@@ -1191,7 +1191,7 @@ export default function App() {
             </label>
           </div>
           <div className="global-topbar-right">
-            <button type="button" className="global-topbar-icon" aria-label="NotificaÃ§Ãµes">
+            <button type="button" className="global-topbar-icon" aria-label="Notificações">
               <TopbarIcon name="notifications" />
               <span className="global-topbar-dot" />
             </button>
@@ -1217,7 +1217,7 @@ export default function App() {
                     const message =
                       error instanceof Error
                         ? error.message
-                        : 'NÃ£o foi possÃ­vel atualizar a foto de perfil.';
+                        : 'Não foi possível atualizar a foto de perfil.';
                     window.alert(message);
                   } finally {
                     event.target.value = '';
@@ -1226,7 +1226,7 @@ export default function App() {
               />
               <img
                 className="global-topbar-avatar"
-                alt="Avatar do usuÃ¡rio"
+                alt="Avatar do usuário"
                 src={
                   usuario?.avatarUrl ||
                   'https://lh3.googleusercontent.com/aida-public/AB6AXuDDw0TJspg79mG5fWY5VjXS8gA3CE9GPLyYCbl0ZwS48kInu_yAIMZeKLC-OO1TctEVlEQysf1QpBPTp8Ml57g9o3zSmOUvPKnOaJm_IE9_7ZO_Tx_aDraQVsQLeQvThBrV9idAYpQDADLvjejTx6ovynKPs6bTZNhy1nmT1Ns-q5zbuMwFPjqqLe6Xs_P8CYwLK3gFTRvheh09Ut1P3UIbNyqcLVWrchzSNWi-sAIj_dgvKhNaNS7dwFGFCfE7NgF_XgphKdfvTwbQ'
@@ -1245,7 +1245,7 @@ export default function App() {
                       const message =
                         error instanceof Error
                           ? error.message
-                          : 'NÃ£o foi possÃ­vel remover a foto de perfil.';
+                          : 'Não foi possível remover a foto de perfil.';
                       window.alert(message);
                     }
                   }}
@@ -1268,10 +1268,10 @@ export default function App() {
           <section className="native-impersonation-banner">
             <div>
               <strong>
-                SessÃ£o de impersonaÃ§Ã£o ativa: {impersonationMeta.actorName}
+                Sessão de impersonação ativa: {impersonationMeta.actorName}
               </strong>
               <small>
-                Motivo: {impersonationMeta.reason} Ã¢â‚¬Â¢ Expira em{' '}
+                Motivo: {impersonationMeta.reason} • Expira em{' '}
                 {new Intl.DateTimeFormat('pt-BR', {
                   day: '2-digit',
                   month: '2-digit',
@@ -1281,7 +1281,7 @@ export default function App() {
               </small>
             </div>
             <button type="button" onClick={encerrarImpersonacao}>
-              Encerrar impersonaÃ§Ã£o
+              Encerrar impersonação
             </button>
           </section>
         ) : null}

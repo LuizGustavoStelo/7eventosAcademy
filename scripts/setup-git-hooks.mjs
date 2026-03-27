@@ -5,5 +5,5 @@ try {
   execSync('git config core.hooksPath .githooks', { stdio: 'ignore' });
   console.log('[setup-git-hooks] OK: core.hooksPath=.githooks');
 } catch {
-  console.log('[setup-git-hooks] Ignorado: diretÃ³rio sem repositÃ³rio git ativo.');
+  console.log('[setup-git-hooks] Ignorado: diretório sem repositório git ativo.');
 }

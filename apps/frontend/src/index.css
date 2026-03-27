@@ -7007,6 +7007,19 @@ table button {
   gap: 0.9rem;
 }
 
+.native-lessons-filters .native-reports-filter-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.native-lessons-filters .native-reports-filter-grid label {
+  min-width: 0;
+}
+
+.native-lessons-filters .native-reports-filter-grid select {
+  width: 100%;
+  min-width: 0;
+}
+
 .native-lessons-overview {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr);
@@ -7169,7 +7182,26 @@ table button {
   padding: 0.52rem 0.7rem;
 }
 
+.native-agenda-upcoming-more {
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font-weight: 700;
+  padding: 0.55rem 0.8rem;
+  cursor: pointer;
+}
+
+.native-agenda-upcoming-more:hover {
+  border-color: rgba(242, 92, 5, 0.35);
+  color: #9a3412;
+}
+
 @media (max-width: 1260px) {
+  .native-lessons-filters .native-reports-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
   .native-lessons-overview {
     grid-template-columns: 1fr;
   }
