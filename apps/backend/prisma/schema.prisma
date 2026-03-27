@@ -105,6 +105,7 @@ model User {
   studentCourses StudentCourse[]
   financialConfig AccountFinancialConfig?
   ownedMonthlyCharges MonthlyCharge[] @relation("monthly_charge_owner")
+  classNoticeViews ClassNoticeView[]
 
   @@map("users")
 }
@@ -355,9 +356,24 @@ model ClassNotice {
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
   schoolClass SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  views       ClassNoticeView[]
 
   @@index([classId], map: "class_notices_class_idx")
   @@map("class_notices")
+}
+
+model ClassNoticeView {
+  id       String     @id @default(uuid()) @db.Uuid
+  noticeId String     @map("notice_id") @db.Uuid
+  userId   String     @map("user_id") @db.Uuid
+  viewedAt DateTime   @default(now()) @map("viewed_at")
+  notice   ClassNotice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([noticeId, userId], map: "class_notice_views_notice_user_key")
+  @@index([noticeId], map: "class_notice_views_notice_idx")
+  @@index([userId], map: "class_notice_views_user_idx")
+  @@map("class_notice_views")
 }
 
 model Live {

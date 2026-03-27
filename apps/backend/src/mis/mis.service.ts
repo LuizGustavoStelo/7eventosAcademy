@@ -51,7 +51,7 @@ export class MisService {
       return [];
     }
 
-    return this.fetchAvisosByClassIds(classIds);
+    return this.fetchAvisosByClassIds(classIds, userId);
   }
 
   async getAlunoCobrancas(userId: string) {
@@ -80,7 +80,7 @@ export class MisService {
 
     const [materiais, avisos, agenda] = await Promise.all([
       this.fetchMateriaisByClassIds(classIds),
-      this.fetchAvisosByClassIds(classIds),
+      this.fetchAvisosByClassIds(classIds, userId),
       this.fetchAgendaByClassIds(classIds),
     ]);
 
@@ -160,9 +160,14 @@ export class MisService {
     }));
   }
 
-  private async fetchAvisosByClassIds(classIds: string[]) {
+  private async fetchAvisosByClassIds(classIds: string[], viewerUserId?: string) {
+    const now = new Date();
     const notices = await this.prisma.classNotice.findMany({
-      where: { classId: { in: classIds } },
+      where: {
+        classId: { in: classIds },
+        publishedAt: { lte: now },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
       select: {
         id: true,
         title: true,
@@ -173,6 +178,16 @@ export class MisService {
       },
       orderBy: { publishedAt: 'desc' },
     });
+
+    if (viewerUserId && notices.length > 0) {
+      await this.prisma.classNoticeView.createMany({
+        data: notices.map((notice) => ({
+          noticeId: notice.id,
+          userId: viewerUserId,
+        })),
+        skipDuplicates: true,
+      });
+    }
 
     return notices.map((notice) => ({
       id: notice.id,

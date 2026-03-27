@@ -173,14 +173,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     });
   }, [courses, search]);
 
-  const activeCourses = courses.filter((item) => item.status === 'ACTIVE').length;
-  const installmentsCourses = courses.filter(
-    (item) => item.paymentModel === 'INSTALLMENTS',
-  ).length;
-  const averagePrice = courses.length
-    ? courses.reduce((acc, item) => acc + Number(item.price || 0), 0) / courses.length
-    : 0;
-
   const updateForm = <K extends keyof CourseFormState>(
     key: K,
     value: CourseFormState[K],
@@ -385,24 +377,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
           banner.
         </p>
       </header>
-
-      <div className="native-kpi-grid native-kpi-grid-small">
-        <article className="native-kpi-card">
-          <span>Total de cursos</span>
-          <strong>{courses.length}</strong>
-          <small>{activeCourses} curso(s) ativo(s)</small>
-        </article>
-        <article className="native-kpi-card">
-          <span>Mensalidades</span>
-          <strong>{installmentsCourses}</strong>
-          <small>Cursos com pagamento recorrente</small>
-        </article>
-        <article className="native-kpi-card">
-          <span>Ticket médio</span>
-          <strong>{formatCurrency(averagePrice)}</strong>
-          <small>Valor médio do catálogo</small>
-        </article>
-      </div>
 
       <div className="native-toolbar">
         <input

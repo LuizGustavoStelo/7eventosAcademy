@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { apiRequest } from './api';
 
@@ -135,6 +135,9 @@ export function ContentNative({ token }: ContentNativeProps) {
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState<MaterialFormState>(() => defaultForm());
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [activeTab, setActiveTab] = useState<'class' | 'all'>('class');
+  const [sortMode, setSortMode] = useState<'recent' | 'size'>('recent');
+  const formPanelRef = useRef<HTMLElement | null>(null);
 
   const loadData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -171,9 +174,13 @@ export function ContentNative({ token }: ContentNativeProps) {
 
   const filteredMaterials = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return materials.filter((material) => {
-      if (classFilter !== 'ALL' && material.classId !== classFilter) return false;
+    const scoped = materials.filter((material) => {
+      if (activeTab === 'all') return true;
+      if (classFilter === 'ALL') return true;
+      return material.classId === classFilter;
+    });
 
+    const filtered = scoped.filter((material) => {
       if (!query) return true;
       const title = material.title?.toLowerCase() ?? '';
       const description = material.description?.toLowerCase() ?? '';
@@ -186,7 +193,15 @@ export function ContentNative({ token }: ContentNativeProps) {
         courseName.includes(query)
       );
     });
-  }, [materials, search, classFilter]);
+
+    if (sortMode === 'size') {
+      return [...filtered].sort((a, b) => Number(Boolean(b.fileUrl)) - Number(Boolean(a.fileUrl)));
+    }
+
+    return [...filtered].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }, [materials, search, classFilter, activeTab, sortMode]);
 
   const storagePercent = useMemo(() => {
     if (!storage) return 0;
@@ -194,13 +209,35 @@ export function ContentNative({ token }: ContentNativeProps) {
     return Math.min(100, Math.round((storage.usedGb / storage.limitGb) * 100));
   }, [storage]);
 
-  const classesWithMaterials = new Set(materials.map((item) => item.classId)).size;
-  const externalLinks = materials.filter((item) => Boolean(item.externalUrl)).length;
-  const recent30d = materials.filter((item) => {
-    const createdAt = new Date(item.createdAt).getTime();
-    const threshold = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    return Number.isFinite(createdAt) && createdAt >= threshold;
-  }).length;
+  const exportAll = () => {
+    const headers = ['Título', 'Turma', 'Curso', 'Data', 'Tipo', 'Arquivo', 'Link'];
+    const rows = filteredMaterials.map((item) => [
+      item.title,
+      item.schoolClass?.name ?? '-',
+      item.schoolClass?.course?.name ?? '-',
+      formatDate(item.createdAt),
+      item.kind,
+      item.fileUrl ?? '',
+      item.externalUrl ?? '',
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map((col) => `"${String(col).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'materiais.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const goToForm = () => {
+    formPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const submitMaterial = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -317,37 +354,28 @@ export function ContentNative({ token }: ContentNativeProps) {
 
   return (
     <section className="native-page native-content">
-      <header className="native-page-header">
-        <h2>Conteúdo e materiais</h2>
-        <p>
-          Biblioteca acadêmica nativa para organizar materiais por turma com
-          cadastro rápido e controle de armazenamento.
-        </p>
+      <header className="native-content-pro-header">
+        <div>
+          <h2>Gerenciamento de Conteúdo</h2>
+          <p>
+            Organize seus materiais de aula e mantenha a biblioteca acadêmica atualizada para seus alunos.
+          </p>
+        </div>
+        <div className="native-content-pro-actions">
+          <button type="button" className="ghost" onClick={exportAll}>
+            Exportar Tudo
+          </button>
+          <button type="button" className="is-primary" onClick={goToForm}>
+            Novo Material
+          </button>
+        </div>
       </header>
-
-      <div className="native-kpi-grid native-kpi-grid-small">
-        <article className="native-kpi-card">
-          <span>Materiais totais</span>
-          <strong>{materials.length}</strong>
-          <small>{recent30d} adicionados em 30 dias</small>
-        </article>
-        <article className="native-kpi-card">
-          <span>Turmas com material</span>
-          <strong>{classesWithMaterials}</strong>
-          <small>{classes.length} turma(s) cadastrada(s)</small>
-        </article>
-        <article className="native-kpi-card">
-          <span>Links externos</span>
-          <strong>{externalLinks}</strong>
-          <small>Itens com URL de referência</small>
-        </article>
-      </div>
 
       <div className="native-content-grid">
         <aside className="native-content-side">
-          <article className="native-panel">
+          <article className="native-panel" ref={formPanelRef}>
             <header className="native-panel-header">
-              <h3>Novo material</h3>
+              <h3>Upload Rápido</h3>
             </header>
 
             <form className="native-form-grid native-content-form" onSubmit={submitMaterial}>
@@ -385,7 +413,7 @@ export function ContentNative({ token }: ContentNativeProps) {
               </label>
 
               <label>
-                Tipo do material
+                Tipo
                 <select
                   value={form.materialType}
                   onChange={(event) =>
@@ -473,15 +501,15 @@ export function ContentNative({ token }: ContentNativeProps) {
 
               <div className="native-modal-actions">
                 <button type="submit" disabled={saving}>
-                  {saving ? 'Salvando...' : 'Cadastrar material'}
+                  {saving ? 'Salvando...' : 'Salvar Metadados'}
                 </button>
               </div>
             </form>
           </article>
 
-          <article className="native-panel">
+          <article className="native-panel native-content-storage-card">
             <header className="native-panel-header">
-              <h3>Armazenamento</h3>
+              <h3>Armazenamento Usado</h3>
             </header>
             <div className="native-storage-box">
               <strong>{(storage?.usedGb ?? 0).toFixed(2)} GB</strong>
@@ -498,10 +526,40 @@ export function ContentNative({ token }: ContentNativeProps) {
         </aside>
 
         <section className="native-panel native-content-list-panel">
-          <header className="native-panel-header">
-            <h3>Biblioteca da turma</h3>
-            <small>{filteredMaterials.length} item(ns)</small>
+          <header className="native-content-tabs">
+            <button
+              type="button"
+              className={activeTab === 'class' ? 'active' : ''}
+              onClick={() => setActiveTab('class')}
+            >
+              Materiais da Turma
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'all' ? 'active' : ''}
+              onClick={() => setActiveTab('all')}
+            >
+              Biblioteca Geral
+            </button>
           </header>
+
+          <div className="native-content-filter-row">
+            <strong>Filtrar por:</strong>
+            <button
+              type="button"
+              className={sortMode === 'recent' ? 'active' : ''}
+              onClick={() => setSortMode('recent')}
+            >
+              Mais recentes
+            </button>
+            <button
+              type="button"
+              className={sortMode === 'size' ? 'active' : ''}
+              onClick={() => setSortMode('size')}
+            >
+              Maior tamanho
+            </button>
+          </div>
 
           <div className="native-toolbar">
             <input
@@ -515,6 +573,7 @@ export function ContentNative({ token }: ContentNativeProps) {
                 className="native-finance-select"
                 value={classFilter}
                 onChange={(event) => setClassFilter(event.target.value)}
+                disabled={activeTab === 'all'}
               >
                 <option value="ALL">Todas as turmas</option>
                 {classes.map((item) => (
@@ -532,7 +591,7 @@ export function ContentNative({ token }: ContentNativeProps) {
 
           <div className="native-content-list">
             {!loading && filteredMaterials.length === 0 ? (
-              <p className="native-info">Nenhum material encontrado.</p>
+              <p className="native-info">Fim da lista atual. Nenhum material encontrado.</p>
             ) : (
               filteredMaterials.map((material) => (
                 <article key={material.id} className="native-content-item">
@@ -544,8 +603,8 @@ export function ContentNative({ token }: ContentNativeProps) {
                   <div className="native-content-meta">
                     <strong>{material.title}</strong>
                     <small>
-                      {material.schoolClass?.name || 'Turma'} •{' '}
-                      {material.schoolClass?.course?.name || 'Curso'} •{' '}
+                      {material.schoolClass?.name || 'Turma'} â€¢{' '}
+                      {material.schoolClass?.course?.name || 'Curso'} â€¢{' '}
                       {formatDate(material.createdAt)}
                     </small>
                     {material.description ? <p>{material.description}</p> : null}

@@ -165,8 +165,16 @@ export class ClassesController {
   }
 
   @Post(':classId/notices')
-  async createNotice(@Param('classId') classId: string, @Body() dto: any) {
-    return this.noticesService.createNotice({ classId, ...dto });
+  async createNotice(
+    @Param('classId') classId: string,
+    @Body() dto: any,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.noticesService.createNotice({
+      classId,
+      ...dto,
+      publishedBy: request.user.sub,
+    });
   }
 
   @Get('notices/all')

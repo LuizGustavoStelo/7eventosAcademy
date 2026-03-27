@@ -8,6 +8,8 @@ type SchoolClass = {
 };
 
 type NoticePriority = 'normal' | 'importante' | 'urgente';
+type NoticeStatus = 'entregue' | 'programado' | 'finalizado';
+type NoticeViewMode = 'lista' | 'grade';
 
 type ClassNotice = {
   id: string;
@@ -15,8 +17,14 @@ type ClassNotice = {
   title: string;
   body: string;
   priority: NoticePriority | string;
-  createdAt: string;
+  status?: NoticeStatus | string;
   publishedAt?: string;
+  expiresAt?: string | null;
+  archivedUntil?: string | null;
+  expectedViewers?: number;
+  viewedCount?: number;
+  deliveredRate?: number;
+  createdAt: string;
   schoolClass?: {
     name: string;
   };
@@ -27,11 +35,16 @@ type NoticeFormState = {
   title: string;
   priority: NoticePriority;
   body: string;
+  scheduledAt: string;
+  expiresAt: string;
 };
 
 type NoticesNativeProps = {
   token: string;
 };
+
+const PAGE_SIZE = 6;
+const STATUS_ORDER: NoticeStatus[] = ['programado', 'entregue', 'finalizado'];
 
 function defaultForm(): NoticeFormState {
   return {
@@ -39,6 +52,8 @@ function defaultForm(): NoticeFormState {
     title: '',
     priority: 'normal',
     body: '',
+    scheduledAt: '',
+    expiresAt: '',
   };
 }
 
@@ -54,12 +69,31 @@ function priorityTone(value: string): string {
   return 'is-info';
 }
 
-function formatDateTime(value: string): string {
+function normalizeStatus(value?: string): NoticeStatus {
+  if (value === 'programado' || value === 'finalizado') return value;
+  return 'entregue';
+}
+
+function statusLabel(value?: string): string {
+  if (value === 'programado') return 'Aguardando';
+  if (value === 'finalizado') return 'Finalizado';
+  return 'Entregue';
+}
+
+function statusTone(value?: string): string {
+  if (value === 'programado') return 'is-info';
+  if (value === 'finalizado') return 'is-muted';
+  return 'is-success';
+}
+
+function formatDateTime(value?: string | null): string {
+  if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   }).format(date);
@@ -70,7 +104,9 @@ export function NoticesNative({ token }: NoticesNativeProps) {
   const [notices, setNotices] = useState<ClassNotice[]>([]);
   const [search, setSearch] = useState('');
   const [classFilter, setClassFilter] = useState('ALL');
-  const [priorityFilter, setPriorityFilter] = useState<'all' | NoticePriority>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | NoticeStatus>('all');
+  const [viewMode, setViewMode] = useState<NoticeViewMode>('lista');
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -98,9 +134,7 @@ export function NoticesNative({ token }: NoticesNativeProps) {
       }));
     } catch (loadError) {
       setError(
-        loadError instanceof Error
-          ? loadError.message
-          : 'Falha ao carregar avisos.',
+        loadError instanceof Error ? loadError.message : 'Falha ao carregar avisos.',
       );
     } finally {
       if (showLoading) setLoading(false);
@@ -113,30 +147,49 @@ export function NoticesNative({ token }: NoticesNativeProps) {
 
   const filteredNotices = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return notices.filter((notice) => {
-      if (classFilter !== 'ALL' && notice.classId !== classFilter) return false;
-      if (priorityFilter !== 'all' && notice.priority !== priorityFilter) return false;
 
-      if (!query) return true;
-      const title = notice.title?.toLowerCase() ?? '';
-      const body = notice.body?.toLowerCase() ?? '';
-      const className = notice.schoolClass?.name?.toLowerCase() ?? '';
-      return (
-        title.includes(query) ||
-        body.includes(query) ||
-        className.includes(query)
-      );
-    });
-  }, [notices, search, classFilter, priorityFilter]);
+    return notices
+      .filter((notice) => {
+        if (classFilter !== 'ALL' && notice.classId !== classFilter) return false;
 
-  const urgentCount = notices.filter((item) => item.priority === 'urgente').length;
-  const importantCount = notices.filter((item) => item.priority === 'importante').length;
-  const reachedClasses = new Set(notices.map((item) => item.classId)).size;
-  const recent30d = notices.filter((item) => {
-    const createdAt = new Date(item.createdAt).getTime();
-    const threshold = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    return Number.isFinite(createdAt) && createdAt >= threshold;
-  }).length;
+        const status = normalizeStatus(notice.status);
+        if (statusFilter !== 'all' && status !== statusFilter) return false;
+
+        if (!query) return true;
+        const className = notice.schoolClass?.name?.toLowerCase() ?? '';
+        return (
+          notice.title.toLowerCase().includes(query) ||
+          notice.body.toLowerCase().includes(query) ||
+          className.includes(query)
+        );
+      })
+      .sort((a, b) => {
+        const statusA = normalizeStatus(a.status);
+        const statusB = normalizeStatus(b.status);
+        const statusDiff = STATUS_ORDER.indexOf(statusA) - STATUS_ORDER.indexOf(statusB);
+        if (statusDiff !== 0) return statusDiff;
+
+        const dateA = new Date(a.publishedAt || a.createdAt).getTime();
+        const dateB = new Date(b.publishedAt || b.createdAt).getTime();
+        return dateB - dateA;
+      });
+  }, [notices, search, classFilter, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredNotices.length / PAGE_SIZE));
+
+  const paginatedNotices = useMemo(() => {
+    const currentPage = Math.min(page, totalPages);
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredNotices.slice(start, start + PAGE_SIZE);
+  }, [filteredNotices, page, totalPages]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, classFilter, statusFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const submitNotice = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -160,12 +213,14 @@ export function NoticesNative({ token }: NoticesNativeProps) {
           title,
           body,
           priority: form.priority,
+          scheduledAt: form.scheduledAt || undefined,
+          expiresAt: form.expiresAt || undefined,
         }),
       });
 
       await loadData(false);
       setForm((current) => ({ ...defaultForm(), classId: current.classId }));
-      setFeedback('Comunicado enviado com sucesso.');
+      setFeedback('Comunicado salvo com sucesso.');
     } catch (submitError) {
       setFormError(
         submitError instanceof Error
@@ -182,77 +237,22 @@ export function NoticesNative({ token }: NoticesNativeProps) {
       <header className="native-page-header">
         <h2>Avisos e comunicação</h2>
         <p>
-          Canal nativo para comunicados por turma, com filtros de prioridade e
-          histórico de envio.
+          Publique comunicados por turma, com agendamento, entrega, visualizações
+          e arquivamento automático.
         </p>
       </header>
-
-      <div className="native-kpi-grid native-kpi-grid-small">
-        <article className="native-kpi-card">
-          <span>Avisos totais</span>
-          <strong>{notices.length}</strong>
-          <small>{recent30d} no período de 30 dias</small>
-        </article>
-        <article className="native-kpi-card">
-          <span>Urgentes</span>
-          <strong>{urgentCount}</strong>
-          <small>{importantCount} importantes</small>
-        </article>
-        <article className="native-kpi-card">
-          <span>Turmas atingidas</span>
-          <strong>{reachedClasses}</strong>
-          <small>{classes.length} turma(s) cadastrada(s)</small>
-        </article>
-      </div>
-
-      <div className="native-toolbar">
-        <input
-          type="text"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Buscar por título, conteúdo ou turma..."
-        />
-
-        <div className="native-toolbar-actions">
-          <select
-            className="native-finance-select"
-            value={classFilter}
-            onChange={(event) => setClassFilter(event.target.value)}
-          >
-            <option value="ALL">Todas as turmas</option>
-            {classes.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className="native-finance-select"
-            value={priorityFilter}
-            onChange={(event) =>
-              setPriorityFilter(event.target.value as 'all' | NoticePriority)
-            }
-          >
-            <option value="all">Todas as prioridades</option>
-            <option value="normal">Normal</option>
-            <option value="importante">Importante</option>
-            <option value="urgente">Urgente</option>
-          </select>
-        </div>
-      </div>
 
       {loading ? <p className="native-info">Carregando avisos...</p> : null}
       {error ? <p className="native-error">{error}</p> : null}
       {feedback ? <p className="native-success">{feedback}</p> : null}
 
-      <div className="native-notices-grid">
-        <article className="native-panel">
+      <div className="native-notices-split">
+        <article className="native-panel native-notice-compose-panel">
           <header className="native-panel-header">
             <h3>Compor novo aviso</h3>
           </header>
 
-          <form className="native-form-grid native-notice-form" onSubmit={submitNotice}>
+          <form className="native-notice-compose" onSubmit={submitNotice}>
             <label>
               Turma (alvo)
               <select
@@ -283,27 +283,30 @@ export function NoticesNative({ token }: NoticesNativeProps) {
               />
             </label>
 
-            <label>
-              Prioridade
-              <select
-                value={form.priority}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    priority: event.target.value as NoticePriority,
-                  }))
-                }
-              >
-                <option value="normal">Normal</option>
-                <option value="importante">Importante</option>
-                <option value="urgente">Urgente</option>
-              </select>
-            </label>
+            <fieldset className="native-notice-priority-fieldset">
+              <legend>Prioridade</legend>
+              <div className="native-notice-priority-group">
+                {(['normal', 'importante', 'urgente'] as NoticePriority[]).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={`native-notice-priority-btn ${
+                      form.priority === option ? 'is-active' : ''
+                    } ${priorityTone(option)}`}
+                    onClick={() =>
+                      setForm((current) => ({ ...current, priority: option }))
+                    }
+                  >
+                    {priorityLabel(option)}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
 
             <label>
               Conteúdo da mensagem
               <textarea
-                rows={6}
+                rows={8}
                 value={form.body}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, body: event.target.value }))
@@ -313,43 +316,172 @@ export function NoticesNative({ token }: NoticesNativeProps) {
               />
             </label>
 
+            <div className="native-notice-schedule-grid">
+              <label>
+                Agendar envio
+                <input
+                  type="datetime-local"
+                  value={form.scheduledAt}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      scheduledAt: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+
+              <label>
+                Expiração
+                <input
+                  type="datetime-local"
+                  value={form.expiresAt}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, expiresAt: event.target.value }))
+                  }
+                />
+              </label>
+            </div>
+
             {formError ? <p className="native-error">{formError}</p> : null}
 
             <div className="native-modal-actions">
               <button type="submit" disabled={saving}>
-                {saving ? 'Enviando...' : 'Enviar comunicado'}
+                {saving ? 'Salvando...' : 'Enviar comunicado'}
               </button>
             </div>
           </form>
         </article>
 
-        <article className="native-panel">
+        <article className="native-panel native-notice-recent-panel">
           <header className="native-panel-header">
             <h3>Avisos recentes</h3>
             <small>{filteredNotices.length} item(ns)</small>
           </header>
 
-          <div className="native-notice-list">
-            {filteredNotices.length === 0 ? (
+          <div className="native-notice-recent-filters">
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar por título, conteúdo ou turma..."
+            />
+
+            <select
+              className="native-finance-select"
+              value={classFilter}
+              onChange={(event) => setClassFilter(event.target.value)}
+            >
+              <option value="ALL">Todas as turmas</option>
+              {classes.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="native-finance-select"
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as 'all' | NoticeStatus)
+              }
+            >
+              <option value="all">Todos os status</option>
+              <option value="programado">Programado</option>
+              <option value="entregue">Entregue</option>
+              <option value="finalizado">Finalizado</option>
+            </select>
+
+            <div className="native-notice-view-toggle" role="group" aria-label="Modo de visualização">
+              <button
+                type="button"
+                className={viewMode === 'lista' ? 'is-active' : ''}
+                onClick={() => setViewMode('lista')}
+              >
+                Lista
+              </button>
+              <button
+                type="button"
+                className={viewMode === 'grade' ? 'is-active' : ''}
+                onClick={() => setViewMode('grade')}
+              >
+                Grade
+              </button>
+            </div>
+          </div>
+
+          <div
+            className={`native-notice-list native-notice-list-pro ${
+              viewMode === 'grade' ? 'is-grid' : 'is-list'
+            }`}
+          >
+            {paginatedNotices.length === 0 ? (
               <p className="native-info">Nenhum aviso encontrado.</p>
             ) : (
-              filteredNotices.map((notice) => (
-                <article key={notice.id} className="native-notice-item">
-                  <div className="native-notice-head">
-                    <span className={`native-status-chip ${priorityTone(notice.priority)}`}>
-                      {priorityLabel(notice.priority)}
-                    </span>
-                    <small>
-                      {formatDateTime(notice.createdAt)} •{' '}
-                      {notice.schoolClass?.name || 'Turma não informada'}
-                    </small>
-                  </div>
-                  <strong>{notice.title}</strong>
-                  <p>{notice.body}</p>
-                </article>
-              ))
+              paginatedNotices.map((notice) => {
+                const viewed = notice.viewedCount ?? 0;
+                const expected = notice.expectedViewers ?? 0;
+                const rate = notice.deliveredRate ?? 0;
+
+                return (
+                  <article key={notice.id} className="native-notice-item native-notice-item-pro">
+                    <div className="native-notice-item-main">
+                      <div className="native-notice-head">
+                        <span className={`native-status-chip ${priorityTone(notice.priority)}`}>
+                          {priorityLabel(notice.priority)}
+                        </span>
+                        <small>
+                          {notice.schoolClass?.name || 'Turma não informada'} •{' '}
+                          {formatDateTime(notice.publishedAt || notice.createdAt)}
+                        </small>
+                      </div>
+                      <strong>{notice.title}</strong>
+                      <p>{notice.body}</p>
+                    </div>
+
+                    <div className="native-notice-item-status">
+                      <span className={`native-status-chip ${statusTone(notice.status)}`}>
+                        {statusLabel(notice.status)}
+                      </span>
+
+                      {notice.status === 'programado' ? (
+                        <small>Programado para {formatDateTime(notice.publishedAt)}</small>
+                      ) : null}
+
+                      {notice.status === 'entregue' ? (
+                        <small>
+                          {rate}% entregue • {viewed}/{expected} visualizações
+                        </small>
+                      ) : null}
+
+                      {notice.status === 'finalizado' ? (
+                        <small>Arquivado até {formatDateTime(notice.archivedUntil)}</small>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })
             )}
           </div>
+
+          <footer className="native-notice-pagination">
+            <small>
+              Página {page} de {totalPages}
+            </small>
+            <div className="native-notice-pagination-actions">
+              <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+                Anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+              >
+                Próxima
+              </button>
+            </div>
+          </footer>
         </article>
       </div>
     </section>

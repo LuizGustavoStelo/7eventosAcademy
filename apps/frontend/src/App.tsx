@@ -444,9 +444,19 @@ export default function App() {
   const isStudentPortalMode = appMode === 'student';
   const isStudentRegisterMode = appMode === 'student-register';
   const isPublicStudentPortal = isStudentPortalMode || isStudentRegisterMode;
-  const portalLicenseToken = queryParams.get('licenseToken') ?? '';
-  const portalLicenseDomain = queryParams.get('licenseDomain') ?? '';
-  const portalLicenseSiteUrl = queryParams.get('licenseSiteUrl') ?? '';
+  const portalLicenseToken =
+    queryParams.get('licenseToken') ??
+    queryParams.get('activationToken') ??
+    queryParams.get('token') ??
+    '';
+  const portalLicenseDomain =
+    queryParams.get('licenseDomain') ??
+    queryParams.get('domain') ??
+    '';
+  const portalLicenseSiteUrl =
+    queryParams.get('licenseSiteUrl') ??
+    queryParams.get('siteUrl') ??
+    '';
   const autenticado = Boolean(token && usuario);
   const secoes = usuario?.role === 'superadmin' ? SECOES_SUPERADMIN : SECOES_ADMIN;
   const [publicPortalLicense, setPublicPortalLicense] = useState<PublicPortalLicenseState>(() => ({
