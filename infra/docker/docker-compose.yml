@@ -40,9 +40,6 @@ services:
       - academy_master_key
     ports:
       - "127.0.0.1:3210:3210"
-    command: >
-      sh -c "npx prisma migrate deploy --schema /app/apps/backend/prisma/schema.prisma
-      && node dist/main.js"
     volumes:
       - /var/www/7eventosAcademy/uploads:/var/www/7eventosAcademy/uploads
     healthcheck:
