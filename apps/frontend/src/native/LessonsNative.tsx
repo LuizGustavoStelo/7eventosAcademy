@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from './api';
 
 type TeacherClass = {
@@ -49,6 +49,9 @@ type LessonsNativeProps = {
   token: string;
 };
 
+type MarkStatus = 'present' | 'absent' | 'pending';
+type MarksMap = Record<string, { present: MarkStatus; note: string }>;
+
 function formatDateTime(value: string | null | undefined) {
   if (!value) return '-';
   const date = new Date(value);
@@ -73,7 +76,8 @@ export function LessonsNative({ token }: LessonsNativeProps) {
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState('');
   const [roster, setRoster] = useState<SessionRoster | null>(null);
-  const [marks, setMarks] = useState<Record<string, { present: 'present' | 'absent' | 'pending'; note: string }>>({});
+  const [marks, setMarks] = useState<MarksMap>({});
+  const skipAutoSaveRef = useRef(true);
 
   const selectedClass = useMemo(
     () => classes.find((item) => item.id === selectedClassId) ?? null,
@@ -126,13 +130,15 @@ export function LessonsNative({ token }: LessonsNativeProps) {
 
     setRoster(data);
 
-    const nextMarks: Record<string, { present: 'present' | 'absent' | 'pending'; note: string }> = {};
+    const nextMarks: MarksMap = {};
     data.students.forEach((item) => {
       nextMarks[item.studentId] = {
         present: item.present === null ? 'pending' : item.present ? 'present' : 'absent',
         note: item.note || '',
       };
     });
+
+    skipAutoSaveRef.current = true;
     setMarks(nextMarks);
   };
 
@@ -157,6 +163,7 @@ export function LessonsNative({ token }: LessonsNativeProps) {
       setSessions([]);
       setSelectedSessionId('');
       setRoster(null);
+      setMarks({});
       return;
     }
 
@@ -166,47 +173,46 @@ export function LessonsNative({ token }: LessonsNativeProps) {
   useEffect(() => {
     if (!selectedClassId || !selectedSessionId) {
       setRoster(null);
+      setMarks({});
       return;
     }
 
     void loadRoster(selectedClassId, selectedSessionId);
   }, [selectedClassId, selectedSessionId]);
 
-  const updateMark = (
-    studentId: string,
-    field: 'present' | 'note',
-    value: string,
-  ) => {
-    setMarks((current) => ({
-      ...current,
-      [studentId]: {
-        present:
-          field === 'present'
-            ? (value as 'present' | 'absent' | 'pending')
-            : current[studentId]?.present ?? 'pending',
-        note: field === 'note' ? value : current[studentId]?.note ?? '',
-      },
-    }));
-  };
-
-  const saveAttendance = async () => {
-    if (!selectedClassId || !selectedSessionId || !roster) return;
-
-    if (!roster.canMark) {
-      setError('Essa aula ainda não aconteceu. Presença só pode ser lançada após a data/hora da aula.');
-      return;
+  const attendanceTotals = useMemo(() => {
+    if (!roster) {
+      return {
+        present: selectedSession?.presentCount ?? 0,
+        absent: selectedSession?.absentCount ?? 0,
+        pending: selectedSession?.pendingCount ?? 0,
+      };
     }
+
+    return roster.students.reduce(
+      (acc, student) => {
+        const status = marks[student.studentId]?.present ?? 'pending';
+        if (status === 'present') acc.present += 1;
+        else if (status === 'absent') acc.absent += 1;
+        else acc.pending += 1;
+        return acc;
+      },
+      { present: 0, absent: 0, pending: 0 },
+    );
+  }, [marks, roster, selectedSession?.absentCount, selectedSession?.pendingCount, selectedSession?.presentCount]);
+
+  const saveAttendance = async (snapshotMarks: MarksMap) => {
+    if (!selectedClassId || !selectedSessionId || !roster?.canMark) return;
 
     setSaving(true);
     setError('');
-    setFeedback('');
 
     try {
       const items = roster.students
         .map((student) => ({
           studentId: student.studentId,
-          present: marks[student.studentId]?.present,
-          note: marks[student.studentId]?.note?.trim() || undefined,
+          present: snapshotMarks[student.studentId]?.present,
+          note: snapshotMarks[student.studentId]?.note?.trim() || undefined,
         }))
         .filter((item) => item.present === 'present' || item.present === 'absent')
         .map((item) => ({
@@ -221,13 +227,64 @@ export function LessonsNative({ token }: LessonsNativeProps) {
         body: JSON.stringify({ items }),
       });
 
-      setFeedback('Presença salva com sucesso.');
-      await Promise.all([loadSessions(selectedClassId), loadRoster(selectedClassId, selectedSessionId)]);
+      setFeedback('Alterações salvas automaticamente.');
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Falha ao salvar presença.');
     } finally {
       setSaving(false);
     }
+  };
+
+  useEffect(() => {
+    if (!roster?.canMark || !selectedClassId || !selectedSessionId) return;
+    if (Object.keys(marks).length === 0) return;
+
+    if (skipAutoSaveRef.current) {
+      skipAutoSaveRef.current = false;
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void saveAttendance(marks);
+    }, 450);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [marks, roster?.canMark, selectedClassId, selectedSessionId]);
+
+  const updateMark = (studentId: string, field: 'present' | 'note', value: string) => {
+    if (!roster?.canMark) return;
+    setFeedback('');
+    setError('');
+
+    setMarks((current) => ({
+      ...current,
+      [studentId]: {
+        present:
+          field === 'present'
+            ? (value as MarkStatus)
+            : current[studentId]?.present ?? 'pending',
+        note: field === 'note' ? value : current[studentId]?.note ?? '',
+      },
+    }));
+  };
+
+  const markAll = (status: MarkStatus) => {
+    if (!roster?.canMark) return;
+    setFeedback('');
+    setError('');
+
+    setMarks((current) => {
+      const next = { ...current };
+      roster.students.forEach((student) => {
+        next[student.studentId] = {
+          present: status,
+          note: current[student.studentId]?.note ?? '',
+        };
+      });
+      return next;
+    });
   };
 
   return (
@@ -296,30 +353,33 @@ export function LessonsNative({ token }: LessonsNativeProps) {
       </section>
 
       {selectedSession ? (
-        <section className="native-panel">
-          <header className="native-panel-header">
+        <section className="native-lessons-overview">
+          <article className="native-panel native-lessons-status-card">
+            <small>Status da aula</small>
             <h3>{selectedSession.title}</h3>
-            <small>{formatDateTime(selectedSession.datetime)}</small>
-          </header>
+            <p>Agendada para {formatDateTime(selectedSession.datetime)}</p>
 
-          {!selectedSession.canMark ? (
-            <p className="native-info">
-              Essa aula ainda não ocorreu. O lançamento de presença será liberado automaticamente após o horário da aula.
-            </p>
-          ) : null}
+            {!selectedSession.canMark ? (
+              <div className="native-lessons-status-alert">
+                Essa aula ainda não ocorreu. O lançamento de presença será liberado automaticamente após o horário da aula.
+              </div>
+            ) : (
+              <div className="native-lessons-status-alert is-ready">Lançamento de presença liberado.</div>
+            )}
+          </article>
 
-          <div className="native-kpi-grid native-kpi-grid-small">
-            <article className="native-kpi-card">
+          <div className="native-lessons-metrics">
+            <article className="native-panel native-lessons-metric is-present">
               <span>Presentes</span>
-              <strong>{selectedSession.presentCount}</strong>
+              <strong>{attendanceTotals.present}</strong>
             </article>
-            <article className="native-kpi-card">
+            <article className="native-panel native-lessons-metric is-absent">
               <span>Faltas</span>
-              <strong>{selectedSession.absentCount}</strong>
+              <strong>{attendanceTotals.absent}</strong>
             </article>
-            <article className="native-kpi-card">
+            <article className="native-panel native-lessons-metric is-pending">
               <span>Pendente</span>
-              <strong>{selectedSession.pendingCount}</strong>
+              <strong>{attendanceTotals.pending}</strong>
             </article>
           </div>
         </section>
@@ -327,60 +387,54 @@ export function LessonsNative({ token }: LessonsNativeProps) {
 
       {roster ? (
         <section className="native-panel native-lessons-roster">
-          <header className="native-panel-header">
-            <h3>Lista de presença</h3>
-            <small>{roster.students.length} aluno(s)</small>
+          <header className="native-panel-header native-lessons-roster-header">
+            <div>
+              <h3>Lista de presença</h3>
+              <small>{roster.students.length} aluno(s) matriculados nesta turma</small>
+            </div>
+            <div className="native-lessons-roster-actions">
+              <button type="button" onClick={() => markAll('present')} disabled={!roster.canMark}>
+                Marcar todos presentes
+              </button>
+              <button type="button" onClick={() => markAll('absent')} disabled={!roster.canMark}>
+                Marcar todos faltas
+              </button>
+              <button type="button" onClick={() => markAll('pending')} disabled={!roster.canMark}>
+                Limpar
+              </button>
+            </div>
           </header>
 
-          <div className="native-table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Aluno</th>
-                  <th>Status</th>
-                  <th>Observação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roster.students.map((student) => (
-                  <tr key={student.studentId}>
-                    <td>
-                      <strong>{student.name}</strong>
-                      <div>{student.email}</div>
-                    </td>
-                    <td>
-                      <select
-                        value={marks[student.studentId]?.present ?? 'pending'}
-                        onChange={(event) =>
-                          updateMark(student.studentId, 'present', event.target.value)
-                        }
-                        disabled={!roster.canMark || saving}
-                      >
-                        <option value="pending">Pendente</option>
-                        <option value="present">Presente</option>
-                        <option value="absent">Falta</option>
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        value={marks[student.studentId]?.note ?? ''}
-                        onChange={(event) =>
-                          updateMark(student.studentId, 'note', event.target.value)
-                        }
-                        placeholder="Observação opcional"
-                        disabled={!roster.canMark || saving}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {saving ? <small className="native-lessons-saving">Salvando alterações...</small> : null}
 
-          <div className="native-modal-actions">
-            <button type="button" onClick={() => void saveAttendance()} disabled={!roster.canMark || saving}>
-              {saving ? 'Salvando...' : 'Salvar presença'}
-            </button>
+          <div className="native-lessons-roster-list">
+            {roster.students.map((student) => (
+              <article key={student.studentId} className="native-lessons-student-row">
+                <div className="native-lessons-student-meta">
+                  <strong>{student.name}</strong>
+                  <small>{student.email}</small>
+                </div>
+
+                <select
+                  className="native-lessons-status-select"
+                  value={marks[student.studentId]?.present ?? 'pending'}
+                  onChange={(event) => updateMark(student.studentId, 'present', event.target.value)}
+                  disabled={!roster.canMark}
+                >
+                  <option value="pending">Pendente</option>
+                  <option value="present">Presente</option>
+                  <option value="absent">Falta</option>
+                </select>
+
+                <input
+                  className="native-lessons-note-input"
+                  value={marks[student.studentId]?.note ?? ''}
+                  onChange={(event) => updateMark(student.studentId, 'note', event.target.value)}
+                  placeholder="Observação opcional"
+                  disabled={!roster.canMark}
+                />
+              </article>
+            ))}
           </div>
         </section>
       ) : null}

@@ -267,6 +267,18 @@ const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Se
 const WEEKDAY_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const WEEKDAY_TINY = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const SECTION_HASH_PREFIX = 'tab=';
+const STUDENT_SEARCH_ALIAS: Array<{ target: SectionId; terms: string[] }> = [
+  { target: 'st-student-panel', terms: ['painel', 'inicio', 'inicial'] },
+  { target: 'st-student-classes', terms: ['aula', 'aulas', 'turma', 'turmas'] },
+  { target: 'st-student-agenda', terms: ['agenda', 'evento', 'eventos', 'calendario'] },
+  { target: 'st-student-live', terms: ['transmissao', 'transmissoes', 'live'] },
+  { target: 'st-student-course', terms: ['frequencia', 'presenca', 'desempenho'] },
+  { target: 'st-student-finance', terms: ['financeiro', 'mensalidade', 'cobranca', 'pagamento'] },
+  { target: 'st-student-materials', terms: ['material', 'materiais', 'arquivo', 'arquivos'] },
+  { target: 'st-student-notices', terms: ['aviso', 'avisos', 'comunicado'] },
+  { target: 'st-student-certificate', terms: ['certificado'] },
+  { target: 'st-student-profile', terms: ['perfil', 'dados'] },
+];
 
 function firstName(name: string | undefined) {
   if (!name) return 'Aluno(a)';
@@ -306,6 +318,14 @@ function parseSectionFromHash(hash: string): SectionId | null {
     return candidate as SectionId;
   }
   return null;
+}
+
+function normalizeSearchTerm(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
 }
 
 function formatDate(dateLike: string | null | undefined) {
@@ -618,6 +638,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const [agendaEventsVisibleCount, setAgendaEventsVisibleCount] = useState(
     INITIAL_AGENDA_EVENTS_COUNT,
   );
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadFallback = async (bypassCache = false): Promise<StudentDashboardPayload> => {
@@ -1112,6 +1133,48 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   useEffect(() => {
     setAgendaEventsVisibleCount(INITIAL_AGENDA_EVENTS_COUNT);
   }, [upcomingClasses.length]);
+
+  const studentSearchSuggestions = useMemo(() => {
+    const normalizedQuery = normalizeSearchTerm(studentSearchQuery);
+    if (!normalizedQuery) return [] as Array<{ target: SectionId; label: string; score: number }>;
+
+    return NAV_ITEMS
+      .map((item) => {
+        const normalizedLabel = normalizeSearchTerm(item.label);
+        const aliasTerms = STUDENT_SEARCH_ALIAS.find((entry) => entry.target === item.target)?.terms ?? [];
+
+        let score = 0;
+        if (normalizedLabel.startsWith(normalizedQuery)) score = 120;
+        else if (normalizedLabel.includes(normalizedQuery)) score = 100;
+
+        for (const term of aliasTerms) {
+          const normalizedTerm = normalizeSearchTerm(term);
+          if (normalizedTerm.startsWith(normalizedQuery)) score = Math.max(score, 90);
+          else if (
+            normalizedQuery.includes(normalizedTerm) ||
+            normalizedTerm.includes(normalizedQuery)
+          ) {
+            score = Math.max(score, 80);
+          }
+        }
+
+        return {
+          target: item.target,
+          label: item.label,
+          score,
+        };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label, 'pt-BR'))
+      .slice(0, 6);
+  }, [studentSearchQuery]);
+
+  const executeStudentSearch = () => {
+    const topSuggestion = studentSearchSuggestions[0];
+    if (!topSuggestion) return;
+    openSection(topSuggestion.target);
+    setStudentSearchQuery(topSuggestion.label);
+  };
 
   const openSection = (sectionId: SectionId) => {
     setActiveSection(sectionId);
@@ -1660,9 +1723,33 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               id="student-search"
               type="text"
               placeholder="Buscar materiais, aulas ou avisos..."
-              readOnly
+              value={studentSearchQuery}
+              onChange={(event) => setStudentSearchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  executeStudentSearch();
+                }
+              }}
               aria-label="Busca rápida"
             />
+            {studentSearchSuggestions.length > 0 ? (
+              <div className="student-template-search-menu" role="listbox" aria-label="Sugestões de busca">
+                {studentSearchSuggestions.map((suggestion) => (
+                  <button
+                    key={`student-search-${suggestion.target}`}
+                    type="button"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      openSection(suggestion.target);
+                      setStudentSearchQuery(suggestion.label);
+                    }}
+                  >
+                    {suggestion.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </label>
 
           <div className="student-template-topbar-right">

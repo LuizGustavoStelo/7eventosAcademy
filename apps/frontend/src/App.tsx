@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AgendaNative } from './native/AgendaNative';
 import { ClassesNative } from './native/ClassesNative';
@@ -402,6 +402,13 @@ const SEARCH_SECTION_ALIAS: Array<{ sectionId: string; terms: string[] }> = [
   { sectionId: 'admin_configuracoes', terms: ['configuracao', 'configuracoes', 'ajustes'] },
 ];
 
+const SEARCH_SECTION_ALIAS_SUPERADMIN: Array<{ sectionId: string; terms: string[] }> = [
+  { sectionId: 'superadmin_dashboard_global', terms: ['dashboard', 'global', 'painel'] },
+  { sectionId: 'superadmin_gestao_contas', terms: ['conta', 'contas', 'gestao'] },
+  { sectionId: 'superadmin_impersonacao', terms: ['impersonacao', 'impersonar'] },
+  { sectionId: 'superadmin_wordpress_plugin', terms: ['plugin', 'wordpress', 'licenca', 'licencas'] },
+];
+
 function normalizeSearchTerm(value: string) {
   return value
     .normalize('NFD')
@@ -768,23 +775,53 @@ export default function App() {
   }, [autenticado, impersonationMeta, usuario?.role]);
 
   const executeGlobalSearch = () => {
-    const normalizedQuery = normalizeSearchTerm(globalSearchQuery);
-    if (!normalizedQuery || usuario?.role !== 'admin') return;
-
-    const sectionByAlias = SEARCH_SECTION_ALIAS.find(({ terms }) =>
-      terms.some((term) => normalizedQuery.includes(term)),
-    )?.sectionId;
-
-    const sectionByLabel = SECOES_ADMIN.find((section) =>
-      normalizeSearchTerm(section.label).includes(normalizedQuery),
-    )?.id;
-
-    const nextSectionId = sectionByAlias ?? sectionByLabel;
+    const nextSectionId = globalSearchSuggestions[0]?.sectionId;
     if (!nextSectionId) return;
 
     setSecaoAtiva(nextSectionId);
     setMobileMenuOpen(false);
   };
+
+  const globalSearchSuggestions = useMemo(() => {
+    const normalizedQuery = normalizeSearchTerm(globalSearchQuery);
+    if (!normalizedQuery) return [] as Array<{ sectionId: string; label: string; score: number }>;
+
+    const scopeSections = usuario?.role === 'superadmin' ? SECOES_SUPERADMIN : SECOES_ADMIN;
+    const scopeAliases =
+      usuario?.role === 'superadmin' ? SEARCH_SECTION_ALIAS_SUPERADMIN : SEARCH_SECTION_ALIAS;
+
+    const suggestions = scopeSections
+      .map((section) => {
+        const normalizedLabel = normalizeSearchTerm(section.label);
+        const aliasTerms = scopeAliases.find((alias) => alias.sectionId === section.id)?.terms ?? [];
+
+        let score = 0;
+        if (normalizedLabel.startsWith(normalizedQuery)) score = 120;
+        else if (normalizedLabel.includes(normalizedQuery)) score = 100;
+
+        for (const term of aliasTerms) {
+          const normalizedTerm = normalizeSearchTerm(term);
+          if (normalizedTerm.startsWith(normalizedQuery)) score = Math.max(score, 90);
+          else if (
+            normalizedQuery.includes(normalizedTerm) ||
+            normalizedTerm.includes(normalizedQuery)
+          ) {
+            score = Math.max(score, 80);
+          }
+        }
+
+        return {
+          sectionId: section.id,
+          label: section.label,
+          score,
+        };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label, 'pt-BR'))
+      .slice(0, 6);
+
+    return suggestions;
+  }, [globalSearchQuery, usuario?.role]);
 
   const sair = () => {
     limparImpersonacao();
@@ -1133,6 +1170,24 @@ export default function App() {
                   }
                 }}
               />
+              {globalSearchSuggestions.length > 0 ? (
+                <div className="global-topbar-search-menu" role="listbox" aria-label="Sugestões de busca">
+                  {globalSearchSuggestions.map((suggestion) => (
+                    <button
+                      key={`search-${suggestion.sectionId}`}
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        setSecaoAtiva(suggestion.sectionId);
+                        setGlobalSearchQuery(suggestion.label);
+                        setMobileMenuOpen(false);
+                      }}
+                    >
+                      {suggestion.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </label>
           </div>
           <div className="global-topbar-right">
