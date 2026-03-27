@@ -136,6 +136,7 @@ export function ContentNative({ token }: ContentNativeProps) {
   const [classFilter, setClassFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingMaterialId, setDeletingMaterialId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
   const [formError, setFormError] = useState('');
@@ -246,6 +247,29 @@ export function ContentNative({ token }: ContentNativeProps) {
     setFormError('');
     setUploadProgress(null);
     setUploadModalOpen(true);
+  };
+
+  const deleteMaterial = async (material: StudyMaterial) => {
+    if (!material?.id || !material?.classId) return;
+    const confirmed = window.confirm(`Deseja excluir o material "${material.title}"?`);
+    if (!confirmed) return;
+
+    setError('');
+    setFeedback('');
+    setDeletingMaterialId(material.id);
+    try {
+      await apiRequest<{ deleted: boolean }>(
+        token,
+        `/classes/${material.classId}/materials/${material.id}`,
+        { method: 'DELETE' },
+      );
+      await loadData(false);
+      setFeedback('Material excluído com sucesso.');
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Falha ao excluir material.');
+    } finally {
+      setDeletingMaterialId(null);
+    }
   };
 
   const uploadMultipartWithProgress = async <T,>(path: string, body: FormData): Promise<T> =>
@@ -537,16 +561,28 @@ export function ContentNative({ token }: ContentNativeProps) {
                       {formatDate(material.createdAt)}
                     </small>
                     {material.description ? <p>{material.description}</p> : null}
-                    {material.externalUrl ? (
-                      <a href={material.externalUrl} target="_blank" rel="noreferrer">
-                        Abrir link externo
-                      </a>
-                    ) : null}
-                    {material.fileUrl ? (
-                      <a href={material.fileUrl} target="_blank" rel="noreferrer">
-                        Baixar arquivo
-                      </a>
-                    ) : null}
+                    <div className="native-content-actions">
+                      {material.externalUrl ? (
+                        <a href={material.externalUrl} target="_blank" rel="noreferrer">
+                          Abrir link externo
+                        </a>
+                      ) : null}
+                      {material.fileUrl ? (
+                        <a href={material.fileUrl} target="_blank" rel="noreferrer">
+                          Baixar arquivo
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="native-content-delete-btn"
+                        onClick={() => void deleteMaterial(material)}
+                        disabled={deletingMaterialId === material.id}
+                        aria-label={`Excluir material ${material.title}`}
+                        title="Excluir material"
+                      >
+                        <span className="material-symbols-outlined">delete</span>
+                      </button>
+                    </div>
                   </div>
                 </article>
               ))

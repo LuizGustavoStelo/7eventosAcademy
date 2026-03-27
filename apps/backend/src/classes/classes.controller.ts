@@ -172,6 +172,14 @@ export class ClassesController {
     return this.materialsService.getAllMaterials();
   }
 
+  @Delete(':classId/materials/:materialId')
+  async deleteMaterial(
+    @Param('classId') classId: string,
+    @Param('materialId') materialId: string,
+  ) {
+    return this.materialsService.deleteMaterial(classId, materialId);
+  }
+
   @Post(':classId/notices')
   async createNotice(
     @Param('classId') classId: string,

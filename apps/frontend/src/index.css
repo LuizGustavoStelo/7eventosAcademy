@@ -1721,6 +1721,43 @@ table button:disabled {
   text-decoration: underline;
 }
 
+.native-content-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-top: 0.1rem;
+}
+
+.native-content-delete-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(220, 38, 38, 0.26);
+  background: #fff5f5;
+  color: #b91c1c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.native-content-delete-btn .material-symbols-outlined {
+  font-size: 1.05rem;
+}
+
+.native-content-delete-btn:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: rgba(220, 38, 38, 0.4);
+  transform: translateY(-1px);
+}
+
+.native-content-delete-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .native-reports-filters {
   padding: 0.85rem;
 }

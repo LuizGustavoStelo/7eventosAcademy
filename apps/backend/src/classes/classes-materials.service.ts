@@ -218,6 +218,33 @@ export class ClassesMaterialsService {
     });
   }
 
+  async deleteMaterial(classId: string, materialId: string) {
+    await this.ensureClassExists(classId);
+
+    const material = await this.prisma.studyMaterial.findFirst({
+      where: { id: materialId, classId },
+      select: { id: true, classId: true, publishedBy: true },
+    });
+
+    if (!material) {
+      throw new NotFoundException('Material não encontrado.');
+    }
+
+    const bindingKind = `${CLASS_MATERIAL_KIND_PREFIX}${material.publishedBy || 'desconhecido'}__${material.id}`;
+
+    await this.uploadsService.deleteOwnerAssetByKind(
+      UploadOwnerType.CLASS,
+      material.classId,
+      bindingKind,
+    );
+
+    await this.prisma.studyMaterial.delete({
+      where: { id: material.id },
+    });
+
+    return { deleted: true };
+  }
+
   private async ensureClassExists(classId: string) {
     const schoolClass = await this.prisma.schoolClass.findUnique({
       where: { id: classId },
