@@ -1137,8 +1137,8 @@ table button:disabled {
 
 .native-content-grid {
   display: grid;
-  grid-template-columns: 380px minmax(0, 1fr);
-  gap: 0.8rem;
+  grid-template-columns: 400px minmax(0, 1fr);
+  gap: 1rem;
   align-items: start;
 }
 
@@ -1158,6 +1158,14 @@ table button:disabled {
   margin: 0.35rem 0 0;
   color: #475569;
   max-width: 58ch;
+}
+
+.native-content-pro-meta {
+  display: inline-block;
+  margin-top: 0.45rem;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .native-content-pro-actions {
@@ -1186,10 +1194,37 @@ table button:disabled {
 .native-content-side {
   display: grid;
   gap: 0.8rem;
+  align-content: start;
+}
+
+.native-content-side .native-panel,
+.native-content-list-panel {
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.native-content-panel-hint {
+  margin: -0.2rem 0 0.7rem;
+  color: #64748b;
+  font-size: 0.8rem;
 }
 
 .native-content-form {
   grid-template-columns: 1fr;
+}
+
+.native-form-grid.native-content-form {
+  grid-template-columns: 1fr;
+}
+
+.native-form-grid.native-content-form .native-error,
+.native-form-grid.native-content-form .native-modal-actions {
+  grid-column: 1 / -1;
+}
+
+.native-form-grid.native-content-form input[type='file'] {
+  max-width: 100%;
 }
 
 .native-content-form textarea {
@@ -1198,6 +1233,11 @@ table button:disabled {
   padding: 0.48rem 0.6rem;
   font-size: 0.86rem;
   resize: vertical;
+}
+
+.native-content-form small {
+  color: #64748b;
+  line-height: 1.35;
 }
 
 .native-storage-box {
@@ -1262,7 +1302,7 @@ table button:disabled {
 
 .native-content-list-panel {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.8rem;
 }
 
 .native-content-tabs {
@@ -1270,7 +1310,7 @@ table button:disabled {
   align-items: center;
   gap: 0.7rem;
   border-bottom: 1px solid rgba(15, 23, 42, 0.12);
-  padding-bottom: 0.5rem;
+  padding-bottom: 0.65rem;
 }
 
 .native-content-tabs button {
@@ -1278,7 +1318,7 @@ table button:disabled {
   background: transparent;
   color: #64748b;
   font-weight: 700;
-  padding: 0.45rem 0.2rem;
+  padding: 0.48rem 0.28rem;
   border-bottom: 2px solid transparent;
   cursor: pointer;
 }
@@ -1292,6 +1332,7 @@ table button:disabled {
   display: flex;
   align-items: center;
   gap: 0.55rem;
+  flex-wrap: wrap;
 }
 
 .native-content-filter-row strong {
@@ -1304,7 +1345,7 @@ table button:disabled {
   background: #e2e8f0;
   color: #475569;
   border-radius: 999px;
-  padding: 0.22rem 0.62rem;
+  padding: 0.3rem 0.72rem;
   font-size: 0.74rem;
   font-weight: 700;
   cursor: pointer;
@@ -1319,17 +1360,23 @@ table button:disabled {
 
 .native-content-list {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
 .native-content-item {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 10px;
-  padding: 0.6rem;
+  padding: 0.72rem;
   display: flex;
   align-items: flex-start;
-  gap: 0.55rem;
+  gap: 0.62rem;
   background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.native-content-item:hover {
+  border-color: rgba(167, 58, 0, 0.24);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
 }
 
 .native-content-icon {
@@ -1372,7 +1419,7 @@ table button:disabled {
 }
 
 .native-content-meta strong {
-  font-size: 0.86rem;
+  font-size: 0.9rem;
 }
 
 .native-content-meta small {
@@ -1383,7 +1430,14 @@ table button:disabled {
 .native-content-meta p {
   margin: 0;
   color: #475569;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
+}
+
+.native-content-empty-state {
+  border: 1px dashed rgba(100, 116, 139, 0.35);
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 0.9rem;
 }
 
 .native-content-meta a {

@@ -208,6 +208,8 @@ export function ContentNative({ token }: ContentNativeProps) {
     if (storage.limitGb <= 0) return 0;
     return Math.min(100, Math.round((storage.usedGb / storage.limitGb) * 100));
   }, [storage]);
+  const totalMaterials = materials.length;
+  const visibleMaterials = filteredMaterials.length;
 
   const exportAll = () => {
     const headers = ['Título', 'Turma', 'Curso', 'Data', 'Tipo', 'Arquivo', 'Link'];
@@ -337,11 +339,18 @@ export function ContentNative({ token }: ContentNativeProps) {
       setSelectedFiles([]);
       setFeedback(successMessage);
     } catch (submitError) {
-      setFormError(
+      const message =
         submitError instanceof Error
           ? submitError.message
-          : 'Falha ao cadastrar material.',
-      );
+          : 'Falha ao cadastrar material.';
+
+      if (message.includes('(504)')) {
+        setFormError(
+          'Falha no envio por tempo limite (504). Tente novamente em instantes ou envie um arquivo menor.',
+        );
+      } else {
+        setFormError(message);
+      }
     } finally {
       setSaving(false);
     }
@@ -360,6 +369,9 @@ export function ContentNative({ token }: ContentNativeProps) {
           <p>
             Organize seus materiais de aula e mantenha a biblioteca acadêmica atualizada para seus alunos.
           </p>
+          <small className="native-content-pro-meta">
+            {visibleMaterials} de {totalMaterials} material(is) exibido(s)
+          </small>
         </div>
         <div className="native-content-pro-actions">
           <button type="button" className="ghost" onClick={exportAll}>
@@ -377,6 +389,9 @@ export function ContentNative({ token }: ContentNativeProps) {
             <header className="native-panel-header">
               <h3>Upload Rápido</h3>
             </header>
+            <p className="native-content-panel-hint">
+              Preencha os metadados e envie um ou mais arquivos para publicar na turma.
+            </p>
 
             <form className="native-form-grid native-content-form" onSubmit={submitMaterial}>
               <label>
@@ -591,7 +606,9 @@ export function ContentNative({ token }: ContentNativeProps) {
 
           <div className="native-content-list">
             {!loading && filteredMaterials.length === 0 ? (
-              <p className="native-info">Fim da lista atual. Nenhum material encontrado.</p>
+              <p className="native-info native-content-empty-state">
+                Fim da lista atual. Nenhum material encontrado.
+              </p>
             ) : (
               filteredMaterials.map((material) => (
                 <article key={material.id} className="native-content-item">
