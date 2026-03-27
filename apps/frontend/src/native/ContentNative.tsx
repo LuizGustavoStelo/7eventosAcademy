@@ -218,7 +218,7 @@ export function ContentNative({ token }: ContentNativeProps) {
   const visibleMaterials = filteredMaterials.length;
 
   const exportAll = () => {
-    const headers = ['TÃ­tulo', 'Turma', 'Curso', 'Data', 'Tipo', 'Arquivo', 'Link'];
+    const headers = ['Título', 'Turma', 'Curso', 'Data', 'Tipo', 'Arquivo', 'Link'];
     const rows = filteredMaterials.map((item) => [
       item.title,
       item.schoolClass?.name ?? '-',
@@ -306,7 +306,7 @@ export function ContentNative({ token }: ContentNativeProps) {
           return;
         }
 
-        let message = `Falha na requisiÃ§Ã£o (${xhr.status}).`;
+        let message = `Falha na requisição (${xhr.status}).`;
         if (payload) {
           if (Array.isArray(payload.message)) message = payload.message.join(' ');
           else if (typeof payload.message === 'string') message = payload.message;
@@ -325,7 +325,7 @@ export function ContentNative({ token }: ContentNativeProps) {
 
     const title = form.title.trim();
     if (!form.classId || !title) {
-      setFormError('Selecione a turma e informe o tÃ­tulo do material.');
+      setFormError('Selecione a turma e informe o título do material.');
       return;
     }
 
@@ -432,9 +432,9 @@ export function ContentNative({ token }: ContentNativeProps) {
     <section className="native-page native-content">
       <header className="native-content-pro-header">
         <div>
-          <h2>Gerenciamento de ConteÃºdo</h2>
+          <h2>Gerenciamento de Conteúdo</h2>
           <p>
-            Organize seus materiais de aula e mantenha a biblioteca acadÃªmica atualizada para seus alunos.
+            Organize seus materiais de aula e mantenha a biblioteca acadêmica atualizada para seus alunos.
           </p>
           <small className="native-content-pro-meta">
             {visibleMaterials} de {totalMaterials} material(is) exibido(s)
@@ -457,7 +457,7 @@ export function ContentNative({ token }: ContentNativeProps) {
               +
             </span>
             <strong>Adicionar material</strong>
-            <small>Abra o formulÃ¡rio de upload em destaque</small>
+            <small>Abra o formulário de upload em destaque</small>
           </button>
 
           <article className="native-panel native-content-storage-card">
@@ -519,7 +519,7 @@ export function ContentNative({ token }: ContentNativeProps) {
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar por tÃ­tulo, turma ou curso..."
+              placeholder="Buscar por título, turma ou curso..."
             />
             <div className="native-toolbar-actions">
               <select
@@ -603,7 +603,7 @@ export function ContentNative({ token }: ContentNativeProps) {
         >
           <section className="native-content-upload-modal" onClick={(event) => event.stopPropagation()}>
             <header>
-              <h3>Upload RÃ¡pido</h3>
+              <h3>Upload Rápido</h3>
               <button
                 type="button"
                 onClick={() => {
@@ -644,13 +644,13 @@ export function ContentNative({ token }: ContentNativeProps) {
               </label>
 
               <label>
-                TÃ­tulo
+                Título
                 <input
                   value={form.title}
                   onChange={(event) =>
                     setForm((current) => ({ ...current, title: event.target.value }))
                   }
-                  placeholder="Ex: Aula 04 - LogÃ­stica"
+                  placeholder="Ex: Aula 04 - Logística"
                   required
                 />
               </label>
@@ -667,7 +667,7 @@ export function ContentNative({ token }: ContentNativeProps) {
                   }
                 >
                   <option value="PDF">PDF</option>
-                  <option value="VIDEO">VÃ­deo</option>
+                  <option value="VIDEO">Vídeo</option>
                   <option value="DOC">Documento</option>
                   <option value="LINK">Link</option>
                   <option value="OTHER">Outro</option>
@@ -694,7 +694,7 @@ export function ContentNative({ token }: ContentNativeProps) {
                 >
                   <option value="file">Arquivo</option>
                   <option value="link">Link</option>
-                  <option value="exercise">ExercÃ­cio</option>
+                  <option value="exercise">Exercício</option>
                 </select>
               </label>
 
@@ -736,7 +736,7 @@ export function ContentNative({ token }: ContentNativeProps) {
               )}
 
               <label className="native-content-field-full">
-                DescriÃ§Ã£o (opcional)
+                Descrição (opcional)
                 <textarea
                   rows={4}
                   value={form.description}

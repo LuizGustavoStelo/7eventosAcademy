@@ -63,7 +63,7 @@ export class ClassesMaterialsService {
 
     if (dto.title.trim().length < 3) {
       throw new BadRequestException(
-        'TÃ­tulo do material deve ter pelo menos 3 caracteres.',
+        'Título do material deve ter pelo menos 3 caracteres.',
       );
     }
 
@@ -99,7 +99,7 @@ export class ClassesMaterialsService {
 
     if (dto.title.trim().length < 3) {
       throw new BadRequestException(
-        'TÃ­tulo do material deve ter pelo menos 3 caracteres.',
+        'Título do material deve ter pelo menos 3 caracteres.',
       );
     }
 
@@ -252,7 +252,7 @@ export class ClassesMaterialsService {
     });
 
     if (!schoolClass) {
-      throw new NotFoundException('Turma nÃ£o encontrada.');
+      throw new NotFoundException('Turma não encontrada.');
     }
   }
 
