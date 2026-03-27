@@ -180,8 +180,8 @@ const ICONE_POR_SECAO: Record<string, string> = {
   admin_agenda: 'calendar_today',
   admin_financeiro: 'payments',
   admin_conteudo: 'menu_book',
-  admin_avisos: 'campaign',
-  admin_relatorios: 'bar_chart',
+  admin_avisos: 'notifications_active',
+  admin_relatorios: 'checklist_rtl',
   admin_configuracoes: 'settings',
   superadmin_dashboard_global: 'dashboard',
   superadmin_gestao_contas: 'admin_panel_settings',
@@ -269,19 +269,20 @@ function SidebarNavIcon({ name }: { name: string }) {
     );
   }
 
-  if (name === 'campaign') {
+  if (name === 'notifications_active') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
-        <path d="M3 10v4l9-2V8l-9 2z" />
-        <path d="M12 8l6-3v14l-6-3M6 14l1 4h2l-1-4" />
+        <path d="M12 21a2.3 2.3 0 002.2-1.8H9.8A2.3 2.3 0 0012 21z" />
+        <path d="M18 16.5H6l1.2-1.8V10a4.8 4.8 0 019.6 0v4.7l1.2 1.8z" />
       </svg>
     );
   }
 
-  if (name === 'bar_chart') {
+  if (name === 'checklist_rtl') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
-        <path d="M4 20V9M10 20V4M16 20v7M22 20H2" />
+        <path d="M9 7h10M9 12h10M9 17h10" />
+        <path d="M3.8 7.2l1.6 1.6L7.8 6.4M3.8 12.2l1.6 1.6 2.4-2.4M3.8 17.2l1.6 1.6 2.4-2.4" />
       </svg>
     );
   }
