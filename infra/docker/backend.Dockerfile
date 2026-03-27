@@ -16,8 +16,6 @@ RUN npm run prisma:generate --workspace backend
 COPY apps/backend ./apps/backend
 WORKDIR /app/apps/backend
 RUN npm run build
-WORKDIR /app
-RUN npm prune --workspace backend --omit=dev --include-workspace-root=false
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
