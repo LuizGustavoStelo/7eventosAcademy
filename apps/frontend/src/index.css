@@ -47,6 +47,13 @@ body {
     linear-gradient(130deg, #f7efe5 0%, #f4eee7 46%, #f9f7f3 100%);
 }
 
+.auth-shell.auth-shell-admin {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  align-content: center;
+  padding: clamp(1.2rem, 4vw, 3rem);
+}
+
 .auth-shell::before,
 .auth-shell::after {
   content: '';
@@ -101,6 +108,26 @@ body {
   display: grid;
   align-content: center;
   gap: 1.1rem;
+}
+
+.auth-shell.auth-shell-admin .auth-panel,
+.auth-shell.auth-shell-admin .auth-card {
+  width: min(980px, 100%);
+  max-width: min(980px, calc(100vw - 4rem));
+}
+
+.auth-shell.auth-shell-admin .auth-panel {
+  justify-items: start;
+  padding-bottom: 0.6rem;
+}
+
+.auth-shell.auth-shell-admin .auth-panel-aftercard {
+  padding-top: 0.35rem;
+  padding-bottom: 0;
+}
+
+.auth-shell.auth-shell-admin .auth-card {
+  justify-self: center;
 }
 
 .auth-brand {
@@ -4315,6 +4342,10 @@ table button {
     gap: 0;
   }
 
+  .auth-shell.auth-shell-admin {
+    padding: 1rem;
+  }
+
   .auth-panel,
   .auth-card {
     padding: 1.15rem;
@@ -4341,6 +4372,11 @@ table button {
   .auth-card {
     justify-self: center;
     width: min(520px, 100%);
+  }
+
+  .auth-shell.auth-shell-admin .auth-panel,
+  .auth-shell.auth-shell-admin .auth-card {
+    max-width: calc(100vw - 2rem);
   }
 
   .global-sidebar {
@@ -7097,7 +7133,8 @@ table button {
   display: grid;
   place-items: center;
   background:
-    radial-gradient(circle at top right, rgba(19, 147, 149, 0.15), transparent 42%),
+    radial-gradient(circle at top right, rgba(19, 147, 149, 0.2), transparent 42%),
+    radial-gradient(circle at 10% 14%, rgba(15, 127, 130, 0.1), transparent 38%),
     linear-gradient(180deg, #f8fcff 0%, #f4f8fb 100%);
 }
 
@@ -7107,11 +7144,12 @@ table button {
 }
 
 .native-student-register-card {
-  width: min(940px, 100%);
+  width: min(1020px, 100%);
   background: rgba(255, 255, 255, 0.96);
   border-radius: 18px;
   box-shadow: 0 16px 36px rgba(40, 62, 110, 0.12);
-  padding: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 22px;
 }
 
 .native-student-register-card header h1 {
@@ -7125,38 +7163,338 @@ table button {
   color: #60708a;
 }
 
+.native-student-register-stepper {
+  list-style: none;
+  margin: 0 0 0.9rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.native-student-register-step button {
+  width: 100%;
+  border: 1px solid rgba(40, 62, 110, 0.15);
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 0.55rem 0.62rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+}
+
+.native-student-register-step button span {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: #dde7f4;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.native-student-register-step button strong {
+  display: block;
+  color: #334155;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.native-student-register-step button small {
+  color: #64748b;
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.native-student-register-step button:disabled {
+  cursor: not-allowed;
+}
+
+.native-student-register-step.is-active button {
+  border-color: rgba(19, 147, 149, 0.45);
+  background: #ecf9f9;
+}
+
+.native-student-register-step.is-active button span {
+  background: #139395;
+  color: #fff;
+}
+
+.native-student-register-step.is-done button {
+  border-color: rgba(15, 127, 130, 0.35);
+  background: #f1fbfb;
+}
+
+.native-student-register-step.is-done button span {
+  background: #0f7f82;
+  color: #fff;
+}
+
+.native-student-register-step.is-pending button {
+  opacity: 0.66;
+}
+
 .native-student-register-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  padding-top: 0.15rem;
 }
 
 .native-student-register-form label.full {
   grid-column: 1 / -1;
 }
 
-.native-student-register-form textarea {
-  width: 100%;
-  border: 1px solid rgba(40, 62, 110, 0.22);
+.native-student-register-form input:read-only {
+  background: #f4f7fa;
+  color: #475569;
+}
+
+.native-student-password-strength {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.native-student-password-strength.is-weak {
+  color: #b91c1c;
+}
+
+.native-student-password-strength.is-medium {
+  color: #b45309;
+}
+
+.native-student-password-strength.is-strong {
+  color: #047857;
+}
+
+.native-student-register-hint {
+  margin: 0;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 10px;
-  padding: 0.65rem 0.7rem;
-  font: inherit;
-  resize: vertical;
+  padding: 0.56rem 0.65rem;
+  color: #4b5563;
+  font-size: 0.82rem;
 }
 
-.native-student-register-form .native-modal-actions {
+.native-student-register-courses {
+  display: grid;
+  gap: 0.72rem;
+}
+
+.native-student-register-courses-header h3 {
+  margin: 0;
+  font-size: 1.14rem;
+  color: #1f3a65;
+}
+
+.native-student-register-courses-header p {
+  margin: 0.35rem 0 0;
+  color: #5a6f8a;
+  font-size: 0.88rem;
+}
+
+.native-public-course-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.native-public-course-card {
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 14px;
+  padding: 0;
+  background: #fff;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  display: grid;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.native-public-course-card:hover {
+  border-color: rgba(19, 147, 149, 0.5);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
+}
+
+.native-public-course-card.is-selected {
+  border-color: #139395;
+  box-shadow: 0 0 0 3px rgba(19, 147, 149, 0.15);
+}
+
+.native-public-course-card img,
+.native-public-course-banner-fallback {
+  width: 100%;
+  height: 145px;
+}
+
+.native-public-course-card img {
+  object-fit: cover;
+  display: block;
+}
+
+.native-public-course-banner-fallback {
+  display: grid;
+  place-items: center;
+  padding: 0.8rem;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.26), transparent 36%),
+    linear-gradient(120deg, #0f7f82, #139395);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+}
+
+.native-public-course-content {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.7rem;
+}
+
+.native-public-course-content header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
+.native-public-course-content h4 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 0.98rem;
+}
+
+.native-public-course-content header span {
+  border-radius: 999px;
+  padding: 0.17rem 0.52rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: #e7f7f7;
+  color: #0f7f82;
+  white-space: nowrap;
+}
+
+.native-public-course-content p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.native-public-course-content dl {
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.native-public-course-content dl div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.native-public-course-content dt {
+  color: #64748b;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 800;
+}
+
+.native-public-course-content dd {
+  margin: 0;
+  color: #1f2937;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.native-public-course-empty {
+  border: 1px dashed rgba(15, 23, 42, 0.2);
+  border-radius: 12px;
+  padding: 0.85rem;
+  background: #f8fafc;
+  color: #475569;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.native-public-course-empty p {
+  margin: 0;
+}
+
+.native-public-course-empty button {
+  justify-self: start;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 9px;
+  background: #fff;
+  color: #334155;
+  font-weight: 700;
+  padding: 0.42rem 0.66rem;
+  cursor: pointer;
+}
+
+.native-student-register-actions {
   grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
 }
 
-.native-student-register-form .native-modal-actions .ghost {
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.native-student-register-actions > span {
+  width: 132px;
+}
+
+.native-student-register-actions button {
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(120deg, #0f7f82, #139395);
+  color: #fff;
+  font-weight: 700;
+  padding: 0.62rem 1rem;
+  min-width: 132px;
+  cursor: pointer;
+  box-shadow: 0 12px 22px rgba(19, 147, 149, 0.23);
+}
+
+.native-student-register-actions button:hover:not(:disabled) {
+  filter: brightness(1.03);
+  transform: translateY(-1px);
+}
+
+.native-student-register-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.native-student-register-actions .ghost {
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: #fff;
+  color: #334155;
+  box-shadow: none;
 }
 
 .native-success a {
   margin-left: 6px;
   color: #0f7f81;
   font-weight: 700;
+}
+
+@media (max-width: 980px) {
+  .native-student-register-stepper {
+    grid-template-columns: 1fr;
+  }
+
+  .native-public-course-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
@@ -7170,6 +7508,19 @@ table button {
 
   .native-student-register-form {
     grid-template-columns: 1fr;
+  }
+
+  .native-student-register-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .native-student-register-actions > span {
+    display: none;
+  }
+
+  .native-student-register-actions button {
+    width: 100%;
   }
 }
 

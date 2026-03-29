@@ -1,9 +1,33 @@
-import { useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { API_BASE_URL } from './api';
 
 type StudentRegistrationNativeProps = {
   embedded: boolean;
+};
+
+type CourseCatalogItem = {
+  id: string;
+  name: string;
+  description?: string | null;
+  workloadHours?: number | null;
+  category?: string | null;
+  coordinator?: string | null;
+  paymentModel?: string | null;
+  installmentMonths?: number | null;
+  installmentValue?: number | null;
+  modality?: string | null;
+  status?: string | null;
+  bannerUrl?: string | null;
+};
+
+type ViaCepPayload = {
+  logradouro?: string;
+  bairro?: string;
+  localidade?: string;
+  uf?: string;
+  complemento?: string;
+  erro?: boolean;
 };
 
 type RegistrationPayload = {
@@ -14,8 +38,6 @@ type RegistrationPayload = {
   phone: string;
   birthDate: string;
   gender?: string;
-  guardianName?: string;
-  guardianPhone?: string;
   zipCode?: string;
   street?: string;
   streetNumber?: string;
@@ -23,13 +45,170 @@ type RegistrationPayload = {
   neighborhood?: string;
   city?: string;
   state?: string;
-  notes?: string;
+  courseIds?: string[];
 };
+
+type PasswordStrength = {
+  label: string;
+  toneClass: string;
+  score: number;
+};
+
+const steps = [
+  {
+    title: 'Dados pessoais',
+    description: 'Identificação e acesso',
+  },
+  {
+    title: 'Endereço',
+    description: 'Localização automática por CEP',
+  },
+  {
+    title: 'Curso',
+    description: 'Escolha da formação',
+  },
+];
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => {
     window.setTimeout(resolve, ms);
   });
+
+const onlyDigits = (value: string) => value.replace(/\D/g, '');
+
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+});
+
+function formatCpf(value: string) {
+  const digits = onlyDigits(value).slice(0, 11);
+  return digits
+    .replace(/^(\d{3})(\d)/, '$1.$2')
+    .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1-$2');
+}
+
+function formatPhone(value: string) {
+  const digits = onlyDigits(value).slice(0, 11);
+  if (digits.length <= 10) {
+    return digits
+      .replace(/^(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{4})(\d)/, '$1-$2');
+  }
+
+  return digits
+    .replace(/^(\d{2})(\d)/, '($1) $2')
+    .replace(/(\d{5})(\d)/, '$1-$2');
+}
+
+function formatZipCode(value: string) {
+  const digits = onlyDigits(value).slice(0, 8);
+  return digits.replace(/^(\d{5})(\d)/, '$1-$2');
+}
+
+function normalizeState(value: string) {
+  return value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2);
+}
+
+function isValidCpf(value: string) {
+  const cpf = onlyDigits(value);
+  if (cpf.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+  const calcDigit = (base: string, factor: number) => {
+    let total = 0;
+    for (let index = 0; index < base.length; index += 1) {
+      total += Number(base[index]) * (factor - index);
+    }
+    const remainder = (total * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+
+  const firstDigit = calcDigit(cpf.slice(0, 9), 10);
+  const secondDigit = calcDigit(cpf.slice(0, 10), 11);
+  return firstDigit === Number(cpf[9]) && secondDigit === Number(cpf[10]);
+}
+
+function isValidPhone(value: string) {
+  const phoneDigits = onlyDigits(value);
+  if (phoneDigits.length < 10 || phoneDigits.length > 11) return false;
+  if (/^(\d)\1+$/.test(phoneDigits)) return false;
+  return true;
+}
+
+function isValidZipCode(value: string) {
+  return onlyDigits(value).length === 8;
+}
+
+function isValidBirthDate(value: string) {
+  if (!value) return false;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return false;
+  const now = new Date();
+  if (date > now) return false;
+  if (date.getFullYear() < 1900) return false;
+  return true;
+}
+
+function passwordStrength(password: string): PasswordStrength {
+  if (!password) {
+    return { label: 'Fraca', toneClass: 'is-weak', score: 0 };
+  }
+
+  let score = 0;
+  if (password.length >= 8) score += 1;
+  if (password.length >= 12) score += 1;
+  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
+  if (/\d/.test(password)) score += 1;
+  if (/[^A-Za-z0-9]/.test(password)) score += 1;
+
+  if (score >= 5) return { label: 'Forte', toneClass: 'is-strong', score };
+  if (score >= 3) return { label: 'Média', toneClass: 'is-medium', score };
+  return { label: 'Fraca', toneClass: 'is-weak', score };
+}
+
+function modalityLabel(value?: string | null) {
+  const normalized = String(value || '').toUpperCase();
+  if (normalized === 'PRESENTIAL') return 'Presencial';
+  if (normalized === 'HYBRID') return 'Híbrido';
+  if (normalized === 'EAD') return 'EAD';
+  return 'Não informado';
+}
+
+function installmentLabel(course: CourseCatalogItem) {
+  const paymentModel = String(course.paymentModel || '').toUpperCase();
+  if (paymentModel !== 'INSTALLMENTS') {
+    return 'Pagamento à vista';
+  }
+
+  const months = Number(course.installmentMonths || 0);
+  const installmentValue = Number(course.installmentValue || 0);
+  if (months > 0 && installmentValue > 0) {
+    return `${months}x de ${currencyFormatter.format(installmentValue)}`;
+  }
+
+  return 'Pagamento parcelado';
+}
+
+async function requestWithRetry(input: string, init?: RequestInit) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await fetch(input, init);
+    if (response.status === 429 && attempt === 0) {
+      const retryAfter = Number(response.headers.get('retry-after') ?? '');
+      const retryDelayMs =
+        Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 900;
+      await sleep(retryDelayMs);
+      continue;
+    }
+
+    return response;
+  }
+
+  throw new Error('Limite de requisições atingido temporariamente.');
+}
 
 async function readError(response: Response) {
   try {
@@ -44,18 +223,22 @@ async function readError(response: Response) {
 
 export function StudentRegistrationNative({ embedded }: StudentRegistrationNativeProps) {
   const [loading, setLoading] = useState(false);
+  const [coursesLoading, setCoursesLoading] = useState(false);
+  const [zipLookupLoading, setZipLookupLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [coursesError, setCoursesError] = useState('');
+  const [zipLookupError, setZipLookupError] = useState('');
+  const [currentStep, setCurrentStep] = useState(0);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [documentCpf, setDocumentCpf] = useState('');
   const [phone, setPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [gender, setGender] = useState('');
-  const [guardianName, setGuardianName] = useState('');
-  const [guardianPhone, setGuardianPhone] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [street, setStreet] = useState('');
   const [streetNumber, setStreetNumber] = useState('');
@@ -63,7 +246,41 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const [neighborhood, setNeighborhood] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
-  const [notes, setNotes] = useState('');
+  const [zipAutofilled, setZipAutofilled] = useState(false);
+  const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [courses, setCourses] = useState<CourseCatalogItem[]>([]);
+
+  const strength = useMemo(() => passwordStrength(password), [password]);
+  const isFinalStep = currentStep === steps.length - 1;
+
+  const loadCourses = async () => {
+    setCoursesLoading(true);
+    setCoursesError('');
+    try {
+      const response = await requestWithRetry(`${API_BASE_URL}/mis/v1/public/cursos`);
+      if (!response.ok) {
+        throw new Error(await readError(response));
+      }
+
+      const payload = (await response.json()) as CourseCatalogItem[];
+      const onlyActive = Array.isArray(payload)
+        ? payload.filter((item) => String(item.status || '').toUpperCase() === 'ACTIVE')
+        : [];
+      setCourses(onlyActive);
+    } catch (coursesLoadError) {
+      setCoursesError(
+        coursesLoadError instanceof Error
+          ? coursesLoadError.message
+          : 'Não foi possível carregar os cursos.',
+      );
+    } finally {
+      setCoursesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadCourses();
+  }, []);
 
   const buildPortalLink = (app: 'student' | 'student-register') => {
     const params = new URLSearchParams(window.location.search);
@@ -72,70 +289,212 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     return `/?${params.toString()}`;
   };
 
+  const validateStepOne = () => {
+    if (!name.trim() || name.trim().length < 3) {
+      return 'Informe seu nome completo.';
+    }
+    if (!emailRegex.test(email.trim())) {
+      return 'Informe um e-mail válido.';
+    }
+    if (password.length < 8) {
+      return 'A senha deve ter pelo menos 8 caracteres.';
+    }
+    if (strength.score < 3) {
+      return 'Use uma senha pelo menos média (misture letras, números e símbolos).';
+    }
+    if (!confirmPassword) {
+      return 'Confirme sua senha para continuar.';
+    }
+    if (password !== confirmPassword) {
+      return 'A confirmação de senha não confere.';
+    }
+    if (!isValidCpf(documentCpf)) {
+      return 'Informe um CPF válido.';
+    }
+    if (!isValidPhone(phone)) {
+      return 'Informe um telefone válido com DDD.';
+    }
+    if (!isValidBirthDate(birthDate)) {
+      return 'Informe uma data de nascimento válida.';
+    }
+    return '';
+  };
+
+  const validateStepTwo = () => {
+    if (!isValidZipCode(zipCode)) {
+      return 'Informe um CEP válido com 8 dígitos.';
+    }
+    if (!street.trim() || !neighborhood.trim() || !city.trim() || !state.trim()) {
+      return 'Complete o endereço a partir do CEP para continuar.';
+    }
+    if (!streetNumber.trim()) {
+      return 'Informe o número da casa.';
+    }
+    if (normalizeState(state).length !== 2) {
+      return 'Informe um estado válido (UF).';
+    }
+    return '';
+  };
+
+  const validateStepThree = () => {
+    if (coursesLoading) {
+      return 'Aguarde o carregamento dos cursos.';
+    }
+    if (!selectedCourseId) {
+      return 'Selecione um curso para concluir o cadastro.';
+    }
+    return '';
+  };
+
+  const resetAddress = () => {
+    setStreet('');
+    setNeighborhood('');
+    setCity('');
+    setState('');
+  };
+
+  const lookupZipCode = async (zipDigitsInput?: string) => {
+    const zipDigits = zipDigitsInput ?? onlyDigits(zipCode);
+    if (zipDigits.length !== 8) {
+      setZipLookupError('Informe um CEP válido para buscar o endereço.');
+      return false;
+    }
+
+    setZipLookupLoading(true);
+    setZipLookupError('');
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${zipDigits}/json/`);
+      if (!response.ok) {
+        throw new Error('Falha ao consultar o CEP.');
+      }
+
+      const payload = (await response.json()) as ViaCepPayload;
+      if (payload.erro) {
+        setZipAutofilled(false);
+        setZipLookupError('CEP não encontrado. Verifique os dados digitados.');
+        return false;
+      }
+
+      setZipCode(formatZipCode(zipDigits));
+      setStreet((payload.logradouro || '').trim());
+      setNeighborhood((payload.bairro || '').trim());
+      setCity((payload.localidade || '').trim());
+      setState(normalizeState(payload.uf || ''));
+      if (!complement.trim() && payload.complemento) {
+        setComplement(payload.complemento.trim());
+      }
+      setZipAutofilled(true);
+      return true;
+    } catch {
+      setZipAutofilled(false);
+      setZipLookupError('Não foi possível consultar o CEP agora. Tente novamente.');
+      return false;
+    } finally {
+      setZipLookupLoading(false);
+    }
+  };
+
+  const ensureZipLookup = async () => {
+    const zipDigits = onlyDigits(zipCode);
+    if (zipDigits.length !== 8) return;
+    if (street.trim() && neighborhood.trim() && city.trim() && state.trim()) return;
+    await lookupZipCode(zipDigits);
+  };
+
+  const goToNextStep = async () => {
+    setError('');
+    if (currentStep === 1) {
+      await ensureZipLookup();
+    }
+
+    const validation =
+      currentStep === 0 ? validateStepOne() : currentStep === 1 ? validateStepTwo() : '';
+
+    if (validation) {
+      setError(validation);
+      return;
+    }
+
+    setCurrentStep((previous) => Math.min(previous + 1, steps.length - 1));
+  };
+
+  const goToPreviousStep = () => {
+    setError('');
+    setCurrentStep((previous) => Math.max(previous - 1, 0));
+  };
+
+  const resetForm = () => {
+    setName('');
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setDocumentCpf('');
+    setPhone('');
+    setBirthDate('');
+    setGender('');
+    setZipCode('');
+    setStreet('');
+    setStreetNumber('');
+    setComplement('');
+    setNeighborhood('');
+    setCity('');
+    setState('');
+    setZipAutofilled(false);
+    setZipLookupError('');
+    setSelectedCourseId('');
+    setCurrentStep(0);
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
     setSuccess('');
 
-    if (!name || !email || !password || !documentCpf || !phone || !birthDate) {
-      setError('Preencha os campos obrigatórios para continuar.');
-      return;
-    }
+    await ensureZipLookup();
 
-    if (password.length < 8) {
-      setError('A senha deve ter pelo menos 8 caracteres.');
+    const allValidations = [validateStepOne(), validateStepTwo(), validateStepThree()].filter(
+      Boolean,
+    );
+
+    if (allValidations.length > 0) {
+      setError(allValidations[0] || 'Revise os campos obrigatórios.');
       return;
     }
 
     const payload: RegistrationPayload = {
-      name,
-      email,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
       password,
-      documentCpf,
-      phone,
+      documentCpf: onlyDigits(documentCpf),
+      phone: onlyDigits(phone),
       birthDate,
       gender: gender || undefined,
-      guardianName: guardianName || undefined,
-      guardianPhone: guardianPhone || undefined,
-      zipCode: zipCode || undefined,
-      street: street || undefined,
-      streetNumber: streetNumber || undefined,
-      complement: complement || undefined,
-      neighborhood: neighborhood || undefined,
-      city: city || undefined,
-      state: state || undefined,
-      notes: notes || undefined,
+      zipCode: onlyDigits(zipCode) || undefined,
+      street: street.trim() || undefined,
+      streetNumber: streetNumber.trim() || undefined,
+      complement: complement.trim() || undefined,
+      neighborhood: neighborhood.trim() || undefined,
+      city: city.trim() || undefined,
+      state: normalizeState(state) || undefined,
+      courseIds: selectedCourseId ? [selectedCourseId] : undefined,
     };
 
     setLoading(true);
     try {
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const response = await fetch(`${API_BASE_URL}/mis/v1/public/cadastros`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
+      const response = await requestWithRetry(`${API_BASE_URL}/mis/v1/public/cadastros`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
 
-        if (response.status === 429 && attempt === 0) {
-          const retryAfter = Number(response.headers.get('retry-after') ?? '');
-          const retryDelayMs =
-            Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 900;
-          await sleep(retryDelayMs);
-          continue;
-        }
-
-        if (!response.ok) {
-          throw new Error(await readError(response));
-        }
-
-        setSuccess('Cadastro realizado com sucesso. Faça login para acessar sua Área do Aluno.');
-        setPassword('');
-        return;
+      if (!response.ok) {
+        throw new Error(await readError(response));
       }
 
-      throw new Error('Limite de requisições atingido temporariamente.');
+      setSuccess('Cadastro realizado com sucesso. Faça login para acessar sua Área do Aluno.');
+      resetForm();
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -162,188 +521,363 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
           </p>
         ) : null}
 
-        <form className="native-form-grid native-student-register-form" onSubmit={submit}>
-          <label>
-            Nome completo *
-            <input
-              type="text"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+        <ol className="native-student-register-stepper" aria-label="Etapas do cadastro">
+          {steps.map((step, index) => {
+            const stateClass =
+              index === currentStep
+                ? 'is-active'
+                : index < currentStep
+                  ? 'is-done'
+                  : 'is-pending';
+            const allowStepSelection = index <= currentStep;
 
-          <label>
-            E-mail *
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+            return (
+              <li key={step.title} className={`native-student-register-step ${stateClass}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!allowStepSelection) return;
+                    setCurrentStep(index);
+                    setError('');
+                  }}
+                  disabled={!allowStepSelection || loading}
+                >
+                  <span>{index + 1}</span>
+                  <div>
+                    <strong>{step.title}</strong>
+                    <small>{step.description}</small>
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
 
-          <label>
-            Senha *
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+        <form className="native-form-grid native-student-register-form" onSubmit={submit} noValidate>
+          {currentStep === 0 ? (
+            <>
+              <label>
+                Nome completo *
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  disabled={loading}
+                  autoComplete="name"
+                />
+              </label>
 
-          <label>
-            CPF *
-            <input
-              type="text"
-              value={documentCpf}
-              onChange={(event) => setDocumentCpf(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+              <label>
+                E-mail *
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  disabled={loading}
+                  autoComplete="email"
+                />
+              </label>
 
-          <label>
-            Telefone *
-            <input
-              type="tel"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+              <label>
+                Senha *
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  disabled={loading}
+                  autoComplete="new-password"
+                />
+                {password ? (
+                  <small className={`native-student-password-strength ${strength.toneClass}`}>
+                    Força da senha: {strength.label}
+                  </small>
+                ) : null}
+              </label>
 
-          <label>
-            Data de nascimento *
-            <input
-              type="date"
-              value={birthDate}
-              onChange={(event) => setBirthDate(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+              {password ? (
+                <label>
+                  Confirmar senha *
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    disabled={loading}
+                    autoComplete="new-password"
+                  />
+                </label>
+              ) : (
+                <label>
+                  CPF *
+                  <input
+                    type="text"
+                    value={documentCpf}
+                    onChange={(event) => setDocumentCpf(formatCpf(event.target.value))}
+                    disabled={loading}
+                    inputMode="numeric"
+                    placeholder="000.000.000-00"
+                  />
+                </label>
+              )}
 
-          <label>
-            Gênero
-            <select
-              value={gender}
-              onChange={(event) => setGender(event.target.value)}
-              disabled={loading}
-            >
-              <option value="">Prefiro não informar</option>
-              <option value="masculino">Masculino</option>
-              <option value="feminino">Feminino</option>
-              <option value="outro">Outro</option>
-            </select>
-          </label>
+              {password ? (
+                <label>
+                  CPF *
+                  <input
+                    type="text"
+                    value={documentCpf}
+                    onChange={(event) => setDocumentCpf(formatCpf(event.target.value))}
+                    disabled={loading}
+                    inputMode="numeric"
+                    placeholder="000.000.000-00"
+                  />
+                </label>
+              ) : null}
 
-          <label>
-            Nome do responsável
-            <input
-              type="text"
-              value={guardianName}
-              onChange={(event) => setGuardianName(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+              <label>
+                Telefone *
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(event) => setPhone(formatPhone(event.target.value))}
+                  disabled={loading}
+                  inputMode="numeric"
+                  placeholder="(00) 00000-0000"
+                />
+              </label>
 
-          <label>
-            Telefone do responsável
-            <input
-              type="tel"
-              value={guardianPhone}
-              onChange={(event) => setGuardianPhone(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+              <label>
+                Data de nascimento *
+                <input
+                  type="date"
+                  value={birthDate}
+                  onChange={(event) => setBirthDate(event.target.value)}
+                  disabled={loading}
+                />
+              </label>
 
-          <label>
-            CEP
-            <input
-              type="text"
-              value={zipCode}
-              onChange={(event) => setZipCode(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+              <label>
+                Gênero
+                <select
+                  value={gender}
+                  onChange={(event) => setGender(event.target.value)}
+                  disabled={loading}
+                >
+                  <option value="">Prefiro não informar</option>
+                  <option value="masculino">Masculino</option>
+                  <option value="feminino">Feminino</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </label>
+            </>
+          ) : null}
 
-          <label>
-            Rua
-            <input
-              type="text"
-              value={street}
-              onChange={(event) => setStreet(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+          {currentStep === 1 ? (
+            <>
+              <label>
+                CEP *
+                <input
+                  type="text"
+                  value={zipCode}
+                  onChange={(event) => {
+                    const maskedZipCode = formatZipCode(event.target.value);
+                    setZipCode(maskedZipCode);
+                    setZipLookupError('');
+                    if (onlyDigits(maskedZipCode).length < 8) {
+                      setZipAutofilled(false);
+                      resetAddress();
+                    }
+                  }}
+                  onBlur={() => {
+                    void lookupZipCode();
+                  }}
+                  disabled={loading}
+                  inputMode="numeric"
+                  placeholder="00000-000"
+                />
+              </label>
 
-          <label>
-            Número
-            <input
-              type="text"
-              value={streetNumber}
-              onChange={(event) => setStreetNumber(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+              <label>
+                Número *
+                <input
+                  type="text"
+                  value={streetNumber}
+                  onChange={(event) => setStreetNumber(event.target.value)}
+                  disabled={loading}
+                  placeholder="Ex.: 123"
+                />
+              </label>
 
-          <label>
-            Complemento
-            <input
-              type="text"
-              value={complement}
-              onChange={(event) => setComplement(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+              <label className="full">
+                Rua *
+                <input
+                  type="text"
+                  value={street}
+                  onChange={(event) => setStreet(event.target.value)}
+                  disabled={loading}
+                  readOnly={zipAutofilled}
+                />
+              </label>
 
-          <label>
-            Bairro
-            <input
-              type="text"
-              value={neighborhood}
-              onChange={(event) => setNeighborhood(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+              <label>
+                Bairro *
+                <input
+                  type="text"
+                  value={neighborhood}
+                  onChange={(event) => setNeighborhood(event.target.value)}
+                  disabled={loading}
+                  readOnly={zipAutofilled}
+                />
+              </label>
 
-          <label>
-            Cidade
-            <input
-              type="text"
-              value={city}
-              onChange={(event) => setCity(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+              <label>
+                Cidade *
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(event) => setCity(event.target.value)}
+                  disabled={loading}
+                  readOnly={zipAutofilled}
+                />
+              </label>
 
-          <label>
-            Estado
-            <input
-              type="text"
-              value={state}
-              onChange={(event) => setState(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+              <label>
+                Estado (UF) *
+                <input
+                  type="text"
+                  value={state}
+                  onChange={(event) => setState(normalizeState(event.target.value))}
+                  disabled={loading}
+                  readOnly={zipAutofilled}
+                  maxLength={2}
+                />
+              </label>
 
-          <label className="full">
-            Observações
-            <textarea
-              rows={3}
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              disabled={loading}
-            />
-          </label>
+              <label>
+                Complemento
+                <input
+                  type="text"
+                  value={complement}
+                  onChange={(event) => setComplement(event.target.value)}
+                  disabled={loading}
+                  placeholder="Opcional"
+                />
+              </label>
 
-          <div className="native-modal-actions">
-            <a className="ghost" href={buildPortalLink('student')}>
-              Já tenho acesso
-            </a>
-            <button type="submit" disabled={loading}>
-              {loading ? 'Cadastrando...' : 'Concluir cadastro'}
-            </button>
+              <p className="native-student-register-hint full">
+                {zipLookupLoading
+                  ? 'Consultando CEP...'
+                  : zipLookupError
+                    ? zipLookupError
+                    : 'Preencha o CEP para carregar automaticamente rua, bairro, cidade e estado.'}
+              </p>
+            </>
+          ) : null}
+
+          {currentStep === 2 ? (
+            <section className="native-student-register-courses full" aria-label="Escolha do curso">
+              <header className="native-student-register-courses-header">
+                <h3>Escolha seu curso</h3>
+                <p>
+                  Selecione a formação desejada. Você poderá concluir sua matrícula no painel
+                  acadêmico após o cadastro.
+                </p>
+              </header>
+
+              {coursesLoading ? <p className="native-info">Carregando cursos...</p> : null}
+
+              {!coursesLoading && coursesError ? (
+                <div className="native-public-course-empty">
+                  <p>{coursesError}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void loadCourses();
+                    }}
+                    disabled={loading}
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              ) : null}
+
+              {!coursesLoading && !coursesError && courses.length === 0 ? (
+                <div className="native-public-course-empty">
+                  <p>Nenhum curso disponível no momento.</p>
+                </div>
+              ) : null}
+
+              {!coursesLoading && !coursesError && courses.length > 0 ? (
+                <div className="native-public-course-grid">
+                  {courses.map((course) => {
+                    const selected = selectedCourseId === course.id;
+                    return (
+                      <button
+                        key={course.id}
+                        type="button"
+                        className={`native-public-course-card ${selected ? 'is-selected' : ''}`}
+                        onClick={() => setSelectedCourseId(course.id)}
+                        disabled={loading}
+                      >
+                        {course.bannerUrl ? (
+                          <img src={course.bannerUrl} alt={`Banner do curso ${course.name}`} />
+                        ) : (
+                          <div className="native-public-course-banner-fallback">
+                            <span>{course.name}</span>
+                          </div>
+                        )}
+                        <div className="native-public-course-content">
+                          <header>
+                            <h4>{course.name}</h4>
+                            <span>{modalityLabel(course.modality)}</span>
+                          </header>
+                          <p>{course.description || 'Curso acadêmico profissional.'}</p>
+                          <dl>
+                            <div>
+                              <dt>Carga horária</dt>
+                              <dd>
+                                {course.workloadHours ? `${course.workloadHours}h` : 'Não informada'}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Categoria</dt>
+                              <dd>{course.category || 'Não informada'}</dd>
+                            </div>
+                            <div>
+                              <dt>Coordenação</dt>
+                              <dd>{course.coordinator || 'Não informada'}</dd>
+                            </div>
+                            <div>
+                              <dt>Pagamento</dt>
+                              <dd>{installmentLabel(course)}</dd>
+                            </div>
+                          </dl>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
+          <div className="native-student-register-actions full">
+            {currentStep > 0 ? (
+              <button type="button" className="ghost" onClick={goToPreviousStep} disabled={loading}>
+                Voltar etapa
+              </button>
+            ) : (
+              <span />
+            )}
+
+            {isFinalStep ? (
+              <button type="submit" disabled={loading || coursesLoading}>
+                {loading ? 'Concluindo cadastro...' : 'Finalizar matrícula e criar acesso'}
+              </button>
+            ) : (
+              <button type="button" onClick={() => void goToNextStep()} disabled={loading}>
+                Continuar
+              </button>
+            )}
           </div>
         </form>
       </article>

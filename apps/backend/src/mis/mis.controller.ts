@@ -5,6 +5,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PublicStudentRegistrationDto } from '../students/dto/public-student-registration.dto';
 import { StudentsService } from '../students/students.service';
+import { CoursesService } from '../courses/courses.service';
 import { MisService } from './mis.service';
 
 /**
@@ -22,6 +23,7 @@ export class MisController {
   constructor(
     private readonly misService: MisService,
     private readonly studentsService: StudentsService,
+    private readonly coursesService: CoursesService,
   ) {}
 
   // ── Área autenticada ─────────────────────────────────────────────────────
@@ -95,5 +97,15 @@ export class MisController {
   @Post('public/cadastros')
   async publicRegister(@Body() dto: PublicStudentRegistrationDto) {
     return this.studentsService.registerPublic(dto);
+  }
+
+  @SkipThrottle()
+  @Public()
+  @Get('public/cursos')
+  async publicCourses() {
+    const courses = await this.coursesService.findAll();
+    return courses.filter(
+      (course) => String(course.status || '').toUpperCase() === 'ACTIVE',
+    );
   }
 }

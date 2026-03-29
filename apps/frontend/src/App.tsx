@@ -974,7 +974,7 @@ export default function App() {
       <div
         className={`auth-shell ${isEmbedded ? 'embedded' : ''} ${
           isStudentPortalMode ? 'auth-shell-plugin' : ''
-        }`}
+        } ${!isEmbedded && !isStudentPortalMode ? 'auth-shell-admin' : ''}`}
       >
         {!isEmbedded && !isStudentPortalMode && (
           <section className="auth-panel">
@@ -990,14 +990,6 @@ export default function App() {
             </div>
 
             <h1>Bem-vindo à plataforma Academy</h1>
-            <p>
-              Ambiente completo para gestão de contas, turmas, matrículas, financeiro e
-              operação acadêmica.
-            </p>
-            <div className="auth-panel-highlights">
-              <span>Visão centralizada da operação</span>
-              <span>Fluxos acadêmicos e financeiros no mesmo lugar</span>
-            </div>
           </section>
         )}
 
@@ -1100,6 +1092,19 @@ export default function App() {
             </button>
           </form>
         </section>
+
+        {!isEmbedded && !isStudentPortalMode && (
+          <section className="auth-panel auth-panel-aftercard">
+            <p>
+              Ambiente completo para gestão de contas, turmas, matrículas, financeiro e
+              operação acadêmica.
+            </p>
+            <div className="auth-panel-highlights">
+              <span>Visão centralizada da operação</span>
+              <span>Fluxos acadêmicos e financeiros no mesmo lugar</span>
+            </div>
+          </section>
+        )}
       </div>
     );
   }
