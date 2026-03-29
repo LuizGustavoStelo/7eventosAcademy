@@ -30,9 +30,10 @@ COPY --from=builder /app/apps/backend/node_modules ./apps/backend/node_modules
 COPY --from=builder /app/apps/backend/dist    ./apps/backend/dist
 # Conteúdo público do backend (assets estáticos e arquivos servidos pela API)
 COPY --from=builder /app/apps/backend/public  ./apps/backend/public
+COPY --from=builder /app/apps/backend/scripts ./apps/backend/scripts
 COPY --from=builder /app/apps/backend/node_modules/.prisma          ./apps/backend/node_modules/.prisma
 COPY --from=builder /app/apps/backend/node_modules/@prisma/client   ./apps/backend/node_modules/@prisma/client
 
 WORKDIR /app/apps/backend
 EXPOSE 3210
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-lc", "node scripts/prisma-migrate-safe.mjs && node dist/main.js"]

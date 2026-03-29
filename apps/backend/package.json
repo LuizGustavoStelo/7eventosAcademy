@@ -22,7 +22,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate && node scripts/sync-prisma-client.mjs",
     "prisma:migrate:dev": "prisma migrate dev",
-    "prisma:migrate:deploy": "prisma migrate deploy"
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate:safe": "node scripts/prisma-migrate-safe.mjs"
   },
   "dependencies": {
     "@fastify/helmet": "^13.0.2",

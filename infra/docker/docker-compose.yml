@@ -24,6 +24,9 @@ services:
 
   backend:
     image: ${BACKEND_IMAGE:-ghcr.io/luizgustavostelo/7eventosacademy-backend}:${APP_VERSION:-latest}
+    build:
+      context: ../..
+      dockerfile: infra/docker/backend.Dockerfile
     container_name: 7eventos-academy-backend
     env_file:
       - /var/www/7eventosAcademy/.env
@@ -31,6 +34,8 @@ services:
       # Caminho interno do container (arquivo real no host: /var/www/7eventosAcademy/secrets/academy_master_key.txt)
       SECRETS_MASTER_KEY_FILE: /run/secrets/academy_master_key
       UPLOADS_DIR: /var/www/7eventosAcademy/uploads
+      PRISMA_AUTO_RESOLVE_FAILED_MIGRATIONS: ${PRISMA_AUTO_RESOLVE_FAILED_MIGRATIONS:-true}
+      PRISMA_AUTO_RESOLVE_ALLOWLIST: ${PRISMA_AUTO_RESOLVE_ALLOWLIST:-20260329110000_email_verification}
     depends_on:
       db:
         condition: service_healthy
