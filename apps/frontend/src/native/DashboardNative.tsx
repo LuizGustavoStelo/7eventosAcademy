@@ -230,13 +230,6 @@ export function DashboardNative({ token, onNavigate }: DashboardNativeProps) {
           <button type="button" onClick={() => onNavigate('admin_agenda')}>
             Ver agenda
           </button>
-          <button
-            type="button"
-            className="is-primary"
-            onClick={() => onNavigate('admin_gestao_turmas')}
-          >
-            Nova turma
-          </button>
         </div>
       </header>
 

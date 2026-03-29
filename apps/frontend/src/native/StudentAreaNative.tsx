@@ -149,7 +149,9 @@ type IconName =
   | 'search'
   | 'help'
   | 'event_note'
-  | 'headset_mic';
+  | 'headset_mic'
+  | 'visibility'
+  | 'visibility_off';
 
 type NavItem = {
   label: string;
@@ -660,6 +662,26 @@ function StudentIcon({ name, className }: { name: IconName; className?: string }
     );
   }
 
+  if (name === 'visibility') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z" />
+        <circle cx="12" cy="12" r="3.2" />
+      </svg>
+    );
+  }
+
+  if (name === 'visibility_off') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M3 3l18 18" />
+        <path d="M5.3 7.7C3.4 9.4 2.5 11 2.5 12c0 0 3.5 6 9.5 6 2.3 0 4.2-.8 5.7-1.9" />
+        <path d="M9.9 9.9a3.2 3.2 0 004.2 4.2" />
+        <path d="M12 6c6 0 9.5 6 9.5 6-.4.7-1.2 2-2.6 3.2" />
+      </svg>
+    );
+  }
+
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
       <path d="M12 3a9 9 0 100 18 9 9 0 000-18z" />
@@ -693,6 +715,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   );
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [showFinanceValues, setShowFinanceValues] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -1042,24 +1065,55 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   }, [recentMaterials]);
 
   const financeMetrics = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
     const sorted = [...cobrancas].sort((a, b) => {
       const aTime = toDate(a.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
       const bTime = toDate(b.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
       return aTime - bTime;
     });
 
-    const pending = sorted.filter((item) => {
+    const pendingAll = sorted.filter((item) => {
       const status = item.status.toUpperCase();
       return status === 'PENDING' || status === 'OVERDUE';
     });
     const paid = sorted.filter((item) => item.status.toUpperCase() === 'PAID');
-    const overdue = pending.filter((item) => item.status.toUpperCase() === 'OVERDUE');
-    const nextCharge = pending[0] ?? null;
+    const overdue = pendingAll.filter((item) => {
+      const due = toDate(item.dueDate);
+      if (!due) return item.status.toUpperCase() === 'OVERDUE';
+      return due.getTime() < startOfToday.getTime() || item.status.toUpperCase() === 'OVERDUE';
+    });
+    const pending = pendingAll.filter((item) => {
+      const due = toDate(item.dueDate);
+      if (!due) return false;
+      const dueTime = due.getTime();
+      return (
+        dueTime >= startOfCurrentMonth.getTime()
+        && dueTime <= endOfCurrentMonth.getTime()
+        && dueTime >= startOfToday.getTime()
+      );
+    });
+    const visible = [...pendingAll].filter((item) => {
+      const due = toDate(item.dueDate);
+      if (!due) return item.status.toUpperCase() === 'OVERDUE';
+      const dueTime = due.getTime();
+      const isOverdue = dueTime < startOfToday.getTime() || item.status.toUpperCase() === 'OVERDUE';
+      const isCurrentMonthPending =
+        dueTime >= startOfCurrentMonth.getTime()
+        && dueTime <= endOfCurrentMonth.getTime()
+        && dueTime >= startOfToday.getTime();
+      return isOverdue || isCurrentMonthPending;
+    });
+    const nextCharge = visible[0] ?? null;
     const pendingAmount = pending.reduce((sum, item) => sum + item.amount, 0);
     const overdueAmount = overdue.reduce((sum, item) => sum + item.amount, 0);
 
     return {
       sorted,
+      visible,
       pending,
       paid,
       overdue,
@@ -1078,6 +1132,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     : 'Nenhuma mensalidade pendente no momento';
   const financeProgress =
     cobrancas.length > 0 ? Math.round((financeMetrics.paid.length / cobrancas.length) * 100) : 0;
+  const financeSensitiveClass = showFinanceValues
+    ? 'student-finance-sensitive'
+    : 'student-finance-sensitive is-hidden';
 
   const titleName = me?.name || user.name;
   const topbarName = firstAndLastName(titleName);
@@ -1570,29 +1627,35 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
             <article className="student-page-card">
               <h4>Mensalidades pendentes</h4>
               <strong className="student-page-big">{financeMetrics.pending.length}</strong>
-              <p>Total em aberto: {formatCurrency(financeMetrics.pendingAmount)}</p>
+              <p>
+                Total em aberto:{' '}
+                <span className={financeSensitiveClass}>{formatCurrency(financeMetrics.pendingAmount)}</span>
+              </p>
             </article>
             <article className="student-page-card">
               <h4>Mensalidades vencidas</h4>
               <strong className="student-page-big">{financeMetrics.overdue.length}</strong>
-              <p>Total vencido: {formatCurrency(financeMetrics.overdueAmount)}</p>
+              <p>
+                Total vencido:{' '}
+                <span className={financeSensitiveClass}>{formatCurrency(financeMetrics.overdueAmount)}</span>
+              </p>
             </article>
             <article className="student-page-card">
               <h4>Próxima mensalidade</h4>
               <strong className="student-page-big">{nextChargeLabel}</strong>
-              <p>{nextChargeDescription}</p>
+              <p className={financeSensitiveClass}>{nextChargeDescription}</p>
             </article>
           </div>
           <article className="student-page-card">
             <h4>Extrato de cobranças</h4>
-            {financeMetrics.sorted.length === 0 ? (
-              <p className="student-template-empty">Nenhuma cobrança encontrada para este aluno.</p>
+            {financeMetrics.visible.length === 0 ? (
+              <p className="student-template-empty">Nenhuma cobrança pendente no mês atual ou em atraso.</p>
             ) : (
               <div className="student-page-list">
-                {financeMetrics.sorted.map((charge) => (
+                {financeMetrics.visible.map((charge) => (
                   <article key={charge.id} className="student-page-list-item">
                     <div>
-                      <strong>{formatCurrency(charge.amount)}</strong>
+                      <strong className={financeSensitiveClass}>{formatCurrency(charge.amount)}</strong>
                       <small>
                         {charge.className} • Vencimento {formatDate(charge.dueDate)}
                       </small>
@@ -1908,11 +1971,24 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           {!dashboard || error ? null : (
             <>
               <section id="st-student-panel" className="student-template-welcome">
-                <h2>
-                  {activeSection === 'st-student-panel'
-                    ? `Bem-vindo de volta, ${firstName(titleName)}!`
-                    : currentMeta.title}
-                </h2>
+                <div className="student-template-welcome-title-row">
+                  <h2>
+                    {activeSection === 'st-student-panel'
+                      ? `Bem-vindo de volta, ${firstName(titleName)}!`
+                      : currentMeta.title}
+                  </h2>
+                  {activeSection === 'st-student-finance' ? (
+                    <button
+                      type="button"
+                      className="student-finance-visibility-toggle"
+                      onClick={() => setShowFinanceValues((current) => !current)}
+                      aria-label={showFinanceValues ? 'Ocultar valores financeiros' : 'Exibir valores financeiros'}
+                    >
+                      <StudentIcon name={showFinanceValues ? 'visibility_off' : 'visibility'} />
+                      <span>{showFinanceValues ? 'Ocultar valores' : 'Exibir valores'}</span>
+                    </button>
+                  ) : null}
+                </div>
                 <p>{currentSubtitle}</p>
               </section>
 
@@ -1980,7 +2056,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       <small>Próxima mensalidade</small>
                     </div>
                     <strong>{nextChargeLabel}</strong>
-                    <p>{nextChargeDescription}</p>
+                    <p className={financeSensitiveClass}>{nextChargeDescription}</p>
                   </article>
 
                   <article className="student-template-credit-card">
@@ -1989,7 +2065,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       <small>Mensalidades</small>
                     </div>
                     <strong>
-                      {financeMetrics.pending.length} <em>/ {cobrancas.length} pendente(s)</em>
+                      {financeMetrics.visible.length} <em>em aberto (mês atual + vencidas)</em>
                     </strong>
                     <div className="student-template-progress-mini" aria-hidden="true">
                       <span style={{ width: `${financeProgress}%` }} />

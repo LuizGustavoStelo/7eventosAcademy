@@ -143,6 +143,7 @@ export function NoticesNative({ token }: NoticesNativeProps) {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingNoticeId, setDeletingNoticeId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
   const [formError, setFormError] = useState('');
@@ -263,6 +264,29 @@ export function NoticesNative({ token }: NoticesNativeProps) {
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const deleteNotice = async (noticeId: string) => {
+    if (!window.confirm('Deseja realmente apagar este aviso?')) return;
+
+    setError('');
+    setFeedback('');
+    setDeletingNoticeId(noticeId);
+    try {
+      await apiRequest<{ success: boolean }>(token, `/classes/notices/${noticeId}`, {
+        method: 'DELETE',
+      });
+      setNotices((current) => current.filter((item) => item.id !== noticeId));
+      setFeedback('Aviso apagado com sucesso.');
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : 'Falha ao apagar aviso.',
+      );
+    } finally {
+      setDeletingNoticeId((current) => (current === noticeId ? null : current));
     }
   };
 
@@ -492,6 +516,16 @@ export function NoticesNative({ token }: NoticesNativeProps) {
                       {notice.status === 'finalizado' ? (
                         <small>Arquivado até {formatDateTime(notice.archivedUntil)}</small>
                       ) : null}
+                      <button
+                        type="button"
+                        className="native-notice-delete-btn"
+                        onClick={() => {
+                          void deleteNotice(notice.id);
+                        }}
+                        disabled={deletingNoticeId === notice.id}
+                      >
+                        {deletingNoticeId === notice.id ? 'Apagando...' : 'Excluir'}
+                      </button>
                     </div>
                   </article>
                 );

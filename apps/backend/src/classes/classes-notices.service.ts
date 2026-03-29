@@ -115,6 +115,13 @@ export class ClassesNoticesService {
     });
   }
 
+  async deleteNotice(noticeId: string) {
+    await this.prisma.classNotice.delete({
+      where: { id: noticeId },
+    });
+    return { success: true };
+  }
+
   private normalizePriority(value?: string | null): NoticePriority {
     if (value === 'urgente') return 'urgente';
     if (value === 'importante') return 'importante';

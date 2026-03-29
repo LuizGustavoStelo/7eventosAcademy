@@ -411,6 +411,8 @@ table button:disabled {
 .global-topbar-shell {
   min-height: 86px;
   flex: 0 0 auto;
+  position: relative;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -483,7 +485,7 @@ table button:disabled {
   top: calc(100% + 8px);
   left: 0;
   right: 0;
-  z-index: 50;
+  z-index: 80;
   display: grid;
   gap: 0.2rem;
   background: #fff;
@@ -788,14 +790,6 @@ table button:disabled {
   background: rgba(242, 92, 5, 0.12);
   color: #a73a00;
   border-color: rgba(242, 92, 5, 0.35);
-}
-
-.native-agenda-search input {
-  width: 100%;
-  border: 1px solid rgba(0, 0, 0, 0.16);
-  border-radius: 10px;
-  padding: 0.48rem 0.6rem;
-  font-size: 0.84rem;
 }
 
 .native-agenda-weekdays {
@@ -1186,6 +1180,27 @@ table button:disabled {
   color: #64748b;
   font-size: 0.72rem;
   font-weight: 700;
+}
+
+.native-notice-delete-btn {
+  border: 1px solid rgba(153, 27, 27, 0.25);
+  background: #fff;
+  color: #991b1b;
+  border-radius: 8px;
+  padding: 0.28rem 0.58rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.native-notice-delete-btn:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: rgba(153, 27, 27, 0.4);
+}
+
+.native-notice-delete-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
 }
 
 .native-notice-pagination {
@@ -2905,7 +2920,11 @@ table button:disabled {
   border-radius: 8px;
   padding: 0.3rem 0.55rem;
   background: #fff;
+  color: #334155;
+  font-size: 0.78rem;
+  line-height: 1.2;
   font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -2948,6 +2967,8 @@ table button:disabled {
 .native-actions-cell {
   display: flex;
   gap: 0.4rem;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .native-status-chip {
@@ -3002,7 +3023,8 @@ table button:disabled {
 .native-modal {
   width: min(940px, 96vw);
   max-height: 92vh;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: #fff;
   border-radius: 14px;
   border: 1px solid rgba(0, 0, 0, 0.12);
@@ -3070,6 +3092,10 @@ table button:disabled {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.native-form-grid > * {
+  min-width: 0;
+}
+
 .native-form-grid label {
   display: grid;
   gap: 0.25rem;
@@ -3080,6 +3106,8 @@ table button:disabled {
 
 .native-form-grid input,
 .native-form-grid select {
+  width: 100%;
+  box-sizing: border-box;
   border: 1px solid rgba(0, 0, 0, 0.18);
   border-radius: 8px;
   padding: 0.48rem 0.6rem;
@@ -3415,6 +3443,53 @@ table button:disabled {
 
 .native-finance-kpis {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.native-finance-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.native-finance-visibility-toggle {
+  border: 1px solid #c8d7de;
+  background: #f7fbfc;
+  color: #1f5a71;
+  border-radius: 999px;
+  padding: 0.34rem 0.68rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.native-finance-visibility-toggle:hover {
+  border-color: #9db8c3;
+  background: #edf5f7;
+}
+
+.native-finance-visibility-toggle svg {
+  width: 1rem;
+  height: 1rem;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.native-finance-sensitive {
+  transition: filter 140ms ease;
+}
+
+.native-finance-sensitive.is-hidden {
+  filter: blur(6px);
+  user-select: none;
 }
 
 .native-finance-select {
@@ -5645,6 +5720,13 @@ table button {
   margin-bottom: 1.45rem;
 }
 
+.student-template-welcome-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .student-template-welcome h2 {
   margin: 0;
   color: #0f5253;
@@ -5659,6 +5741,43 @@ table button {
   color: #5f7289;
   font-size: 1.62rem;
   font-weight: 500;
+}
+
+.student-finance-visibility-toggle {
+  border: 1px solid #c8d7de;
+  background: #f7fbfc;
+  color: #1f5a71;
+  border-radius: 999px;
+  padding: 0.34rem 0.68rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.student-finance-visibility-toggle .student-template-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.student-finance-visibility-toggle:hover {
+  border-color: #9db8c3;
+  background: #edf5f7;
+}
+
+.student-finance-sensitive {
+  display: inline-block;
+  transition: filter 140ms ease;
+}
+
+.student-finance-sensitive.is-hidden {
+  filter: blur(6px);
+  user-select: none;
+  pointer-events: none;
 }
 
 .student-mobile-section-tabs {
@@ -7143,6 +7262,11 @@ table button {
 }
 
 @media (max-width: 700px) {
+  .student-template-welcome-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .student-template-welcome h2 {
     font-size: 1.42rem;
   }

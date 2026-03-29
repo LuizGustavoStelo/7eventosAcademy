@@ -137,6 +137,14 @@ function csvCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
+function normalizeSearchText(value: string): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 export function StudentsNative({ token }: StudentsNativeProps) {
   const [students, setStudents] = useState<Student[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -200,7 +208,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
   }, []);
 
   const filteredStudents = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = normalizeSearchText(search);
     if (!query) return students;
 
     return students.filter((student) => {
@@ -209,12 +217,16 @@ export function StudentsNative({ token }: StudentsNativeProps) {
         student.courses?.[0]?.course?.name ||
         '';
       const firstClassName = student.enrollments?.[0]?.class?.name || '';
+      const studentName = normalizeSearchText(student.name);
+      const studentEmail = normalizeSearchText(student.email);
+      const courseName = normalizeSearchText(firstCourseName);
+      const className = normalizeSearchText(firstClassName);
 
       return (
-        student.name.toLowerCase().includes(query) ||
-        student.email.toLowerCase().includes(query) ||
-        firstCourseName.toLowerCase().includes(query) ||
-        firstClassName.toLowerCase().includes(query)
+        studentName.includes(query) ||
+        studentEmail.includes(query) ||
+        courseName.includes(query) ||
+        className.includes(query)
       );
     });
   }, [students, search]);

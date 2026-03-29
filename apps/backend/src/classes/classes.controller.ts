@@ -197,5 +197,10 @@ export class ClassesController {
   async getAllNotices() {
     return this.noticesService.getAllNotices();
   }
+
+  @Delete('notices/:noticeId')
+  async deleteNotice(@Param('noticeId') noticeId: string) {
+    return this.noticesService.deleteNotice(noticeId);
+  }
 }
 

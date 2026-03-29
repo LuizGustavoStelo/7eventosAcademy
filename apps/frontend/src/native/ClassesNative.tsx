@@ -187,6 +187,99 @@ function formatDateTime(value: string | null): string {
   }).format(date);
 }
 
+function sanitizeOnlyLetters(value: string): string {
+  return value
+    .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^\s+/g, '');
+}
+
+function formatBrDateFromDate(date: Date): string {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = String(date.getFullYear());
+  return `${day}/${month}/${year}`;
+}
+
+function formatBrDateTimeFromDate(date: Date): string {
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${formatBrDateFromDate(date)} ${hours}:${minutes}`;
+}
+
+function maskBrDate(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function maskBrDateTime(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 12);
+  if (digits.length <= 8) return maskBrDate(digits);
+  const datePart = maskBrDate(digits.slice(0, 8));
+  const timePart = digits.slice(8);
+  if (timePart.length <= 2) return `${datePart} ${timePart}`;
+  return `${datePart} ${timePart.slice(0, 2)}:${timePart.slice(2, 4)}`;
+}
+
+function parseBrDate(value: string): Date | null {
+  const trimmed = value.trim();
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(trimmed);
+  if (!match) return null;
+  const [, dayRaw, monthRaw, yearRaw] = match;
+  const day = Number(dayRaw);
+  const month = Number(monthRaw);
+  const year = Number(yearRaw);
+  if (day < 1 || month < 1 || month > 12 || year < 1900) return null;
+  const candidate = new Date(year, month - 1, day);
+  if (
+    candidate.getFullYear() !== year ||
+    candidate.getMonth() !== month - 1 ||
+    candidate.getDate() !== day
+  ) {
+    return null;
+  }
+  return candidate;
+}
+
+function parseBrDateTime(value: string): Date | null {
+  const trimmed = value.trim();
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/.exec(trimmed);
+  if (!match) return null;
+  const [, dayRaw, monthRaw, yearRaw, hourRaw, minuteRaw] = match;
+  const day = Number(dayRaw);
+  const month = Number(monthRaw);
+  const year = Number(yearRaw);
+  const hour = Number(hourRaw);
+  const minute = Number(minuteRaw);
+  if (day < 1 || month < 1 || month > 12 || year < 1900) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  const candidate = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (
+    candidate.getFullYear() !== year ||
+    candidate.getMonth() !== month - 1 ||
+    candidate.getDate() !== day
+  ) {
+    return null;
+  }
+  return candidate;
+}
+
+function toBrDateInput(value: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return formatBrDateFromDate(date);
+}
+
+function toBrDateTimeInput(value: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return formatBrDateTimeFromDate(date);
+}
+
 function getNameInitials(name: string): string {
   const parts = name
     .trim()
@@ -199,20 +292,6 @@ function getNameInitials(name: string): string {
 
 function fallbackRegistrationCode(studentId: string): string {
   return `AC-${studentId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
-}
-
-function toLocalDateTimeInput(value: string | null): string {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-
-  const pad = (num: number) => String(num).padStart(2, '0');
-  const year = date.getFullYear();
-  const month = pad(date.getMonth() + 1);
-  const day = pad(date.getDate());
-  const hours = pad(date.getHours());
-  const minutes = pad(date.getMinutes());
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 function getCurrentUserName(): string {
@@ -303,13 +382,26 @@ function buildOccurrenceDates(input: {
   weeklyDays: number[];
   monthDay: string;
 }) {
-  const start = new Date(input.startDateTime);
-  if (Number.isNaN(start.getTime())) return [];
+  const start =
+    parseBrDateTime(input.startDateTime) ??
+    (input.startDateTime ? new Date(input.startDateTime) : null);
+  if (!start || Number.isNaN(start.getTime())) return [];
 
   if (input.recurrenceKind === 'none') return [start];
 
-  const until = input.repeatUntil
-    ? new Date(`${input.repeatUntil}T23:59:59`)
+  const repeatUntilDate =
+    parseBrDate(input.repeatUntil) ??
+    (input.repeatUntil ? new Date(input.repeatUntil) : null);
+  const until = repeatUntilDate
+    ? new Date(
+        repeatUntilDate.getFullYear(),
+        repeatUntilDate.getMonth(),
+        repeatUntilDate.getDate(),
+        23,
+        59,
+        59,
+        0,
+      )
     : null;
   if (!until || Number.isNaN(until.getTime()) || until < start) {
     return [start];
@@ -336,7 +428,7 @@ function formatDateForEvent(date: Date): string {
 
 function defaultClassForm(): ClassFormState {
   const now = new Date();
-  const startDateTime = toLocalDateTimeInput(now.toISOString());
+  const startDateTime = formatBrDateTimeFromDate(now);
 
   return {
     id: '',
@@ -490,14 +582,12 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
       name: schoolClass.name,
       courseId: schoolClass.courseId,
       totalSeats: String(schoolClass.totalSeats || 30),
-      startDateTime: toLocalDateTimeInput(schoolClass.startDate),
-      endDate: schoolClass.endDate
-        ? toLocalDateTimeInput(schoolClass.endDate).slice(0, 10)
-        : '',
+      startDateTime: toBrDateTimeInput(schoolClass.startDate),
+      endDate: toBrDateInput(schoolClass.endDate),
       status: schoolClass.status,
       selectedStudentIds,
       recurrenceKind: recurrence.recurrenceKind,
-      repeatUntil: recurrence.repeatUntil,
+      repeatUntil: toBrDateInput(recurrence.repeatUntil),
       monthDay: recurrence.monthDay || '1',
       weeklyDays: recurrence.weeklyDays,
     });
@@ -902,13 +992,17 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
   const saveClass = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
+    const cleanName = sanitizeOnlyLetters(form.name).trim();
+    const startDateTimeParsed = parseBrDateTime(form.startDateTime);
+    const endDateParsed = form.endDate ? parseBrDate(form.endDate) : null;
+    const repeatUntilParsed = form.repeatUntil ? parseBrDate(form.repeatUntil) : null;
 
-    if (!form.name.trim() || !form.courseId || !form.startDateTime) {
+    if (!cleanName || !form.courseId || !startDateTimeParsed) {
       setError('Preencha nome, curso e data de início.');
       return;
     }
 
-    if (form.recurrenceKind !== 'none' && !form.repeatUntil) {
+    if (form.recurrenceKind !== 'none' && !repeatUntilParsed) {
       setError('Informe até quando a recorrência deve se repetir.');
       return;
     }
@@ -924,19 +1018,45 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
       return;
     }
 
+    if (form.recurrenceKind === 'none' && form.endDate && !endDateParsed) {
+      setError('Informe uma data de término válida (DD/MM/AAAA).');
+      return;
+    }
+
     setSaving(true);
     try {
+      const startDateIso = startDateTimeParsed.toISOString();
+      const endDateIso =
+        form.recurrenceKind === 'none'
+          ? endDateParsed
+            ? new Date(
+                endDateParsed.getFullYear(),
+                endDateParsed.getMonth(),
+                endDateParsed.getDate(),
+                23,
+                59,
+                59,
+                0,
+              ).toISOString()
+            : undefined
+          : repeatUntilParsed
+            ? new Date(
+                repeatUntilParsed.getFullYear(),
+                repeatUntilParsed.getMonth(),
+                repeatUntilParsed.getDate(),
+                23,
+                59,
+                59,
+                0,
+              ).toISOString()
+            : undefined;
+
       const payload = {
-        name: form.name.trim(),
+        name: cleanName,
         courseId: form.courseId,
         totalSeats: totalSeatsNumber,
-        startDate: new Date(form.startDateTime).toISOString(),
-        endDate:
-          form.recurrenceKind === 'none'
-            ? form.endDate
-              ? new Date(`${form.endDate}T23:59:59`).toISOString()
-              : undefined
-            : new Date(`${form.repeatUntil}T23:59:59`).toISOString(),
+        startDate: startDateIso,
+        endDate: endDateIso,
       };
 
       let classId = form.id;
@@ -975,10 +1095,10 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
       await syncEnrollments(classId, form.selectedStudentIds);
       await syncClassEventsToAgenda({
         classId,
-        className: form.name.trim(),
-        startDateTime: form.startDateTime,
+        className: cleanName,
+        startDateTime: startDateIso,
         recurrenceKind: form.recurrenceKind,
-        repeatUntil: form.repeatUntil,
+        repeatUntil: endDateIso || '',
         weeklyDays: form.weeklyDays,
         monthDay: form.monthDay,
       });
@@ -1377,7 +1497,10 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
                 <input
                   value={form.name}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, name: event.target.value }))
+                    setForm((current) => ({
+                      ...current,
+                      name: sanitizeOnlyLetters(event.target.value),
+                    }))
                   }
                   required
                 />
@@ -1413,7 +1536,7 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      totalSeats: event.target.value,
+                      totalSeats: event.target.value.replace(/\D/g, ''),
                     }))
                   }
                   required
@@ -1423,14 +1546,17 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
               <label>
                 Data e hora de início
                 <input
-                  type="datetime-local"
+                  type="text"
                   value={form.startDateTime}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      startDateTime: event.target.value,
+                      startDateTime: maskBrDateTime(event.target.value),
                     }))
                   }
+                  placeholder="DD/MM/AAAA HH:MM"
+                  inputMode="numeric"
+                  maxLength={16}
                   required
                 />
               </label>
@@ -1475,14 +1601,17 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
                 <label>
                   Data de término (opcional)
                   <input
-                    type="date"
+                    type="text"
                     value={form.endDate}
                     onChange={(event) =>
                       setForm((current) => ({
                         ...current,
-                        endDate: event.target.value,
+                        endDate: maskBrDate(event.target.value),
                       }))
                     }
+                    placeholder="DD/MM/AAAA"
+                    inputMode="numeric"
+                    maxLength={10}
                   />
                 </label>
               ) : null}
@@ -1491,14 +1620,17 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
                 <label>
                   Repetir até
                   <input
-                    type="date"
+                    type="text"
                     value={form.repeatUntil}
                     onChange={(event) =>
                       setForm((current) => ({
                         ...current,
-                        repeatUntil: event.target.value,
+                        repeatUntil: maskBrDate(event.target.value),
                       }))
                     }
+                    placeholder="DD/MM/AAAA"
+                    inputMode="numeric"
+                    maxLength={10}
                     required
                   />
                 </label>

@@ -111,6 +111,13 @@ function parseNumberSafe(value: string): number | undefined {
   return parsed >= 0 ? parsed : undefined;
 }
 
+function sanitizeOnlyLetters(value: string): string {
+  return value
+    .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^\s+/g, '');
+}
+
 export function CoursesNative({ token }: CoursesNativeProps) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [search, setSearch] = useState('');
@@ -250,12 +257,16 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     setError('');
     setFeedback('');
 
+    const cleanName = sanitizeOnlyLetters(form.name).trim();
+    const cleanCategory = sanitizeOnlyLetters(form.category).trim();
+    const cleanCoordinator = sanitizeOnlyLetters(form.coordinator).trim();
+
     const payloadBase = {
-      name: form.name.trim(),
+      name: cleanName,
       description: form.description.trim() || undefined,
       workloadHours: parseIntSafe(form.workloadHours),
-      category: form.category.trim() || undefined,
-      coordinator: form.coordinator.trim() || undefined,
+      category: cleanCategory || undefined,
+      coordinator: cleanCoordinator || undefined,
       price: parseNumberSafe(form.price),
       modality: form.modality,
       status: form.status,
@@ -497,7 +508,9 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                   Nome do curso
                   <input
                     value={form.name}
-                    onChange={(event) => updateForm('name', event.target.value)}
+                    onChange={(event) =>
+                      updateForm('name', sanitizeOnlyLetters(event.target.value))
+                    }
                     required
                   />
                 </label>
@@ -506,7 +519,9 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                   Categoria
                   <input
                     value={form.category}
-                    onChange={(event) => updateForm('category', event.target.value)}
+                    onChange={(event) =>
+                      updateForm('category', sanitizeOnlyLetters(event.target.value))
+                    }
                     required
                   />
                 </label>
@@ -516,7 +531,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                   <input
                     value={form.coordinator}
                     onChange={(event) =>
-                      updateForm('coordinator', event.target.value)
+                      updateForm('coordinator', sanitizeOnlyLetters(event.target.value))
                     }
                     required
                   />

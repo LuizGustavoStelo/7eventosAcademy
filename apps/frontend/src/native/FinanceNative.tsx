@@ -189,6 +189,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
   );
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showFinanceValues, setShowFinanceValues] = useState(false);
 
   const loadData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -403,10 +404,37 @@ export function FinanceNative({ token }: FinanceNativeProps) {
     }
   };
 
+  const financeSensitiveClass = showFinanceValues
+    ? 'native-finance-sensitive'
+    : 'native-finance-sensitive is-hidden';
+
   return (
     <section className="native-page native-finance">
       <header className="native-page-header">
-        <h2>Financeiro</h2>
+        <div className="native-finance-header-row">
+          <h2>Financeiro</h2>
+          <button
+            type="button"
+            className="native-finance-visibility-toggle"
+            onClick={() => setShowFinanceValues((current) => !current)}
+            aria-label={showFinanceValues ? 'Ocultar dados financeiros' : 'Exibir dados financeiros'}
+          >
+            {showFinanceValues ? (
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 3l18 18" />
+                <path d="M5.3 7.7C3.4 9.4 2.5 11 2.5 12c0 0 3.5 6 9.5 6 2.3 0 4.2-.8 5.7-1.9" />
+                <path d="M9.9 9.9a3.2 3.2 0 004.2 4.2" />
+                <path d="M12 6c6 0 9.5 6 9.5 6-.4.7-1.2 2-2.6 3.2" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z" />
+                <circle cx="12" cy="12" r="3.2" />
+              </svg>
+            )}
+            <span>{showFinanceValues ? 'Ocultar valores' : 'Exibir valores'}</span>
+          </button>
+        </div>
         <p>
           Gestão nativa de cobranças e pagamentos, com menos custo de renderização
           e resposta mais fluida.
@@ -416,12 +444,12 @@ export function FinanceNative({ token }: FinanceNativeProps) {
       <div className="native-kpi-grid native-kpi-grid-small native-finance-kpis">
         <article className="native-kpi-card">
           <span>Total recebido</span>
-          <strong>{formatCurrency(totalReceived)}</strong>
+          <strong className={financeSensitiveClass}>{formatCurrency(totalReceived)}</strong>
           <small>Mês atual</small>
         </article>
         <article className="native-kpi-card">
           <span>Inadimplência</span>
-          <strong>{formatCurrency(overdueAmount)}</strong>
+          <strong className={financeSensitiveClass}>{formatCurrency(overdueAmount)}</strong>
           <small>{overview?.overdueCharges ?? 0} cobrança(s) em atraso</small>
         </article>
         <article className="native-kpi-card">
@@ -513,7 +541,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                         </div>
                       </td>
                       <td>{className}</td>
-                      <td>{formatCurrency(Number(charge.amount || 0))}</td>
+                      <td className={financeSensitiveClass}>{formatCurrency(Number(charge.amount || 0))}</td>
                       <td>{formatDate(charge.dueDate)}</td>
                       <td>
                         <span className={`native-status-chip ${chipClass(charge.status)}`}>

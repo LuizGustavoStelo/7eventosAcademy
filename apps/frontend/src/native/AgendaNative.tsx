@@ -28,10 +28,6 @@ type AgendaNativeProps = {
 const SESSION_USER_KEY = 'academy-auth-user';
 const OPEN_CLASS_EDITOR_KEY = 'academy-open-class-editor';
 
-function normalizeText(value: string): string {
-  return String(value || '').toLowerCase().trim();
-}
-
 function parseEventDate(datetime: string): Date | null {
   const parsed = new Date(datetime);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
@@ -77,6 +73,33 @@ function formatTime(datetime: string): string {
   }).format(parsed);
 }
 
+function applyDateMask(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function parseBrDateToIso(value: string): string | null {
+  const trimmed = value.trim();
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(trimmed);
+  if (!match) return null;
+  const [, dayRaw, monthRaw, yearRaw] = match;
+  const day = Number(dayRaw);
+  const month = Number(monthRaw);
+  const year = Number(yearRaw);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const candidate = new Date(year, month - 1, day);
+  if (
+    candidate.getFullYear() !== year
+    || candidate.getMonth() !== month - 1
+    || candidate.getDate() !== day
+  ) {
+    return null;
+  }
+  return `${yearRaw}-${monthRaw}-${dayRaw}`;
+}
+
 export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
   const INITIAL_UPCOMING_VISIBLE = 5;
   const UPCOMING_STEP = 10;
@@ -87,7 +110,6 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
   const [monthCursor, setMonthCursor] = useState(() => new Date());
   const [filter, setFilter] = useState<'all' | AgendaEventType>('all');
   const [quickType, setQuickType] = useState<AgendaEventType>('class');
-  const [search, setSearch] = useState('');
   const [quickTitle, setQuickTitle] = useState('');
   const [quickClassId, setQuickClassId] = useState('');
   const [quickDate, setQuickDate] = useState('');
@@ -121,22 +143,12 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
   }, [token]);
 
   const filteredEvents = useMemo(() => {
-    const query = normalizeText(search);
-
     return events
       .filter((event) => {
         if (filter === 'all') return true;
         return event.type === filter;
-      })
-      .filter((event) => {
-        if (!query) return true;
-        return (
-          normalizeText(event.title).includes(query) ||
-          normalizeText(event.className || '').includes(query) ||
-          normalizeText(event.teacher || '').includes(query)
-        );
       });
-  }, [events, filter, search]);
+  }, [events, filter]);
 
   const calendarCells = useMemo(() => {
     const cursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1);
@@ -192,7 +204,7 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
 
   useEffect(() => {
     setUpcomingVisibleCount(INITIAL_UPCOMING_VISIBLE);
-  }, [upcomingEvents.length, filter, search]);
+  }, [upcomingEvents.length, filter]);
 
   const visibleUpcomingEvents = useMemo(
     () => upcomingEvents.slice(0, upcomingVisibleCount),
@@ -215,13 +227,14 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
     setError('');
 
     const title = quickTitle.trim();
-    if (!title || !quickDate || !quickTime) {
-      setError('Preencha título, data e hora para agendar.');
+    const normalizedQuickDate = parseBrDateToIso(quickDate);
+    if (!title || !normalizedQuickDate || !quickTime) {
+      setError('Preencha título, data (DD/MM/AAAA) e hora com dados válidos.');
       return;
     }
 
     const classItem = classes.find((item) => item.id === quickClassId);
-    const datetime = `${quickDate}T${quickTime}:00`;
+    const datetime = `${normalizedQuickDate}T${quickTime}:00`;
     try {
       const created = await apiRequest<AgendaEvent>(token, '/agenda/events', {
         method: 'POST',
@@ -331,15 +344,6 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
             </div>
           </div>
 
-          <label className="native-agenda-search">
-            <input
-              type="text"
-              value={search}
-              onChange={(inputEvent) => setSearch(inputEvent.target.value)}
-              placeholder="Buscar na agenda..."
-            />
-          </label>
-
           {loading ? <p className="native-info">Carregando agenda...</p> : null}
           {error ? <p className="native-error">{error}</p> : null}
 
@@ -445,9 +449,12 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
               <label>
                 Data
                 <input
-                  type="date"
+                  type="text"
                   value={quickDate}
-                  onChange={(inputEvent) => setQuickDate(inputEvent.target.value)}
+                  onChange={(inputEvent) => setQuickDate(applyDateMask(inputEvent.target.value))}
+                  placeholder="DD/MM/AAAA"
+                  inputMode="numeric"
+                  maxLength={10}
                   required
                 />
               </label>
