@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { API_BASE_URL, apiRequest } from './api';
+import { toPtBrApiMessage } from '../errorMessages';
 
 type SchoolClass = {
   id: string;
@@ -308,8 +309,7 @@ export function ContentNative({ token }: ContentNativeProps) {
 
         let message = `Falha na requisição (${xhr.status}).`;
         if (payload) {
-          if (Array.isArray(payload.message)) message = payload.message.join(' ');
-          else if (typeof payload.message === 'string') message = payload.message;
+          message = toPtBrApiMessage(payload.message, message);
         }
         reject(new Error(message));
       };

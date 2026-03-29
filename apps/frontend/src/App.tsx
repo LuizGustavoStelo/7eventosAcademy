@@ -17,6 +17,7 @@ import { SuperadminAccountsNative } from './native/SuperadminAccountsNative';
 import { SuperadminDashboardNative } from './native/SuperadminDashboardNative';
 import { SuperadminImpersonationNative } from './native/SuperadminImpersonationNative';
 import { SuperadminWordpressNative } from './native/SuperadminWordpressNative';
+import { toPtBrApiMessage } from './errorMessages';
 
 type Role = 'user' | 'admin' | 'superadmin';
 type AuthUser = {
@@ -417,6 +418,21 @@ function normalizeSearchTerm(value: string) {
     .toLowerCase();
 }
 
+function maskEmail(value: string | null | undefined) {
+  const email = String(value || '').trim();
+  if (!email.includes('@')) return email || '-';
+
+  const [localPart, domainPart] = email.split('@');
+  if (!localPart || !domainPart) return email;
+
+  const visibleStart = localPart.slice(0, 2);
+  const visibleEnd = localPart.length > 4 ? localPart.slice(-1) : '';
+  const hiddenCount = Math.max(2, localPart.length - (visibleStart.length + visibleEnd.length));
+  const hidden = '*'.repeat(hiddenCount);
+
+  return `${visibleStart}${hidden}${visibleEnd}@${domainPart}`;
+}
+
 function PublicPortalBlocked({ message }: { message: string }) {
   return (
     <div className="auth-shell embedded">
@@ -648,12 +664,10 @@ export default function App() {
   const lerErroApi = async (response: Response) => {
     try {
       const data = (await response.json()) as { message?: string | string[] };
-      if (Array.isArray(data.message)) return data.message.join(' ');
-      if (typeof data.message === 'string') return data.message;
+      return toPtBrApiMessage(data.message, 'Falha na operação.');
     } catch {
       return 'Falha na operação.';
     }
-    return 'Falha na operação.';
   };
 
   const limparImpersonacao = () => {
@@ -1274,7 +1288,9 @@ export default function App() {
               ) : null}
               <div className="global-topbar-user-meta">
                 <span className="global-topbar-user-name">{usuario?.name ?? 'Professor'}</span>
-                <span className="global-topbar-user-role">{roleLabel}</span>
+                <span className="global-topbar-user-role">
+                  {roleLabel} • {maskEmail(usuario?.email)}
+                </span>
               </div>
             </div>
             <button type="button" className="global-topbar-logout-btn" onClick={sair}>

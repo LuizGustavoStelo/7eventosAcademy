@@ -5489,6 +5489,26 @@ table button {
   border: 1px solid #fff;
 }
 
+.student-template-user-menu-wrap {
+  position: relative;
+}
+
+.student-template-user-trigger {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.student-template-user-trigger:focus-visible {
+  outline: 2px solid rgba(19, 147, 149, 0.45);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
 .student-template-user {
   display: flex;
   align-items: center;
@@ -5530,6 +5550,47 @@ table button {
   font-size: 0.78rem;
   font-weight: 800;
   background: linear-gradient(135deg, #1b7f90, #2a648d);
+}
+
+.student-template-user-caret {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid #6f8198;
+  border-bottom: 2px solid #6f8198;
+  transform: rotate(45deg);
+  margin-top: -0.18rem;
+}
+
+.student-template-user-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 168px;
+  border-radius: 0.72rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  box-shadow: 0 14px 24px rgba(15, 23, 42, 0.14);
+  padding: 0.35rem;
+  z-index: 60;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.student-template-user-menu button {
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  text-align: left;
+  color: #223850;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.5rem 0.6rem;
+  cursor: pointer;
+}
+
+.student-template-user-menu button:hover {
+  background: #eff6f7;
+  color: #0f5253;
 }
 
 .student-template-logout {
@@ -7004,6 +7065,10 @@ table button {
     border-left: 0;
     margin-left: 0;
     padding-left: 0;
+  }
+
+  .student-template-user-caret {
+    display: none;
   }
 
   .student-template-user > div {

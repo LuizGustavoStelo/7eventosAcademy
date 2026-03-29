@@ -169,7 +169,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Frequência', icon: 'checklist_rtl', target: 'st-student-course' },
   { label: 'Financeiro', icon: 'payments', target: 'st-student-finance' },
   { label: 'Materiais', icon: 'folder_open', target: 'st-student-materials' },
-  { label: 'Avisos', icon: 'notifications_active', target: 'st-student-notices' },
+  { label: 'Notificações', icon: 'notifications_active', target: 'st-student-notices' },
   { label: 'Certificado', icon: 'verified', target: 'st-student-certificate' },
   { label: 'Perfil', icon: 'person', target: 'st-student-profile' },
 ];
@@ -194,7 +194,7 @@ const MOBILE_NAV_ITEMS: MobileNavItem[] = [
     sections: ['st-student-materials', 'st-student-finance'],
   },
   {
-    label: 'Avisos',
+    label: 'Notificações',
     icon: 'notifications_active',
     target: 'st-student-notices',
     sections: ['st-student-notices', 'st-student-certificate'],
@@ -233,12 +233,12 @@ const SECTION_META: Record<SectionId, { title: string; subtitle: string }> = {
     subtitle: 'Conteúdos ao vivo e aulas em destaque.',
   },
   'st-student-notices': {
-    title: 'Avisos e comunicados',
+    title: 'Notificações e comunicados',
     subtitle: 'Mensagens recentes da coordenação e da secretaria.',
   },
   'st-student-materials': {
     title: 'Materiais de apoio',
-    subtitle: 'Arquivos e conteúdos liberados para suas turmas.',
+    subtitle: 'Arquivos e conteúdos liberados para sua turma.',
   },
   'st-student-certificate': {
     title: 'Certificado',
@@ -257,7 +257,7 @@ const SECTION_MOBILE_LABEL: Record<SectionId, string> = {
   'st-student-agenda': 'Agenda',
   'st-student-finance': 'Financeiro',
   'st-student-live': 'Transmissões',
-  'st-student-notices': 'Avisos',
+  'st-student-notices': 'Notificações',
   'st-student-materials': 'Materiais',
   'st-student-certificate': 'Certificado',
   'st-student-profile': 'Perfil',
@@ -275,7 +275,7 @@ const STUDENT_SEARCH_ALIAS: Array<{ target: SectionId; terms: string[] }> = [
   { target: 'st-student-course', terms: ['frequencia', 'presenca', 'desempenho'] },
   { target: 'st-student-finance', terms: ['financeiro', 'mensalidade', 'cobranca', 'pagamento'] },
   { target: 'st-student-materials', terms: ['material', 'materiais', 'arquivo', 'arquivos'] },
-  { target: 'st-student-notices', terms: ['aviso', 'avisos', 'comunicado'] },
+  { target: 'st-student-notices', terms: ['aviso', 'avisos', 'notificacao', 'notificacoes', 'comunicado'] },
   { target: 'st-student-certificate', terms: ['certificado'] },
   { target: 'st-student-profile', terms: ['perfil', 'dados'] },
 ];
@@ -283,6 +283,17 @@ const STUDENT_SEARCH_ALIAS: Array<{ target: SectionId; terms: string[] }> = [
 function firstName(name: string | undefined) {
   if (!name) return 'Aluno(a)';
   return name.trim().split(/\s+/)[0] || 'Aluno(a)';
+}
+
+function firstAndLastName(name: string | undefined) {
+  if (!name) return 'Aluno(a)';
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return 'Aluno(a)';
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
 function initials(name: string | undefined) {
@@ -419,7 +430,7 @@ function extractStatusFromError(error: unknown): number | null {
 function normalizeModality(modality: string | null | undefined) {
   if (!modality) return 'Ativa';
   const normalized = modality.trim().toLowerCase();
-  if (normalized.includes('presenc')) return 'Presencial';
+  if (normalized.includes('presential') || normalized.includes('presenc')) return 'Presencial';
   if (normalized.includes('ead')) return 'EAD';
   if (normalized.includes('live') || normalized.includes('ao vivo')) return 'Ao vivo';
   return modality;
@@ -459,6 +470,38 @@ function formatCurrency(value: number) {
     currency: 'BRL',
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function maskCpf(value: string | null | undefined) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length !== 11) return value || '-';
+  return `***.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`;
+}
+
+function maskPhone(value: string | null | undefined) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length === 11) {
+    return `(**) *****-${digits.slice(7, 11)}`;
+  }
+  if (digits.length === 10) {
+    return `(**) ****-${digits.slice(6, 10)}`;
+  }
+  return value || '-';
+}
+
+function maskEmail(value: string | null | undefined) {
+  const email = String(value || '').trim();
+  if (!email.includes('@')) return email || '-';
+
+  const [localPart, domainPart] = email.split('@');
+  if (!localPart || !domainPart) return email;
+
+  const visibleStart = localPart.slice(0, 2);
+  const visibleEnd = localPart.length > 4 ? localPart.slice(-1) : '';
+  const hiddenCount = Math.max(2, localPart.length - (visibleStart.length + visibleEnd.length));
+  const hidden = '*'.repeat(hiddenCount);
+
+  return `${visibleStart}${hidden}${visibleEnd}@${domainPart}`;
 }
 
 function modalityTone(modality: string) {
@@ -598,6 +641,16 @@ function StudentIcon({ name, className }: { name: IconName; className?: string }
     );
   }
 
+  if (name === 'headset_mic') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9.6 9.7a2.6 2.6 0 015.2 0c0 1.2-.8 1.8-1.6 2.3-.7.4-1.2.9-1.2 1.9" />
+        <circle cx="12" cy="17" r="0.8" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+
   if (name === 'event_note') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
@@ -639,7 +692,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     INITIAL_AGENDA_EVENTS_COUNT,
   );
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
 
   const loadFallback = async (bypassCache = false): Promise<StudentDashboardPayload> => {
     const [me, matriculas, materiais, avisos] = await Promise.all([
@@ -860,6 +915,27 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     };
   }, []);
 
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!userMenuRef.current) return;
+      if (userMenuRef.current.contains(event.target as Node)) return;
+      setUserMenuOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setUserMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
+
   const me = dashboard?.me;
   const matriculas = dashboard?.matriculas ?? [];
   const materiais = dashboard?.materiais ?? [];
@@ -1004,6 +1080,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     cobrancas.length > 0 ? Math.round((financeMetrics.paid.length / cobrancas.length) * 100) : 0;
 
   const titleName = me?.name || user.name;
+  const topbarName = firstAndLastName(titleName);
   const profileCityState = useMemo(() => {
     const city = me?.studentProfile?.city;
     const state = me?.studentProfile?.state;
@@ -1178,20 +1255,25 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
   const openSection = (sectionId: SectionId) => {
     setActiveSection(sectionId);
+    setUserMenuOpen(false);
     if (sectionId === 'st-student-agenda') {
       setAgendaMonthCursor(new Date());
       setAgendaEventsVisibleCount(INITIAL_AGENDA_EVENTS_COUNT);
     }
-
-    window.scrollTo({
-      top: 0,
-      behavior: 'auto',
-    });
-
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', `#${SECTION_HASH_PREFIX}${sectionId}`);
     }
   };
+
+  useEffect(() => {
+    const target = document.getElementById(activeSection);
+    if (target) {
+      target.scrollIntoView({ behavior: 'auto', block: 'start' });
+      return;
+    }
+
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [activeSection]);
 
   const renderProfileAvatarActions = () => (
     <div className="student-template-profile-actions">
@@ -1531,14 +1613,14 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           <article className="student-page-card">
             <h4>Biblioteca por turma</h4>
             {materialsByClass.length === 0 ? (
-              <p className="student-template-empty">Nenhum material disponível para suas turmas.</p>
+              <p className="student-template-empty">Nenhum material disponível para sua turma.</p>
             ) : (
               <div className="student-material-groups">
                 {materialsByClass.map(([className, items]) => (
                   <section key={className}>
                     <header>
                       <strong>{className}</strong>
-                      <small>{items.length} item(ns)</small>
+                      <small>{items.length} Item(s)</small>
                     </header>
                     <ul>
                       {items.map((material) => (
@@ -1575,7 +1657,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       return (
         <section className="student-page-layout">
           <article className="student-page-card">
-            <h4>Mural de avisos</h4>
+            <h4>Mural de notificações</h4>
             {recentNotices.length === 0 ? (
               <p className="student-template-empty">Nenhum aviso publicado no momento.</p>
             ) : (
@@ -1641,18 +1723,18 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 )}
                 <div>
                   <strong>{titleName}</strong>
-                  <small>{me?.email || user.email}</small>
+                  <small>{maskEmail(me?.email || user.email)}</small>
                 </div>
               </div>
               {renderProfileAvatarActions()}
               <dl className="student-profile-grid">
                 <div>
                   <dt>CPF</dt>
-                  <dd>{me?.studentProfile?.documentCpf || '-'}</dd>
+                  <dd>{maskCpf(me?.studentProfile?.documentCpf)}</dd>
                 </div>
                 <div>
                   <dt>Telefone</dt>
-                  <dd>{me?.studentProfile?.phone || '-'}</dd>
+                  <dd>{maskPhone(me?.studentProfile?.phone)}</dd>
                 </div>
                 <div>
                   <dt>Nascimento</dt>
@@ -1722,7 +1804,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
             <input
               id="student-search"
               type="text"
-              placeholder="Buscar materiais, aulas ou avisos..."
+              placeholder="Buscar materiais, aulas ou notificações..."
               value={studentSearchQuery}
               onChange={(event) => setStudentSearchQuery(event.target.value)}
               onKeyDown={(event) => {
@@ -1753,7 +1835,12 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           </label>
 
           <div className="student-template-topbar-right">
-            <button type="button" className="student-template-icon-btn" aria-label="Notificações">
+            <button
+              type="button"
+              className="student-template-icon-btn"
+              aria-label="Notificações"
+              onClick={() => openSection('st-student-notices')}
+            >
               <StudentIcon name="notifications_active" />
               {avisos.length > 0 ? <span className="student-template-icon-dot" /> : null}
             </button>
@@ -1761,17 +1848,43 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               <StudentIcon name="help" />
             </button>
 
-            <div className="student-template-user">
-              <div>
-                <strong>{titleName}</strong>
-                <small>ID: {studentId}</small>
-              </div>
+            <div className="student-template-user-menu-wrap" ref={userMenuRef}>
+              <button
+                type="button"
+                className="student-template-user-trigger"
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+                onClick={() => setUserMenuOpen((current) => !current)}
+              >
+                <div className="student-template-user">
+                  <div>
+                    <strong>{topbarName}</strong>
+                    <small>ID: {studentId}</small>
+                  </div>
 
-              {profileAvatarUrl ? (
-                <img src={profileAvatarUrl} alt={`Avatar de ${titleName}`} />
-              ) : (
-                <span className="student-template-user-fallback">{initials(titleName)}</span>
-              )}
+                  {profileAvatarUrl ? (
+                    <img src={profileAvatarUrl} alt={`Avatar de ${titleName}`} />
+                  ) : (
+                    <span className="student-template-user-fallback">{initials(titleName)}</span>
+                  )}
+                </div>
+                <span className="student-template-user-caret" aria-hidden="true" />
+              </button>
+
+              {userMenuOpen ? (
+                <div className="student-template-user-menu" role="menu" aria-label="Menu do perfil">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => openSection('st-student-profile')}
+                  >
+                    Meu perfil
+                  </button>
+                  <button type="button" role="menuitem" onClick={onLogout}>
+                    Sair
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             <button type="button" className="student-template-logout" onClick={onLogout}>
@@ -1976,7 +2089,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     <div className="student-template-card-title">
                       <h4>
                         <StudentIcon name="notifications_active" />
-                        Avisos recentes
+                        Notificações recentes
                       </h4>
                     </div>
 
@@ -2000,7 +2113,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     )}
 
                     <button type="button" onClick={() => openSection('st-student-notices')}>
-                      Ver todos os avisos
+                      VER TODAS
                     </button>
                   </article>
                   ) : null}
@@ -2070,7 +2183,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 >
                   <h4>Materiais de apoio</h4>
                   {recentMaterials.length === 0 ? (
-                    <p className="student-template-empty">Nenhum material publicado para suas turmas.</p>
+                    <p className="student-template-empty">Nenhum material publicado para sua turma.</p>
                   ) : (
                     <ul>
                       {recentMaterials.map((material) => (
@@ -2131,7 +2244,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     )}
                     <div>
                       <strong>{titleName}</strong>
-                      <small>{me?.email || user.email}</small>
+                      <small>{maskEmail(me?.email || user.email)}</small>
                     </div>
                   </div>
                   {renderProfileAvatarActions()}
@@ -2139,11 +2252,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   <dl>
                     <div>
                       <dt>CPF</dt>
-                      <dd>{me?.studentProfile?.documentCpf || '-'}</dd>
+                      <dd>{maskCpf(me?.studentProfile?.documentCpf)}</dd>
                     </div>
                     <div>
                       <dt>Telefone</dt>
-                      <dd>{me?.studentProfile?.phone || '-'}</dd>
+                      <dd>{maskPhone(me?.studentProfile?.phone)}</dd>
                     </div>
                     <div>
                       <dt>Nascimento</dt>

@@ -1,3 +1,4 @@
+import { toPtBrApiMessage } from '../errorMessages';
 export type ApiErrorPayload = {
   message?: string | string[];
 };
@@ -65,11 +66,7 @@ export async function apiRequest<T>(
         let message = `Falha na requisição (${response.status}).`;
         try {
           const payload = (await response.json()) as ApiErrorPayload;
-          if (Array.isArray(payload.message)) {
-            message = payload.message.join(' ');
-          } else if (typeof payload.message === 'string') {
-            message = payload.message;
-          }
+          message = toPtBrApiMessage(payload.message, message);
         } catch {
           // mantém mensagem padrão
         }

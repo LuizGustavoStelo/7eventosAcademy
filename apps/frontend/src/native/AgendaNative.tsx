@@ -381,7 +381,7 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
                       </button>
                     ))}
                     {cell.dayEvents.length > 2 ? (
-                      <small>+{cell.dayEvents.length - 2} item(ns)</small>
+                      <small>+{cell.dayEvents.length - 2} Item(s)</small>
                     ) : null}
                   </div>
                 </div>
@@ -485,7 +485,7 @@ export function AgendaNative({ token, onNavigate }: AgendaNativeProps) {
           <article className="native-panel">
             <header className="native-panel-header">
               <h3>Próximos eventos</h3>
-              <small>{upcomingEvents.length} item(ns)</small>
+              <small>{upcomingEvents.length} Item(s)</small>
             </header>
 
             <div className="native-agenda-upcoming">

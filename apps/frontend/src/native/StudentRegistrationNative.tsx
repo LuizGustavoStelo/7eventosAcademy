@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { API_BASE_URL } from './api';
+import { toPtBrApiMessage } from '../errorMessages';
 
 type StudentRegistrationNativeProps = {
   embedded: boolean;
@@ -83,6 +84,18 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
 });
 
+function normalizeNameInput(value: string) {
+  return value
+    .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s]/g, '')
+    .replace(/\s{2,}/g, ' ');
+}
+
+function isValidPersonName(value: string) {
+  const normalized = value.trim();
+  if (normalized.length < 3) return false;
+  return /^[A-Za-zÀ-ÖØ-öø-ÿ]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]+)*$/.test(normalized);
+}
+
 function formatCpf(value: string) {
   const digits = onlyDigits(value).slice(0, 11);
   return digits
@@ -143,14 +156,41 @@ function isValidZipCode(value: string) {
   return onlyDigits(value).length === 8;
 }
 
+function formatBirthDate(value: string) {
+  const digits = onlyDigits(value).slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function birthDateToIso(value: string) {
+  const digits = onlyDigits(value);
+  if (digits.length !== 8) return '';
+
+  const day = Number(digits.slice(0, 2));
+  const month = Number(digits.slice(2, 4));
+  const year = Number(digits.slice(4, 8));
+  if (year < 1900) return '';
+
+  const parsed = new Date(year, month - 1, day);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return '';
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (parsed > today) return '';
+
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 function isValidBirthDate(value: string) {
-  if (!value) return false;
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return false;
-  const now = new Date();
-  if (date > now) return false;
-  if (date.getFullYear() < 1900) return false;
-  return true;
+  return Boolean(birthDateToIso(value));
 }
 
 function passwordStrength(password: string): PasswordStrength {
@@ -172,7 +212,7 @@ function passwordStrength(password: string): PasswordStrength {
 
 function modalityLabel(value?: string | null) {
   const normalized = String(value || '').toUpperCase();
-  if (normalized === 'PRESENTIAL') return 'Presencial';
+  if (normalized === 'PRESENTIAL' || normalized === 'PRESENCIAL') return 'Presencial';
   if (normalized === 'HYBRID') return 'Híbrido';
   if (normalized === 'EAD') return 'EAD';
   return 'Não informado';
@@ -213,8 +253,7 @@ async function requestWithRetry(input: string, init?: RequestInit) {
 async function readError(response: Response) {
   try {
     const payload = (await response.json()) as { message?: string | string[] };
-    if (Array.isArray(payload.message)) return payload.message.join(' ');
-    if (typeof payload.message === 'string') return payload.message;
+    return toPtBrApiMessage(payload.message, 'Não foi possível concluir o cadastro.');
   } catch {
     // ignore
   }
@@ -293,6 +332,9 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     if (!name.trim() || name.trim().length < 3) {
       return 'Informe seu nome completo.';
     }
+    if (!isValidPersonName(name)) {
+      return 'O nome deve conter apenas letras e espaços.';
+    }
     if (!emailRegex.test(email.trim())) {
       return 'Informe um e-mail válido.';
     }
@@ -315,7 +357,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       return 'Informe um telefone válido com DDD.';
     }
     if (!isValidBirthDate(birthDate)) {
-      return 'Informe uma data de nascimento válida.';
+      return 'Informe uma data de nascimento válida no formato DD/MM/AAAA.';
     }
     return '';
   };
@@ -462,12 +504,12 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     }
 
     const payload: RegistrationPayload = {
-      name: name.trim(),
+      name: name.trim().replace(/\s{2,}/g, ' '),
       email: email.trim().toLowerCase(),
       password,
       documentCpf: onlyDigits(documentCpf),
       phone: onlyDigits(phone),
-      birthDate,
+      birthDate: birthDateToIso(birthDate),
       gender: gender || undefined,
       zipCode: onlyDigits(zipCode) || undefined,
       street: street.trim() || undefined,
@@ -561,7 +603,8 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                 <input
                   type="text"
                   value={name}
-                  onChange={(event) => setName(event.target.value)}
+                  onChange={(event) => setName(normalizeNameInput(event.target.value))}
+                  onBlur={() => setName((current) => current.trim().replace(/\s{2,}/g, ' '))}
                   disabled={loading}
                   autoComplete="name"
                 />
@@ -648,10 +691,14 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               <label>
                 Data de nascimento *
                 <input
-                  type="date"
+                  type="text"
                   value={birthDate}
-                  onChange={(event) => setBirthDate(event.target.value)}
+                  onChange={(event) => setBirthDate(formatBirthDate(event.target.value))}
                   disabled={loading}
+                  inputMode="numeric"
+                  autoComplete="bday"
+                  placeholder="DD/MM/AAAA"
+                  maxLength={10}
                 />
               </label>
 

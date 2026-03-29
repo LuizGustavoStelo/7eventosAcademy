@@ -390,7 +390,7 @@ export function NoticesNative({ token }: NoticesNativeProps) {
         <article className="native-panel native-notice-recent-panel">
           <header className="native-panel-header">
             <h3>Avisos recentes</h3>
-            <small>{filteredNotices.length} item(ns)</small>
+            <small>{filteredNotices.length} Item(s)</small>
           </header>
 
           <div className="native-notice-recent-filters">
