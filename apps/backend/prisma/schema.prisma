@@ -98,6 +98,10 @@ model User {
   email          String         @unique
   passwordHash   String         @map("password_hash")
   role           UserRole       @default(ADMIN)
+  emailConfirmedAt DateTime?    @map("email_confirmed_at")
+  emailVerificationCodeHash String? @map("email_verification_code_hash")
+  emailVerificationCodeExpiresAt DateTime? @map("email_verification_code_expires_at")
+  emailVerificationCodeSentAt DateTime? @map("email_verification_code_sent_at")
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
   enrollments    Enrollment[]

@@ -535,7 +535,9 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
         throw new Error(await readError(response));
       }
 
-      setSuccess('Cadastro realizado com sucesso. Faça login para acessar sua Área do Aluno.');
+      setSuccess(
+        'Cadastro realizado com sucesso. Verifique seu e-mail, confirme o código e depois faça login para acessar sua Área do Aluno.',
+      );
       resetForm();
     } catch (submitError) {
       setError(

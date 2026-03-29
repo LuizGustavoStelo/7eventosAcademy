@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from '../database/prisma.module';
+import { MailModule } from '../mail/mail.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -14,6 +15,7 @@ import { RolesGuard } from './guards/roles.guard';
     ConfigModule,
     PrismaModule,
     UploadsModule,
+    MailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

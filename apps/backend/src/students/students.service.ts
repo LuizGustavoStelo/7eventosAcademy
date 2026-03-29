@@ -12,6 +12,7 @@ import {
   UploadOwnerType,
   UserRole,
 } from '@prisma/client';
+import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../database/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { AssignStudentCoursesDto } from './dto/assign-student-courses.dto';
@@ -46,6 +47,7 @@ export class StudentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploadsService: UploadsService,
+    private readonly authService: AuthService,
   ) {}
 
   async create(dto: CreateStudentDto) {
@@ -61,6 +63,7 @@ export class StudentsService {
         email,
         passwordHash,
         role: UserRole.USER,
+        emailConfirmedAt: null,
       },
       include: {
         studentProfile: true,
@@ -71,6 +74,11 @@ export class StudentsService {
           include: { schoolClass: { include: { course: true } } },
         },
       },
+    });
+
+    await this.authService.sendEmailVerificationCodeByUserId(student.id, {
+      ignoreCooldown: true,
+      throwOnDeliveryFailure: false,
     });
 
     return this.mapStudentsWithAvatar([student]).then((items) => items[0]);
@@ -116,6 +124,7 @@ export class StudentsService {
           email,
           passwordHash,
           role: UserRole.USER,
+          emailConfirmedAt: null,
           studentProfile: {
             create: {
               documentCpf,
@@ -169,6 +178,11 @@ export class StudentsService {
         file: avatar,
       });
     }
+
+    await this.authService.sendEmailVerificationCodeByUserId(student.id, {
+      ignoreCooldown: true,
+      throwOnDeliveryFailure: false,
+    });
 
     return this.findById(student.id);
   }

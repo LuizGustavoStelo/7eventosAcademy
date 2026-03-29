@@ -112,18 +112,20 @@ body {
 
 .auth-shell.auth-shell-admin .auth-panel,
 .auth-shell.auth-shell-admin .auth-card {
-  width: min(980px, 100%);
-  max-width: min(980px, calc(100vw - 4rem));
+  width: min(490px, 100%);
+  max-width: min(490px, calc(100vw - 4rem));
 }
 
 .auth-shell.auth-shell-admin .auth-panel {
-  justify-items: start;
+  justify-items: center;
+  text-align: center;
   padding-bottom: 0.6rem;
 }
 
 .auth-shell.auth-shell-admin .auth-panel-aftercard {
   padding-top: 0.35rem;
   padding-bottom: 0;
+  text-align: center;
 }
 
 .auth-shell.auth-shell-admin .auth-card {
@@ -132,6 +134,7 @@ body {
 
 .auth-brand {
   display: grid;
+  justify-items: center;
   gap: 0.65rem;
   margin-bottom: 0.35rem;
 }
@@ -150,7 +153,7 @@ body {
 }
 
 .auth-brand-eyebrow {
-  justify-self: start;
+  justify-self: center;
   border: 1px solid rgba(17, 24, 39, 0.08);
   background: var(--auth-chip);
   color: #334155;
@@ -178,6 +181,12 @@ body {
   color: var(--auth-text);
   line-height: 1.62;
   font-size: 1.03rem;
+}
+
+.auth-shell.auth-shell-admin .auth-panel p,
+.auth-shell.auth-shell-admin .auth-panel-highlights {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .auth-panel-highlights {
@@ -380,6 +389,43 @@ table button:disabled {
   font-size: 0.85rem;
   border-radius: 0.65rem;
   padding: 0.62rem 0.68rem;
+}
+
+.auth-info {
+  background: #ecfdf3;
+  border: 1px solid #abefc6;
+  color: #027a48;
+  font-size: 0.85rem;
+  border-radius: 0.65rem;
+  padding: 0.62rem 0.68rem;
+}
+
+.auth-verify-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.auth-form .auth-secondary-btn {
+  border: 1px solid rgba(17, 24, 39, 0.18);
+  border-radius: 0.72rem;
+  padding: 0.66rem 0.75rem;
+  background: #fff;
+  color: #334155;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.auth-form .auth-secondary-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  filter: none;
+  box-shadow: none;
+}
+
+@media (max-width: 560px) {
+  .auth-verify-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 @keyframes auth-card-enter {

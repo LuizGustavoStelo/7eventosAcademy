@@ -41,6 +41,31 @@ type AuthResponse = {
     expiresAt: string;
   };
 };
+type RegisterResponse = {
+  requiresEmailVerification: true;
+  email: string;
+  expiresAt: string;
+  message: string;
+};
+type VerifyEmailCodeResponse = {
+  verified: boolean;
+  message: string;
+};
+type ResendVerificationCodeResponse = {
+  sent: boolean;
+  message: string;
+  expiresAt?: string;
+};
+type ApiErrorResponse = {
+  message?: string | string[];
+  code?: string;
+  email?: string;
+  statusCode?: number;
+};
+type EmailVerificationPendingState = {
+  email: string;
+  message: string;
+};
 type NavSection = {
   id: string;
   label: string;
@@ -329,7 +354,6 @@ function SidebarNavIcon({ name }: { name: string }) {
     </svg>
   );
 }
-
 function TopbarIcon({
   name,
 }: {
@@ -466,6 +490,10 @@ export default function App() {
   const [senha, setSenha] = useState('');
   const [confirmacaoSenha, setConfirmacaoSenha] = useState('');
   const [erro, setErro] = useState('');
+  const [aviso, setAviso] = useState('');
+  const [codigoConfirmacao, setCodigoConfirmacao] = useState('');
+  const [confirmacaoEmailPendente, setConfirmacaoEmailPendente] =
+    useState<EmailVerificationPendingState | null>(null);
   const [carregando, setCarregando] = useState(false);
 
   const [token, setToken] = useState(() => {
@@ -670,6 +698,33 @@ export default function App() {
     }
   };
 
+  const obterMensagemApi = (
+    payload: ApiErrorResponse | { message?: string | string[] } | null,
+    fallback: string,
+  ) => {
+    if (!payload || typeof payload !== 'object') {
+      return fallback;
+    }
+
+    return toPtBrApiMessage(
+      (payload as { message?: string | string[] }).message,
+      fallback,
+    );
+  };
+
+  const abrirFluxoConfirmacaoEmail = (emailAlvo: string, mensagem: string) => {
+    setConfirmacaoEmailPendente({
+      email: emailAlvo.trim().toLowerCase(),
+      message: mensagem,
+    });
+    setModoCadastro(false);
+    setCodigoConfirmacao('');
+    setSenha('');
+    setConfirmacaoSenha('');
+    setErro('');
+    setAviso(mensagem);
+  };
+
   const limparImpersonacao = () => {
     try {
       window.localStorage.removeItem(IMPERSONATION_SOURCE_TOKEN_KEY);
@@ -846,11 +901,21 @@ export default function App() {
     setToken('');
     setUsuario(null);
     setSecaoAtiva('');
+    setErro('');
+    setAviso('');
+    setCodigoConfirmacao('');
+    setConfirmacaoEmailPendente(null);
+  };
+
+  const limparFluxoConfirmacaoEmail = () => {
+    setConfirmacaoEmailPendente(null);
+    setCodigoConfirmacao('');
   };
 
   const entrar = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErro('');
+    setAviso('');
 
     if (!email || !senha) {
       setErro('Informe e-mail e senha para acessar.');
@@ -866,12 +931,37 @@ export default function App() {
         body: JSON.stringify({ email, password: senha }),
       });
 
+      const payload = (await response
+        .json()
+        .catch(() => null)) as AuthResponse | ApiErrorResponse | null;
+
       if (!response.ok) {
-        setErro(await lerErroApi(response));
+        const apiError = payload as ApiErrorResponse | null;
+
+        if (response.status === 403 && apiError?.code === 'EMAIL_NAO_CONFIRMADO') {
+          const mensagem = obterMensagemApi(
+            apiError,
+            'Seu e-mail ainda não foi confirmado. Digite o código enviado para continuar.',
+          );
+
+          abrirFluxoConfirmacaoEmail(
+            String(apiError.email ?? email).trim().toLowerCase(),
+            mensagem,
+          );
+          return;
+        }
+
+        setErro(obterMensagemApi(apiError, 'Falha na operação.'));
         return;
       }
 
-      persistirSessao((await response.json()) as AuthResponse);
+      if (!payload || !('accessToken' in payload)) {
+        setErro('Resposta inválida do servidor.');
+        return;
+      }
+
+      persistirSessao(payload as AuthResponse);
+      limparFluxoConfirmacaoEmail();
     } catch {
       setErro('Não foi possível conectar com o backend.');
     } finally {
@@ -882,6 +972,7 @@ export default function App() {
   const cadastrar = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErro('');
+    setAviso('');
 
     if (!nome || !email || !senha || !confirmacaoSenha) {
       setErro('Preencha todos os campos para cadastrar.');
@@ -902,15 +993,127 @@ export default function App() {
         body: JSON.stringify({ name: nome, email, password: senha }),
       });
 
+      const payload = (await response
+        .json()
+        .catch(() => null)) as RegisterResponse | ApiErrorResponse | null;
+
       if (!response.ok) {
-        setErro(await lerErroApi(response));
+        setErro(obterMensagemApi(payload as ApiErrorResponse | null, 'Falha na operação.'));
         return;
       }
 
-      persistirSessao((await response.json()) as AuthResponse);
+      if (!payload || !('requiresEmailVerification' in payload)) {
+        setErro('Resposta inválida do servidor.');
+        return;
+      }
+
+      const registerData = payload as RegisterResponse;
       setModoCadastro(false);
-      setConfirmacaoSenha('');
-      setSenha('');
+      setEmail(registerData.email);
+      abrirFluxoConfirmacaoEmail(
+        registerData.email,
+        registerData.message || 'Enviamos um código de confirmação para o seu e-mail.',
+      );
+    } catch {
+      setErro('Não foi possível conectar com o backend.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const confirmarCodigoEmail = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErro('');
+    setAviso('');
+
+    if (!confirmacaoEmailPendente) {
+      setErro('Nenhum e-mail pendente de confirmação no momento.');
+      return;
+    }
+
+    if (codigoConfirmacao.trim().length !== 6) {
+      setErro('Digite o código de 6 dígitos enviado para seu e-mail.');
+      return;
+    }
+
+    setCarregando(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/verify-email-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: confirmacaoEmailPendente.email,
+          code: codigoConfirmacao.trim(),
+        }),
+      });
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as VerifyEmailCodeResponse | ApiErrorResponse | null;
+
+      if (!response.ok) {
+        setErro(
+          obterMensagemApi(
+            payload as ApiErrorResponse | null,
+            'Não foi possível confirmar o e-mail.',
+          ),
+        );
+        return;
+      }
+
+      const mensagem =
+        payload && 'message' in payload
+          ? String(payload.message)
+          : 'E-mail confirmado com sucesso. Faça login para continuar.';
+
+      setAviso(mensagem);
+      setEmail(confirmacaoEmailPendente.email);
+      limparFluxoConfirmacaoEmail();
+      setModoCadastro(false);
+    } catch {
+      setErro('Não foi possível conectar com o backend.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const reenviarCodigoConfirmacao = async () => {
+    if (!confirmacaoEmailPendente) {
+      return;
+    }
+
+    setErro('');
+    setAviso('');
+    setCarregando(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/resend-verification-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: confirmacaoEmailPendente.email }),
+      });
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as ResendVerificationCodeResponse | ApiErrorResponse | null;
+
+      if (!response.ok) {
+        setErro(
+          obterMensagemApi(
+            payload as ApiErrorResponse | null,
+            'Não foi possível reenviar o código.',
+          ),
+        );
+        return;
+      }
+
+      const mensagem =
+        payload && 'message' in payload
+          ? String(payload.message)
+          : 'Enviamos um novo código de confirmação para seu e-mail.';
+
+      setAviso(mensagem);
     } catch {
       setErro('Não foi possível conectar com o backend.');
     } finally {
@@ -983,6 +1186,17 @@ export default function App() {
     }
 
     const modoCadastroAtivo = isStudentPortalMode ? false : modoCadastro;
+    const modoConfirmacaoEmailAtivo = Boolean(confirmacaoEmailPendente);
+    const tituloAutenticacao = modoConfirmacaoEmailAtivo
+      ? 'Confirmar e-mail'
+      : modoCadastroAtivo
+        ? 'Criar conta'
+        : 'Entrar';
+    const subtituloAutenticacao = modoConfirmacaoEmailAtivo
+      ? 'Digite o código de 6 dígitos enviado para o seu e-mail.'
+      : modoCadastroAtivo
+        ? 'Cadastre-se para acessar o painel da instituição.'
+        : 'Acesse com suas credenciais para continuar.';
 
     return (
       <div
@@ -1003,7 +1217,6 @@ export default function App() {
               <span className="auth-brand-eyebrow">Área administrativa</span>
             </div>
 
-            <h1>Bem-vindo à plataforma Academy</h1>
           </section>
         )}
 
@@ -1018,10 +1231,12 @@ export default function App() {
             <div className="auth-tabs">
               <button
                 type="button"
-                className={!modoCadastroAtivo ? 'active' : ''}
+                className={!modoCadastroAtivo && !modoConfirmacaoEmailAtivo ? 'active' : ''}
                 onClick={() => {
                   setErro('');
+                  setAviso('');
                   setModoCadastro(false);
+                  limparFluxoConfirmacaoEmail();
                 }}
                 disabled={carregando}
               >
@@ -1032,7 +1247,9 @@ export default function App() {
                 className={modoCadastroAtivo ? 'active' : ''}
                 onClick={() => {
                   setErro('');
+                  setAviso('');
                   setModoCadastro(true);
+                  limparFluxoConfirmacaoEmail();
                 }}
                 disabled={carregando}
               >
@@ -1041,17 +1258,47 @@ export default function App() {
             </div>
           )}
 
-          <h2>{modoCadastroAtivo ? 'Criar conta' : 'Entrar'}</h2>
+          <h2>{tituloAutenticacao}</h2>
           {!isStudentPortalMode ? (
-            <p className="auth-card-subtitle">
-              {modoCadastroAtivo
-                ? 'Cadastre-se para acessar o painel da instituição.'
-                : 'Acesse com suas credenciais para continuar.'}
-            </p>
+            <p className="auth-card-subtitle">{subtituloAutenticacao}</p>
           ) : null}
 
-          <form className="auth-form" onSubmit={modoCadastroAtivo ? cadastrar : entrar}>
-            {modoCadastroAtivo ? (
+          <form
+            className="auth-form"
+            onSubmit={
+              modoConfirmacaoEmailAtivo
+                ? confirmarCodigoEmail
+                : modoCadastroAtivo
+                  ? cadastrar
+                  : entrar
+            }
+          >
+            {modoConfirmacaoEmailAtivo ? (
+              <>
+                <label htmlFor="emailConfirmacao">E-mail</label>
+                <input
+                  id="emailConfirmacao"
+                  type="email"
+                  value={confirmacaoEmailPendente?.email ?? email}
+                  readOnly
+                  disabled={carregando}
+                />
+
+                <label htmlFor="codigoConfirmacao">Código de confirmação</label>
+                <input
+                  id="codigoConfirmacao"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={codigoConfirmacao}
+                  onChange={(event) =>
+                    setCodigoConfirmacao(event.target.value.replace(/\D+/g, '').slice(0, 6))
+                  }
+                  disabled={carregando}
+                />
+              </>
+            ) : modoCadastroAtivo ? (
               <>
                 <label htmlFor="nome">Nome completo</label>
                 <input
@@ -1064,25 +1311,29 @@ export default function App() {
               </>
             ) : null}
 
-            <label htmlFor="email">E-mail</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              disabled={carregando}
-            />
+            {modoConfirmacaoEmailAtivo ? null : (
+              <>
+                <label htmlFor="email">E-mail</label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  disabled={carregando}
+                />
 
-            <label htmlFor="senha">Senha</label>
-            <input
-              id="senha"
-              type="password"
-              value={senha}
-              onChange={(event) => setSenha(event.target.value)}
-              disabled={carregando}
-            />
+                <label htmlFor="senha">Senha</label>
+                <input
+                  id="senha"
+                  type="password"
+                  value={senha}
+                  onChange={(event) => setSenha(event.target.value)}
+                  disabled={carregando}
+                />
+              </>
+            )}
 
-            {modoCadastroAtivo ? (
+            {modoConfirmacaoEmailAtivo || !modoCadastroAtivo ? null : (
               <>
                 <label htmlFor="confirmacaoSenha">Confirmar senha</label>
                 <input
@@ -1093,17 +1344,45 @@ export default function App() {
                   disabled={carregando}
                 />
               </>
-            ) : null}
+            )}
 
             {erro ? <div className="auth-error">{erro}</div> : null}
+            {aviso ? <div className="auth-info">{aviso}</div> : null}
 
             <button type="submit" disabled={carregando}>
               {carregando
                 ? 'Processando...'
-                : modoCadastroAtivo
-                  ? 'Cadastrar e continuar'
-                  : 'Entrar na plataforma'}
+                : modoConfirmacaoEmailAtivo
+                  ? 'Confirmar e-mail'
+                  : modoCadastroAtivo
+                    ? 'Cadastrar e continuar'
+                    : 'Entrar na plataforma'}
             </button>
+
+            {modoConfirmacaoEmailAtivo ? (
+              <div className="auth-verify-actions">
+                <button
+                  type="button"
+                  className="auth-secondary-btn"
+                  onClick={reenviarCodigoConfirmacao}
+                  disabled={carregando}
+                >
+                  Reenviar código
+                </button>
+                <button
+                  type="button"
+                  className="auth-secondary-btn"
+                  onClick={() => {
+                    setErro('');
+                    setAviso('');
+                    limparFluxoConfirmacaoEmail();
+                  }}
+                  disabled={carregando}
+                >
+                  Voltar ao login
+                </button>
+              </div>
+            ) : null}
           </form>
         </section>
 
