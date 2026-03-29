@@ -978,19 +978,26 @@ export default function App() {
       >
         {!isEmbedded && !isStudentPortalMode && (
           <section className="auth-panel">
-            <div className="brand auth-brand">
-              <div className="brand-mark">7E</div>
-              <div>
-                <strong>7Eventos Academy</strong>
-                <span>Acesso administrativo</span>
+            <div className="auth-brand">
+              <div className="auth-brand-logo-wrap">
+                <img
+                  className="auth-brand-logo"
+                  src="/7eventos_academy_logo.png"
+                  alt="7Eventos Academy"
+                />
               </div>
+              <span className="auth-brand-eyebrow">Área administrativa</span>
             </div>
 
             <h1>Bem-vindo à plataforma Academy</h1>
             <p>
-              Ambiente para gestão de contas, turmas, matrículas, financeiro e operação
-              acadêmica.
+              Ambiente completo para gestão de contas, turmas, matrículas, financeiro e
+              operação acadêmica.
             </p>
+            <div className="auth-panel-highlights">
+              <span>Visão centralizada da operação</span>
+              <span>Fluxos acadêmicos e financeiros no mesmo lugar</span>
+            </div>
           </section>
         )}
 
@@ -1029,6 +1036,13 @@ export default function App() {
           )}
 
           <h2>{modoCadastroAtivo ? 'Criar conta' : 'Entrar'}</h2>
+          {!isStudentPortalMode ? (
+            <p className="auth-card-subtitle">
+              {modoCadastroAtivo
+                ? 'Cadastre-se para acessar o painel da instituição.'
+                : 'Acesse com suas credenciais para continuar.'}
+            </p>
+          ) : null}
 
           <form className="auth-form" onSubmit={modoCadastroAtivo ? cadastrar : entrar}>
             {modoCadastroAtivo ? (
@@ -1371,6 +1385,3 @@ export default function App() {
     </div>
   );
 }
-
-
-
