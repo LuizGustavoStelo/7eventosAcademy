@@ -1,7 +1,13 @@
-﻿ALTER TABLE "users"
-ADD COLUMN IF NOT EXISTS "email_confirmed_at" TIMESTAMP(3),
-ADD COLUMN IF NOT EXISTS "email_verification_code_hash" TEXT,
-ADD COLUMN IF NOT EXISTS "email_verification_code_expires_at" TIMESTAMP(3),
+ALTER TABLE "users"
+ADD COLUMN IF NOT EXISTS "email_confirmed_at" TIMESTAMP(3);
+
+ALTER TABLE "users"
+ADD COLUMN IF NOT EXISTS "email_verification_code_hash" TEXT;
+
+ALTER TABLE "users"
+ADD COLUMN IF NOT EXISTS "email_verification_code_expires_at" TIMESTAMP(3);
+
+ALTER TABLE "users"
 ADD COLUMN IF NOT EXISTS "email_verification_code_sent_at" TIMESTAMP(3);
 
 UPDATE "users"
