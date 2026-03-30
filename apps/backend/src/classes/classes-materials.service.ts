@@ -42,6 +42,10 @@ const MATERIAL_ALLOWED_EXACT_MIME = new Set([
   'text/plain',
 ]);
 const MATERIAL_ALLOWED_MIME_PREFIX = ['image/', 'video/'];
+type MaterialActor = Pick<
+  JwtPayload,
+  'sub' | 'role' | 'activeInstitutionId'
+>;
 
 @Injectable()
 export class ClassesMaterialsService {
@@ -59,7 +63,7 @@ export class ClassesMaterialsService {
     externalUrl?: string;
     fileUrl?: string;
     publishedBy?: string;
-    actor: Pick<JwtPayload, 'sub' | 'role'>;
+    actor: MaterialActor;
   }) {
     await this.ensureClassExists(dto.classId, dto.actor);
 
@@ -95,7 +99,7 @@ export class ClassesMaterialsService {
     kind?: string;
     externalUrl?: string;
     publishedBy?: string;
-    actor: Pick<JwtPayload, 'sub' | 'role'>;
+    actor: MaterialActor;
     file: MultipartFile;
   }) {
     await this.ensureClassExists(dto.classId, dto.actor);
@@ -153,7 +157,7 @@ export class ClassesMaterialsService {
     kind?: string;
     externalUrl?: string;
     publishedBy?: string;
-    actor: Pick<JwtPayload, 'sub' | 'role'>;
+    actor: MaterialActor;
     files: MultipartFile[];
   }) {
     await this.ensureClassExists(dto.classId, dto.actor);
@@ -200,7 +204,7 @@ export class ClassesMaterialsService {
 
   async getMaterials(
     classId: string,
-    actor: Pick<JwtPayload, 'sub' | 'role'>,
+    actor: MaterialActor,
   ) {
     await this.ensureClassExists(classId, actor);
 
@@ -215,8 +219,8 @@ export class ClassesMaterialsService {
     });
   }
 
-  async getAllMaterials(actor: Pick<JwtPayload, 'sub' | 'role'>) {
-    const where = actor.role === 'superadmin' ? {} : { schoolClass: { course: { ownerAdminId: actor.sub } } };
+  async getAllMaterials(actor: MaterialActor) {
+    const where = this.buildMaterialWhere(actor);
     return this.prisma.studyMaterial.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -231,7 +235,7 @@ export class ClassesMaterialsService {
   async deleteMaterial(
     classId: string,
     materialId: string,
-    actor: Pick<JwtPayload, 'sub' | 'role'>,
+    actor: MaterialActor,
   ) {
     await this.ensureClassExists(classId, actor);
 
@@ -261,14 +265,12 @@ export class ClassesMaterialsService {
 
   private async ensureClassExists(
     classId: string,
-    actor: Pick<JwtPayload, 'sub' | 'role'>,
+    actor: MaterialActor,
   ) {
     const schoolClass = await this.prisma.schoolClass.findFirst({
       where: {
         id: classId,
-        ...(actor.role === 'superadmin'
-          ? {}
-          : { course: { ownerAdminId: actor.sub } }),
+        ...this.buildClassWhere(actor),
       },
       select: { id: true },
     });
@@ -276,6 +278,46 @@ export class ClassesMaterialsService {
     if (!schoolClass) {
       throw new NotFoundException('Turma não encontrada.');
     }
+  }
+
+  private buildMaterialWhere(actor: MaterialActor) {
+    if (actor.activeInstitutionId) {
+      return {
+        schoolClass: {
+          institutionId: actor.activeInstitutionId,
+        },
+      };
+    }
+
+    if (actor.role === 'superadmin') {
+      return {};
+    }
+
+    return {
+      schoolClass: {
+        course: {
+          ownerAdminId: actor.sub,
+        },
+      },
+    };
+  }
+
+  private buildClassWhere(actor: MaterialActor) {
+    if (actor.activeInstitutionId) {
+      return {
+        institutionId: actor.activeInstitutionId,
+      };
+    }
+
+    if (actor.role === 'superadmin') {
+      return {};
+    }
+
+    return {
+      course: {
+        ownerAdminId: actor.sub,
+      },
+    };
   }
 
   private resolveBatchTitle(baseTitle: string, fileName: string, index: number) {

@@ -5,6 +5,7 @@ import {
   Prisma,
   StudentCourseStatus,
   UploadOwnerType,
+  UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
@@ -16,6 +17,7 @@ import { UpdateCourseDto } from './dto/update-course.dto';
 import { JwtPayload } from '../auth/types/app-role.type';
 
 const COURSE_BANNER_KIND = 'COURSE_BANNER';
+type CourseActor = Pick<JwtPayload, 'sub' | 'role' | 'activeInstitutionId'>;
 
 @Injectable()
 export class CoursesService {
@@ -24,7 +26,10 @@ export class CoursesService {
     private readonly uploadsService: UploadsService,
   ) {}
 
-  async create(dto: CreateCourseDto, actor: Pick<JwtPayload, 'sub' | 'role'>) {
+  async create(dto: CreateCourseDto, actor: CourseActor) {
+    const institutionId = await this.resolveInstitutionIdForWrite(actor);
+    const ownerAdminId = await this.resolveCourseOwnerAdminId(actor, institutionId);
+
     const paymentData = this.normalizePayment({
       price: dto.price,
       paymentModel: dto.paymentModel,
@@ -34,7 +39,8 @@ export class CoursesService {
 
     const course = await this.prisma.course.create({
       data: {
-        ownerAdminId: actor.sub,
+        ownerAdminId,
+        institutionId,
         name: dto.name.trim(),
         description: dto.description?.trim(),
         workloadHours: dto.workloadHours,
@@ -50,8 +56,14 @@ export class CoursesService {
     return this.mapCourseWithBanner(course, null);
   }
 
-  async findAll(actor?: Pick<JwtPayload, 'sub' | 'role'>) {
+  async findAll(actor?: CourseActor) {
     const where = this.buildCourseWhere(actor);
+    const studentWhere: Prisma.StudentCourseWhereInput = {
+      status: {
+        in: [StudentCourseStatus.INTERESTED, StudentCourseStatus.ACTIVE],
+      },
+      ...(Object.keys(where).length > 0 ? { course: where } : {}),
+    };
 
     const [courses, studentCounts] = await Promise.all([
       this.prisma.course.findMany({
@@ -60,11 +72,7 @@ export class CoursesService {
       }),
       this.prisma.studentCourse.groupBy({
         by: ['courseId'],
-        where: {
-          status: {
-            in: [StudentCourseStatus.INTERESTED, StudentCourseStatus.ACTIVE],
-          },
-        },
+        where: studentWhere,
         _count: {
           _all: true,
         },
@@ -85,7 +93,7 @@ export class CoursesService {
   async update(
     id: string,
     dto: UpdateCourseDto,
-    actor: Pick<JwtPayload, 'sub' | 'role'>,
+    actor: CourseActor,
   ) {
     const current = await this.ensureCourseExists(id, actor);
 
@@ -139,7 +147,7 @@ export class CoursesService {
     return this.mapCourseWithBanner(course, banner);
   }
 
-  async remove(id: string, actor: Pick<JwtPayload, 'sub' | 'role'>) {
+  async remove(id: string, actor: CourseActor) {
     await this.ensureCourseExists(id, actor);
 
     await this.prisma.course.delete({ where: { id } });
@@ -151,7 +159,7 @@ export class CoursesService {
   async uploadBanner(
     id: string,
     file: MultipartFile,
-    actor: Pick<JwtPayload, 'sub' | 'role'>,
+    actor: CourseActor,
   ) {
     await this.ensureCourseExists(id, actor);
 
@@ -171,7 +179,7 @@ export class CoursesService {
 
   private async ensureCourseExists(
     id: string,
-    actor?: Pick<JwtPayload, 'sub' | 'role'>,
+    actor?: CourseActor,
   ) {
     const course = await this.prisma.course.findFirst({
       where: {
@@ -215,7 +223,13 @@ export class CoursesService {
     );
   }
 
-  private buildCourseWhere(actor?: Pick<JwtPayload, 'sub' | 'role'>) {
+  private buildCourseWhere(actor?: CourseActor): Prisma.CourseWhereInput {
+    if (actor?.activeInstitutionId) {
+      return {
+        institutionId: actor.activeInstitutionId,
+      };
+    }
+
     if (!actor || actor.role === 'superadmin') {
       return {};
     }
@@ -223,6 +237,64 @@ export class CoursesService {
     return {
       ownerAdminId: actor.sub,
     };
+  }
+
+  private async resolveInstitutionIdForWrite(actor: CourseActor) {
+    if (actor.activeInstitutionId) {
+      return actor.activeInstitutionId;
+    }
+
+    if (actor.role === 'superadmin') {
+      throw new NotFoundException(
+        'Selecione uma instituição ativa para criar cursos.',
+      );
+    }
+
+    const membership = await this.prisma.institutionMember.findFirst({
+      where: {
+        userId: actor.sub,
+        status: 'ACTIVE',
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { institutionId: true },
+    });
+
+    if (!membership?.institutionId) {
+      throw new NotFoundException(
+        'Nenhuma instituição ativa foi encontrada para este usuário.',
+      );
+    }
+
+    return membership.institutionId;
+  }
+
+  private async resolveCourseOwnerAdminId(
+    actor: CourseActor,
+    institutionId: string,
+  ) {
+    if (actor.role === 'admin') {
+      return actor.sub;
+    }
+
+    const adminMember = await this.prisma.institutionMember.findFirst({
+      where: {
+        institutionId,
+        status: 'ACTIVE',
+        user: {
+          role: UserRole.ADMIN,
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { userId: true },
+    });
+
+    if (!adminMember?.userId) {
+      throw new NotFoundException(
+        'Não há administrador ativo para a instituição selecionada.',
+      );
+    }
+
+    return adminMember.userId;
   }
 
   private mapCourseWithBanner(

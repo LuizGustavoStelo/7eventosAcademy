@@ -14,8 +14,8 @@ import { Multipart, MultipartFile } from '@fastify/multipart';
 import type { FastifyRequest } from 'fastify';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { Public } from '../auth/decorators/public.decorator';
-import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtPayload } from '../auth/types/app-role.type';
 import { AssignStudentCoursesDto } from './dto/assign-student-courses.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
@@ -29,26 +29,29 @@ type MultipartFastifyRequest = FastifyRequest & {
   parts: () => AsyncIterableIterator<Multipart>;
 };
 
-@Roles('admin', 'superadmin')
 @Controller('students')
 export class StudentsController {
   constructor(private readonly studentsService: StudentsService) {}
 
+  @RequirePermissions('students.read')
   @Get()
   async findAll(@Req() request: MultipartFastifyRequest) {
     return this.studentsService.findAll(request.user);
   }
 
+  @RequirePermissions('students.read')
   @Get(':id')
   async findById(@Param('id') id: string, @Req() request: MultipartFastifyRequest) {
     return this.studentsService.findById(id, request.user);
   }
 
+  @RequirePermissions('students.create')
   @Post()
   async create(@Body() dto: CreateStudentDto, @Req() request: MultipartFastifyRequest) {
     return this.studentsService.create(dto, request.user);
   }
 
+  @RequirePermissions('students.update')
   @Patch(':id')
   async update(
     @Param('id') id: string,
@@ -72,6 +75,7 @@ export class StudentsController {
     return this.studentsService.registerPublic(dto, avatar);
   }
 
+  @RequirePermissions('students.update')
   @Put(':id/courses')
   async assignCourses(
     @Param('id') id: string,
@@ -81,6 +85,7 @@ export class StudentsController {
     return this.studentsService.assignCourses(id, dto, request.user);
   }
 
+  @RequirePermissions('students.update')
   @Post(':id/avatar')
   async uploadAvatar(
     @Param('id') id: string,
@@ -96,16 +101,19 @@ export class StudentsController {
     return this.studentsService.uploadAvatar(id, file, request.user);
   }
 
+  @RequirePermissions('students.update')
   @Delete(':id/avatar')
   async removeAvatar(@Param('id') id: string, @Req() request: MultipartFastifyRequest) {
     return this.studentsService.removeAvatar(id, request.user);
   }
 
+  @RequirePermissions('students.delete')
   @Delete(':id')
   async remove(@Param('id') id: string, @Req() request: MultipartFastifyRequest) {
     return this.studentsService.remove(id, request.user);
   }
 
+  @RequirePermissions('students.create')
   @Post('import-csv')
   async importCsv(@Req() request: MultipartFastifyRequest) {
     const file = await request.file();

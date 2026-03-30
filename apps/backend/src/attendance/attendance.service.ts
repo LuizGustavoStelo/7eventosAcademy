@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { JwtPayload } from '../auth/types/app-role.type';
 import { PrismaService } from '../database/prisma.service';
 
 type AgendaSession = {
@@ -33,6 +34,13 @@ type AttendanceStorage = {
   records: AttendanceSessionRecord[];
 };
 
+type AttendanceActor = Pick<
+  JwtPayload,
+  'sub' | 'activeInstitutionId'
+> & {
+  role?: string;
+};
+
 @Injectable()
 export class AttendanceService {
   private readonly agendaKeyPrefix = 'agenda-class:';
@@ -40,7 +48,7 @@ export class AttendanceService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async getTeacherClasses(actor: { sub: string; role?: string }) {
+  async getTeacherClasses(actor: AttendanceActor) {
     const classes = await this.prisma.schoolClass.findMany({
       where: this.buildClassOwnershipFilter(actor),
       include: {
@@ -74,7 +82,7 @@ export class AttendanceService {
 
   async getTeacherClassSessions(
     classId: string,
-    actor: { sub: string; role?: string },
+    actor: AttendanceActor,
   ) {
     await this.ensureClassExists(classId, actor);
 
@@ -105,7 +113,7 @@ export class AttendanceService {
   async getTeacherSessionRoster(
     classId: string,
     sessionId: string,
-    actor: { sub: string; role?: string },
+    actor: AttendanceActor,
   ) {
     await this.ensureClassExists(classId, actor);
 
@@ -142,10 +150,22 @@ export class AttendanceService {
     sessionId: string;
     actorId: string;
     actorRole?: string;
+    actorInstitutionId?: string | null;
     items: Array<{ studentId: string; present: boolean; note?: string }>;
   }) {
-    const { classId, sessionId, actorId, actorRole, items } = params;
-    await this.ensureClassExists(classId, { sub: actorId, role: actorRole });
+    const {
+      classId,
+      sessionId,
+      actorId,
+      actorRole,
+      actorInstitutionId,
+      items,
+    } = params;
+    await this.ensureClassExists(classId, {
+      sub: actorId,
+      role: actorRole,
+      activeInstitutionId: actorInstitutionId,
+    });
 
     const session = await this.getClassSessionOrFail(classId, sessionId);
     const sessionTime = new Date(session.datetime).getTime();
@@ -212,6 +232,7 @@ export class AttendanceService {
     return this.getTeacherSessionRoster(classId, sessionId, {
       sub: actorId,
       role: actorRole,
+      activeInstitutionId: actorInstitutionId,
     });
   }
 
@@ -322,7 +343,7 @@ export class AttendanceService {
 
   private async ensureClassExists(
     classId: string,
-    actor: { sub: string; role?: string },
+    actor: AttendanceActor,
   ) {
     const schoolClass = await this.prisma.schoolClass.findFirst({
       where: {
@@ -337,7 +358,13 @@ export class AttendanceService {
     }
   }
 
-  private buildClassOwnershipFilter(actor: { sub: string; role?: string }) {
+  private buildClassOwnershipFilter(actor: AttendanceActor) {
+    if (actor.activeInstitutionId) {
+      return {
+        institutionId: actor.activeInstitutionId,
+      };
+    }
+
     if (String(actor.role || '').toLowerCase() === 'superadmin') {
       return {};
     }

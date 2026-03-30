@@ -277,6 +277,12 @@ export class AgendaService {
   }
 
   private classOwnerWhere(user: JwtPayload) {
+    if (user.activeInstitutionId) {
+      return {
+        institutionId: user.activeInstitutionId,
+      };
+    }
+
     if (String(user.role || '').toLowerCase() === 'superadmin') {
       return {};
     }
@@ -298,7 +304,7 @@ export class AgendaService {
     });
 
     if (!schoolClass) {
-      throw new Error('Turma nÃ£o encontrada para esta conta.');
+      throw new Error('Turma não encontrada para esta conta.');
     }
   }
 

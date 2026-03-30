@@ -92,9 +92,26 @@ enum StudentCourseStatus {
   @@map("student_course_status")
 }
 
+enum InstitutionStatus {
+  ACTIVE    @map("active")
+  INACTIVE  @map("inactive")
+  SUSPENDED @map("suspended")
+
+  @@map("institution_status")
+}
+
+enum InstitutionMemberStatus {
+  ACTIVE    @map("active")
+  INVITED   @map("invited")
+  SUSPENDED @map("suspended")
+
+  @@map("institution_member_status")
+}
+
 model User {
   id             String         @id @default(uuid()) @db.Uuid
   ownerAdminId   String?        @map("owner_admin_id") @db.Uuid
+  institutionId  String?        @map("institution_id") @db.Uuid
   name           String
   email          String         @unique
   passwordHash   String         @map("password_hash")
@@ -111,12 +128,104 @@ model User {
   ownedCourses   Course[]       @relation("course_owner")
   ownerAdmin     User?          @relation("admin_students", fields: [ownerAdminId], references: [id], onDelete: SetNull)
   ownedStudents  User[]         @relation("admin_students")
+  institution    Institution?   @relation("institution_students", fields: [institutionId], references: [id], onDelete: SetNull)
+  institutionMembers InstitutionMember[]
   financialConfig AccountFinancialConfig?
   ownedMonthlyCharges MonthlyCharge[] @relation("monthly_charge_owner")
   classNoticeViews ClassNoticeView[]
 
   @@index([ownerAdminId], map: "users_owner_admin_idx")
+  @@index([institutionId], map: "users_institution_idx")
   @@map("users")
+}
+
+model Institution {
+  id           String               @id @default(uuid()) @db.Uuid
+  name         String
+  slug         String               @unique
+  status       InstitutionStatus    @default(ACTIVE)
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+  members      InstitutionMember[]
+  roles        InstitutionRole[]
+  students     User[]               @relation("institution_students")
+  courses      Course[]
+  classes      SchoolClass[]
+  studentCourses StudentCourse[]
+  enrollments  Enrollment[]
+
+  @@index([status], map: "institutions_status_idx")
+  @@map("institutions")
+}
+
+model InstitutionMember {
+  id             String                  @id @default(uuid()) @db.Uuid
+  institutionId  String                  @map("institution_id") @db.Uuid
+  userId         String                  @map("user_id") @db.Uuid
+  status         InstitutionMemberStatus @default(ACTIVE)
+  joinedAt       DateTime?               @map("joined_at")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+  institution    Institution              @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memberRoles    MemberRole[]
+
+  @@unique([institutionId, userId], map: "institution_members_institution_user_key")
+  @@index([userId], map: "institution_members_user_idx")
+  @@index([institutionId, status], map: "institution_members_institution_status_idx")
+  @@map("institution_members")
+}
+
+model Permission {
+  id             String           @id @default(uuid()) @db.Uuid
+  code           String           @unique
+  description    String?
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model InstitutionRole {
+  id              String           @id @default(uuid()) @db.Uuid
+  institutionId   String           @map("institution_id") @db.Uuid
+  code            String
+  name            String
+  isSystem        Boolean          @default(false) @map("is_system")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  institution     Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  memberRoles     MemberRole[]
+
+  @@unique([institutionId, code], map: "institution_roles_institution_code_key")
+  @@index([institutionId], map: "institution_roles_institution_idx")
+  @@map("institution_roles")
+}
+
+model RolePermission {
+  roleId        String          @map("role_id") @db.Uuid
+  permissionId  String          @map("permission_id") @db.Uuid
+  createdAt     DateTime        @default(now()) @map("created_at")
+  role          InstitutionRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission    Permission      @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId], map: "role_permissions_permission_idx")
+  @@map("role_permissions")
+}
+
+model MemberRole {
+  memberId      String           @map("member_id") @db.Uuid
+  roleId        String           @map("role_id") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at")
+  member        InstitutionMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role          InstitutionRole  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([memberId, roleId])
+  @@index([roleId], map: "member_roles_role_idx")
+  @@map("member_roles")
 }
 
 model AccountFinancialConfig {
@@ -137,6 +246,7 @@ model AccountFinancialConfig {
 model Course {
   id                String             @id @default(uuid()) @db.Uuid
   ownerAdminId      String             @map("owner_admin_id") @db.Uuid
+  institutionId     String             @map("institution_id") @db.Uuid
   name              String
   description       String?
   category          String?
@@ -150,11 +260,13 @@ model Course {
   status            CourseStatus       @default(ACTIVE)
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
+  institution       Institution        @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   ownerAdmin        User               @relation("course_owner", fields: [ownerAdminId], references: [id], onDelete: Cascade)
   classes           SchoolClass[]
   studentCourses    StudentCourse[]
 
   @@index([ownerAdminId], map: "courses_owner_admin_idx")
+  @@index([institutionId], map: "courses_institution_idx")
   @@map("courses")
 }
 
@@ -187,15 +299,18 @@ model StudentCourse {
   id        String            @id @default(uuid()) @db.Uuid
   studentId String            @map("student_id") @db.Uuid
   courseId  String            @map("course_id") @db.Uuid
+  institutionId String        @map("institution_id") @db.Uuid
   status    StudentCourseStatus @default(INTERESTED)
   createdAt DateTime          @default(now()) @map("created_at")
   updatedAt DateTime          @updatedAt @map("updated_at")
+  institution Institution     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   student   User              @relation(fields: [studentId], references: [id], onDelete: Cascade)
   course    Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, courseId])
   @@index([studentId], map: "student_courses_student_idx")
   @@index([courseId], map: "student_courses_course_idx")
+  @@index([institutionId], map: "student_courses_institution_idx")
   @@map("student_courses")
 }
 
@@ -230,6 +345,7 @@ model UploadBinding {
 model SchoolClass {
   id            String          @id @default(uuid()) @db.Uuid
   courseId      String          @map("course_id") @db.Uuid
+  institutionId String          @map("institution_id") @db.Uuid
   name          String
   totalSeats    Int             @map("total_seats")
   occupiedSeats Int             @default(0) @map("occupied_seats")
@@ -238,12 +354,14 @@ model SchoolClass {
   endDate       DateTime?       @map("end_date")
   createdAt     DateTime        @default(now()) @map("created_at")
   updatedAt     DateTime        @updatedAt @map("updated_at")
+  institution   Institution     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   course        Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
   enrollments   Enrollment[]
   studyMaterials StudyMaterial[]
   classNotices  ClassNotice[]
   lives         Live[]
 
+  @@index([institutionId], map: "classes_institution_idx")
   @@map("classes")
 }
 
@@ -251,14 +369,17 @@ model Enrollment {
   id             String           @id @default(uuid()) @db.Uuid
   classId        String           @map("class_id") @db.Uuid
   studentId      String           @map("student_id") @db.Uuid
+  institutionId  String           @map("institution_id") @db.Uuid
   status         EnrollmentStatus @default(ACTIVE)
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
+  institution    Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   schoolClass    SchoolClass      @relation(fields: [classId], references: [id], onDelete: Cascade)
   student        User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
   monthlyCharges MonthlyCharge[]
 
   @@unique([classId, studentId])
+  @@index([institutionId], map: "enrollments_institution_idx")
   @@map("enrollments")
 }
 

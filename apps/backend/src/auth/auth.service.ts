@@ -36,6 +36,31 @@ type AuthPayload = {
   user: AuthUserPayload;
 };
 
+type AuthInstitutionContext = {
+  activeInstitutionId: string | null;
+  activeMemberId: string | null;
+  activeRoleCodes: string[];
+  activePermissionCodes: string[];
+};
+
+type AuthPayloadWithContext = AuthPayload & {
+  context: AuthInstitutionContext;
+};
+
+type MyInstitutionsResponse = {
+  context: AuthInstitutionContext;
+  institutions: Array<{
+    institutionId: string;
+    institutionName: string;
+    institutionSlug: string;
+    institutionStatus: string;
+    memberId: string;
+    memberStatus: string;
+    roleCodes: string[];
+    permissionCodes: string[];
+  }>;
+};
+
 type EmailVerificationPendingPayload = {
   requiresEmailVerification: true;
   email: string;
@@ -60,7 +85,7 @@ type PendingAdminRegistration = {
   updatedAt: string;
 };
 
-type ImpersonationAuthPayload = AuthPayload & {
+type ImpersonationAuthPayload = AuthPayloadWithContext & {
   impersonation: {
     active: true;
     actorId: string;
@@ -71,6 +96,175 @@ type ImpersonationAuthPayload = AuthPayload & {
     startedAt: string;
     expiresAt: string;
   };
+};
+
+type RoleTemplate = {
+  code: string;
+  name: string;
+};
+
+const SYSTEM_PERMISSIONS: Array<{ code: string; description: string }> = [
+  { code: 'institution.members.read', description: 'Visualizar membros da instituição' },
+  { code: 'institution.members.invite', description: 'Convidar membros para instituição' },
+  { code: 'institution.members.manage_roles', description: 'Gerenciar papéis dos membros' },
+  { code: 'courses.read', description: 'Visualizar cursos' },
+  { code: 'courses.create', description: 'Criar cursos' },
+  { code: 'courses.update', description: 'Editar cursos' },
+  { code: 'courses.delete', description: 'Excluir cursos' },
+  { code: 'classes.read', description: 'Visualizar turmas' },
+  { code: 'classes.create', description: 'Criar turmas' },
+  { code: 'classes.update', description: 'Editar turmas' },
+  { code: 'classes.delete', description: 'Excluir turmas' },
+  { code: 'students.read', description: 'Visualizar alunos' },
+  { code: 'students.create', description: 'Criar alunos' },
+  { code: 'students.update', description: 'Editar alunos' },
+  { code: 'students.delete', description: 'Excluir alunos' },
+  { code: 'enrollments.read', description: 'Visualizar matrículas' },
+  { code: 'enrollments.create', description: 'Criar matrículas' },
+  { code: 'enrollments.delete', description: 'Excluir matrículas' },
+  { code: 'attendance.read', description: 'Visualizar presença' },
+  { code: 'attendance.write', description: 'Lançar presença' },
+  { code: 'materials.read', description: 'Visualizar materiais' },
+  { code: 'materials.write', description: 'Gerenciar materiais' },
+  { code: 'notices.write', description: 'Gerenciar avisos' },
+  { code: 'finance.read', description: 'Visualizar financeiro' },
+  { code: 'finance.write', description: 'Gerenciar financeiro' },
+  { code: 'finance.reconcile', description: 'Conciliar financeiro' },
+  { code: 'reports.read', description: 'Visualizar relatórios' },
+];
+
+const ROLE_TEMPLATES: RoleTemplate[] = [
+  { code: 'institution_owner', name: 'Dono da instituição' },
+  { code: 'institution_admin', name: 'Administrador da instituição' },
+  { code: 'coordinator', name: 'Coordenador' },
+  { code: 'professor', name: 'Professor' },
+  { code: 'tutor', name: 'Tutor' },
+  { code: 'secretaria', name: 'Secretaria' },
+  { code: 'financeiro', name: 'Financeiro' },
+  { code: 'viewer', name: 'Visualizador' },
+];
+
+const ROLE_PERMISSION_MATRIX: Record<string, string[]> = {
+  institution_owner: [
+    'institution.members.read',
+    'institution.members.invite',
+    'institution.members.manage_roles',
+    'courses.read',
+    'courses.create',
+    'courses.update',
+    'courses.delete',
+    'classes.read',
+    'classes.create',
+    'classes.update',
+    'classes.delete',
+    'students.read',
+    'students.create',
+    'students.update',
+    'students.delete',
+    'enrollments.read',
+    'enrollments.create',
+    'enrollments.delete',
+    'attendance.read',
+    'attendance.write',
+    'materials.read',
+    'materials.write',
+    'notices.write',
+    'finance.read',
+    'finance.write',
+    'finance.reconcile',
+    'reports.read',
+  ],
+  institution_admin: [
+    'institution.members.read',
+    'institution.members.invite',
+    'courses.read',
+    'courses.create',
+    'courses.update',
+    'courses.delete',
+    'classes.read',
+    'classes.create',
+    'classes.update',
+    'classes.delete',
+    'students.read',
+    'students.create',
+    'students.update',
+    'students.delete',
+    'enrollments.read',
+    'enrollments.create',
+    'enrollments.delete',
+    'attendance.read',
+    'attendance.write',
+    'materials.read',
+    'materials.write',
+    'notices.write',
+    'finance.read',
+    'finance.write',
+    'reports.read',
+  ],
+  coordinator: [
+    'courses.read',
+    'courses.create',
+    'courses.update',
+    'classes.read',
+    'classes.create',
+    'classes.update',
+    'students.read',
+    'students.create',
+    'students.update',
+    'enrollments.read',
+    'enrollments.create',
+    'attendance.read',
+    'materials.read',
+    'materials.write',
+    'notices.write',
+    'reports.read',
+  ],
+  professor: [
+    'courses.read',
+    'classes.read',
+    'students.read',
+    'enrollments.read',
+    'attendance.read',
+    'attendance.write',
+    'materials.read',
+    'materials.write',
+    'notices.write',
+  ],
+  tutor: [
+    'courses.read',
+    'classes.read',
+    'students.read',
+    'enrollments.read',
+    'attendance.read',
+    'materials.read',
+  ],
+  secretaria: [
+    'students.read',
+    'students.create',
+    'students.update',
+    'enrollments.read',
+    'enrollments.create',
+    'enrollments.delete',
+    'reports.read',
+  ],
+  financeiro: [
+    'students.read',
+    'enrollments.read',
+    'finance.read',
+    'finance.write',
+    'finance.reconcile',
+    'reports.read',
+  ],
+  viewer: [
+    'courses.read',
+    'classes.read',
+    'students.read',
+    'enrollments.read',
+    'attendance.read',
+    'materials.read',
+    'finance.read',
+    'reports.read',
+  ],
 };
 
 const PROFILE_AVATAR_KIND = 'PROFILE_AVATAR';
@@ -240,6 +434,85 @@ export class AuthService {
     }
 
     return this.buildAuthPayload(user);
+  }
+
+  async switchInstitution(
+    userId: string,
+    institutionId: string,
+  ): Promise<AuthPayloadWithContext> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, role: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    return this.buildAuthPayload(user, institutionId);
+  }
+
+  async getMyInstitutions(
+    userId: string,
+    currentContext?: AuthInstitutionContext,
+  ): Promise<MyInstitutionsResponse> {
+    const memberships = await this.prisma.institutionMember.findMany({
+      where: {
+        userId,
+        status: 'ACTIVE',
+      },
+      include: {
+        institution: true,
+        memberRoles: {
+          include: {
+            role: {
+              include: {
+                rolePermissions: {
+                  include: {
+                    permission: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    const institutions = memberships.map((membership) => {
+      const roleCodes = [...new Set(membership.memberRoles.map((item) => item.role.code))];
+      const permissionCodes = [
+        ...new Set(
+          membership.memberRoles.flatMap((item) =>
+            item.role.rolePermissions.map((permission) => permission.permission.code),
+          ),
+        ),
+      ];
+
+      return {
+        institutionId: membership.institution.id,
+        institutionName: membership.institution.name,
+        institutionSlug: membership.institution.slug,
+        institutionStatus: membership.institution.status.toLowerCase(),
+        memberId: membership.id,
+        memberStatus: membership.status.toLowerCase(),
+        roleCodes,
+        permissionCodes,
+      };
+    });
+
+    return {
+      context: currentContext ?? {
+        activeInstitutionId: null,
+        activeMemberId: null,
+        activeRoleCodes: [],
+        activePermissionCodes: [],
+      },
+      institutions,
+    };
   }
 
   async verifyEmailCode(dto: VerifyEmailCodeDto) {
@@ -801,23 +1074,22 @@ export class AuthService {
       startedAtDate.getTime() + ACCESS_TOKEN_TTL_SECONDS * 1000,
     );
 
-    const accessToken = await this.jwtService.signAsync(
+    const context = await this.resolveAuthInstitutionContext(target);
+    const accessToken = await this.signAccessToken(
+      target,
+      context,
       {
-        sub: target.id,
-        email: target.email,
-        role: this.mapRole(target.role),
         impersonatedBy: actor.id,
         impersonationReason: reason,
         impersonationStartedAt: startedAtDate.toISOString(),
       },
-      {
-        expiresIn: ACCESS_TOKEN_TTL_SECONDS,
-      },
+      ACCESS_TOKEN_TTL_SECONDS,
     );
 
     return {
       accessToken,
       user: await this.buildUserPayload(target),
+      context,
       impersonation: {
         active: true,
         actorId: actor.id,
@@ -836,17 +1108,267 @@ export class AuthService {
     name: string;
     email: string;
     role: string;
-  }): Promise<AuthPayload> {
-    const accessToken = await this.jwtService.signAsync({
-      sub: user.id,
-      email: user.email,
-      role: this.mapRole(user.role),
-    });
+  }, requestedInstitutionId?: string): Promise<AuthPayloadWithContext> {
+    const context = await this.resolveAuthInstitutionContext(
+      user,
+      requestedInstitutionId,
+    );
+    const accessToken = await this.signAccessToken(user, context);
 
     return {
       accessToken,
       user: await this.buildUserPayload(user),
+      context,
     };
+  }
+
+  private async signAccessToken(
+    user: { id: string; email: string; role: string },
+    context: AuthInstitutionContext,
+    extraPayload?: Record<string, unknown>,
+    expiresIn?: number,
+  ) {
+    return this.jwtService.signAsync(
+      {
+        sub: user.id,
+        email: user.email,
+        role: this.mapRole(user.role),
+        activeInstitutionId: context.activeInstitutionId,
+        activeMemberId: context.activeMemberId,
+        activeRoleCodes: context.activeRoleCodes,
+        activePermissionCodes: context.activePermissionCodes,
+        ...(extraPayload ?? {}),
+      },
+      expiresIn
+        ? {
+            expiresIn,
+          }
+        : undefined,
+    );
+  }
+
+  private async resolveAuthInstitutionContext(
+    user: { id: string; name: string; email: string; role: string },
+    requestedInstitutionId?: string,
+  ): Promise<AuthInstitutionContext> {
+    const mappedRole = this.mapRole(user.role);
+    if (mappedRole === 'admin') {
+      await this.ensureDefaultInstitutionForAdmin(user);
+    }
+
+    const memberships = await this.prisma.institutionMember.findMany({
+      where: {
+        userId: user.id,
+        status: 'ACTIVE',
+      },
+      include: {
+        memberRoles: {
+          include: {
+            role: {
+              include: {
+                rolePermissions: {
+                  include: {
+                    permission: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (memberships.length === 0) {
+      return {
+        activeInstitutionId: null,
+        activeMemberId: null,
+        activeRoleCodes: [],
+        activePermissionCodes: [],
+      };
+    }
+
+    const selectedMembership = requestedInstitutionId
+      ? memberships.find((item) => item.institutionId === requestedInstitutionId)
+      : memberships[0];
+
+    if (!selectedMembership) {
+      throw new ForbiddenException(
+        'Você não possui vínculo ativo com a instituição selecionada.',
+      );
+    }
+
+    const activeRoleCodes = [
+      ...new Set(selectedMembership.memberRoles.map((item) => item.role.code)),
+    ];
+    const activePermissionCodes = [
+      ...new Set(
+        selectedMembership.memberRoles.flatMap((item) =>
+          item.role.rolePermissions.map((permission) => permission.permission.code),
+        ),
+      ),
+    ];
+
+    return {
+      activeInstitutionId: selectedMembership.institutionId,
+      activeMemberId: selectedMembership.id,
+      activeRoleCodes,
+      activePermissionCodes,
+    };
+  }
+
+  private async ensureDefaultInstitutionForAdmin(user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  }) {
+    const institutionSlug = `inst-${user.id.replace(/-/g, '')}`;
+    const institutionName = `Instituição de ${user.name || user.email}`;
+
+    const { institution, member } = await this.prisma.$transaction(async (tx) => {
+      const ensuredInstitution = await tx.institution.upsert({
+        where: { slug: institutionSlug },
+        update: {
+          name: institutionName,
+          status: 'ACTIVE',
+        },
+        create: {
+          slug: institutionSlug,
+          name: institutionName,
+          status: 'ACTIVE',
+        },
+      });
+
+      const ensuredMember = await tx.institutionMember.upsert({
+        where: {
+          institutionId_userId: {
+            institutionId: ensuredInstitution.id,
+            userId: user.id,
+          },
+        },
+        update: {
+          status: 'ACTIVE',
+          joinedAt: new Date(),
+        },
+        create: {
+          institutionId: ensuredInstitution.id,
+          userId: user.id,
+          status: 'ACTIVE',
+          joinedAt: new Date(),
+        },
+      });
+
+      return {
+        institution: ensuredInstitution,
+        member: ensuredMember,
+      };
+    });
+
+    await this.ensurePermissionCatalog();
+    await this.ensureRoleTemplatesForInstitution(institution.id);
+    await this.ensureOwnerRoleAssignment(member.id, institution.id);
+  }
+
+  private async ensurePermissionCatalog() {
+    for (const permission of SYSTEM_PERMISSIONS) {
+      await this.prisma.permission.upsert({
+        where: { code: permission.code },
+        update: {
+          description: permission.description,
+        },
+        create: {
+          code: permission.code,
+          description: permission.description,
+        },
+      });
+    }
+  }
+
+  private async ensureRoleTemplatesForInstitution(institutionId: string) {
+    for (const roleTemplate of ROLE_TEMPLATES) {
+      await this.prisma.institutionRole.upsert({
+        where: {
+          institutionId_code: {
+            institutionId,
+            code: roleTemplate.code,
+          },
+        },
+        update: {
+          name: roleTemplate.name,
+          isSystem: true,
+        },
+        create: {
+          institutionId,
+          code: roleTemplate.code,
+          name: roleTemplate.name,
+          isSystem: true,
+        },
+      });
+    }
+
+    const roles = await this.prisma.institutionRole.findMany({
+      where: { institutionId },
+      select: {
+        id: true,
+        code: true,
+      },
+    });
+    const permissions = await this.prisma.permission.findMany({
+      where: {
+        code: {
+          in: [...new Set(Object.values(ROLE_PERMISSION_MATRIX).flat())],
+        },
+      },
+      select: { id: true, code: true },
+    });
+
+    const roleIdByCode = new Map(roles.map((role) => [role.code, role.id]));
+    const permissionIdByCode = new Map(
+      permissions.map((permission) => [permission.code, permission.id]),
+    );
+
+    const links: Array<{ roleId: string; permissionId: string }> = [];
+    Object.entries(ROLE_PERMISSION_MATRIX).forEach(
+      ([roleCode, permissionCodes]) => {
+        const roleId = roleIdByCode.get(roleCode);
+        if (!roleId) return;
+
+        permissionCodes.forEach((permissionCode) => {
+          const permissionId = permissionIdByCode.get(permissionCode);
+          if (!permissionId) return;
+          links.push({ roleId, permissionId });
+        });
+      },
+    );
+
+    if (links.length > 0) {
+      await this.prisma.rolePermission.createMany({
+        data: links,
+        skipDuplicates: true,
+      });
+    }
+  }
+
+  private async ensureOwnerRoleAssignment(memberId: string, institutionId: string) {
+    const ownerRole = await this.prisma.institutionRole.findUnique({
+      where: {
+        institutionId_code: {
+          institutionId,
+          code: 'institution_owner',
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!ownerRole) {
+      return;
+    }
+
+    await this.prisma.memberRole.createMany({
+      data: [{ memberId, roleId: ownerRole.id }],
+      skipDuplicates: true,
+    });
   }
 
   private async buildUserPayload(user: {

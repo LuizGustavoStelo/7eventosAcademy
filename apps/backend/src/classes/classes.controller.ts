@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { MultipartFile } from '@fastify/multipart';
 import type { FastifyRequest } from 'fastify';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { JwtPayload } from '../auth/types/app-role.type';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
@@ -37,7 +37,6 @@ async function toBufferedMultipartFile(part: MultipartFile): Promise<MultipartFi
   } as MultipartFile;
 }
 
-@Roles('admin', 'superadmin')
 @Controller('classes')
 export class ClassesController {
   constructor(
@@ -46,16 +45,19 @@ export class ClassesController {
     private readonly noticesService: ClassesNoticesService,
   ) {}
 
+  @RequirePermissions('classes.read')
   @Get()
   async findAll(@Req() request: AuthenticatedRequest) {
     return this.classesService.findAll(request.user);
   }
 
+  @RequirePermissions('classes.create')
   @Post()
   async create(@Body() dto: CreateClassDto, @Req() request: AuthenticatedRequest) {
     return this.classesService.create(dto, request.user);
   }
 
+  @RequirePermissions('classes.update')
   @Patch(':classId')
   async update(
     @Param('classId') classId: string,
@@ -65,6 +67,7 @@ export class ClassesController {
     return this.classesService.update(classId, dto, request.user);
   }
 
+  @RequirePermissions('classes.update')
   @Patch(':classId/status')
   async updateStatus(
     @Param('classId') classId: string,
@@ -74,11 +77,13 @@ export class ClassesController {
     return this.classesService.updateStatus(classId, dto.status, request.user);
   }
 
+  @RequirePermissions('classes.delete')
   @Delete(':classId')
   async remove(@Param('classId') classId: string, @Req() request: AuthenticatedRequest) {
     return this.classesService.remove(classId, request.user);
   }
 
+  @RequirePermissions('materials.read')
   @Get(':classId/materials')
   async getMaterials(
     @Param('classId') classId: string,
@@ -87,6 +92,7 @@ export class ClassesController {
     return this.materialsService.getMaterials(classId, request.user);
   }
 
+  @RequirePermissions('materials.write')
   @Post(':classId/materials')
   async createMaterial(
     @Param('classId') classId: string,
@@ -101,6 +107,7 @@ export class ClassesController {
     });
   }
 
+  @RequirePermissions('materials.write')
   @Post(':classId/materials/upload')
   async createMaterialWithFile(
     @Param('classId') classId: string,
@@ -140,6 +147,7 @@ export class ClassesController {
     });
   }
 
+  @RequirePermissions('materials.write')
   @Post(':classId/materials/upload-batch')
   async createMaterialsWithFiles(
     @Param('classId') classId: string,
@@ -179,11 +187,13 @@ export class ClassesController {
     });
   }
 
+  @RequirePermissions('materials.read')
   @Get('materials/all')
   async getAllMaterials(@Req() request: AuthenticatedRequest) {
     return this.materialsService.getAllMaterials(request.user);
   }
 
+  @RequirePermissions('materials.write')
   @Delete(':classId/materials/:materialId')
   async deleteMaterial(
     @Param('classId') classId: string,
@@ -193,6 +203,7 @@ export class ClassesController {
     return this.materialsService.deleteMaterial(classId, materialId, request.user);
   }
 
+  @RequirePermissions('notices.write')
   @Post(':classId/notices')
   async createNotice(
     @Param('classId') classId: string,
@@ -207,11 +218,13 @@ export class ClassesController {
     });
   }
 
+  @RequirePermissions('classes.read')
   @Get('notices/all')
   async getAllNotices(@Req() request: AuthenticatedRequest) {
     return this.noticesService.getAllNotices(request.user);
   }
 
+  @RequirePermissions('notices.write')
   @Delete('notices/:noticeId')
   async deleteNotice(
     @Param('noticeId') noticeId: string,

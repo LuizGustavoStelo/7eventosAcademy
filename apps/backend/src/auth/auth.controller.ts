@@ -15,13 +15,13 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { ResendVerificationCodeDto } from './dto/resend-verification-code.dto';
 import { RegisterDto } from './dto/register.dto';
+import { SwitchInstitutionDto } from './dto/switch-institution.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
+import { JwtPayload } from './types/app-role.type';
 
 type AuthenticatedRequest = FastifyRequest & {
-  user: {
-    sub: string;
-  };
+  user: JwtPayload;
   file: () => Promise<MultipartFile | undefined>;
 };
 
@@ -39,6 +39,24 @@ export class AuthController {
   @Post('login')
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('switch-institution')
+  async switchInstitution(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: SwitchInstitutionDto,
+  ) {
+    return this.authService.switchInstitution(request.user.sub, dto.institutionId);
+  }
+
+  @Get('my-institutions')
+  async myInstitutions(@Req() request: AuthenticatedRequest) {
+    return this.authService.getMyInstitutions(request.user.sub, {
+      activeInstitutionId: request.user.activeInstitutionId ?? null,
+      activeMemberId: request.user.activeMemberId ?? null,
+      activeRoleCodes: request.user.activeRoleCodes ?? [],
+      activePermissionCodes: request.user.activePermissionCodes ?? [],
+    });
   }
 
   @Public()

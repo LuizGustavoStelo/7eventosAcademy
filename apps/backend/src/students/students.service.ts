@@ -22,7 +22,10 @@ import { PublicStudentRegistrationDto } from './dto/public-student-registration.
 import { UpdateStudentDto } from './dto/update-student.dto';
 
 const STUDENT_AVATAR_KIND = 'STUDENT_AVATAR';
-type StudentActor = Pick<JwtPayload, 'sub' | 'role'>;
+type StudentActor = Pick<
+  JwtPayload,
+  'sub' | 'role' | 'activeInstitutionId'
+>;
 
 type StudentWithRelations = Prisma.UserGetPayload<{
   include: {
@@ -55,13 +58,19 @@ export class StudentsService {
   async create(dto: CreateStudentDto, actor: StudentActor) {
     const email = dto.email.trim().toLowerCase();
     await this.ensureEmailAvailable(email);
+    const institutionId = await this.resolveInstitutionIdForWrite(actor);
+    const ownerAdminId = await this.resolveOwnerAdminIdForInstitution(
+      actor,
+      institutionId,
+    );
 
     const tempPassword = randomBytes(12).toString('base64url');
     const passwordHash = await hash(tempPassword, 12);
 
     const student = await this.prisma.user.create({
       data: {
-        ownerAdminId: this.resolveOwnerAdminIdFromActor(actor),
+        ownerAdminId,
+        institutionId,
         name: dto.name.trim(),
         email,
         passwordHash,
@@ -115,17 +124,44 @@ export class StudentsService {
     }
 
     const uniqueCourseIds = [...new Set(dto.courseIds ?? [])];
+    let institutionId = this.resolveInstitutionIdFromActor(actor);
     let ownerAdminId = this.resolveOwnerAdminIdFromActor(actor);
+
+    if (!institutionId && actor && actor.role !== 'user') {
+      institutionId = await this.resolveInstitutionIdForWrite(actor);
+    }
 
     if (uniqueCourseIds.length > 0) {
       await this.ensureCoursesExist(uniqueCourseIds, actor);
-      const ownerByCourses = await this.resolveOwnerAdminIdByCourses(uniqueCourseIds);
-      if (ownerAdminId && ownerByCourses && ownerAdminId !== ownerByCourses) {
+      const ownership = await this.resolveCourseOwnership(uniqueCourseIds);
+      const ownerByCourses = ownership.ownerAdminId;
+      const institutionByCourses = ownership.institutionId;
+
+      if (
+        institutionId &&
+        institutionByCourses &&
+        institutionId !== institutionByCourses
+      ) {
         throw new BadRequestException(
           'Os cursos informados pertencem a outra conta de professor.',
         );
       }
+      institutionId = institutionId ?? institutionByCourses;
+
       ownerAdminId = ownerAdminId ?? ownerByCourses;
+    }
+
+    if (!institutionId) {
+      throw new BadRequestException(
+        'Não foi possível identificar a instituição do cadastro.',
+      );
+    }
+
+    if (!ownerAdminId) {
+      ownerAdminId = await this.resolveOwnerAdminIdForInstitution(
+        actor,
+        institutionId,
+      );
     }
 
     const passwordHash = await hash(dto.password, 12);
@@ -134,6 +170,7 @@ export class StudentsService {
       const created = await tx.user.create({
         data: {
           ownerAdminId,
+          institutionId,
           name: dto.name.trim(),
           email,
           passwordHash,
@@ -164,6 +201,7 @@ export class StudentsService {
                   createMany: {
                     data: uniqueCourseIds.map((courseId) => ({
                       courseId,
+                      institutionId: institutionId!,
                       status: StudentCourseStatus.INTERESTED,
                     })),
                   },
@@ -282,16 +320,24 @@ export class StudentsService {
 
       if (dto.courseIds !== undefined) {
         const uniqueCourseIds = [...new Set(dto.courseIds)];
+        let institutionByCourseId = new Map<string, string>();
         if (uniqueCourseIds.length > 0) {
-          const total = await tx.course.count({
+          const courses = await tx.course.findMany({
             where: {
               id: { in: uniqueCourseIds },
               ...this.buildOwnedCourseWhere(actor),
             },
+            select: {
+              id: true,
+              institutionId: true,
+            },
           });
-          if (total !== uniqueCourseIds.length) {
+          if (courses.length !== uniqueCourseIds.length) {
             throw new BadRequestException('Um ou mais cursos informados são inválidos.');
           }
+          institutionByCourseId = new Map(
+            courses.map((course) => [course.id, course.institutionId]),
+          );
         }
 
         await tx.studentCourse.deleteMany({
@@ -306,6 +352,7 @@ export class StudentsService {
             data: uniqueCourseIds.map((courseId) => ({
               studentId,
               courseId,
+              institutionId: institutionByCourseId.get(courseId)!,
               status: StudentCourseStatus.INTERESTED,
             })),
             skipDuplicates: true,
@@ -326,6 +373,24 @@ export class StudentsService {
 
     const uniqueCourseIds = [...new Set(dto.courseIds)];
     await this.ensureCoursesExist(uniqueCourseIds, actor);
+    const courses = await this.prisma.course.findMany({
+      where: {
+        id: { in: uniqueCourseIds },
+        ...this.buildOwnedCourseWhere(actor),
+      },
+      select: {
+        id: true,
+        institutionId: true,
+      },
+    });
+
+    if (courses.length !== uniqueCourseIds.length) {
+      throw new BadRequestException('Um ou mais cursos informados são inválidos.');
+    }
+
+    const institutionByCourseId = new Map(
+      courses.map((course) => [course.id, course.institutionId]),
+    );
 
     await this.prisma.$transaction(async (tx) => {
       await tx.studentCourse.deleteMany({
@@ -339,6 +404,7 @@ export class StudentsService {
         data: uniqueCourseIds.map((courseId) => ({
           studentId,
           courseId,
+          institutionId: institutionByCourseId.get(courseId)!,
           status: StudentCourseStatus.INTERESTED,
         })),
         skipDuplicates: true,
@@ -587,6 +653,12 @@ export class StudentsService {
   }
 
   private buildOwnedStudentWhere(actor?: StudentActor): Prisma.UserWhereInput {
+    if (actor?.activeInstitutionId) {
+      return {
+        institutionId: actor.activeInstitutionId,
+      };
+    }
+
     if (!actor || actor.role === 'superadmin') {
       return {};
     }
@@ -597,6 +669,12 @@ export class StudentsService {
   }
 
   private buildOwnedCourseWhere(actor?: StudentActor): Prisma.CourseWhereInput {
+    if (actor?.activeInstitutionId) {
+      return {
+        institutionId: actor.activeInstitutionId,
+      };
+    }
+
     if (!actor || actor.role === 'superadmin') {
       return {};
     }
@@ -614,22 +692,94 @@ export class StudentsService {
     return actor.sub;
   }
 
-  private async resolveOwnerAdminIdByCourses(courseIds: string[]) {
-    if (courseIds.length === 0) return null;
+  private resolveInstitutionIdFromActor(actor?: StudentActor) {
+    if (!actor) {
+      return null;
+    }
 
-    const courses = await this.prisma.course.findMany({
-      where: { id: { in: courseIds } },
-      select: { ownerAdminId: true },
-    });
+    return actor.activeInstitutionId ?? null;
+  }
 
-    const ownerIds = [...new Set(courses.map((course) => course.ownerAdminId))];
-    if (ownerIds.length > 1) {
-      throw new BadRequestException(
-        'Selecione cursos de apenas um professor por cadastro.',
+  private async resolveInstitutionIdForWrite(actor: StudentActor) {
+    if (actor.activeInstitutionId) {
+      return actor.activeInstitutionId;
+    }
+
+    if (actor.role === 'superadmin') {
+      throw new NotFoundException(
+        'Selecione uma instituição ativa para criar alunos.',
       );
     }
 
-    return ownerIds[0] ?? null;
+    const membership = await this.prisma.institutionMember.findFirst({
+      where: {
+        userId: actor.sub,
+        status: 'ACTIVE',
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { institutionId: true },
+    });
+
+    if (!membership?.institutionId) {
+      throw new NotFoundException(
+        'Nenhuma instituição ativa foi encontrada para este usuário.',
+      );
+    }
+
+    return membership.institutionId;
+  }
+
+  private async resolveOwnerAdminIdForInstitution(
+    actor: StudentActor | undefined,
+    institutionId: string,
+  ) {
+    if (actor?.role === 'admin') {
+      return actor.sub;
+    }
+
+    const adminMember = await this.prisma.institutionMember.findFirst({
+      where: {
+        institutionId,
+        status: 'ACTIVE',
+        user: {
+          role: UserRole.ADMIN,
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { userId: true },
+    });
+
+    if (!adminMember?.userId) {
+      throw new NotFoundException(
+        'Não há administrador ativo para a instituição selecionada.',
+      );
+    }
+
+    return adminMember.userId;
+  }
+
+  private async resolveCourseOwnership(courseIds: string[]) {
+    if (courseIds.length === 0) {
+      return { ownerAdminId: null, institutionId: null };
+    }
+
+    const courses = await this.prisma.course.findMany({
+      where: { id: { in: courseIds } },
+      select: { ownerAdminId: true, institutionId: true },
+    });
+
+    const institutionIds = [...new Set(courses.map((course) => course.institutionId))];
+    if (institutionIds.length > 1) {
+      throw new BadRequestException(
+        'Selecione cursos de apenas uma instituição por cadastro.',
+      );
+    }
+
+    const ownerIds = [...new Set(courses.map((course) => course.ownerAdminId))];
+    return {
+      ownerAdminId: ownerIds.length === 1 ? ownerIds[0] ?? null : null,
+      institutionId: institutionIds[0] ?? null,
+    };
   }
 
   private normalizeCpf(input: string) {

@@ -5,6 +5,7 @@ import { PrismaService } from '../database/prisma.service';
 
 type NoticePriority = 'normal' | 'importante' | 'urgente';
 type NoticeStatus = 'entregue' | 'programado' | 'finalizado';
+type NoticeActor = Pick<JwtPayload, 'sub' | 'role' | 'activeInstitutionId'>;
 
 @Injectable()
 export class ClassesNoticesService {
@@ -21,7 +22,7 @@ export class ClassesNoticesService {
     publishedAt?: Date | string | null;
     scheduledAt?: Date | string | null;
     publishedBy?: string;
-    actor: Pick<JwtPayload, 'sub' | 'role'>;
+    actor: NoticeActor;
   }) {
     await this.ensureClassExists(dto.classId, dto.actor);
 
@@ -53,14 +54,11 @@ export class ClassesNoticesService {
     await this.removeExpiredArchivedNotices();
   }
 
-  async getAllNotices(actor: Pick<JwtPayload, 'sub' | 'role'>) {
+  async getAllNotices(actor: NoticeActor) {
     await this.removeExpiredArchivedNotices();
 
     const notices = await this.prisma.classNotice.findMany({
-      where:
-        actor.role === 'superadmin'
-          ? {}
-          : { schoolClass: { course: { ownerAdminId: actor.sub } } },
+      where: this.buildNoticeWhere(actor),
       orderBy: { createdAt: 'desc' },
       include: {
         schoolClass: { select: { name: true } },
@@ -123,13 +121,11 @@ export class ClassesNoticesService {
     });
   }
 
-  async deleteNotice(noticeId: string, actor: Pick<JwtPayload, 'sub' | 'role'>) {
+  async deleteNotice(noticeId: string, actor: NoticeActor) {
     const notice = await this.prisma.classNotice.findFirst({
       where: {
         id: noticeId,
-        ...(actor.role === 'superadmin'
-          ? {}
-          : { schoolClass: { course: { ownerAdminId: actor.sub } } }),
+        ...this.buildNoticeWhere(actor),
       },
       select: { id: true },
     });
@@ -186,14 +182,12 @@ export class ClassesNoticesService {
 
   private async ensureClassExists(
     classId: string,
-    actor: Pick<JwtPayload, 'sub' | 'role'>,
+    actor: NoticeActor,
   ) {
     const schoolClass = await this.prisma.schoolClass.findFirst({
       where: {
         id: classId,
-        ...(actor.role === 'superadmin'
-          ? {}
-          : { course: { ownerAdminId: actor.sub } }),
+        ...this.buildClassWhere(actor),
       },
       select: { id: true },
     });
@@ -201,5 +195,45 @@ export class ClassesNoticesService {
     if (!schoolClass) {
       throw new NotFoundException('Turma não encontrada.');
     }
+  }
+
+  private buildNoticeWhere(actor: NoticeActor) {
+    if (actor.activeInstitutionId) {
+      return {
+        schoolClass: {
+          institutionId: actor.activeInstitutionId,
+        },
+      };
+    }
+
+    if (actor.role === 'superadmin') {
+      return {};
+    }
+
+    return {
+      schoolClass: {
+        course: {
+          ownerAdminId: actor.sub,
+        },
+      },
+    };
+  }
+
+  private buildClassWhere(actor: NoticeActor) {
+    if (actor.activeInstitutionId) {
+      return {
+        institutionId: actor.activeInstitutionId,
+      };
+    }
+
+    if (actor.role === 'superadmin') {
+      return {};
+    }
+
+    return {
+      course: {
+        ownerAdminId: actor.sub,
+      },
+    };
   }
 }

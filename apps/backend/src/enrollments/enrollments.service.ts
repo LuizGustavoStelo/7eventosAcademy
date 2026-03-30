@@ -3,9 +3,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
+import { Prisma, StudentCourseStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
-import { StudentCourseStatus } from '@prisma/client';
+import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
+
+type EnrollmentContext = {
+  actorUserId?: string;
+  actorRole?: string;
+  actorInstitutionId?: string | null;
+};
 
 @Injectable()
 export class EnrollmentsService {
@@ -13,21 +19,16 @@ export class EnrollmentsService {
 
   async create(
     dto: CreateEnrollmentDto,
-    context?: { actorUserId?: string; actorRole?: string },
+    context?: EnrollmentContext,
   ) {
-    const isSuperadmin = context?.actorRole?.toLowerCase() === 'superadmin';
-    const ownerFilter =
-      isSuperadmin || !context?.actorUserId
-        ? {}
-        : { course: { ownerAdminId: context.actorUserId } };
-
     const schoolClass = await this.prisma.schoolClass.findFirst({
       where: {
         id: dto.classId,
-        ...ownerFilter,
+        ...this.buildClassScopeFilter(context),
       },
       select: {
         id: true,
+        institutionId: true,
         totalSeats: true,
         occupiedSeats: true,
         status: true,
@@ -35,6 +36,7 @@ export class EnrollmentsService {
         course: {
           select: {
             id: true,
+            ownerAdminId: true,
             paymentModel: true,
             installmentMonths: true,
             installmentValue: true,
@@ -60,23 +62,22 @@ export class EnrollmentsService {
     const student = await this.prisma.user.findFirst({
       where: {
         id: dto.studentId,
-        ...(isSuperadmin || !context?.actorUserId
-          ? {}
-          : { ownerAdminId: context.actorUserId }),
+        role: UserRole.USER,
+        institutionId: schoolClass.institutionId,
+        ...this.buildStudentScopeFilter(context),
       },
-      select: { id: true, role: true },
+      select: { id: true },
     });
 
-    if (!student || student.role !== 'USER') {
+    if (!student) {
       throw new NotFoundException('Aluno não encontrado.');
     }
 
-    const studentCourse = await this.prisma.studentCourse.findUnique({
+    const studentCourse = await this.prisma.studentCourse.findFirst({
       where: {
-        studentId_courseId: {
-          studentId: dto.studentId,
-          courseId: schoolClass.course.id,
-        },
+        studentId: dto.studentId,
+        courseId: schoolClass.course.id,
+        institutionId: schoolClass.institutionId,
       },
       select: {
         id: true,
@@ -115,16 +116,12 @@ export class EnrollmentsService {
       paymentModel: schoolClass.course.paymentModel,
     });
 
-    const ownerAdminId =
-      context?.actorUserId && context.actorRole?.toLowerCase() === 'admin'
-        ? context.actorUserId
-        : null;
-
     const enrollment = await this.prisma.$transaction(async (tx) => {
       const createdEnrollment = await tx.enrollment.create({
         data: {
           classId: dto.classId,
           studentId: dto.studentId,
+          institutionId: schoolClass.institutionId,
           status: 'ACTIVE',
         },
         include: {
@@ -156,7 +153,7 @@ export class EnrollmentsService {
         await tx.monthlyCharge.createMany({
           data: installmentCharges.map((item) => ({
             enrollmentId: createdEnrollment.id,
-            ownerAdminId,
+            ownerAdminId: schoolClass.course.ownerAdminId,
             dueDate: item.dueDate,
             amount: item.amount,
             status: item.status,
@@ -185,24 +182,16 @@ export class EnrollmentsService {
   async remove(
     classId: string,
     studentId: string,
-    context?: { actorUserId?: string; actorRole?: string },
+    context?: EnrollmentContext,
   ) {
-    const isSuperadmin = context?.actorRole?.toLowerCase() === 'superadmin';
-
     const enrollment = await this.prisma.enrollment.findFirst({
       where: {
         classId,
         studentId,
-        ...(isSuperadmin || !context?.actorUserId
-          ? {}
-          : {
-              schoolClass: { course: { ownerAdminId: context.actorUserId } },
-              student: { ownerAdminId: context.actorUserId },
-            }),
+        ...this.buildEnrollmentScopeFilter(context),
       },
       select: {
         id: true,
-        classId: true,
       },
     });
 
@@ -233,18 +222,9 @@ export class EnrollmentsService {
     return { success: true };
   }
 
-  async findAll(context?: { actorUserId?: string; actorRole?: string }) {
-    const isSuperadmin = context?.actorRole?.toLowerCase() === 'superadmin';
-    const where =
-      isSuperadmin || !context?.actorUserId
-        ? {}
-        : {
-            schoolClass: { course: { ownerAdminId: context.actorUserId } },
-            student: { ownerAdminId: context.actorUserId },
-          };
-
+  async findAll(context?: EnrollmentContext) {
     return this.prisma.enrollment.findMany({
-      where,
+      where: this.buildEnrollmentScopeFilter(context),
       include: {
         student: {
           select: {
@@ -263,6 +243,67 @@ export class EnrollmentsService {
         createdAt: 'desc',
       },
     });
+  }
+
+  private buildClassScopeFilter(
+    context?: EnrollmentContext,
+  ): Prisma.SchoolClassWhereInput {
+    if (context?.actorInstitutionId) {
+      return {
+        institutionId: context.actorInstitutionId,
+      };
+    }
+
+    if (this.isSuperadmin(context) || !context?.actorUserId) {
+      return {};
+    }
+
+    return {
+      course: {
+        ownerAdminId: context.actorUserId,
+      },
+    };
+  }
+
+  private buildStudentScopeFilter(
+    context?: EnrollmentContext,
+  ): Prisma.UserWhereInput {
+    if (context?.actorInstitutionId) {
+      return {
+        institutionId: context.actorInstitutionId,
+      };
+    }
+
+    if (this.isSuperadmin(context) || !context?.actorUserId) {
+      return {};
+    }
+
+    return {
+      ownerAdminId: context.actorUserId,
+    };
+  }
+
+  private buildEnrollmentScopeFilter(
+    context?: EnrollmentContext,
+  ): Prisma.EnrollmentWhereInput {
+    if (context?.actorInstitutionId) {
+      return {
+        institutionId: context.actorInstitutionId,
+      };
+    }
+
+    if (this.isSuperadmin(context) || !context?.actorUserId) {
+      return {};
+    }
+
+    return {
+      schoolClass: { course: { ownerAdminId: context.actorUserId } },
+      student: { ownerAdminId: context.actorUserId },
+    };
+  }
+
+  private isSuperadmin(context?: EnrollmentContext) {
+    return context?.actorRole?.toLowerCase() === 'superadmin';
   }
 
   private buildInstallmentCharges(input: {

@@ -13,6 +13,7 @@ type ClassStatusInput =
   | 'enrollments_open'
   | 'in_progress'
   | 'closed';
+type ClassActor = Pick<JwtPayload, 'sub' | 'role' | 'activeInstitutionId'>;
 
 @Injectable()
 export class ClassesService {
@@ -20,14 +21,15 @@ export class ClassesService {
 
   async create(
     dto: CreateClassDto,
-    actor: Pick<JwtPayload, 'sub' | 'role'>,
+    actor: ClassActor,
   ) {
+    const institutionId = await this.resolveInstitutionIdForWrite(actor);
     const course = await this.prisma.course.findFirst({
       where: {
         id: dto.courseId,
-        ...this.buildCourseWhere(actor),
+        institutionId,
       },
-      select: { id: true },
+      select: { id: true, institutionId: true },
     });
 
     if (!course) {
@@ -44,6 +46,7 @@ export class ClassesService {
     return this.prisma.schoolClass.create({
       data: {
         courseId: dto.courseId,
+        institutionId: course.institutionId,
         name: dto.name.trim(),
         totalSeats: dto.totalSeats,
         startDate: new Date(dto.startDate),
@@ -58,7 +61,7 @@ export class ClassesService {
     });
   }
 
-  async findAll(actor: Pick<JwtPayload, 'sub' | 'role'>) {
+  async findAll(actor: ClassActor) {
     return this.prisma.schoolClass.findMany({
       where: this.buildClassWhere(actor),
       include: {
@@ -74,7 +77,7 @@ export class ClassesService {
   async update(
     classId: string,
     dto: UpdateClassDto,
-    actor: Pick<JwtPayload, 'sub' | 'role'>,
+    actor: ClassActor,
   ) {
     const existingClass = await this.prisma.schoolClass.findFirst({
       where: {
@@ -84,6 +87,7 @@ export class ClassesService {
       select: {
         id: true,
         courseId: true,
+        institutionId: true,
         name: true,
         totalSeats: true,
         occupiedSeats: true,
@@ -100,7 +104,7 @@ export class ClassesService {
       const course = await this.prisma.course.findFirst({
         where: {
           id: dto.courseId,
-          ...this.buildCourseWhere(actor),
+          institutionId: existingClass.institutionId,
         },
         select: { id: true },
       });
@@ -132,6 +136,7 @@ export class ClassesService {
       where: { id: classId },
       data: {
         courseId: dto.courseId ?? existingClass.courseId,
+        institutionId: existingClass.institutionId,
         name: dto.name ? dto.name.trim() : existingClass.name,
         totalSeats: nextTotalSeats,
         startDate,
@@ -149,7 +154,7 @@ export class ClassesService {
   async updateStatus(
     classId: string,
     status: string,
-    actor: Pick<JwtPayload, 'sub' | 'role'>,
+    actor: ClassActor,
   ) {
     const schoolClass = await this.prisma.schoolClass.findFirst({
       where: {
@@ -177,7 +182,7 @@ export class ClassesService {
     });
   }
 
-  async remove(classId: string, actor: Pick<JwtPayload, 'sub' | 'role'>) {
+  async remove(classId: string, actor: ClassActor) {
     const schoolClass = await this.prisma.schoolClass.findFirst({
       where: {
         id: classId,
@@ -220,7 +225,13 @@ export class ClassesService {
     return mappedStatus;
   }
 
-  private buildCourseWhere(actor: Pick<JwtPayload, 'sub' | 'role'>) {
+  private buildCourseWhere(actor: ClassActor) {
+    if (actor.activeInstitutionId) {
+      return {
+        institutionId: actor.activeInstitutionId,
+      };
+    }
+
     if (!actor || actor.role === 'superadmin') {
       return {};
     }
@@ -230,7 +241,13 @@ export class ClassesService {
     };
   }
 
-  private buildClassWhere(actor: Pick<JwtPayload, 'sub' | 'role'>) {
+  private buildClassWhere(actor: ClassActor) {
+    if (actor.activeInstitutionId) {
+      return {
+        institutionId: actor.activeInstitutionId,
+      };
+    }
+
     if (!actor || actor.role === 'superadmin') {
       return {};
     }
@@ -240,5 +257,34 @@ export class ClassesService {
         ownerAdminId: actor.sub,
       },
     };
+  }
+
+  private async resolveInstitutionIdForWrite(actor: ClassActor) {
+    if (actor.activeInstitutionId) {
+      return actor.activeInstitutionId;
+    }
+
+    if (actor.role === 'superadmin') {
+      throw new NotFoundException(
+        'Selecione uma instituição ativa para criar turmas.',
+      );
+    }
+
+    const membership = await this.prisma.institutionMember.findFirst({
+      where: {
+        userId: actor.sub,
+        status: 'ACTIVE',
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { institutionId: true },
+    });
+
+    if (!membership?.institutionId) {
+      throw new NotFoundException(
+        'Nenhuma instituição ativa foi encontrada para este usuário.',
+      );
+    }
+
+    return membership.institutionId;
   }
 }

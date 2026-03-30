@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { JwtPayload } from '../auth/types/app-role.type';
 import { AgendaService } from './agenda.service';
 
@@ -8,21 +8,23 @@ type AuthenticatedRequest = FastifyRequest & {
   user: JwtPayload;
 };
 
-@Roles('admin', 'superadmin')
 @Controller('agenda')
 export class AgendaController {
   constructor(private readonly agendaService: AgendaService) {}
 
+  @RequirePermissions('classes.read')
   @Get('events')
   async getEvents(@Req() request: AuthenticatedRequest) {
     return this.agendaService.getEvents(request.user);
   }
 
+  @RequirePermissions('classes.read')
   @Get('class-events/meta')
   async getClassEventsMeta(@Req() request: AuthenticatedRequest) {
     return this.agendaService.getClassEventsMeta(request.user);
   }
 
+  @RequirePermissions('classes.update')
   @Post('events')
   async createEvent(
     @Body()
@@ -40,6 +42,7 @@ export class AgendaController {
     return this.agendaService.createEvent(request.user, body);
   }
 
+  @RequirePermissions('classes.update')
   @Post('class-events/sync')
   async syncClassEvents(
     @Body()
