@@ -1,6 +1,7 @@
 import {
   Injectable,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer, { type Transporter } from 'nodemailer';
@@ -20,6 +21,7 @@ type SendAccountVerificationEmailParams = {
 @Injectable()
 export class MailService {
   private transporter: Transporter | null = null;
+  private readonly logger = new Logger(MailService.name);
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -41,7 +43,10 @@ export class MailService {
         text: template.text,
         html: template.html,
       });
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        `Falha ao enviar e-mail de confirmação para ${params.to}: ${this.formatMailError(error)}`,
+      );
       throw new InternalServerErrorException(
         'Não foi possível enviar o e-mail de confirmação no momento.',
       );
@@ -63,9 +68,15 @@ export class MailService {
     const pass = this.configService.get<string>('SMTP_PASS')?.trim();
 
     const port = Number(portRaw);
-    const secure = secureRaw === 'true' || secureRaw === '1' || secureRaw === 'yes';
+    const secure =
+      secureRaw === undefined || secureRaw === null || secureRaw === ''
+        ? port === 465
+        : secureRaw === 'true' || secureRaw === '1' || secureRaw === 'yes';
 
     if (!host || !Number.isFinite(port) || !user || !pass) {
+      this.logger.error(
+        `Configuração SMTP incompleta. host=${Boolean(host)} port=${Number.isFinite(port)} user=${Boolean(user)} pass=${Boolean(pass)}`,
+      );
       throw new InternalServerErrorException(
         'Configuração SMTP incompleta para envio de e-mail.',
       );
@@ -96,5 +107,43 @@ export class MailService {
     }
 
     return '7Eventos Academy <no-reply@academy.local>';
+  }
+
+  private formatMailError(error: unknown): string {
+    if (!error || typeof error !== 'object') {
+      return 'erro desconhecido';
+    }
+
+    const mailError = error as {
+      name?: unknown;
+      message?: unknown;
+      code?: unknown;
+      responseCode?: unknown;
+      command?: unknown;
+      response?: unknown;
+    };
+
+    const parts = [
+      `name=${String(mailError.name ?? 'Error')}`,
+      `message=${String(mailError.message ?? 'sem mensagem')}`,
+    ];
+
+    if (mailError.code !== undefined) {
+      parts.push(`code=${String(mailError.code)}`);
+    }
+
+    if (mailError.responseCode !== undefined) {
+      parts.push(`responseCode=${String(mailError.responseCode)}`);
+    }
+
+    if (mailError.command !== undefined) {
+      parts.push(`command=${String(mailError.command)}`);
+    }
+
+    if (mailError.response !== undefined) {
+      parts.push(`response=${String(mailError.response)}`);
+    }
+
+    return parts.join(' | ');
   }
 }

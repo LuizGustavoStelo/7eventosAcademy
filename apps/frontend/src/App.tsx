@@ -1186,6 +1186,11 @@ export default function App() {
           ? String(payload.message)
           : 'Enviamos um novo código de confirmação para seu e-mail.';
 
+      if (payload && 'sent' in payload && payload.sent === false) {
+        setErro(mensagem);
+        return;
+      }
+
       setAviso(mensagem);
     } catch {
       setErro('Não foi possível conectar com o backend.');
