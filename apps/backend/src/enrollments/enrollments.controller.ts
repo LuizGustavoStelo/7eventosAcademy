@@ -10,8 +10,11 @@ export class EnrollmentsController {
   constructor(private readonly enrollmentsService: EnrollmentsService) {}
 
   @Get()
-  async findAll() {
-    return this.enrollmentsService.findAll();
+  async findAll(@Req() request: FastifyRequest & { user: { sub: string; role?: string } }) {
+    return this.enrollmentsService.findAll({
+      actorUserId: request.user?.sub,
+      actorRole: request.user?.role,
+    });
   }
 
   @Post()
@@ -29,7 +32,11 @@ export class EnrollmentsController {
   async remove(
     @Param('classId') classId: string,
     @Param('studentId') studentId: string,
+    @Req() request: FastifyRequest & { user: { sub: string; role?: string } },
   ) {
-    return this.enrollmentsService.remove(classId, studentId);
+    return this.enrollmentsService.remove(classId, studentId, {
+      actorUserId: request.user?.sub,
+      actorRole: request.user?.role,
+    });
   }
 }

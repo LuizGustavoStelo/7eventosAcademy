@@ -30,12 +30,10 @@ type SettingsNativeProps = {
   onProfileUpdated: (user: SettingsUser) => void;
 };
 
-const ASSISTANT_PREF_KEY = 'academy-pref-ai-assistant';
-
 function roleLabel(role: SettingsUser['role']): string {
   if (role === 'superadmin') return 'Superadmin';
   if (role === 'admin') return 'Administrador';
-  return 'Usuário';
+  return 'UsuÃ¡rio';
 }
 
 export function SettingsNative({
@@ -53,13 +51,6 @@ export function SettingsNative({
   const [user, setUser] = useState<SettingsUser | null>(null);
   const [gateway, setGateway] = useState<GatewayConfig | null>(null);
   const [form, setForm] = useState<SettingsFormState>({ name: '', email: '' });
-  const [assistantEnabled, setAssistantEnabled] = useState(() => {
-    try {
-      return window.localStorage.getItem(ASSISTANT_PREF_KEY) !== '0';
-    } catch {
-      return true;
-    }
-  });
 
   const loadData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -78,7 +69,7 @@ export function SettingsNative({
       setError(
         loadError instanceof Error
           ? loadError.message
-          : 'Falha ao carregar configurações.',
+          : 'Falha ao carregar configuraÃ§Ãµes.',
       );
     } finally {
       if (showLoading) setLoading(false);
@@ -88,17 +79,6 @@ export function SettingsNative({
   useEffect(() => {
     void loadData(true);
   }, [token]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        ASSISTANT_PREF_KEY,
-        assistantEnabled ? '1' : '0',
-      );
-    } catch {
-      // ignora erro de persistência local
-    }
-  }, [assistantEnabled]);
 
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -206,21 +186,21 @@ export function SettingsNative({
     return {
       text: 'INATIVO',
       className: 'is-danger',
-      description: 'Aguardando configuração do Superadmin.',
+      description: 'Aguardando configuraÃ§Ã£o do Superadmin.',
     };
   }, [gateway]);
 
   return (
     <section className="native-page native-settings">
       <header className="native-page-header">
-        <h2>Configurações da conta</h2>
+        <h2>ConfiguraÃ§Ãµes da conta</h2>
         <p>
-          Atualize seu perfil, preferências da plataforma e verifique o estado da
-          integração financeira.
+          Atualize seu perfil, preferÃªncias da plataforma e verifique o estado da
+          integraÃ§Ã£o financeira.
         </p>
       </header>
 
-      {loading ? <p className="native-info">Carregando configurações...</p> : null}
+      {loading ? <p className="native-info">Carregando configuraÃ§Ãµes...</p> : null}
       {error ? <p className="native-error">{error}</p> : null}
       {feedback ? <p className="native-success">{feedback}</p> : null}
 
@@ -228,7 +208,7 @@ export function SettingsNative({
         <div className="native-settings-grid">
           <section className="native-panel">
             <header className="native-panel-header">
-              <h3>Informações pessoais</h3>
+              <h3>InformaÃ§Ãµes pessoais</h3>
             </header>
 
             <form className="native-form-grid native-settings-form" onSubmit={saveProfile}>
@@ -241,7 +221,7 @@ export function SettingsNative({
                   alt="Foto de perfil"
                 />
                 <div>
-                  <strong>{user?.name || 'Usuário'}</strong>
+                  <strong>{user?.name || 'UsuÃ¡rio'}</strong>
                   <small>{user ? roleLabel(user.role) : '-'}</small>
                 </div>
                 <label className="native-avatar-upload">
@@ -301,7 +281,7 @@ export function SettingsNative({
                   Descartar
                 </button>
                 <button type="submit" disabled={saving}>
-                  {saving ? 'Salvando...' : 'Salvar alterações'}
+                  {saving ? 'Salvando...' : 'Salvar alteraÃ§Ãµes'}
                 </button>
               </div>
             </form>
@@ -310,14 +290,14 @@ export function SettingsNative({
           <aside className="native-settings-side">
             <section className="native-panel">
               <header className="native-panel-header">
-                <h3>Preferências da plataforma</h3>
+                <h3>PreferÃªncias da plataforma</h3>
               </header>
 
               <div className="native-settings-preferences">
                 <label className="native-toggle-row">
                   <div>
                     <strong>Modo escuro</strong>
-                    <small>Alternar visualização entre tema claro e escuro.</small>
+                    <small>Alternar visualizaÃ§Ã£o entre tema claro e escuro.</small>
                   </div>
                   <button
                     type="button"
@@ -327,26 +307,12 @@ export function SettingsNative({
                     <span />
                   </button>
                 </label>
-
-                <label className="native-toggle-row">
-                  <div>
-                    <strong>IA Academy Assistant</strong>
-                    <small>Sugestões inteligentes para criação de conteúdos.</small>
-                  </div>
-                  <button
-                    type="button"
-                    className={`native-switch ${assistantEnabled ? 'active' : ''}`}
-                    onClick={() => setAssistantEnabled((current) => !current)}
-                  >
-                    <span />
-                  </button>
-                </label>
               </div>
             </section>
 
             <section className="native-panel">
               <header className="native-panel-header">
-                <h3>Integração financeira</h3>
+                <h3>IntegraÃ§Ã£o financeira</h3>
               </header>
 
               <div className="native-gateway-box">
@@ -368,3 +334,5 @@ export function SettingsNative({
     </section>
   );
 }
+
+

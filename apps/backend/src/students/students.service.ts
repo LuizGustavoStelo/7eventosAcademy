@@ -12,6 +12,7 @@ import {
   UploadOwnerType,
   UserRole,
 } from '@prisma/client';
+import { JwtPayload } from '../auth/types/app-role.type';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../database/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
@@ -21,6 +22,7 @@ import { PublicStudentRegistrationDto } from './dto/public-student-registration.
 import { UpdateStudentDto } from './dto/update-student.dto';
 
 const STUDENT_AVATAR_KIND = 'STUDENT_AVATAR';
+type StudentActor = Pick<JwtPayload, 'sub' | 'role'>;
 
 type StudentWithRelations = Prisma.UserGetPayload<{
   include: {
@@ -50,7 +52,7 @@ export class StudentsService {
     private readonly authService: AuthService,
   ) {}
 
-  async create(dto: CreateStudentDto) {
+  async create(dto: CreateStudentDto, actor: StudentActor) {
     const email = dto.email.trim().toLowerCase();
     await this.ensureEmailAvailable(email);
 
@@ -59,6 +61,7 @@ export class StudentsService {
 
     const student = await this.prisma.user.create({
       data: {
+        ownerAdminId: this.resolveOwnerAdminIdFromActor(actor),
         name: dto.name.trim(),
         email,
         passwordHash,
@@ -87,6 +90,7 @@ export class StudentsService {
   async registerPublic(
     dto: PublicStudentRegistrationDto,
     avatar?: MultipartFile,
+    actor?: StudentActor,
   ) {
     const email = dto.email.trim().toLowerCase();
     await this.ensureEmailAvailable(email);
@@ -111,8 +115,17 @@ export class StudentsService {
     }
 
     const uniqueCourseIds = [...new Set(dto.courseIds ?? [])];
+    let ownerAdminId = this.resolveOwnerAdminIdFromActor(actor);
+
     if (uniqueCourseIds.length > 0) {
-      await this.ensureCoursesExist(uniqueCourseIds);
+      await this.ensureCoursesExist(uniqueCourseIds, actor);
+      const ownerByCourses = await this.resolveOwnerAdminIdByCourses(uniqueCourseIds);
+      if (ownerAdminId && ownerByCourses && ownerAdminId !== ownerByCourses) {
+        throw new BadRequestException(
+          'Os cursos informados pertencem a outra conta de professor.',
+        );
+      }
+      ownerAdminId = ownerAdminId ?? ownerByCourses;
     }
 
     const passwordHash = await hash(dto.password, 12);
@@ -120,6 +133,7 @@ export class StudentsService {
     const student = await this.prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
         data: {
+          ownerAdminId,
           name: dto.name.trim(),
           email,
           passwordHash,
@@ -184,11 +198,11 @@ export class StudentsService {
       throwOnDeliveryFailure: false,
     });
 
-    return this.findById(student.id);
+    return this.findById(student.id, actor);
   }
 
-  async update(studentId: string, dto: UpdateStudentDto) {
-    await this.ensureStudentExists(studentId);
+  async update(studentId: string, dto: UpdateStudentDto, actor: StudentActor) {
+    await this.ensureStudentExists(studentId, actor);
 
     const dataToUpdate: Prisma.UserUpdateInput = {};
     if (dto.name !== undefined) dataToUpdate.name = dto.name.trim();
@@ -253,16 +267,27 @@ export class StudentsService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      const ownerAdminId = this.resolveOwnerAdminIdFromActor(actor);
       await tx.user.update({
         where: { id: studentId },
-        data: dataToUpdate,
+        data: {
+          ...dataToUpdate,
+          ownerAdmin: ownerAdminId
+            ? {
+                connect: { id: ownerAdminId },
+              }
+            : undefined,
+        },
       });
 
       if (dto.courseIds !== undefined) {
         const uniqueCourseIds = [...new Set(dto.courseIds)];
         if (uniqueCourseIds.length > 0) {
           const total = await tx.course.count({
-            where: { id: { in: uniqueCourseIds } },
+            where: {
+              id: { in: uniqueCourseIds },
+              ...this.buildOwnedCourseWhere(actor),
+            },
           });
           if (total !== uniqueCourseIds.length) {
             throw new BadRequestException('Um ou mais cursos informados são inválidos.');
@@ -289,14 +314,18 @@ export class StudentsService {
       }
     });
 
-    return this.findById(studentId);
+    return this.findById(studentId, actor);
   }
 
-  async assignCourses(studentId: string, dto: AssignStudentCoursesDto) {
-    await this.ensureStudentExists(studentId);
+  async assignCourses(
+    studentId: string,
+    dto: AssignStudentCoursesDto,
+    actor: StudentActor,
+  ) {
+    await this.ensureStudentExists(studentId, actor);
 
     const uniqueCourseIds = [...new Set(dto.courseIds)];
-    await this.ensureCoursesExist(uniqueCourseIds);
+    await this.ensureCoursesExist(uniqueCourseIds, actor);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.studentCourse.deleteMany({
@@ -316,12 +345,16 @@ export class StudentsService {
       });
     });
 
-    return this.findById(studentId);
+    return this.findById(studentId, actor);
   }
 
-  async findAll() {
+  async findAll(actor: StudentActor) {
+    const where = this.buildOwnedStudentWhere(actor);
     const students = await this.prisma.user.findMany({
-      where: { role: UserRole.USER },
+      where: {
+        role: UserRole.USER,
+        ...where,
+      },
       include: {
         studentProfile: true,
         studentCourses: {
@@ -337,8 +370,12 @@ export class StudentsService {
     return this.mapStudentsWithAvatar(students);
   }
 
-  async uploadAvatar(studentId: string, file: MultipartFile) {
-    await this.ensureStudentExists(studentId);
+  async uploadAvatar(
+    studentId: string,
+    file: MultipartFile,
+    actor: StudentActor,
+  ) {
+    await this.ensureStudentExists(studentId, actor);
 
     await this.uploadsService.bindFileToOwner({
       ownerType: UploadOwnerType.STUDENT,
@@ -347,11 +384,11 @@ export class StudentsService {
       file,
     });
 
-    return this.findById(studentId);
+    return this.findById(studentId, actor);
   }
 
-  async removeAvatar(studentId: string) {
-    await this.ensureStudentExists(studentId);
+  async removeAvatar(studentId: string, actor: StudentActor) {
+    await this.ensureStudentExists(studentId, actor);
 
     await this.uploadsService.deleteOwnerAssetByKind(
       UploadOwnerType.STUDENT,
@@ -359,14 +396,15 @@ export class StudentsService {
       STUDENT_AVATAR_KIND,
     );
 
-    return this.findById(studentId);
+    return this.findById(studentId, actor);
   }
 
-  async remove(studentId: string) {
+  async remove(studentId: string, actor: StudentActor) {
     const student = await this.prisma.user.findFirst({
       where: {
         id: studentId,
         role: UserRole.USER,
+        ...this.buildOwnedStudentWhere(actor),
       },
       select: {
         id: true,
@@ -423,7 +461,7 @@ export class StudentsService {
     };
   }
 
-  async importCsv(file: MultipartFile) {
+  async importCsv(file: MultipartFile, actor: StudentActor) {
     const content = (await file.toBuffer())
       .toString('utf-8')
       .replace(/^\uFEFF/, '');
@@ -453,7 +491,7 @@ export class StudentsService {
 
       try {
         const dto = this.mapCsvRowToRegistrationDto(row);
-        const created = await this.registerPublic(dto);
+        const created = await this.registerPublic(dto, undefined, actor);
         imported.push({
           line: lineNumber,
           id: created.id,
@@ -477,11 +515,12 @@ export class StudentsService {
     };
   }
 
-  async findById(studentId: string) {
+  async findById(studentId: string, actor?: StudentActor) {
     const student = await this.prisma.user.findFirst({
       where: {
         id: studentId,
         role: UserRole.USER,
+        ...this.buildOwnedStudentWhere(actor),
       },
       include: {
         studentProfile: true,
@@ -502,11 +541,12 @@ export class StudentsService {
     return mapped[0];
   }
 
-  private async ensureStudentExists(studentId: string) {
+  private async ensureStudentExists(studentId: string, actor?: StudentActor) {
     const student = await this.prisma.user.findFirst({
       where: {
         id: studentId,
         role: UserRole.USER,
+        ...this.buildOwnedStudentWhere(actor),
       },
       select: { id: true },
     });
@@ -527,13 +567,16 @@ export class StudentsService {
     }
   }
 
-  private async ensureCoursesExist(courseIds: string[]) {
+  private async ensureCoursesExist(courseIds: string[], actor?: StudentActor) {
     if (courseIds.length === 0) {
       return;
     }
 
     const total = await this.prisma.course.count({
-      where: { id: { in: courseIds } },
+      where: {
+        id: { in: courseIds },
+        ...this.buildOwnedCourseWhere(actor),
+      },
     });
 
     if (total !== courseIds.length) {
@@ -541,6 +584,52 @@ export class StudentsService {
         'Um ou mais cursos informados são inválidos.',
       );
     }
+  }
+
+  private buildOwnedStudentWhere(actor?: StudentActor): Prisma.UserWhereInput {
+    if (!actor || actor.role === 'superadmin') {
+      return {};
+    }
+
+    return {
+      ownerAdminId: actor.sub,
+    };
+  }
+
+  private buildOwnedCourseWhere(actor?: StudentActor): Prisma.CourseWhereInput {
+    if (!actor || actor.role === 'superadmin') {
+      return {};
+    }
+
+    return {
+      ownerAdminId: actor.sub,
+    };
+  }
+
+  private resolveOwnerAdminIdFromActor(actor?: StudentActor) {
+    if (!actor || actor.role === 'user') {
+      return null;
+    }
+
+    return actor.sub;
+  }
+
+  private async resolveOwnerAdminIdByCourses(courseIds: string[]) {
+    if (courseIds.length === 0) return null;
+
+    const courses = await this.prisma.course.findMany({
+      where: { id: { in: courseIds } },
+      select: { ownerAdminId: true },
+    });
+
+    const ownerIds = [...new Set(courses.map((course) => course.ownerAdminId))];
+    if (ownerIds.length > 1) {
+      throw new BadRequestException(
+        'Selecione cursos de apenas um professor por cadastro.',
+      );
+    }
+
+    return ownerIds[0] ?? null;
   }
 
   private normalizeCpf(input: string) {

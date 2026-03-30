@@ -16,6 +16,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { JwtPayload } from '../auth/types/app-role.type';
 import { AssignStudentCoursesDto } from './dto/assign-student-courses.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { PublicStudentRegistrationDto } from './dto/public-student-registration.dto';
@@ -23,6 +24,7 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 import { StudentsService } from './students.service';
 
 type MultipartFastifyRequest = FastifyRequest & {
+  user: JwtPayload;
   file: () => Promise<MultipartFile | undefined>;
   parts: () => AsyncIterableIterator<Multipart>;
 };
@@ -33,23 +35,27 @@ export class StudentsController {
   constructor(private readonly studentsService: StudentsService) {}
 
   @Get()
-  async findAll() {
-    return this.studentsService.findAll();
+  async findAll(@Req() request: MultipartFastifyRequest) {
+    return this.studentsService.findAll(request.user);
   }
 
   @Get(':id')
-  async findById(@Param('id') id: string) {
-    return this.studentsService.findById(id);
+  async findById(@Param('id') id: string, @Req() request: MultipartFastifyRequest) {
+    return this.studentsService.findById(id, request.user);
   }
 
   @Post()
-  async create(@Body() dto: CreateStudentDto) {
-    return this.studentsService.create(dto);
+  async create(@Body() dto: CreateStudentDto, @Req() request: MultipartFastifyRequest) {
+    return this.studentsService.create(dto, request.user);
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() dto: UpdateStudentDto) {
-    return this.studentsService.update(id, dto);
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateStudentDto,
+    @Req() request: MultipartFastifyRequest,
+  ) {
+    return this.studentsService.update(id, dto, request.user);
   }
 
   @Public()
@@ -70,8 +76,9 @@ export class StudentsController {
   async assignCourses(
     @Param('id') id: string,
     @Body() dto: AssignStudentCoursesDto,
+    @Req() request: MultipartFastifyRequest,
   ) {
-    return this.studentsService.assignCourses(id, dto);
+    return this.studentsService.assignCourses(id, dto, request.user);
   }
 
   @Post(':id/avatar')
@@ -86,18 +93,17 @@ export class StudentsController {
       );
     }
 
-    return this.studentsService.uploadAvatar(id, file);
+    return this.studentsService.uploadAvatar(id, file, request.user);
   }
 
   @Delete(':id/avatar')
-  async removeAvatar(@Param('id') id: string) {
-    return this.studentsService.removeAvatar(id);
+  async removeAvatar(@Param('id') id: string, @Req() request: MultipartFastifyRequest) {
+    return this.studentsService.removeAvatar(id, request.user);
   }
 
-  @Roles('superadmin')
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    return this.studentsService.remove(id);
+  async remove(@Param('id') id: string, @Req() request: MultipartFastifyRequest) {
+    return this.studentsService.remove(id, request.user);
   }
 
   @Post('import-csv')
@@ -107,7 +113,7 @@ export class StudentsController {
       throw new BadRequestException('Envie um arquivo CSV no campo file.');
     }
 
-    return this.studentsService.importCsv(file);
+    return this.studentsService.importCsv(file, request.user);
   }
 
   private async parsePublicRegistrationMultipart(

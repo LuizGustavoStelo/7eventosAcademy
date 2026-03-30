@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { JwtPayload } from '../auth/types/app-role.type';
 import { PrismaService } from '../database/prisma.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
@@ -17,9 +18,15 @@ type ClassStatusInput =
 export class ClassesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateClassDto) {
-    const course = await this.prisma.course.findUnique({
-      where: { id: dto.courseId },
+  async create(
+    dto: CreateClassDto,
+    actor: Pick<JwtPayload, 'sub' | 'role'>,
+  ) {
+    const course = await this.prisma.course.findFirst({
+      where: {
+        id: dto.courseId,
+        ...this.buildCourseWhere(actor),
+      },
       select: { id: true },
     });
 
@@ -51,8 +58,9 @@ export class ClassesService {
     });
   }
 
-  async findAll() {
+  async findAll(actor: Pick<JwtPayload, 'sub' | 'role'>) {
     return this.prisma.schoolClass.findMany({
+      where: this.buildClassWhere(actor),
       include: {
         course: true,
         _count: {
@@ -63,9 +71,16 @@ export class ClassesService {
     });
   }
 
-  async update(classId: string, dto: UpdateClassDto) {
-    const existingClass = await this.prisma.schoolClass.findUnique({
-      where: { id: classId },
+  async update(
+    classId: string,
+    dto: UpdateClassDto,
+    actor: Pick<JwtPayload, 'sub' | 'role'>,
+  ) {
+    const existingClass = await this.prisma.schoolClass.findFirst({
+      where: {
+        id: classId,
+        ...this.buildClassWhere(actor),
+      },
       select: {
         id: true,
         courseId: true,
@@ -82,8 +97,11 @@ export class ClassesService {
     }
 
     if (dto.courseId && dto.courseId !== existingClass.courseId) {
-      const course = await this.prisma.course.findUnique({
-        where: { id: dto.courseId },
+      const course = await this.prisma.course.findFirst({
+        where: {
+          id: dto.courseId,
+          ...this.buildCourseWhere(actor),
+        },
         select: { id: true },
       });
 
@@ -128,9 +146,16 @@ export class ClassesService {
     });
   }
 
-  async updateStatus(classId: string, status: string) {
-    const schoolClass = await this.prisma.schoolClass.findUnique({
-      where: { id: classId },
+  async updateStatus(
+    classId: string,
+    status: string,
+    actor: Pick<JwtPayload, 'sub' | 'role'>,
+  ) {
+    const schoolClass = await this.prisma.schoolClass.findFirst({
+      where: {
+        id: classId,
+        ...this.buildClassWhere(actor),
+      },
       select: { id: true },
     });
 
@@ -152,9 +177,12 @@ export class ClassesService {
     });
   }
 
-  async remove(classId: string) {
-    const schoolClass = await this.prisma.schoolClass.findUnique({
-      where: { id: classId },
+  async remove(classId: string, actor: Pick<JwtPayload, 'sub' | 'role'>) {
+    const schoolClass = await this.prisma.schoolClass.findFirst({
+      where: {
+        id: classId,
+        ...this.buildClassWhere(actor),
+      },
       select: { id: true },
     });
 
@@ -190,5 +218,27 @@ export class ClassesService {
     }
 
     return mappedStatus;
+  }
+
+  private buildCourseWhere(actor: Pick<JwtPayload, 'sub' | 'role'>) {
+    if (!actor || actor.role === 'superadmin') {
+      return {};
+    }
+
+    return {
+      ownerAdminId: actor.sub,
+    };
+  }
+
+  private buildClassWhere(actor: Pick<JwtPayload, 'sub' | 'role'>) {
+    if (!actor || actor.role === 'superadmin') {
+      return {};
+    }
+
+    return {
+      course: {
+        ownerAdminId: actor.sub,
+      },
+    };
   }
 }

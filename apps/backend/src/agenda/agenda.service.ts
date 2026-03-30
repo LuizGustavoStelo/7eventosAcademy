@@ -37,7 +37,7 @@ export class AgendaService {
   async getEvents(user: JwtPayload) {
     const [userEvents, classEvents] = await Promise.all([
       this.readEvents(user),
-      this.readAllClassEvents(),
+      this.readAllClassEvents(user),
     ]);
     return [...classEvents, ...userEvents]
       .sort((a, b) => {
@@ -91,8 +91,8 @@ export class AgendaService {
     return nextEvent;
   }
 
-  async getClassEventsMeta() {
-    const schedules = await this.readClassEventMetaRecords();
+  async getClassEventsMeta(user: JwtPayload) {
+    const schedules = await this.readClassEventMetaRecords(user);
     return schedules.map((item) => ({
       classId: item.classId,
       className: item.className,
@@ -105,6 +105,7 @@ export class AgendaService {
   }
 
   async syncClassEvents(
+    user: JwtPayload,
     input: {
       classId?: string;
       className?: string;
@@ -125,6 +126,8 @@ export class AgendaService {
     if (!classId) {
       throw new Error('ClassId é obrigatório para sincronizar agenda da turma.');
     }
+
+    await this.ensureClassAccess(classId, user);
 
     const className = String(input.className ?? '').trim() || 'Turma';
     const teacher = String(input.teacher ?? '').trim() || 'Professor(a)';
@@ -230,18 +233,29 @@ export class AgendaService {
     });
   }
 
-  private async readAllClassEvents(): Promise<AgendaEventRecord[]> {
-    const schedules = await this.readClassEventMetaRecords();
+  private async readAllClassEvents(user: JwtPayload): Promise<AgendaEventRecord[]> {
+    const schedules = await this.readClassEventMetaRecords(user);
     return schedules.flatMap((item) =>
       item.events.filter((eventItem) => this.isAgendaEventRecord(eventItem)),
     );
   }
 
-  private async readClassEventMetaRecords(): Promise<ClassEventMetaRecord[]> {
+  private async readClassEventMetaRecords(
+    user: JwtPayload,
+  ): Promise<ClassEventMetaRecord[]> {
+    const classRows = await this.prisma.schoolClass.findMany({
+      where: this.classOwnerWhere(user),
+      select: { id: true },
+    });
+    const allowedKeys = classRows.map((item) => this.buildClassEventKey(item.id));
+    if (allowedKeys.length === 0) {
+      return [];
+    }
+
     const rows = await this.prisma.systemSetting.findMany({
       where: {
         key: {
-          startsWith: this.classEventKeyPrefix,
+          in: allowedKeys,
         },
       },
       select: {
@@ -260,6 +274,32 @@ export class AgendaService {
         }
       })
       .filter((item): item is ClassEventMetaRecord => item !== null);
+  }
+
+  private classOwnerWhere(user: JwtPayload) {
+    if (String(user.role || '').toLowerCase() === 'superadmin') {
+      return {};
+    }
+
+    return {
+      course: {
+        ownerAdminId: user.sub,
+      },
+    };
+  }
+
+  private async ensureClassAccess(classId: string, user: JwtPayload) {
+    const schoolClass = await this.prisma.schoolClass.findFirst({
+      where: {
+        id: classId,
+        ...this.classOwnerWhere(user),
+      },
+      select: { id: true },
+    });
+
+    if (!schoolClass) {
+      throw new Error('Turma nÃ£o encontrada para esta conta.');
+    }
   }
 
   private isAgendaEventRecord(value: unknown): value is AgendaEventRecord {

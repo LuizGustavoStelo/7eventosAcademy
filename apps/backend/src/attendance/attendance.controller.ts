@@ -14,6 +14,7 @@ import { UpsertAttendanceDto } from './dto/upsert-attendance.dto';
 type AuthenticatedRequest = FastifyRequest & {
   user: {
     sub: string;
+    role?: string;
   };
 };
 
@@ -23,14 +24,17 @@ export class AttendanceController {
 
   @Roles('admin', 'superadmin')
   @Get('teacher/classes')
-  async getTeacherClasses() {
-    return this.attendanceService.getTeacherClasses();
+  async getTeacherClasses(@Req() request: AuthenticatedRequest) {
+    return this.attendanceService.getTeacherClasses(request.user);
   }
 
   @Roles('admin', 'superadmin')
   @Get('teacher/classes/:classId/sessions')
-  async getTeacherClassSessions(@Param('classId') classId: string) {
-    return this.attendanceService.getTeacherClassSessions(classId);
+  async getTeacherClassSessions(
+    @Param('classId') classId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.attendanceService.getTeacherClassSessions(classId, request.user);
   }
 
   @Roles('admin', 'superadmin')
@@ -38,8 +42,13 @@ export class AttendanceController {
   async getTeacherSessionRoster(
     @Param('classId') classId: string,
     @Param('sessionId') sessionId: string,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.attendanceService.getTeacherSessionRoster(classId, sessionId);
+    return this.attendanceService.getTeacherSessionRoster(
+      classId,
+      sessionId,
+      request.user,
+    );
   }
 
   @Roles('admin', 'superadmin')
@@ -54,6 +63,7 @@ export class AttendanceController {
       classId,
       sessionId,
       actorId: request.user.sub,
+      actorRole: request.user.role,
       items: dto.items,
     });
   }

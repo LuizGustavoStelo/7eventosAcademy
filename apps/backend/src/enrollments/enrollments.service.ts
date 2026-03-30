@@ -15,8 +15,17 @@ export class EnrollmentsService {
     dto: CreateEnrollmentDto,
     context?: { actorUserId?: string; actorRole?: string },
   ) {
-    const schoolClass = await this.prisma.schoolClass.findUnique({
-      where: { id: dto.classId },
+    const isSuperadmin = context?.actorRole?.toLowerCase() === 'superadmin';
+    const ownerFilter =
+      isSuperadmin || !context?.actorUserId
+        ? {}
+        : { course: { ownerAdminId: context.actorUserId } };
+
+    const schoolClass = await this.prisma.schoolClass.findFirst({
+      where: {
+        id: dto.classId,
+        ...ownerFilter,
+      },
       select: {
         id: true,
         totalSeats: true,
@@ -48,8 +57,13 @@ export class EnrollmentsService {
       throw new BadRequestException('Não há vagas disponíveis nesta turma.');
     }
 
-    const student = await this.prisma.user.findUnique({
-      where: { id: dto.studentId },
+    const student = await this.prisma.user.findFirst({
+      where: {
+        id: dto.studentId,
+        ...(isSuperadmin || !context?.actorUserId
+          ? {}
+          : { ownerAdminId: context.actorUserId }),
+      },
       select: { id: true, role: true },
     });
 
@@ -168,13 +182,23 @@ export class EnrollmentsService {
     return enrollment;
   }
 
-  async remove(classId: string, studentId: string) {
-    const enrollment = await this.prisma.enrollment.findUnique({
+  async remove(
+    classId: string,
+    studentId: string,
+    context?: { actorUserId?: string; actorRole?: string },
+  ) {
+    const isSuperadmin = context?.actorRole?.toLowerCase() === 'superadmin';
+
+    const enrollment = await this.prisma.enrollment.findFirst({
       where: {
-        classId_studentId: {
-          classId,
-          studentId,
-        },
+        classId,
+        studentId,
+        ...(isSuperadmin || !context?.actorUserId
+          ? {}
+          : {
+              schoolClass: { course: { ownerAdminId: context.actorUserId } },
+              student: { ownerAdminId: context.actorUserId },
+            }),
       },
       select: {
         id: true,
@@ -209,8 +233,18 @@ export class EnrollmentsService {
     return { success: true };
   }
 
-  async findAll() {
+  async findAll(context?: { actorUserId?: string; actorRole?: string }) {
+    const isSuperadmin = context?.actorRole?.toLowerCase() === 'superadmin';
+    const where =
+      isSuperadmin || !context?.actorUserId
+        ? {}
+        : {
+            schoolClass: { course: { ownerAdminId: context.actorUserId } },
+            student: { ownerAdminId: context.actorUserId },
+          };
+
     return this.prisma.enrollment.findMany({
+      where,
       include: {
         student: {
           select: {

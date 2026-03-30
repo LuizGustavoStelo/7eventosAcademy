@@ -94,6 +94,7 @@ enum StudentCourseStatus {
 
 model User {
   id             String         @id @default(uuid()) @db.Uuid
+  ownerAdminId   String?        @map("owner_admin_id") @db.Uuid
   name           String
   email          String         @unique
   passwordHash   String         @map("password_hash")
@@ -107,10 +108,14 @@ model User {
   enrollments    Enrollment[]
   studentProfile StudentProfile?
   studentCourses StudentCourse[]
+  ownedCourses   Course[]       @relation("course_owner")
+  ownerAdmin     User?          @relation("admin_students", fields: [ownerAdminId], references: [id], onDelete: SetNull)
+  ownedStudents  User[]         @relation("admin_students")
   financialConfig AccountFinancialConfig?
   ownedMonthlyCharges MonthlyCharge[] @relation("monthly_charge_owner")
   classNoticeViews ClassNoticeView[]
 
+  @@index([ownerAdminId], map: "users_owner_admin_idx")
   @@map("users")
 }
 
@@ -131,6 +136,7 @@ model AccountFinancialConfig {
 
 model Course {
   id                String             @id @default(uuid()) @db.Uuid
+  ownerAdminId      String             @map("owner_admin_id") @db.Uuid
   name              String
   description       String?
   category          String?
@@ -144,9 +150,11 @@ model Course {
   status            CourseStatus       @default(ACTIVE)
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
+  ownerAdmin        User               @relation("course_owner", fields: [ownerAdminId], references: [id], onDelete: Cascade)
   classes           SchoolClass[]
   studentCourses    StudentCourse[]
 
+  @@index([ownerAdminId], map: "courses_owner_admin_idx")
   @@map("courses")
 }
 

@@ -13,6 +13,7 @@ import {
   CreateCourseDto,
 } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
+import { JwtPayload } from '../auth/types/app-role.type';
 
 const COURSE_BANNER_KIND = 'COURSE_BANNER';
 
@@ -23,7 +24,7 @@ export class CoursesService {
     private readonly uploadsService: UploadsService,
   ) {}
 
-  async create(dto: CreateCourseDto) {
+  async create(dto: CreateCourseDto, actor: Pick<JwtPayload, 'sub' | 'role'>) {
     const paymentData = this.normalizePayment({
       price: dto.price,
       paymentModel: dto.paymentModel,
@@ -33,6 +34,7 @@ export class CoursesService {
 
     const course = await this.prisma.course.create({
       data: {
+        ownerAdminId: actor.sub,
         name: dto.name.trim(),
         description: dto.description?.trim(),
         workloadHours: dto.workloadHours,
@@ -48,9 +50,12 @@ export class CoursesService {
     return this.mapCourseWithBanner(course, null);
   }
 
-  async findAll() {
+  async findAll(actor?: Pick<JwtPayload, 'sub' | 'role'>) {
+    const where = this.buildCourseWhere(actor);
+
     const [courses, studentCounts] = await Promise.all([
       this.prisma.course.findMany({
+        where,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.studentCourse.groupBy({
@@ -77,8 +82,12 @@ export class CoursesService {
     }));
   }
 
-  async update(id: string, dto: UpdateCourseDto) {
-    const current = await this.ensureCourseExists(id);
+  async update(
+    id: string,
+    dto: UpdateCourseDto,
+    actor: Pick<JwtPayload, 'sub' | 'role'>,
+  ) {
+    const current = await this.ensureCourseExists(id, actor);
 
     const price =
       dto.price === undefined
@@ -130,8 +139,8 @@ export class CoursesService {
     return this.mapCourseWithBanner(course, banner);
   }
 
-  async remove(id: string) {
-    await this.ensureCourseExists(id);
+  async remove(id: string, actor: Pick<JwtPayload, 'sub' | 'role'>) {
+    await this.ensureCourseExists(id, actor);
 
     await this.prisma.course.delete({ where: { id } });
     await this.uploadsService.deleteOwnerAssets(UploadOwnerType.COURSE, id);
@@ -139,8 +148,12 @@ export class CoursesService {
     return { success: true };
   }
 
-  async uploadBanner(id: string, file: MultipartFile) {
-    await this.ensureCourseExists(id);
+  async uploadBanner(
+    id: string,
+    file: MultipartFile,
+    actor: Pick<JwtPayload, 'sub' | 'role'>,
+  ) {
+    await this.ensureCourseExists(id, actor);
 
     const banner = await this.uploadsService.bindFileToOwner({
       ownerType: UploadOwnerType.COURSE,
@@ -156,8 +169,16 @@ export class CoursesService {
     };
   }
 
-  private async ensureCourseExists(id: string) {
-    const course = await this.prisma.course.findUnique({ where: { id } });
+  private async ensureCourseExists(
+    id: string,
+    actor?: Pick<JwtPayload, 'sub' | 'role'>,
+  ) {
+    const course = await this.prisma.course.findFirst({
+      where: {
+        id,
+        ...this.buildCourseWhere(actor),
+      },
+    });
     if (!course) {
       throw new NotFoundException('Curso não encontrado.');
     }
@@ -192,6 +213,16 @@ export class CoursesService {
     return courses.map((course) =>
       this.mapCourseWithBanner(course, bannerByCourseId.get(course.id) ?? null),
     );
+  }
+
+  private buildCourseWhere(actor?: Pick<JwtPayload, 'sub' | 'role'>) {
+    if (!actor || actor.role === 'superadmin') {
+      return {};
+    }
+
+    return {
+      ownerAdminId: actor.sub,
+    };
   }
 
   private mapCourseWithBanner(

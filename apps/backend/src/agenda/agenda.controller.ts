@@ -19,8 +19,8 @@ export class AgendaController {
   }
 
   @Get('class-events/meta')
-  async getClassEventsMeta() {
-    return this.agendaService.getClassEventsMeta();
+  async getClassEventsMeta(@Req() request: AuthenticatedRequest) {
+    return this.agendaService.getClassEventsMeta(request.user);
   }
 
   @Post('events')
@@ -58,7 +58,8 @@ export class AgendaController {
         provider?: string | null;
       }>;
     },
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.agendaService.syncClassEvents(body);
+    return this.agendaService.syncClassEvents(request.user, body);
   }
 }

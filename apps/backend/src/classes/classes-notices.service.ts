@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { JwtPayload } from '../auth/types/app-role.type';
 import { PrismaService } from '../database/prisma.service';
 
 type NoticePriority = 'normal' | 'importante' | 'urgente';
@@ -20,7 +21,10 @@ export class ClassesNoticesService {
     publishedAt?: Date | string | null;
     scheduledAt?: Date | string | null;
     publishedBy?: string;
+    actor: Pick<JwtPayload, 'sub' | 'role'>;
   }) {
+    await this.ensureClassExists(dto.classId, dto.actor);
+
     const now = new Date();
     const publishedAt =
       this.parseDate(dto.scheduledAt) ??
@@ -49,10 +53,14 @@ export class ClassesNoticesService {
     await this.removeExpiredArchivedNotices();
   }
 
-  async getAllNotices() {
+  async getAllNotices(actor: Pick<JwtPayload, 'sub' | 'role'>) {
     await this.removeExpiredArchivedNotices();
 
     const notices = await this.prisma.classNotice.findMany({
+      where:
+        actor.role === 'superadmin'
+          ? {}
+          : { schoolClass: { course: { ownerAdminId: actor.sub } } },
       orderBy: { createdAt: 'desc' },
       include: {
         schoolClass: { select: { name: true } },
@@ -115,9 +123,23 @@ export class ClassesNoticesService {
     });
   }
 
-  async deleteNotice(noticeId: string) {
+  async deleteNotice(noticeId: string, actor: Pick<JwtPayload, 'sub' | 'role'>) {
+    const notice = await this.prisma.classNotice.findFirst({
+      where: {
+        id: noticeId,
+        ...(actor.role === 'superadmin'
+          ? {}
+          : { schoolClass: { course: { ownerAdminId: actor.sub } } }),
+      },
+      select: { id: true },
+    });
+
+    if (!notice) {
+      throw new NotFoundException('Aviso não encontrado.');
+    }
+
     await this.prisma.classNotice.delete({
-      where: { id: noticeId },
+      where: { id: notice.id },
     });
     return { success: true };
   }
@@ -160,5 +182,24 @@ export class ClassesNoticesService {
         },
       },
     });
+  }
+
+  private async ensureClassExists(
+    classId: string,
+    actor: Pick<JwtPayload, 'sub' | 'role'>,
+  ) {
+    const schoolClass = await this.prisma.schoolClass.findFirst({
+      where: {
+        id: classId,
+        ...(actor.role === 'superadmin'
+          ? {}
+          : { course: { ownerAdminId: actor.sub } }),
+      },
+      select: { id: true },
+    });
+
+    if (!schoolClass) {
+      throw new NotFoundException('Turma não encontrada.');
+    }
   }
 }

@@ -12,6 +12,7 @@ import {
 import { MultipartFile } from '@fastify/multipart';
 import type { FastifyRequest } from 'fastify';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { JwtPayload } from '../auth/types/app-role.type';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { CreateClassMaterialDto } from './dto/create-class-material.dto';
@@ -21,7 +22,7 @@ import { ClassesMaterialsService } from './classes-materials.service';
 import { ClassesNoticesService } from './classes-notices.service';
 
 type AuthenticatedRequest = FastifyRequest & {
-  user: { sub: string };
+  user: JwtPayload;
   parts: () => AsyncIterable<
     | (MultipartFile & { type: 'file'; fieldname: string })
     | { type: 'field'; fieldname: string; value: string }
@@ -46,36 +47,44 @@ export class ClassesController {
   ) {}
 
   @Get()
-  async findAll() {
-    return this.classesService.findAll();
+  async findAll(@Req() request: AuthenticatedRequest) {
+    return this.classesService.findAll(request.user);
   }
 
   @Post()
-  async create(@Body() dto: CreateClassDto) {
-    return this.classesService.create(dto);
+  async create(@Body() dto: CreateClassDto, @Req() request: AuthenticatedRequest) {
+    return this.classesService.create(dto, request.user);
   }
 
   @Patch(':classId')
-  async update(@Param('classId') classId: string, @Body() dto: UpdateClassDto) {
-    return this.classesService.update(classId, dto);
+  async update(
+    @Param('classId') classId: string,
+    @Body() dto: UpdateClassDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.classesService.update(classId, dto, request.user);
   }
 
   @Patch(':classId/status')
   async updateStatus(
     @Param('classId') classId: string,
     @Body() dto: UpdateClassStatusDto,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.classesService.updateStatus(classId, dto.status);
+    return this.classesService.updateStatus(classId, dto.status, request.user);
   }
 
   @Delete(':classId')
-  async remove(@Param('classId') classId: string) {
-    return this.classesService.remove(classId);
+  async remove(@Param('classId') classId: string, @Req() request: AuthenticatedRequest) {
+    return this.classesService.remove(classId, request.user);
   }
 
   @Get(':classId/materials')
-  async getMaterials(@Param('classId') classId: string) {
-    return this.materialsService.getMaterials(classId);
+  async getMaterials(
+    @Param('classId') classId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.materialsService.getMaterials(classId, request.user);
   }
 
   @Post(':classId/materials')
@@ -88,6 +97,7 @@ export class ClassesController {
       classId,
       ...dto,
       publishedBy: request.user.sub,
+      actor: request.user,
     });
   }
 
@@ -125,6 +135,7 @@ export class ClassesController {
       kind: fields.kind,
       externalUrl: fields.externalUrl,
       publishedBy: request.user.sub,
+      actor: request.user,
       file,
     });
   }
@@ -163,21 +174,23 @@ export class ClassesController {
       kind: fields.kind,
       externalUrl: fields.externalUrl,
       publishedBy: request.user.sub,
+      actor: request.user,
       files,
     });
   }
 
   @Get('materials/all')
-  async getAllMaterials() {
-    return this.materialsService.getAllMaterials();
+  async getAllMaterials(@Req() request: AuthenticatedRequest) {
+    return this.materialsService.getAllMaterials(request.user);
   }
 
   @Delete(':classId/materials/:materialId')
   async deleteMaterial(
     @Param('classId') classId: string,
     @Param('materialId') materialId: string,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.materialsService.deleteMaterial(classId, materialId);
+    return this.materialsService.deleteMaterial(classId, materialId, request.user);
   }
 
   @Post(':classId/notices')
@@ -190,17 +203,21 @@ export class ClassesController {
       classId,
       ...dto,
       publishedBy: request.user.sub,
+      actor: request.user,
     });
   }
 
   @Get('notices/all')
-  async getAllNotices() {
-    return this.noticesService.getAllNotices();
+  async getAllNotices(@Req() request: AuthenticatedRequest) {
+    return this.noticesService.getAllNotices(request.user);
   }
 
   @Delete('notices/:noticeId')
-  async deleteNotice(@Param('noticeId') noticeId: string) {
-    return this.noticesService.deleteNotice(noticeId);
+  async deleteNotice(
+    @Param('noticeId') noticeId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.noticesService.deleteNotice(noticeId, request.user);
   }
 }
 

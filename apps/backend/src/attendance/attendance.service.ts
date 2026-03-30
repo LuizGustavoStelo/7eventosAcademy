@@ -40,8 +40,9 @@ export class AttendanceService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async getTeacherClasses() {
+  async getTeacherClasses(actor: { sub: string; role?: string }) {
     const classes = await this.prisma.schoolClass.findMany({
+      where: this.buildClassOwnershipFilter(actor),
       include: {
         course: { select: { name: true } },
         _count: { select: { enrollments: true } },
@@ -71,8 +72,11 @@ export class AttendanceService {
     );
   }
 
-  async getTeacherClassSessions(classId: string) {
-    await this.ensureClassExists(classId);
+  async getTeacherClassSessions(
+    classId: string,
+    actor: { sub: string; role?: string },
+  ) {
+    await this.ensureClassExists(classId, actor);
 
     const [sessions, roster, storage] = await Promise.all([
       this.getClassSessions(classId),
@@ -98,8 +102,12 @@ export class AttendanceService {
     });
   }
 
-  async getTeacherSessionRoster(classId: string, sessionId: string) {
-    await this.ensureClassExists(classId);
+  async getTeacherSessionRoster(
+    classId: string,
+    sessionId: string,
+    actor: { sub: string; role?: string },
+  ) {
+    await this.ensureClassExists(classId, actor);
 
     const session = await this.getClassSessionOrFail(classId, sessionId);
     const [roster, storage] = await Promise.all([
@@ -133,10 +141,11 @@ export class AttendanceService {
     classId: string;
     sessionId: string;
     actorId: string;
+    actorRole?: string;
     items: Array<{ studentId: string; present: boolean; note?: string }>;
   }) {
-    const { classId, sessionId, actorId, items } = params;
-    await this.ensureClassExists(classId);
+    const { classId, sessionId, actorId, actorRole, items } = params;
+    await this.ensureClassExists(classId, { sub: actorId, role: actorRole });
 
     const session = await this.getClassSessionOrFail(classId, sessionId);
     const sessionTime = new Date(session.datetime).getTime();
@@ -200,7 +209,10 @@ export class AttendanceService {
 
     await this.writeAttendanceStorage(classId, storage);
 
-    return this.getTeacherSessionRoster(classId, sessionId);
+    return this.getTeacherSessionRoster(classId, sessionId, {
+      sub: actorId,
+      role: actorRole,
+    });
   }
 
   async getStudentSummary(studentId: string) {
@@ -308,15 +320,33 @@ export class AttendanceService {
     };
   }
 
-  private async ensureClassExists(classId: string) {
-    const schoolClass = await this.prisma.schoolClass.findUnique({
-      where: { id: classId },
+  private async ensureClassExists(
+    classId: string,
+    actor: { sub: string; role?: string },
+  ) {
+    const schoolClass = await this.prisma.schoolClass.findFirst({
+      where: {
+        id: classId,
+        ...this.buildClassOwnershipFilter(actor),
+      },
       select: { id: true },
     });
 
     if (!schoolClass) {
       throw new NotFoundException('Turma não encontrada.');
     }
+  }
+
+  private buildClassOwnershipFilter(actor: { sub: string; role?: string }) {
+    if (String(actor.role || '').toLowerCase() === 'superadmin') {
+      return {};
+    }
+
+    return {
+      course: {
+        ownerAdminId: actor.sub,
+      },
+    };
   }
 
   private async getClassRoster(classId: string) {

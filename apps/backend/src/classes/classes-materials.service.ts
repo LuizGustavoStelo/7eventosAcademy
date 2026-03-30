@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { MultipartFile } from '@fastify/multipart';
 import { UploadOwnerType } from '@prisma/client';
+import { JwtPayload } from '../auth/types/app-role.type';
 import { PrismaService } from '../database/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 
@@ -58,8 +59,9 @@ export class ClassesMaterialsService {
     externalUrl?: string;
     fileUrl?: string;
     publishedBy?: string;
+    actor: Pick<JwtPayload, 'sub' | 'role'>;
   }) {
-    await this.ensureClassExists(dto.classId);
+    await this.ensureClassExists(dto.classId, dto.actor);
 
     if (dto.title.trim().length < 3) {
       throw new BadRequestException(
@@ -93,9 +95,10 @@ export class ClassesMaterialsService {
     kind?: string;
     externalUrl?: string;
     publishedBy?: string;
+    actor: Pick<JwtPayload, 'sub' | 'role'>;
     file: MultipartFile;
   }) {
-    await this.ensureClassExists(dto.classId);
+    await this.ensureClassExists(dto.classId, dto.actor);
 
     if (dto.title.trim().length < 3) {
       throw new BadRequestException(
@@ -150,9 +153,10 @@ export class ClassesMaterialsService {
     kind?: string;
     externalUrl?: string;
     publishedBy?: string;
+    actor: Pick<JwtPayload, 'sub' | 'role'>;
     files: MultipartFile[];
   }) {
-    await this.ensureClassExists(dto.classId);
+    await this.ensureClassExists(dto.classId, dto.actor);
 
     const created: Awaited<ReturnType<typeof this.createMaterialWithFile>>[] = [];
     const rejected: Array<{ fileName: string; reason: string }> = [];
@@ -168,6 +172,7 @@ export class ClassesMaterialsService {
           kind: dto.kind,
           externalUrl: dto.externalUrl,
           publishedBy: dto.publishedBy,
+          actor: dto.actor,
           file,
         });
         created.push(material);
@@ -193,8 +198,11 @@ export class ClassesMaterialsService {
     };
   }
 
-  async getMaterials(classId: string) {
-    await this.ensureClassExists(classId);
+  async getMaterials(
+    classId: string,
+    actor: Pick<JwtPayload, 'sub' | 'role'>,
+  ) {
+    await this.ensureClassExists(classId, actor);
 
     return this.prisma.studyMaterial.findMany({
       where: { classId },
@@ -207,8 +215,10 @@ export class ClassesMaterialsService {
     });
   }
 
-  async getAllMaterials() {
+  async getAllMaterials(actor: Pick<JwtPayload, 'sub' | 'role'>) {
+    const where = actor.role === 'superadmin' ? {} : { schoolClass: { course: { ownerAdminId: actor.sub } } };
     return this.prisma.studyMaterial.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
         schoolClass: {
@@ -218,8 +228,12 @@ export class ClassesMaterialsService {
     });
   }
 
-  async deleteMaterial(classId: string, materialId: string) {
-    await this.ensureClassExists(classId);
+  async deleteMaterial(
+    classId: string,
+    materialId: string,
+    actor: Pick<JwtPayload, 'sub' | 'role'>,
+  ) {
+    await this.ensureClassExists(classId, actor);
 
     const material = await this.prisma.studyMaterial.findFirst({
       where: { id: materialId, classId },
@@ -245,9 +259,17 @@ export class ClassesMaterialsService {
     return { deleted: true };
   }
 
-  private async ensureClassExists(classId: string) {
-    const schoolClass = await this.prisma.schoolClass.findUnique({
-      where: { id: classId },
+  private async ensureClassExists(
+    classId: string,
+    actor: Pick<JwtPayload, 'sub' | 'role'>,
+  ) {
+    const schoolClass = await this.prisma.schoolClass.findFirst({
+      where: {
+        id: classId,
+        ...(actor.role === 'superadmin'
+          ? {}
+          : { course: { ownerAdminId: actor.sub } }),
+      },
       select: { id: true },
     });
 
