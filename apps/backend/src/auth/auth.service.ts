@@ -143,7 +143,7 @@ export class AuthService {
           email,
           expiresAt: dispatch.expiresAt.toISOString(),
           message:
-            'Conta criada, mas não foi possível enviar o código agora. Use a opção de reenviar código para tentar novamente.',
+            'Cadastro pendente de confirmação, mas não foi possível enviar o código agora. Use a opção de reenviar código para tentar novamente.',
         };
       }
 
@@ -151,7 +151,8 @@ export class AuthService {
         requiresEmailVerification: true,
         email,
         expiresAt: dispatch.expiresAt.toISOString(),
-        message: 'Conta criada! Enviamos um código de confirmação para o seu e-mail.',
+        message:
+          'Cadastro pendente de confirmação. Enviamos um código de confirmação para o seu e-mail.',
       };
     }
 
@@ -180,7 +181,7 @@ export class AuthService {
         email,
         expiresAt: dispatch.expiresAt.toISOString(),
         message:
-          'Cadastro iniciado, mas não foi possível enviar o código agora. Use a opção de reenviar código para tentar novamente.',
+          'Cadastro pendente de confirmação, mas não foi possível enviar o código agora. Use a opção de reenviar código para tentar novamente.',
       };
     }
 
@@ -188,7 +189,8 @@ export class AuthService {
       requiresEmailVerification: true,
       email,
       expiresAt: dispatch.expiresAt.toISOString(),
-      message: 'Cadastro iniciado! Enviamos um código de confirmação para o seu e-mail.',
+      message:
+        'Cadastro pendente de confirmação. Enviamos um código de confirmação para o seu e-mail.',
     };
   }
 
@@ -523,6 +525,13 @@ export class AuthService {
         expiresAt,
       };
     } catch (error) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerificationCodeSentAt: null,
+        },
+      });
+
       if (options?.throwOnDeliveryFailure) {
         throw error;
       }
@@ -603,6 +612,12 @@ export class AuthService {
         expiresAt,
       };
     } catch (error) {
+      await this.savePendingAdminRegistration({
+        ...payload,
+        codeSentAt: null,
+        updatedAt: new Date().toISOString(),
+      });
+
       if (input.throwOnDeliveryFailure) {
         throw error;
       }
