@@ -49,6 +49,17 @@ type EmailVerificationDispatchResult = {
   waitSeconds?: number;
 };
 
+type PendingAdminRegistration = {
+  name: string;
+  email: string;
+  passwordHash: string;
+  codeHash: string | null;
+  codeExpiresAt: string | null;
+  codeSentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type ImpersonationAuthPayload = AuthPayload & {
   impersonation: {
     active: true;
@@ -67,6 +78,7 @@ const ACCESS_TOKEN_TTL_SECONDS = 86_400;
 const EMAIL_VERIFICATION_CODE_LENGTH = 6;
 const DEFAULT_VERIFICATION_TTL_MINUTES = 15;
 const DEFAULT_VERIFICATION_COOLDOWN_SECONDS = 60;
+const PENDING_ADMIN_REGISTRATION_PREFIX = 'pending-admin-registration:';
 
 @Injectable()
 export class AuthService {
@@ -81,6 +93,7 @@ export class AuthService {
   async register(dto: RegisterDto): Promise<EmailVerificationPendingPayload> {
     const email = dto.email.trim().toLowerCase();
     const trimmedName = dto.name.trim();
+    const passwordHash = await hash(dto.password, 12);
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
@@ -95,42 +108,59 @@ export class AuthService {
       throw new BadRequestException('Este e-mail já está cadastrado.');
     }
 
-    let userId = existingUser?.id;
-
     if (existingUser?.emailConfirmedAt) {
       throw new BadRequestException('Este e-mail já está cadastrado.');
     }
 
-    if (!existingUser) {
-      const passwordHash = await hash(dto.password, 12);
-      const createdUser = await this.prisma.user.create({
-        data: {
-          name: trimmedName,
-          email,
-          passwordHash,
-          role: UserRole.ADMIN,
-          emailConfirmedAt: null,
-        },
-        select: { id: true },
-      });
-
-      userId = createdUser.id;
-    } else {
+    // Compatibilidade com contas legadas (não confirmadas) criadas antes do fluxo pendente.
+    if (existingUser && !existingUser.emailConfirmedAt) {
       await this.prisma.user.update({
         where: { id: existingUser.id },
         data: {
           name: trimmedName,
-          passwordHash: await hash(dto.password, 12),
+          passwordHash,
           emailConfirmedAt: null,
         },
       });
+
+      const dispatch = await this.sendEmailVerificationCodeByUserId(existingUser.id, {
+        ignoreCooldown: false,
+        throwOnDeliveryFailure: false,
+      });
+
+      if (dispatch.status === 'cooldown') {
+        return {
+          requiresEmailVerification: true,
+          email,
+          expiresAt: dispatch.expiresAt.toISOString(),
+          message: `Cadastro pendente de confirmação. Aguarde ${dispatch.waitSeconds ?? 1} segundo(s) para solicitar novo código.`,
+        };
+      }
+
+      if (dispatch.status === 'failed') {
+        return {
+          requiresEmailVerification: true,
+          email,
+          expiresAt: dispatch.expiresAt.toISOString(),
+          message:
+            'Conta criada, mas não foi possível enviar o código agora. Use a opção de reenviar código para tentar novamente.',
+        };
+      }
+
+      return {
+        requiresEmailVerification: true,
+        email,
+        expiresAt: dispatch.expiresAt.toISOString(),
+        message: 'Conta criada! Enviamos um código de confirmação para o seu e-mail.',
+      };
     }
 
-    if (!userId) {
-      throw new BadRequestException('Não foi possível concluir o cadastro.');
-    }
-
-    const dispatch = await this.sendEmailVerificationCodeByUserId(userId, {
+    const previousPending = await this.findPendingAdminRegistration(email);
+    const dispatch = await this.sendPendingAdminVerificationCode({
+      name: trimmedName,
+      email,
+      passwordHash,
+      previous: previousPending,
       ignoreCooldown: false,
       throwOnDeliveryFailure: false,
     });
@@ -150,7 +180,7 @@ export class AuthService {
         email,
         expiresAt: dispatch.expiresAt.toISOString(),
         message:
-          'Conta criada, mas não foi possível enviar o código agora. Use a opção de reenviar código para tentar novamente.',
+          'Cadastro iniciado, mas não foi possível enviar o código agora. Use a opção de reenviar código para tentar novamente.',
       };
     }
 
@@ -158,7 +188,7 @@ export class AuthService {
       requiresEmailVerification: true,
       email,
       expiresAt: dispatch.expiresAt.toISOString(),
-      message: 'Conta criada! Enviamos um código de confirmação para o seu e-mail.',
+      message: 'Cadastro iniciado! Enviamos um código de confirmação para o seu e-mail.',
     };
   }
 
@@ -166,6 +196,25 @@ export class AuthService {
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) {
+      const pending = await this.findPendingAdminRegistration(email);
+      if (pending) {
+        await this.sendPendingAdminVerificationCode({
+          name: pending.name,
+          email: pending.email,
+          passwordHash: pending.passwordHash,
+          previous: pending,
+          ignoreCooldown: false,
+          throwOnDeliveryFailure: false,
+        });
+
+        throw new ForbiddenException({
+          code: 'EMAIL_NAO_CONFIRMADO',
+          email,
+          message:
+            'Seu e-mail ainda não foi confirmado. Digite o código enviado para continuar.',
+        });
+      }
+
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 
@@ -194,6 +243,74 @@ export class AuthService {
   async verifyEmailCode(dto: VerifyEmailCodeDto) {
     const email = dto.email.trim().toLowerCase();
     const code = dto.code.trim();
+
+    const pending = await this.findPendingAdminRegistration(email);
+    if (pending) {
+      if (!pending.codeHash || !pending.codeExpiresAt) {
+        throw new BadRequestException(
+          'Nenhum código ativo foi encontrado para este e-mail. Solicite um novo código.',
+        );
+      }
+
+      const pendingExpiresAt = new Date(pending.codeExpiresAt);
+      if (
+        Number.isNaN(pendingExpiresAt.getTime()) ||
+        pendingExpiresAt.getTime() < Date.now()
+      ) {
+        throw new BadRequestException('Código inválido ou expirado.');
+      }
+
+      const validPendingCode = await compare(code, pending.codeHash);
+      if (!validPendingCode) {
+        throw new BadRequestException('Código inválido ou expirado.');
+      }
+
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          emailConfirmedAt: true,
+        },
+      });
+
+      if (existingUser?.emailConfirmedAt) {
+        await this.deletePendingAdminRegistration(email);
+        return {
+          verified: true,
+          message: 'Este e-mail já está confirmado. Faça login para continuar.',
+        };
+      }
+
+      if (existingUser && !existingUser.emailConfirmedAt) {
+        await this.prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            name: pending.name,
+            passwordHash: pending.passwordHash,
+            emailConfirmedAt: new Date(),
+            emailVerificationCodeHash: null,
+            emailVerificationCodeExpiresAt: null,
+            emailVerificationCodeSentAt: null,
+          },
+        });
+      } else {
+        await this.prisma.user.create({
+          data: {
+            name: pending.name,
+            email: pending.email,
+            passwordHash: pending.passwordHash,
+            role: UserRole.ADMIN,
+            emailConfirmedAt: new Date(),
+          },
+        });
+      }
+
+      await this.deletePendingAdminRegistration(email);
+      return {
+        verified: true,
+        message: 'E-mail confirmado com sucesso. Faça login para continuar.',
+      };
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -249,6 +366,7 @@ export class AuthService {
 
   async resendVerificationCode(dto: ResendVerificationCodeDto) {
     const email = dto.email.trim().toLowerCase();
+    const pending = await this.findPendingAdminRegistration(email);
 
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -259,6 +377,40 @@ export class AuthService {
     });
 
     if (!user) {
+      if (pending) {
+        const dispatch = await this.sendPendingAdminVerificationCode({
+          name: pending.name,
+          email: pending.email,
+          passwordHash: pending.passwordHash,
+          previous: pending,
+          ignoreCooldown: false,
+          throwOnDeliveryFailure: false,
+        });
+
+        if (dispatch.status === 'cooldown') {
+          return {
+            sent: false,
+            message: `Aguarde ${dispatch.waitSeconds ?? 1} segundo(s) antes de solicitar outro código.`,
+            expiresAt: dispatch.expiresAt.toISOString(),
+          };
+        }
+
+        if (dispatch.status === 'failed') {
+          return {
+            sent: false,
+            message:
+              'Não foi possível enviar o e-mail de confirmação no momento. Tente novamente em instantes.',
+            expiresAt: dispatch.expiresAt.toISOString(),
+          };
+        }
+
+        return {
+          sent: true,
+          message: 'Enviamos um novo código de confirmação para o seu e-mail.',
+          expiresAt: dispatch.expiresAt.toISOString(),
+        };
+      }
+
       return {
         sent: true,
         message:
@@ -275,13 +427,24 @@ export class AuthService {
 
     const dispatch = await this.sendEmailVerificationCodeByUserId(user.id, {
       ignoreCooldown: false,
-      throwOnDeliveryFailure: true,
+      throwOnDeliveryFailure: false,
     });
 
     if (dispatch.status === 'cooldown') {
-      throw new BadRequestException(
-        `Aguarde ${dispatch.waitSeconds ?? 1} segundo(s) antes de solicitar outro código.`,
-      );
+      return {
+        sent: false,
+        message: `Aguarde ${dispatch.waitSeconds ?? 1} segundo(s) antes de solicitar outro código.`,
+        expiresAt: dispatch.expiresAt.toISOString(),
+      };
+    }
+
+    if (dispatch.status === 'failed') {
+      return {
+        sent: false,
+        message:
+          'Não foi possível enviar o e-mail de confirmação no momento. Tente novamente em instantes.',
+        expiresAt: dispatch.expiresAt.toISOString(),
+      };
     }
 
     return {
@@ -369,6 +532,138 @@ export class AuthService {
         expiresAt,
       };
     }
+  }
+
+  private async sendPendingAdminVerificationCode(input: {
+    name: string;
+    email: string;
+    passwordHash: string;
+    previous?: PendingAdminRegistration | null;
+    ignoreCooldown?: boolean;
+    throwOnDeliveryFailure?: boolean;
+  }): Promise<EmailVerificationDispatchResult> {
+    const nowMs = Date.now();
+    const cooldownMs = this.getEmailVerificationCooldownSeconds() * 1000;
+    const lastSentAt = input.previous?.codeSentAt
+      ? new Date(input.previous.codeSentAt).getTime()
+      : 0;
+
+    if (
+      !input.ignoreCooldown &&
+      lastSentAt &&
+      Number.isFinite(lastSentAt) &&
+      nowMs - lastSentAt < cooldownMs
+    ) {
+      const waitSeconds = Math.max(
+        1,
+        Math.ceil((cooldownMs - (nowMs - lastSentAt)) / 1000),
+      );
+      const fallbackExpiry = input.previous?.codeExpiresAt
+        ? new Date(input.previous.codeExpiresAt)
+        : new Date(nowMs + this.getEmailVerificationTtlMinutes() * 60 * 1000);
+
+      return {
+        status: 'cooldown',
+        expiresAt: fallbackExpiry,
+        waitSeconds,
+      };
+    }
+
+    const code = this.generateEmailVerificationCode();
+    const codeHash = await hash(code, 10);
+    const expiresAt = new Date(
+      nowMs + this.getEmailVerificationTtlMinutes() * 60 * 1000,
+    );
+    const nowIso = new Date(nowMs).toISOString();
+
+    const payload: PendingAdminRegistration = {
+      name: input.name,
+      email: input.email,
+      passwordHash: input.passwordHash,
+      codeHash,
+      codeExpiresAt: expiresAt.toISOString(),
+      codeSentAt: nowIso,
+      createdAt: input.previous?.createdAt ?? nowIso,
+      updatedAt: nowIso,
+    };
+
+    await this.savePendingAdminRegistration(payload);
+
+    try {
+      await this.mailService.sendAccountVerificationEmail({
+        to: input.email,
+        recipientName: input.name,
+        verificationCode: code,
+        expiresInMinutes: this.getEmailVerificationTtlMinutes(),
+        audience: 'professor',
+      });
+
+      return {
+        status: 'sent',
+        expiresAt,
+      };
+    } catch (error) {
+      if (input.throwOnDeliveryFailure) {
+        throw error;
+      }
+
+      return {
+        status: 'failed',
+        expiresAt,
+      };
+    }
+  }
+
+  private pendingAdminRegistrationKey(email: string) {
+    return `${PENDING_ADMIN_REGISTRATION_PREFIX}${encodeURIComponent(email)}`;
+  }
+
+  private async findPendingAdminRegistration(
+    email: string,
+  ): Promise<PendingAdminRegistration | null> {
+    const record = await this.prisma.systemSetting.findUnique({
+      where: { key: this.pendingAdminRegistrationKey(email) },
+      select: { value: true },
+    });
+
+    if (!record?.value) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(record.value) as PendingAdminRegistration;
+      if (
+        !parsed ||
+        typeof parsed.name !== 'string' ||
+        typeof parsed.email !== 'string' ||
+        typeof parsed.passwordHash !== 'string'
+      ) {
+        return null;
+      }
+
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private async savePendingAdminRegistration(
+    payload: PendingAdminRegistration,
+  ): Promise<void> {
+    await this.prisma.systemSetting.upsert({
+      where: { key: this.pendingAdminRegistrationKey(payload.email) },
+      update: { value: JSON.stringify(payload) },
+      create: {
+        key: this.pendingAdminRegistrationKey(payload.email),
+        value: JSON.stringify(payload),
+      },
+    });
+  }
+
+  private async deletePendingAdminRegistration(email: string): Promise<void> {
+    await this.prisma.systemSetting.deleteMany({
+      where: { key: this.pendingAdminRegistrationKey(email) },
+    });
   }
 
   async getMe(userId: string): Promise<AuthUserPayload> {
