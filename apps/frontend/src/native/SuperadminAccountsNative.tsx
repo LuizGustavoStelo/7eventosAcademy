@@ -59,6 +59,24 @@ type AccountFinancialResponse = {
   };
 };
 
+type PlatformStudent = {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string | null;
+  statusLabel?: string;
+  courses?: Array<{
+    id: string;
+    course?: {
+      id: string;
+      name: string;
+    } | null;
+  }>;
+  enrollments?: Array<{
+    id: string;
+  }>;
+};
+
 type FinancialFormState = {
   provider: FinanceProvider;
   environment: FinanceEnvironment;
@@ -85,6 +103,10 @@ type ConfigFlags = {
 type SuperadminAccountsNativeProps = {
   token: string;
 };
+
+const DEFAULT_STUDENT_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="18" fill="#eef2f6"/><circle cx="48" cy="36" r="14" fill="#8ca0b8"/><path d="M22 79c4-13 14-21 26-21s22 8 26 21" fill="#8ca0b8"/></svg>',
+)}`;
 
 function defaultForm(): FinancialFormState {
   return {
@@ -141,6 +163,20 @@ function formatDate(value: string | null): string {
   }).format(date);
 }
 
+function normalizeSearch(value: string): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function resolveAvatar(avatarUrl?: string | null): string {
+  const cleaned = String(avatarUrl || '').trim();
+  if (!cleaned) return DEFAULT_STUDENT_AVATAR;
+  return cleaned;
+}
+
 export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProps) {
   const [loading, setLoading] = useState(true);
   const [loadingConfig, setLoadingConfig] = useState(false);
@@ -149,6 +185,10 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
   const [feedback, setFeedback] = useState('');
   const [formError, setFormError] = useState('');
   const [search, setSearch] = useState('');
+  const [studentsSearch, setStudentsSearch] = useState('');
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [deletingStudentId, setDeletingStudentId] = useState<string | null>(null);
+  const [students, setStudents] = useState<PlatformStudent[]>([]);
   const [dashboard, setDashboard] = useState<AccountsDashboardResponse | null>(
     null,
   );
@@ -234,8 +274,25 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
     }
   };
 
+  const loadStudents = async (showLoading = true) => {
+    if (showLoading) setStudentsLoading(true);
+    try {
+      const data = await apiRequest<PlatformStudent[]>(token, '/students');
+      setStudents(Array.isArray(data) ? data : []);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Falha ao carregar alunos da plataforma.',
+      );
+    } finally {
+      if (showLoading) setStudentsLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadDashboard(true);
+    void loadStudents(true);
   }, [token]);
 
   useEffect(() => {
@@ -258,6 +315,19 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
     () => accounts.find((item) => item.id === selectedAccountId) ?? null,
     [accounts, selectedAccountId],
   );
+
+  const filteredStudents = useMemo(() => {
+    const query = normalizeSearch(studentsSearch);
+    if (!query) return students;
+
+    return students.filter((student) => {
+      const courses = (student.courses ?? [])
+        .map((item) => item.course?.name ?? '')
+        .join(' ');
+      const target = normalizeSearch(`${student.name} ${student.email} ${courses}`);
+      return target.includes(query);
+    });
+  }, [students, studentsSearch]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -318,6 +388,34 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
     }
   };
 
+  const removeStudent = async (student: PlatformStudent) => {
+    const confirmed = window.confirm(
+      `Deseja realmente excluir o aluno "${student.name}"? Esta ação não pode ser desfeita.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingStudentId(student.id);
+    setError('');
+    setFeedback('');
+
+    try {
+      await apiRequest<{ success: boolean }>(token, `/students/${student.id}`, {
+        method: 'DELETE',
+      });
+      setFeedback(`Aluno "${student.name}" removido com sucesso.`);
+      await loadDashboard(false);
+      await loadStudents(false);
+    } catch (removeError) {
+      setError(
+        removeError instanceof Error
+          ? removeError.message
+          : 'Falha ao remover aluno.',
+      );
+    } finally {
+      setDeletingStudentId((current) => (current === student.id ? null : current));
+    }
+  };
+
   return (
     <section className="native-page native-super-accounts">
       <header className="native-page-header">
@@ -361,6 +459,7 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
       {feedback ? <p className="native-success">{feedback}</p> : null}
 
       {!loading && !error ? (
+        <>
         <div className="native-super-accounts-grid">
           <article className="native-panel native-super-accounts-list-panel">
             <header className="native-panel-header">
@@ -699,6 +798,93 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
             )}
           </aside>
         </div>
+
+        <article className="native-panel native-super-students-panel">
+          <header className="native-panel-header">
+            <h3>Alunos da plataforma</h3>
+            <button type="button" onClick={() => void loadStudents(true)}>
+              Recarregar
+            </button>
+          </header>
+
+          <div className="native-super-students-toolbar">
+            <input
+              type="search"
+              value={studentsSearch}
+              onChange={(event) => setStudentsSearch(event.target.value)}
+              placeholder="Buscar aluno por nome, e-mail ou curso..."
+            />
+            <small>{filteredStudents.length} aluno(s)</small>
+          </div>
+
+          {studentsLoading ? <p className="native-info">Carregando alunos...</p> : null}
+
+          {!studentsLoading ? (
+            <div className="native-table-wrap">
+              <table className="native-table">
+                <thead>
+                  <tr>
+                    <th>Aluno</th>
+                    <th>E-mail</th>
+                    <th>Cursos</th>
+                    <th>Turmas</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={6}>Nenhum aluno encontrado.</td>
+                    </tr>
+                  ) : (
+                    filteredStudents.map((student) => {
+                      const courses = (student.courses ?? [])
+                        .map((item) => item.course?.name)
+                        .filter((name): name is string => Boolean(name));
+
+                      return (
+                        <tr key={student.id}>
+                          <td>
+                            <div className="native-super-student-cell">
+                              <img
+                                src={resolveAvatar(student.avatarUrl)}
+                                alt={`Avatar de ${student.name}`}
+                              />
+                              <div>
+                                <strong>{student.name}</strong>
+                                <small>#{student.id.slice(0, 8).toUpperCase()}</small>
+                              </div>
+                            </div>
+                          </td>
+                          <td>{student.email}</td>
+                          <td>{courses[0] ?? 'Sem curso'}</td>
+                          <td>{student.enrollments?.length ?? 0}</td>
+                          <td>{student.statusLabel ?? 'Sem definição'}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="native-super-student-delete-btn"
+                              onClick={() => {
+                                void removeStudent(student);
+                              }}
+                              disabled={deletingStudentId === student.id}
+                            >
+                              {deletingStudentId === student.id
+                                ? 'Excluindo...'
+                                : 'Excluir aluno'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </article>
+        </>
       ) : null}
     </section>
   );

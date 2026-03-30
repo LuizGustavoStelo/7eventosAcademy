@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest, formatCurrency } from './api';
 
+type ClassStatus = 'PLANNING' | 'ENROLLMENTS_OPEN' | 'IN_PROGRESS' | 'CLOSED';
+
 type DashboardSummary = {
+  generatedAt?: string;
   studentsCount: number;
   activeEnrollments: number;
   classesCount: number;
@@ -31,7 +34,7 @@ type Course = {
 type SchoolClass = {
   id: string;
   name: string;
-  status: 'PLANNING' | 'ENROLLMENTS_OPEN' | 'IN_PROGRESS' | 'CLOSED';
+  status: ClassStatus;
   totalSeats: number;
   occupiedSeats?: number;
   startDate: string;
@@ -45,6 +48,16 @@ type Enrollment = {
   classId: string;
   status: 'ACTIVE' | 'CANCELED' | 'COMPLETED';
   createdAt?: string;
+  student?: {
+    id: string;
+    name: string;
+    email?: string;
+  };
+  schoolClass?: {
+    id: string;
+    name: string;
+    course?: { id: string; name: string };
+  };
 };
 
 type AgendaEvent = {
@@ -60,11 +73,39 @@ type ReportsNativeProps = {
 
 const AGENDA_STORAGE_KEY = 'academy-agenda-events-v1';
 
+const CLASS_STATUS_LABEL: Record<ClassStatus, string> = {
+  PLANNING: 'Planejamento',
+  ENROLLMENTS_OPEN: 'Matrículas abertas',
+  IN_PROGRESS: 'Em andamento',
+  CLOSED: 'Encerrada',
+};
+
+const ENROLLMENT_STATUS_LABEL: Record<Enrollment['status'], string> = {
+  ACTIVE: 'Ativa',
+  CANCELED: 'Cancelada',
+  COMPLETED: 'Concluída',
+};
+
 function parseDate(value: string | undefined): Date | null {
   if (!value) return null;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed;
+}
+
+function formatDate(value: string | undefined): string {
+  const parsed = parseDate(value);
+  if (!parsed) return 'Sem data';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(parsed);
+}
+
+function truncateLabel(value: string, maxLength = 52): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
 function readAgendaEvents(): AgendaEvent[] {
@@ -77,14 +118,20 @@ function readAgendaEvents(): AgendaEvent[] {
   }
 }
 
+function getOccupiedSeats(item: SchoolClass): number {
+  if (typeof item.occupiedSeats === 'number') return item.occupiedSeats;
+  return Number(item._count?.enrollments ?? 0);
+}
+
 function csvCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
 function exportCsv(filename: string, headers: string[], rows: string[][]) {
-  const csv = [headers, ...rows]
+  const csvContent = [headers, ...rows]
     .map((row) => row.map((cell) => csvCell(cell)).join(';'))
     .join('\n');
+  const csv = `\uFEFF${csvContent}`;
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -92,6 +139,10 @@ function exportCsv(filename: string, headers: string[], rows: string[][]) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function todayStamp() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export function ReportsNative({ token }: ReportsNativeProps) {
@@ -105,9 +156,7 @@ export function ReportsNative({ token }: ReportsNativeProps) {
   const [periodDays, setPeriodDays] = useState<30 | 90 | 365>(30);
   const [courseFilter, setCourseFilter] = useState('ALL');
   const [classFilter, setClassFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState<
-    'ALL' | 'PLANNING' | 'ENROLLMENTS_OPEN' | 'IN_PROGRESS' | 'CLOSED'
-  >('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | ClassStatus>('ALL');
 
   useEffect(() => {
     const load = async () => {
@@ -147,6 +196,19 @@ export function ReportsNative({ token }: ReportsNativeProps) {
     [periodDays],
   );
 
+  const classFilterOptions = useMemo(() => {
+    if (courseFilter === 'ALL') return classes;
+    return classes.filter((item) => item.courseId === courseFilter);
+  }, [classes, courseFilter]);
+
+  useEffect(() => {
+    if (classFilter === 'ALL') return;
+    const exists = classFilterOptions.some((item) => item.id === classFilter);
+    if (!exists) {
+      setClassFilter('ALL');
+    }
+  }, [classFilter, classFilterOptions]);
+
   const filteredClasses = useMemo(() => {
     return classes.filter((item) => {
       const startedAt = parseDate(item.startDate)?.getTime() ?? 0;
@@ -172,7 +234,7 @@ export function ReportsNative({ token }: ReportsNativeProps) {
     });
   }, [enrollments, filteredClassIds, periodThreshold]);
 
-  const courseFrequency = useMemo(() => {
+  const courseOccupancy = useMemo(() => {
     const grouped = new Map<
       string,
       { courseName: string; occupied: number; total: number; percentage: number }
@@ -180,10 +242,7 @@ export function ReportsNative({ token }: ReportsNativeProps) {
 
     filteredClasses.forEach((item) => {
       const courseName = item.course?.name || 'Curso não informado';
-      const occupied =
-        typeof item.occupiedSeats === 'number'
-          ? item.occupiedSeats
-          : Number(item._count?.enrollments ?? 0);
+      const occupied = getOccupiedSeats(item);
       const total = Number(item.totalSeats || 0);
 
       const current = grouped.get(item.courseId) || {
@@ -206,6 +265,57 @@ export function ReportsNative({ token }: ReportsNativeProps) {
       .slice(0, 6);
   }, [filteredClasses]);
 
+  const classStatusSummary = useMemo(() => {
+    const total = filteredClasses.length;
+    return (Object.entries(CLASS_STATUS_LABEL) as Array<[ClassStatus, string]>).map(
+      ([status, label]) => {
+        const count = filteredClasses.filter((item) => item.status === status).length;
+        return {
+          status,
+          label,
+          count,
+          percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+        };
+      },
+    );
+  }, [filteredClasses]);
+
+  const atRiskClasses = useMemo(() => {
+    return filteredClasses
+      .map((item) => {
+        const occupied = getOccupiedSeats(item);
+        const total = Number(item.totalSeats || 0);
+        const occupancy = total > 0 ? Math.round((occupied / total) * 100) : 0;
+        return {
+          id: item.id,
+          name: item.name,
+          courseName: item.course?.name || 'Curso não informado',
+          occupancy,
+          occupied,
+          total,
+          status: item.status,
+        };
+      })
+      .filter(
+        (item) =>
+          item.total > 0 &&
+          item.occupancy < 40 &&
+          item.status !== 'CLOSED',
+      )
+      .sort((a, b) => a.occupancy - b.occupancy)
+      .slice(0, 5);
+  }, [filteredClasses]);
+
+  const recentEnrollments = useMemo(() => {
+    return [...filteredEnrollments]
+      .sort((a, b) => {
+        const createdAtA = parseDate(a.createdAt)?.getTime() ?? 0;
+        const createdAtB = parseDate(b.createdAt)?.getTime() ?? 0;
+        return createdAtB - createdAtA;
+      })
+      .slice(0, 6);
+  }, [filteredEnrollments]);
+
   const financeHealth = useMemo(() => {
     const paid = Number(
       financeOverview?.amountByStatus.find((item) => item.status === 'paid')
@@ -221,13 +331,45 @@ export function ReportsNative({ token }: ReportsNativeProps) {
     );
     const total = paid + overdue + pending;
     const adimplencia = total > 0 ? Math.round((paid / total) * 100) : 0;
+    const inadimplencia = total > 0 ? Math.round((overdue / total) * 100) : 0;
     return {
       paid,
       overdue,
       pending,
       adimplencia,
+      inadimplencia,
     };
   }, [financeOverview]);
+
+  const enrollmentMovement = useMemo(() => {
+    const now = Date.now();
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    const currentStart = now - sevenDays;
+    const previousStart = now - sevenDays * 2;
+
+    const currentWindow = filteredEnrollments.filter((item) => {
+      const createdAt = parseDate(item.createdAt)?.getTime() ?? 0;
+      return createdAt >= currentStart && createdAt <= now;
+    }).length;
+
+    const previousWindow = filteredEnrollments.filter((item) => {
+      const createdAt = parseDate(item.createdAt)?.getTime() ?? 0;
+      return createdAt >= previousStart && createdAt < currentStart;
+    }).length;
+
+    const growthPercent =
+      previousWindow > 0
+        ? Math.round(((currentWindow - previousWindow) / previousWindow) * 100)
+        : currentWindow > 0
+          ? 100
+          : 0;
+
+    return {
+      currentWindow,
+      previousWindow,
+      growthPercent,
+    };
+  }, [filteredEnrollments]);
 
   const liveEngagement = useMemo(() => {
     const events = readAgendaEvents();
@@ -247,6 +389,33 @@ export function ReportsNative({ token }: ReportsNativeProps) {
     };
   }, [periodThreshold]);
 
+  const operationalAlerts = useMemo(() => {
+    const alerts: Array<{ level: 'high' | 'medium' | 'low'; text: string }> = [];
+
+    if ((financeOverview?.overdueCharges ?? 0) > 0) {
+      alerts.push({
+        level: 'high',
+        text: `${financeOverview?.overdueCharges ?? 0} cobrança(s) em atraso.`,
+      });
+    }
+
+    if (atRiskClasses.length > 0) {
+      alerts.push({
+        level: 'medium',
+        text: `${atRiskClasses.length} turma(s) com ocupação abaixo de 40%.`,
+      });
+    }
+
+    if (liveEngagement.upcoming === 0) {
+      alerts.push({
+        level: 'low',
+        text: 'Não há lives futuras no período selecionado.',
+      });
+    }
+
+    return alerts;
+  }, [financeOverview, atRiskClasses, liveEngagement.upcoming]);
+
   const totalEnrollments = filteredEnrollments.length;
   const activeEnrollments = filteredEnrollments.filter(
     (item) => item.status === 'ACTIVE',
@@ -255,20 +424,23 @@ export function ReportsNative({ token }: ReportsNativeProps) {
     (acc, item) => acc + Number(item.totalSeats || 0),
     0,
   );
-  const occupiedSeats = filteredClasses.reduce((acc, item) => {
-    if (typeof item.occupiedSeats === 'number') return acc + item.occupiedSeats;
-    return acc + Number(item._count?.enrollments ?? 0);
-  }, 0);
+  const occupiedSeats = filteredClasses.reduce(
+    (acc, item) => acc + getOccupiedSeats(item),
+    0,
+  );
   const occupancyRate = totalSeats > 0 ? Math.round((occupiedSeats / totalSeats) * 100) : 0;
 
   const exportEnrollmentCsv = () => {
     exportCsv(
-      'relatorio-matriculas.csv',
-      ['id', 'classId', 'status', 'createdAt'],
+      `relatorio-matriculas-${todayStamp()}.csv`,
+      ['id', 'aluno', 'email', 'curso', 'turma', 'status', 'createdAt'],
       filteredEnrollments.map((item) => [
         item.id,
-        item.classId,
-        item.status,
+        item.student?.name || 'Aluno não informado',
+        item.student?.email || '',
+        item.schoolClass?.course?.name || '',
+        item.schoolClass?.name || '',
+        ENROLLMENT_STATUS_LABEL[item.status],
         item.createdAt || '',
       ]),
     );
@@ -276,33 +448,67 @@ export function ReportsNative({ token }: ReportsNativeProps) {
 
   const exportClassesCsv = () => {
     exportCsv(
-      'relatorio-turmas.csv',
-      ['id', 'turma', 'curso', 'status', 'vagasTotal', 'vagasOcupadas', 'inicio'],
-      filteredClasses.map((item) => [
-        item.id,
-        item.name,
-        item.course?.name || '',
-        item.status,
-        String(item.totalSeats || 0),
-        String(
-          typeof item.occupiedSeats === 'number'
-            ? item.occupiedSeats
-            : Number(item._count?.enrollments ?? 0),
-        ),
-        item.startDate || '',
-      ]),
+      `relatorio-turmas-${todayStamp()}.csv`,
+      [
+        'id',
+        'turma',
+        'curso',
+        'status',
+        'vagasTotal',
+        'vagasOcupadas',
+        'ocupacaoPercentual',
+        'inicio',
+      ],
+      filteredClasses.map((item) => {
+        const occupied = getOccupiedSeats(item);
+        const total = Number(item.totalSeats || 0);
+        const occupancy = total > 0 ? Math.round((occupied / total) * 100) : 0;
+        return [
+          item.id,
+          item.name,
+          item.course?.name || '',
+          CLASS_STATUS_LABEL[item.status],
+          String(total),
+          String(occupied),
+          String(occupancy),
+          item.startDate || '',
+        ];
+      }),
     );
   };
 
   const exportFinanceCsv = () => {
-    exportCsv('relatorio-financeiro.csv', ['indicador', 'valor'], [
+    exportCsv(`relatorio-financeiro-${todayStamp()}.csv`, ['indicador', 'valor'], [
       ['adimplenciaPercentual', String(financeHealth.adimplencia)],
+      ['inadimplenciaPercentual', String(financeHealth.inadimplencia)],
       ['recebido', String(financeHealth.paid)],
       ['emAberto', String(financeHealth.pending)],
       ['atrasado', String(financeHealth.overdue)],
       ['cobrancasPendentes', String(financeOverview?.pendingCharges ?? 0)],
+      ['cobrancasEmAtraso', String(financeOverview?.overdueCharges ?? 0)],
       ['cobrancasTotal', String(financeOverview?.totalCharges ?? 0)],
     ]);
+  };
+
+  const exportOperationalCsv = () => {
+    exportCsv(
+      `relatorio-operacional-${todayStamp()}.csv`,
+      ['tipo', 'nome', 'detalhe', 'valor'],
+      [
+        ...classStatusSummary.map((item) => [
+          'status_turma',
+          item.label,
+          'Quantidade de turmas',
+          String(item.count),
+        ]),
+        ...atRiskClasses.map((item) => [
+          'turma_risco_ocupacao',
+          item.name,
+          item.courseName,
+          `${item.occupancy}%`,
+        ]),
+      ],
+    );
   };
 
   return (
@@ -336,11 +542,12 @@ export function ReportsNative({ token }: ReportsNativeProps) {
             <select
               value={courseFilter}
               onChange={(event) => setCourseFilter(event.target.value)}
+              title={courses.find((item) => item.id === courseFilter)?.name || ''}
             >
               <option value="ALL">Todos os cursos</option>
               {courses.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
+                <option key={item.id} value={item.id} title={item.name}>
+                  {truncateLabel(item.name)}
                 </option>
               ))}
             </select>
@@ -351,11 +558,12 @@ export function ReportsNative({ token }: ReportsNativeProps) {
             <select
               value={classFilter}
               onChange={(event) => setClassFilter(event.target.value)}
+              title={classFilterOptions.find((item) => item.id === classFilter)?.name || ''}
             >
               <option value="ALL">Todas as turmas</option>
-              {classes.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
+              {classFilterOptions.map((item) => (
+                <option key={item.id} value={item.id} title={item.name}>
+                  {truncateLabel(item.name)}
                 </option>
               ))}
             </select>
@@ -366,14 +574,7 @@ export function ReportsNative({ token }: ReportsNativeProps) {
             <select
               value={statusFilter}
               onChange={(event) =>
-                setStatusFilter(
-                  event.target.value as
-                    | 'ALL'
-                    | 'PLANNING'
-                    | 'ENROLLMENTS_OPEN'
-                    | 'IN_PROGRESS'
-                    | 'CLOSED',
-                )
+                setStatusFilter(event.target.value as 'ALL' | ClassStatus)
               }
             >
               <option value="ALL">Todos</option>
@@ -407,9 +608,11 @@ export function ReportsNative({ token }: ReportsNativeProps) {
           <small>{formatCurrency(financeHealth.paid)} recebido</small>
         </article>
         <article className="native-kpi-card">
-          <span>Lives agendadas</span>
-          <strong>{liveEngagement.total}</strong>
-          <small>{liveEngagement.upcoming} futura(s)</small>
+          <span>Inadimplência</span>
+          <strong>{financeHealth.inadimplencia}%</strong>
+          <small>
+            {financeOverview?.overdueCharges ?? 0} cobrança(s) em atraso
+          </small>
         </article>
       </div>
 
@@ -420,16 +623,16 @@ export function ReportsNative({ token }: ReportsNativeProps) {
         <div className="native-grid-2 native-reports-grid">
           <article className="native-panel">
             <header className="native-panel-header">
-              <h3>Frequência por módulo</h3>
+              <h3>Ocupação por curso</h3>
             </header>
             <div className="native-report-bars">
-              {courseFrequency.length === 0 ? (
+              {courseOccupancy.length === 0 ? (
                 <p className="native-info">Sem dados para o período selecionado.</p>
               ) : (
-                courseFrequency.map((item) => (
+                courseOccupancy.map((item) => (
                   <div key={item.courseName}>
                     <div className="native-report-bars-head">
-                      <span>{item.courseName}</span>
+                      <span title={item.courseName}>{truncateLabel(item.courseName, 56)}</span>
                       <strong>{item.percentage}%</strong>
                     </div>
                     <div className="native-report-bar-track">
@@ -438,9 +641,27 @@ export function ReportsNative({ token }: ReportsNativeProps) {
                         style={{ width: `${item.percentage}%` }}
                       />
                     </div>
+                    <small className="native-report-muted">
+                      {item.occupied}/{item.total} vagas ocupadas
+                    </small>
                   </div>
                 ))
               )}
+            </div>
+          </article>
+
+          <article className="native-panel">
+            <header className="native-panel-header">
+              <h3>Distribuição de turmas</h3>
+            </header>
+            <div className="native-report-status-grid">
+              {classStatusSummary.map((item) => (
+                <div key={item.status} className="native-report-status-card">
+                  <span>{item.label}</span>
+                  <strong>{item.count}</strong>
+                  <small>{item.percentage}% do período</small>
+                </div>
+              ))}
             </div>
           </article>
 
@@ -462,16 +683,65 @@ export function ReportsNative({ token }: ReportsNativeProps) {
                 <strong>{formatCurrency(financeHealth.overdue)}</strong>
               </div>
             </div>
+            <div className="native-live-engagement">
+              <strong>{liveEngagement.highlight}</strong>
+              <small>
+                {liveEngagement.upcoming} live(s) futura(s) • {liveEngagement.total} no período
+              </small>
+            </div>
           </article>
 
           <article className="native-panel">
             <header className="native-panel-header">
-              <h3>Engajamento de lives</h3>
+              <h3>Alertas operacionais</h3>
             </header>
-            <div className="native-live-engagement">
-              <strong>{liveEngagement.highlight}</strong>
-              <small>{liveEngagement.upcoming} live(s) futura(s) no período</small>
-            </div>
+            {operationalAlerts.length === 0 ? (
+              <p className="native-info">Sem alertas críticos para os filtros atuais.</p>
+            ) : (
+              <ul className="native-report-alert-list">
+                {operationalAlerts.map((item) => (
+                  <li key={item.text} className={`is-${item.level}`}>
+                    {item.text}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {atRiskClasses.length > 0 ? (
+              <ul className="native-ops-list">
+                {atRiskClasses.map((item) => (
+                  <li key={item.id}>
+                    <strong>{item.name}</strong>
+                    <small title={item.courseName}>
+                      {truncateLabel(item.courseName, 48)} • {item.occupancy}% de ocupação
+                    </small>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </article>
+
+          <article className="native-panel">
+            <header className="native-panel-header">
+              <h3>Matrículas recentes</h3>
+            </header>
+            {recentEnrollments.length === 0 ? (
+              <p className="native-info">Sem matrículas no período filtrado.</p>
+            ) : (
+              <ul className="native-report-list">
+                {recentEnrollments.map((item) => (
+                  <li key={item.id}>
+                    <strong>{item.student?.name || `Matrícula ${item.id.slice(0, 8)}`}</strong>
+                    <small>
+                      {item.schoolClass?.course?.name || 'Curso não informado'} •{' '}
+                      {item.schoolClass?.name || 'Turma não informada'}
+                    </small>
+                    <small>
+                      {ENROLLMENT_STATUS_LABEL[item.status]} em {formatDate(item.createdAt)}
+                    </small>
+                  </li>
+                ))}
+              </ul>
+            )}
           </article>
 
           <article className="native-panel">
@@ -488,7 +758,16 @@ export function ReportsNative({ token }: ReportsNativeProps) {
               <button type="button" onClick={exportFinanceCsv}>
                 Exportar financeiro (CSV)
               </button>
+              <button type="button" onClick={exportOperationalCsv}>
+                Exportar operacional (CSV)
+              </button>
             </div>
+            <small className="native-report-muted">
+              Atualizado em {formatDate(summary?.generatedAt)} • Últimos 7 dias:{' '}
+              {enrollmentMovement.currentWindow} matrícula(s) (
+              {enrollmentMovement.growthPercent >= 0 ? '+' : ''}
+              {enrollmentMovement.growthPercent}%)
+            </small>
           </article>
         </div>
       ) : null}

@@ -362,6 +362,67 @@ export class StudentsService {
     return this.findById(studentId);
   }
 
+  async remove(studentId: string) {
+    const student = await this.prisma.user.findFirst({
+      where: {
+        id: studentId,
+        role: UserRole.USER,
+      },
+      select: {
+        id: true,
+        name: true,
+        enrollments: {
+          select: {
+            classId: true,
+          },
+        },
+      },
+    });
+
+    if (!student) {
+      throw new NotFoundException('Aluno não encontrado.');
+    }
+
+    const enrollmentsByClassId = new Map<string, number>();
+    for (const enrollment of student.enrollments) {
+      const current = enrollmentsByClassId.get(enrollment.classId) ?? 0;
+      enrollmentsByClassId.set(enrollment.classId, current + 1);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const [classId, enrollmentCount] of enrollmentsByClassId.entries()) {
+        const schoolClass = await tx.schoolClass.findUnique({
+          where: { id: classId },
+          select: { occupiedSeats: true },
+        });
+
+        if (!schoolClass) continue;
+        const nextOccupiedSeats = Math.max(
+          0,
+          Number(schoolClass.occupiedSeats) - enrollmentCount,
+        );
+
+        await tx.schoolClass.update({
+          where: { id: classId },
+          data: { occupiedSeats: nextOccupiedSeats },
+        });
+      }
+
+      await tx.user.delete({
+        where: { id: studentId },
+      });
+    });
+
+    await this.uploadsService.deleteOwnerAssets(UploadOwnerType.STUDENT, studentId);
+    await this.uploadsService.deleteOwnerAssets(UploadOwnerType.USER, studentId);
+
+    return {
+      success: true,
+      id: student.id,
+      name: student.name,
+    };
+  }
+
   async importCsv(file: MultipartFile) {
     const content = (await file.toBuffer())
       .toString('utf-8')

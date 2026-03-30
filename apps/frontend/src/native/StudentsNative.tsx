@@ -65,8 +65,9 @@ type StudentsNativeProps = {
   token: string;
 };
 
-const DEFAULT_AVATAR_BG = '#ece8e6';
-const DEFAULT_AVATAR_TEXT = '#8f7065';
+const DEFAULT_STUDENT_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="18" fill="#eef2f6"/><circle cx="48" cy="36" r="14" fill="#8ca0b8"/><path d="M22 79c4-13 14-21 26-21s22 8 26 21" fill="#8ca0b8"/></svg>',
+)}`;
 
 function defaultFormState(): StudentFormState {
   return {
@@ -85,21 +86,10 @@ function registrationCode(studentId: string): string {
   return `#AC-${studentId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 }
 
-function getInitials(name: string): string {
-  const parts = String(name)
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (parts.length === 0) return 'AL';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`.toUpperCase();
-}
-
-function buildInitialsAvatar(name: string): string {
-  const initials = getInitials(name);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="18" fill="${DEFAULT_AVATAR_BG}" /><text x="48" y="56" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="${DEFAULT_AVATAR_TEXT}">${initials}</text></svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+function resolveStudentAvatar(avatarUrl?: string | null): string {
+  const value = String(avatarUrl || '').trim();
+  if (!value) return DEFAULT_STUDENT_AVATAR;
+  return value;
 }
 
 function toDateInput(value: string | null | undefined): string {
@@ -599,7 +589,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
                       <td>
                         <div className="native-student-cell">
                           <img
-                            src={student.avatarUrl || buildInitialsAvatar(student.name)}
+                            src={resolveStudentAvatar(student.avatarUrl)}
                             alt={`Avatar de ${student.name}`}
                           />
                           <div>
@@ -645,7 +635,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
 
             <div className="native-drawer-profile">
               <img
-                src={selectedStudent.avatarUrl || buildInitialsAvatar(selectedStudent.name)}
+                src={resolveStudentAvatar(selectedStudent.avatarUrl)}
                 alt={`Avatar de ${selectedStudent.name}`}
               />
               <div>
@@ -851,7 +841,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
               <div className="native-modal-actions">
                 <button
                   type="button"
-                  className="ghost"
+                  className="native-btn-cancel"
                   onClick={() => setModalOpen(false)}
                 >
                   Cancelar
@@ -896,7 +886,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
               <div className="native-modal-actions">
                 <button
                   type="button"
-                  className="ghost"
+                  className="native-btn-cancel"
                   onClick={() => setImportModalOpen(false)}
                 >
                   Cancelar

@@ -94,6 +94,12 @@ export class StudentsController {
     return this.studentsService.removeAvatar(id);
   }
 
+  @Roles('superadmin')
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    return this.studentsService.remove(id);
+  }
+
   @Post('import-csv')
   async importCsv(@Req() request: MultipartFastifyRequest) {
     const file = await request.file();

@@ -79,6 +79,13 @@ type PublicPortalLicenseState = {
   message: string;
 };
 
+type TopbarNotice = {
+  id: string;
+  status?: string;
+  publishedAt?: string;
+  expiresAt?: string | null;
+};
+
 const SESSION_TOKEN_KEY = 'academy-auth-token';
 const SESSION_USER_KEY = 'academy-auth-user';
 const IMPERSONATION_SOURCE_TOKEN_KEY = 'academy-impersonation-source-token';
@@ -357,7 +364,7 @@ function SidebarNavIcon({ name }: { name: string }) {
 function TopbarIcon({
   name,
 }: {
-  name: 'search' | 'notifications' | 'light_mode' | 'dark_mode' | 'close' | 'help';
+  name: 'search' | 'notifications' | 'light_mode' | 'dark_mode' | 'help';
 }) {
   const classes = 'global-topbar-svg';
 
@@ -442,6 +449,20 @@ function normalizeSearchTerm(value: string) {
     .toLowerCase();
 }
 
+function hasActiveNotice(notice: TopbarNotice, nowMs: number): boolean {
+  if (notice.status === 'finalizado') return false;
+
+  const publishedMs = notice.publishedAt ? new Date(notice.publishedAt).getTime() : 0;
+  if (publishedMs > nowMs) return false;
+
+  if (notice.expiresAt) {
+    const expiresMs = new Date(notice.expiresAt).getTime();
+    if (Number.isFinite(expiresMs) && expiresMs <= nowMs) return false;
+  }
+
+  return true;
+}
+
 function maskEmail(value: string | null | undefined) {
   const email = String(value || '').trim();
   if (!email.includes('@')) return email || '-';
@@ -523,6 +544,7 @@ export default function App() {
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [hasTopbarNotification, setHasTopbarNotification] = useState(false);
 
   const queryParams = new URLSearchParams(window.location.search);
   const isEmbedded = queryParams.get('embed') === '1';
@@ -843,11 +865,62 @@ export default function App() {
     }
   }, [autenticado, impersonationMeta, usuario?.role]);
 
+  useEffect(() => {
+    if (!autenticado || !token || usuario?.role !== 'admin') {
+      setHasTopbarNotification(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadTopbarNotifications = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/classes/notices/all`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          if (isMounted) setHasTopbarNotification(false);
+          return;
+        }
+
+        const payload = (await response.json()) as TopbarNotice[] | unknown;
+        const notices = Array.isArray(payload) ? payload : [];
+        const nowMs = Date.now();
+        const hasAnyActiveNotice = notices.some((notice) =>
+          hasActiveNotice(notice, nowMs),
+        );
+        if (isMounted) setHasTopbarNotification(hasAnyActiveNotice);
+      } catch {
+        if (isMounted) setHasTopbarNotification(false);
+      }
+    };
+
+    void loadTopbarNotifications();
+    const intervalId = window.setInterval(() => {
+      void loadTopbarNotifications();
+    }, 60_000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [autenticado, token, usuario?.role]);
+
   const executeGlobalSearch = () => {
     const nextSectionId = globalSearchSuggestions[0]?.sectionId;
     if (!nextSectionId) return;
 
     setSecaoAtiva(nextSectionId);
+    setMobileMenuOpen(false);
+  };
+
+  const abrirNotificacoes = () => {
+    const noticesSection = secoes.find((section) => section.id === 'admin_avisos');
+    if (!noticesSection) return;
+    setSecaoAtiva(noticesSection.id);
     setMobileMenuOpen(false);
   };
 
@@ -1133,24 +1206,6 @@ export default function App() {
         Authorization: `Bearer ${token}`,
       },
       body,
-    });
-
-    if (!response.ok) {
-      throw new Error(await lerErroApi(response));
-    }
-
-    const nextUser = (await response.json()) as AuthUser;
-    atualizarUsuarioSessao(nextUser);
-  };
-
-  const removerAvatar = async () => {
-    if (!token) return;
-
-    const response = await fetch(`${API_BASE_URL}/auth/me/avatar`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     });
 
     if (!response.ok) {
@@ -1503,9 +1558,14 @@ export default function App() {
             </label>
           </div>
           <div className="global-topbar-right">
-            <button type="button" className="global-topbar-icon" aria-label="Notificações">
+            <button
+              type="button"
+              className="global-topbar-icon"
+              aria-label="Notificações"
+              onClick={abrirNotificacoes}
+            >
               <TopbarIcon name="notifications" />
-              <span className="global-topbar-dot" />
+              {hasTopbarNotification ? <span className="global-topbar-dot" /> : null}
             </button>
             <button
               type="button"
@@ -1545,26 +1605,6 @@ export default function App() {
                 }
                 onClick={() => avatarInputRef.current?.click()}
               />
-              {usuario?.avatarUrl ? (
-                <button
-                  type="button"
-                  className="global-avatar-remove"
-                  aria-label="Remover foto"
-                  onClick={async () => {
-                    try {
-                      await removerAvatar();
-                    } catch (error) {
-                      const message =
-                        error instanceof Error
-                          ? error.message
-                          : 'Não foi possível remover a foto de perfil.';
-                      window.alert(message);
-                    }
-                  }}
-                >
-                  <TopbarIcon name="close" />
-                </button>
-              ) : null}
               <div className="global-topbar-user-meta">
                 <span className="global-topbar-user-name">{usuario?.name ?? 'Professor'}</span>
                 <span className="global-topbar-user-role">
@@ -1572,9 +1612,6 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <button type="button" className="global-topbar-logout-btn" onClick={sair}>
-              Sair
-            </button>
           </div>
         </header>
 
