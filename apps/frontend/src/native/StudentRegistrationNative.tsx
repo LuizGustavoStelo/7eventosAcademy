@@ -264,8 +264,10 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const [loading, setLoading] = useState(false);
   const [coursesLoading, setCoursesLoading] = useState(false);
   const [zipLookupLoading, setZipLookupLoading] = useState(false);
+  const [codeLoading, setCodeLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [codeError, setCodeError] = useState('');
   const [coursesError, setCoursesError] = useState('');
   const [zipLookupError, setZipLookupError] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
@@ -287,6 +289,8 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const [state, setState] = useState('');
   const [zipAutofilled, setZipAutofilled] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [courses, setCourses] = useState<CourseCatalogItem[]>([]);
 
   const strength = useMemo(() => passwordStrength(password), [password]);
@@ -491,6 +495,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     event.preventDefault();
     setError('');
     setSuccess('');
+    setCodeError('');
 
     await ensureZipLookup();
 
@@ -535,10 +540,8 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
         throw new Error(await readError(response));
       }
 
-      setSuccess(
-        'Cadastro realizado com sucesso. Verifique seu e-mail, confirme o código e depois faça login para acessar sua Área do Aluno.',
-      );
-      resetForm();
+      setPendingVerificationEmail(payload.email);
+      setVerificationCode('');
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -547,6 +550,48 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const confirmVerificationCode = async () => {
+    setCodeError('');
+    if (!pendingVerificationEmail) return;
+
+    const code = verificationCode.trim();
+    if (code.length !== 6) {
+      setCodeError('Digite o código de 6 dígitos enviado para o seu e-mail.');
+      return;
+    }
+
+    setCodeLoading(true);
+    try {
+      const response = await requestWithRetry(`${API_BASE_URL}/auth/verify-email-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: pendingVerificationEmail,
+          code,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readError(response));
+      }
+
+      setPendingVerificationEmail('');
+      setVerificationCode('');
+      setSuccess('Cadastro realizado com sucesso. Seu e-mail foi confirmado.');
+      resetForm();
+    } catch (confirmError) {
+      setCodeError(
+        confirmError instanceof Error
+          ? confirmError.message
+          : 'Não foi possível confirmar o código.',
+      );
+    } finally {
+      setCodeLoading(false);
     }
   };
 
@@ -559,11 +604,6 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
         </header>
 
         {error ? <p className="native-error">{error}</p> : null}
-        {success ? (
-          <p className="native-success">
-            {success} <a href={buildPortalLink('student')}>Ir para login</a>
-          </p>
-        ) : null}
 
         <ol className="native-student-register-stepper" aria-label="Etapas do cadastro">
           {steps.map((step, index) => {
@@ -919,7 +959,16 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
             )}
 
             {isFinalStep ? (
-              <button type="submit" disabled={loading || coursesLoading}>
+              <button
+                type="submit"
+                disabled={
+                  loading ||
+                  coursesLoading ||
+                  codeLoading ||
+                  Boolean(pendingVerificationEmail) ||
+                  Boolean(success)
+                }
+              >
                 {loading ? 'Concluindo cadastro...' : 'Finalizar matrícula e criar acesso'}
               </button>
             ) : (
@@ -930,6 +979,56 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
           </div>
         </form>
       </article>
+
+      {pendingVerificationEmail ? (
+        <div className="native-student-register-modal-backdrop" role="presentation">
+          <div
+            className="native-student-register-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="student-register-confirm-title"
+          >
+            <h3 id="student-register-confirm-title">Confirme seu e-mail</h3>
+            <p>
+              Digite o código de 6 dígitos enviado para <strong>{pendingVerificationEmail}</strong>.
+            </p>
+            <label>
+              Código de confirmação
+              <input
+                type="text"
+                value={verificationCode}
+                onChange={(event) =>
+                  setVerificationCode(event.target.value.replace(/\D+/g, '').slice(0, 6))
+                }
+                inputMode="numeric"
+                placeholder="000000"
+                autoFocus
+              />
+            </label>
+            {codeError ? <p className="native-error">{codeError}</p> : null}
+            <button type="button" onClick={() => void confirmVerificationCode()} disabled={codeLoading}>
+              {codeLoading ? 'Confirmando código...' : 'Confirmar código'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {success ? (
+        <div className="native-student-register-modal-backdrop" role="presentation">
+          <div
+            className="native-student-register-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="student-register-success-title"
+          >
+            <h3 id="student-register-success-title">Cadastro concluído</h3>
+            <p>{success}</p>
+            <a className="native-student-register-login-link" href={buildPortalLink('student')}>
+              Ir para login
+            </a>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
