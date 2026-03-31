@@ -67,26 +67,6 @@ function formatMonthDay(value: string): string {
   }).format(date);
 }
 
-function formatHour(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '--:--';
-  return new Intl.DateTimeFormat('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
-
-function isToday(value: string): boolean {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return false;
-  const now = new Date();
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  );
-}
-
 function currentGreeting(name?: string): string {
   const hour = new Date().getHours();
   if (hour < 12) return `Bom dia, ${name || 'professor(a)'}`;
@@ -135,18 +115,23 @@ export function DashboardNative({ token, onNavigate }: DashboardNativeProps) {
     return () => window.clearInterval(intervalId);
   }, [token]);
 
-  const todayAgenda = useMemo(() => {
+  const upcomingAgenda = useMemo(() => {
+    const now = Date.now();
     return events
-      .filter((item) => isToday(item.datetime))
+      .filter((item) => {
+        const timestamp = new Date(item.datetime).getTime();
+        return Number.isFinite(timestamp) && timestamp >= now;
+      })
       .sort(
         (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime(),
       )
       .slice(0, 2);
   }, [events]);
 
-  const firstAgenda = todayAgenda[0] ?? null;
-  const secondAgenda = todayAgenda[1] ?? null;
+  const firstAgenda = upcomingAgenda[0] ?? null;
+  const secondAgenda = upcomingAgenda[1] ?? null;
   const firstClass = summary?.upcomingClasses?.[0] ?? null;
+  const secondClass = summary?.upcomingClasses?.[1] ?? null;
   const latestNotices = notices.slice(0, 3);
   const urgentOperations =
     (summary?.classesToday ?? 0) + (summary?.pendingChargesCount ?? 0);
@@ -267,7 +252,7 @@ export function DashboardNative({ token, onNavigate }: DashboardNativeProps) {
             <div className="native-dashboard-pro-left">
               <article className="native-dashboard-pro-agenda">
                 <header className="native-dashboard-pro-section-head">
-                  <h3>Agenda acadêmica de hoje</h3>
+                  <h3>Agenda acadêmica</h3>
                   <button type="button" onClick={() => onNavigate('admin_agenda')}>
                     Ver calendário
                   </button>
@@ -275,17 +260,17 @@ export function DashboardNative({ token, onNavigate }: DashboardNativeProps) {
 
                 <div className="native-dashboard-pro-agenda-grid">
                   <div className="native-dashboard-pro-live-card">
-                    <span className="native-dashboard-pro-pill">Aula ao vivo</span>
-                    <h4>{firstAgenda?.title || firstClass?.name || 'Sem aula ao vivo no horário'}</h4>
+                    <span className="native-dashboard-pro-pill">Próxima aula</span>
+                    <h4>{firstAgenda?.title || firstClass?.name || 'Sem aula programada'}</h4>
                     <p>
                       {firstAgenda?.className ||
                         firstClass?.course?.name ||
-                        'Acompanhe suas próximas aulas e transmissões.'}
+                        'Sem turma vinculada no momento.'}
                     </p>
                     <div className="native-dashboard-pro-live-footer">
                       <small>
                         {firstAgenda
-                          ? `${formatHour(firstAgenda.datetime)}`
+                          ? formatDateTime(firstAgenda.datetime)
                           : firstClass
                             ? formatDateTime(firstClass.startDate)
                             : 'Sem horário definido'}
@@ -299,32 +284,25 @@ export function DashboardNative({ token, onNavigate }: DashboardNativeProps) {
                   <div className="native-dashboard-pro-class-card">
                     <div className="native-dashboard-pro-class-top">
                       <span className="native-dashboard-pro-pill muted">
-                        {secondAgenda?.type === 'live' ? 'Live' : 'Presencial'}
+                        Agenda
                       </span>
                       <small>
                         {secondAgenda
-                          ? formatHour(secondAgenda.datetime)
-                          : firstClass
-                            ? formatDateTime(firstClass.startDate)
+                          ? formatDateTime(secondAgenda.datetime)
+                          : secondClass
+                            ? formatDateTime(secondClass.startDate)
                             : '--:--'}
                       </small>
                     </div>
-                    <h4>{secondAgenda?.title || firstClass?.name || 'Sem aula programada'}</h4>
+                    <h4>{secondAgenda?.title || secondClass?.name || 'Sem aula programada'}</h4>
                     <p>
                       {secondAgenda?.className ||
-                        firstClass?.course?.name ||
+                        secondClass?.course?.name ||
                         'Sem turma vinculada no momento.'}
                     </p>
                     <div className="native-dashboard-pro-class-actions">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onNavigate(secondAgenda?.type === 'live' ? 'admin_agenda' : 'admin_aulas')
-                        }
-                      >
-                        {secondAgenda?.type === 'live'
-                          ? 'Abrir transmissão'
-                          : 'Marcar presença'}
+                      <button type="button" onClick={() => onNavigate('admin_aulas')}>
+                        Marcar presença
                       </button>
                     </div>
                   </div>

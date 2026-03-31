@@ -892,7 +892,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                               <dd>{course.category || 'Não informada'}</dd>
                             </div>
                             <div>
-                              <dt>Coordenação</dt>
+                              <dt>Professor</dt>
                               <dd>{course.coordinator || 'Não informada'}</dd>
                             </div>
                             <div>
