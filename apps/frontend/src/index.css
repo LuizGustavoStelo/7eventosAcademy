@@ -7750,7 +7750,7 @@ table button {
   padding-top: 0.15rem;
 }
 
-.native-student-register-form label.full {
+.native-student-register-form > .full {
   grid-column: 1 / -1;
 }
 
@@ -7808,8 +7808,6 @@ table button {
 .native-public-course-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  max-width: 980px;
-  margin-inline: auto;
   gap: 0.9rem;
 }
 
