@@ -1,4 +1,4 @@
-﻿ALTER TABLE "courses"
+ALTER TABLE "courses"
 ADD COLUMN "owner_admin_id" UUID;
 
 UPDATE "courses" AS c

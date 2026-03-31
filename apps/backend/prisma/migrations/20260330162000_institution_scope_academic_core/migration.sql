@@ -1,4 +1,4 @@
-﻿ALTER TABLE "users"
+ALTER TABLE "users"
 ADD COLUMN "institution_id" UUID;
 
 ALTER TABLE "courses"

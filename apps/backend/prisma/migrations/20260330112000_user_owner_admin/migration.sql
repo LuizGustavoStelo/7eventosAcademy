@@ -1,4 +1,4 @@
-﻿ALTER TABLE "users"
+ALTER TABLE "users"
 ADD COLUMN "owner_admin_id" UUID;
 
 UPDATE "users" AS u

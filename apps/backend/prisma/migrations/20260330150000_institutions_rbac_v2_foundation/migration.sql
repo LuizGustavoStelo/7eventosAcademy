@@ -1,4 +1,4 @@
-﻿CREATE TYPE "institution_status" AS ENUM ('active', 'inactive', 'suspended');
+CREATE TYPE "institution_status" AS ENUM ('active', 'inactive', 'suspended');
 CREATE TYPE "institution_member_status" AS ENUM ('active', 'invited', 'suspended');
 
 CREATE TABLE "institutions" (
