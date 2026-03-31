@@ -2052,7 +2052,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   </div>
                   <StudentIcon name="school" className="student-template-course-watermark" />
 
-                  <h3>{matriculaPrincipal?.courseName || 'Nenhum curso ativo'}</h3>
+                  {matriculaPrincipal ? <h3>{matriculaPrincipal.courseName}</h3> : null}
                   <p>
                     {matriculaPrincipal
                       ? `${matriculaPrincipal.className} • ${formatDate(matriculaPrincipal.startDate)} a ${formatDate(matriculaPrincipal.endDate)}`

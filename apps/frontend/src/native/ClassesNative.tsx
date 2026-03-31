@@ -502,7 +502,10 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
           if (item?.classId) byClass[item.classId] = item;
         });
       }
-      setClassEventMetaByClassId(byClass);
+      setClassEventMetaByClassId((current) => ({
+        ...current,
+        ...byClass,
+      }));
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -1112,6 +1115,20 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
         weeklyDays: form.weeklyDays,
         monthDay: form.monthDay,
       });
+
+      setClassEventMetaByClassId((current) => ({
+        ...current,
+        [classId]: {
+          classId,
+          recurrenceKind: form.recurrenceKind,
+          repeatUntil: endDateIso || null,
+          monthDay:
+            form.recurrenceKind === 'monthly' && form.monthDay.trim() !== ''
+              ? Number(form.monthDay)
+              : null,
+          weeklyDays: form.recurrenceKind === 'weekly' ? form.weeklyDays : [],
+        },
+      }));
 
       await loadData();
       setModalOpen(false);
