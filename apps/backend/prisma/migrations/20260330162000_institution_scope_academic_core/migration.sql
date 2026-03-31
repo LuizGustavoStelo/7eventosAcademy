@@ -14,29 +14,27 @@ ALTER TABLE "enrollments"
 ADD COLUMN "institution_id" UUID;
 
 UPDATE "users" u
-SET "institution_id" = membership."institution_id"
-FROM LATERAL (
+SET "institution_id" = (
   SELECT im."institution_id"
   FROM "institution_members" im
   WHERE im."user_id" = u."owner_admin_id"
     AND im."status" = 'active'::"institution_member_status"
   ORDER BY im."created_at" ASC
   LIMIT 1
-) AS membership
+)
 WHERE u."role" = 'user'::"user_role"
   AND u."institution_id" IS NULL
   AND u."owner_admin_id" IS NOT NULL;
 
 UPDATE "courses" c
-SET "institution_id" = membership."institution_id"
-FROM LATERAL (
+SET "institution_id" = (
   SELECT im."institution_id"
   FROM "institution_members" im
   WHERE im."user_id" = c."owner_admin_id"
     AND im."status" = 'active'::"institution_member_status"
   ORDER BY im."created_at" ASC
   LIMIT 1
-) AS membership
+)
 WHERE c."institution_id" IS NULL;
 
 UPDATE "classes" sc
@@ -60,16 +58,16 @@ WHERE e."class_id" = sc."id"
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM "courses" WHERE "institution_id" IS NULL) THEN
-    RAISE EXCEPTION 'Não foi possível definir institution_id para todos os cursos.';
+    RAISE EXCEPTION 'Nao foi possivel definir institution_id para todos os cursos.';
   END IF;
   IF EXISTS (SELECT 1 FROM "classes" WHERE "institution_id" IS NULL) THEN
-    RAISE EXCEPTION 'Não foi possível definir institution_id para todas as turmas.';
+    RAISE EXCEPTION 'Nao foi possivel definir institution_id para todas as turmas.';
   END IF;
   IF EXISTS (SELECT 1 FROM "student_courses" WHERE "institution_id" IS NULL) THEN
-    RAISE EXCEPTION 'Não foi possível definir institution_id para todos os vínculos aluno-curso.';
+    RAISE EXCEPTION 'Nao foi possivel definir institution_id para todos os vinculos aluno-curso.';
   END IF;
   IF EXISTS (SELECT 1 FROM "enrollments" WHERE "institution_id" IS NULL) THEN
-    RAISE EXCEPTION 'Não foi possível definir institution_id para todas as matrículas.';
+    RAISE EXCEPTION 'Nao foi possivel definir institution_id para todas as matriculas.';
   END IF;
 END
 $$;
