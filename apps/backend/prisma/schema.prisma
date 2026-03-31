@@ -349,6 +349,7 @@ model SchoolClass {
   name          String
   totalSeats    Int             @map("total_seats")
   occupiedSeats Int             @default(0) @map("occupied_seats")
+  autoEnrollNewStudents Boolean @default(true) @map("auto_enroll_new_students")
   status        ClassStatus     @default(ENROLLMENTS_OPEN)
   startDate     DateTime        @map("start_date")
   endDate       DateTime?       @map("end_date")

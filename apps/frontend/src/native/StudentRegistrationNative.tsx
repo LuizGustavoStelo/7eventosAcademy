@@ -325,11 +325,11 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     void loadCourses();
   }, []);
 
-  const buildPortalLink = (app: 'student' | 'student-register') => {
-    const params = new URLSearchParams(window.location.search);
+  const buildPortalLink = () => {
+    const params = new URLSearchParams();
     params.set('embed', '1');
-    params.set('app', app);
-    return `/?${params.toString()}`;
+    params.set('app', 'student');
+    return `/area-do-aluno/?${params.toString()}`;
   };
 
   const validateStepOne = () => {
@@ -1023,7 +1023,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
           >
             <h3 id="student-register-success-title">Cadastro concluído</h3>
             <p>{success}</p>
-            <a className="native-student-register-login-link" href={buildPortalLink('student')}>
+            <a className="native-student-register-login-link" href={buildPortalLink()}>
               Ir para login
             </a>
           </div>

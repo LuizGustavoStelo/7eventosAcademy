@@ -4,9 +4,10 @@ import { ClassesService } from './classes.service';
 import { ClassesMaterialsService } from './classes-materials.service';
 import { ClassesNoticesService } from './classes-notices.service';
 import { UploadsModule } from '../uploads/uploads.module';
+import { EnrollmentsModule } from '../enrollments/enrollments.module';
 
 @Module({
-  imports: [UploadsModule],
+  imports: [UploadsModule, EnrollmentsModule],
   controllers: [ClassesController],
   providers: [ClassesService, ClassesMaterialsService, ClassesNoticesService],
 })

@@ -15,6 +15,7 @@ import {
 import { JwtPayload } from '../auth/types/app-role.type';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../database/prisma.service';
+import { EnrollmentsService } from '../enrollments/enrollments.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { AssignStudentCoursesDto } from './dto/assign-student-courses.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
@@ -53,6 +54,7 @@ export class StudentsService {
     private readonly prisma: PrismaService,
     private readonly uploadsService: UploadsService,
     private readonly authService: AuthService,
+    private readonly enrollmentsService: EnrollmentsService,
   ) {}
 
   async create(dto: CreateStudentDto, actor: StudentActor) {
@@ -221,6 +223,14 @@ export class StudentsService {
 
       return created;
     });
+
+    if (uniqueCourseIds.length > 0) {
+      await this.autoEnrollStudentInEligibleClasses({
+        studentId: student.id,
+        courseIds: uniqueCourseIds,
+        actor,
+      });
+    }
 
     if (avatar) {
       await this.uploadsService.bindFileToOwner({
@@ -895,6 +905,67 @@ export class StudentsService {
       statusKey: 'active',
       statusLabel: 'Ativo',
     };
+  }
+
+  private async autoEnrollStudentInEligibleClasses(input: {
+    studentId: string;
+    courseIds: string[];
+    actor?: StudentActor;
+  }) {
+    if (input.courseIds.length === 0) return;
+
+    const candidates = await this.prisma.schoolClass.findMany({
+      where: {
+        courseId: { in: input.courseIds },
+        autoEnrollNewStudents: true,
+        status: { in: ['PLANNING', 'ENROLLMENTS_OPEN', 'IN_PROGRESS'] },
+      },
+      select: {
+        id: true,
+        courseId: true,
+        startDate: true,
+      },
+      orderBy: [{ startDate: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    const firstClassByCourse = new Map<string, string>();
+    for (const schoolClass of candidates) {
+      if (!firstClassByCourse.has(schoolClass.courseId)) {
+        firstClassByCourse.set(schoolClass.courseId, schoolClass.id);
+      }
+    }
+
+    for (const courseId of input.courseIds) {
+      const classId = firstClassByCourse.get(courseId);
+      if (!classId) continue;
+
+      try {
+        await this.enrollmentsService.create(
+          {
+            classId,
+            studentId: input.studentId,
+          },
+          {
+            actorUserId: input.actor?.sub,
+            actorRole: input.actor?.role,
+            actorInstitutionId: input.actor?.activeInstitutionId ?? null,
+          },
+        );
+      } catch (error) {
+        if (error instanceof NotFoundException) continue;
+        if (error instanceof BadRequestException) {
+          const message = String(error.message || '').toLowerCase();
+          if (
+            message.includes('já matriculado') ||
+            message.includes('nao há vagas') ||
+            message.includes('não há vagas')
+          ) {
+            continue;
+          }
+        }
+        throw error;
+      }
+    }
   }
 
   private detectDelimiter(headerLine: string) {

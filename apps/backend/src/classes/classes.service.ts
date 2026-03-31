@@ -3,8 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { StudentCourseStatus } from '@prisma/client';
 import { JwtPayload } from '../auth/types/app-role.type';
 import { PrismaService } from '../database/prisma.service';
+import { EnrollmentsService } from '../enrollments/enrollments.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 
@@ -17,7 +19,10 @@ type ClassActor = Pick<JwtPayload, 'sub' | 'role' | 'activeInstitutionId'>;
 
 @Injectable()
 export class ClassesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly enrollmentsService: EnrollmentsService,
+  ) {}
 
   async create(
     dto: CreateClassDto,
@@ -43,7 +48,7 @@ export class ClassesService {
       );
     }
 
-    return this.prisma.schoolClass.create({
+    const createdClass = await this.prisma.schoolClass.create({
       data: {
         courseId: dto.courseId,
         institutionId: course.institutionId,
@@ -51,6 +56,7 @@ export class ClassesService {
         totalSeats: dto.totalSeats,
         startDate: new Date(dto.startDate),
         endDate,
+        autoEnrollNewStudents: dto.autoEnrollNewStudents ?? true,
       },
       include: {
         course: true,
@@ -59,6 +65,21 @@ export class ClassesService {
         },
       },
     });
+
+    if (createdClass.autoEnrollNewStudents) {
+      await this.autoEnrollInterestedStudentsInClass(createdClass.id, actor);
+    }
+
+    const refreshedClass = await this.prisma.schoolClass.findUnique({
+      where: { id: createdClass.id },
+      include: {
+        course: true,
+        _count: {
+          select: { enrollments: true },
+        },
+      },
+    });
+    return refreshedClass ?? createdClass;
   }
 
   async findAll(actor: ClassActor) {
@@ -91,6 +112,7 @@ export class ClassesService {
         name: true,
         totalSeats: true,
         occupiedSeats: true,
+        autoEnrollNewStudents: true,
         startDate: true,
         endDate: true,
       },
@@ -132,7 +154,7 @@ export class ClassesService {
       );
     }
 
-    return this.prisma.schoolClass.update({
+    const updatedClass = await this.prisma.schoolClass.update({
       where: { id: classId },
       data: {
         courseId: dto.courseId ?? existingClass.courseId,
@@ -141,6 +163,8 @@ export class ClassesService {
         totalSeats: nextTotalSeats,
         startDate,
         endDate,
+        autoEnrollNewStudents:
+          dto.autoEnrollNewStudents ?? existingClass.autoEnrollNewStudents,
       },
       include: {
         course: true,
@@ -149,6 +173,25 @@ export class ClassesService {
         },
       },
     });
+
+    if (
+      updatedClass.autoEnrollNewStudents &&
+      (!existingClass.autoEnrollNewStudents || dto.courseId !== undefined)
+    ) {
+      await this.autoEnrollInterestedStudentsInClass(updatedClass.id, actor);
+      const refreshedClass = await this.prisma.schoolClass.findUnique({
+        where: { id: updatedClass.id },
+        include: {
+          course: true,
+          _count: {
+            select: { enrollments: true },
+          },
+        },
+      });
+      return refreshedClass ?? updatedClass;
+    }
+
+    return updatedClass;
   }
 
   async updateStatus(
@@ -239,6 +282,65 @@ export class ClassesService {
     return {
       ownerAdminId: actor.sub,
     };
+  }
+
+  private async autoEnrollInterestedStudentsInClass(
+    classId: string,
+    actor: ClassActor,
+  ) {
+    const schoolClass = await this.prisma.schoolClass.findUnique({
+      where: { id: classId },
+      select: {
+        id: true,
+        courseId: true,
+      },
+    });
+
+    if (!schoolClass) return;
+
+    const interestedStudents = await this.prisma.studentCourse.findMany({
+      where: {
+        courseId: schoolClass.courseId,
+        status: {
+          in: [StudentCourseStatus.INTERESTED, StudentCourseStatus.ACTIVE],
+        },
+      },
+      select: {
+        studentId: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    for (const item of interestedStudents) {
+      try {
+        await this.enrollmentsService.create(
+          {
+            classId,
+            studentId: item.studentId,
+          },
+          {
+            actorUserId: actor.sub,
+            actorRole: actor.role,
+            actorInstitutionId: actor.activeInstitutionId ?? null,
+          },
+        );
+      } catch (error) {
+        if (error instanceof NotFoundException) continue;
+        if (error instanceof BadRequestException) {
+          const message = String(error.message || '').toLowerCase();
+          if (
+            message.includes('já matriculado') ||
+            message.includes('nao há vagas') ||
+            message.includes('não há vagas')
+          ) {
+            continue;
+          }
+        }
+        throw error;
+      }
+    }
   }
 
   private buildClassWhere(actor: ClassActor) {

@@ -265,6 +265,12 @@ const SECTION_MOBILE_LABEL: Record<SectionId, string> = {
   'st-student-profile': 'Perfil',
 };
 
+const STUDENT_SECTIONS_ENABLED_WITHOUT_CLASS = new Set<SectionId>([
+  'st-student-panel',
+  'st-student-finance',
+  'st-student-profile',
+]);
+
 const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const WEEKDAY_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const WEEKDAY_TINY = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -965,6 +971,12 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const avisos = dashboard?.avisos ?? [];
   const cobrancas = dashboard?.cobrancas ?? [];
   const agenda = dashboard?.agenda ?? [];
+  const hasActiveClass = matriculas.length > 0;
+
+  const isSectionDisabled = (sectionId: SectionId) => {
+    if (hasActiveClass) return false;
+    return !STUDENT_SECTIONS_ENABLED_WITHOUT_CLASS.has(sectionId);
+  };
 
   const matriculaPrincipal = matriculas[0] ?? null;
 
@@ -1273,6 +1285,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     if (!normalizedQuery) return [] as Array<{ target: SectionId; label: string; score: number }>;
 
     return NAV_ITEMS
+      .filter((item) => !isSectionDisabled(item.target))
       .map((item) => {
         const normalizedLabel = normalizeSearchTerm(item.label);
         const aliasTerms = STUDENT_SEARCH_ALIAS.find((entry) => entry.target === item.target)?.terms ?? [];
@@ -1301,7 +1314,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label, 'pt-BR'))
       .slice(0, 6);
-  }, [studentSearchQuery]);
+  }, [studentSearchQuery, hasActiveClass]);
 
   const executeStudentSearch = () => {
     const topSuggestion = studentSearchSuggestions[0];
@@ -1311,6 +1324,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   };
 
   const openSection = (sectionId: SectionId) => {
+    if (isSectionDisabled(sectionId)) return;
     setActiveSection(sectionId);
     setUserMenuOpen(false);
     if (sectionId === 'st-student-agenda') {
@@ -1321,6 +1335,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       window.history.replaceState(null, '', `#${SECTION_HASH_PREFIX}${sectionId}`);
     }
   };
+
+  useEffect(() => {
+    if (!isSectionDisabled(activeSection)) return;
+    setActiveSection('st-student-panel');
+  }, [activeSection, hasActiveClass]);
 
   useEffect(() => {
     const target = document.getElementById(activeSection);
@@ -1846,17 +1865,22 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         </div>
 
         <nav className="student-template-menu">
-          {NAV_ITEMS.map((item) => (
+          {NAV_ITEMS.map((item) => {
+            const disabled = isSectionDisabled(item.target);
+            const active = !disabled && activeSection === item.target;
+            return (
               <button
                 key={`${item.label}-${item.target}`}
                 type="button"
-                className={activeSection === item.target ? 'active' : ''}
+                className={`${active ? 'active' : ''} ${disabled ? 'is-disabled' : ''}`.trim()}
                 onClick={() => openSection(item.target)}
+                disabled={disabled}
               >
                 <StudentIcon name={item.icon} />
                 <span>{item.label}</span>
               </button>
-          ))}
+            );
+          })}
         </nav>
       </aside>
 
@@ -1994,16 +2018,21 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
               {activeMobileGroup.sections.length > 1 ? (
                 <nav className="student-mobile-section-tabs" aria-label="Seções do grupo ativo">
-                  {activeMobileGroup.sections.map((sectionId) => (
-                    <button
-                      key={`mobile-subtab-${sectionId}`}
-                      type="button"
-                      className={activeSection === sectionId ? 'active' : ''}
-                      onClick={() => openSection(sectionId)}
-                    >
-                      {SECTION_MOBILE_LABEL[sectionId]}
-                    </button>
-                  ))}
+                  {activeMobileGroup.sections.map((sectionId) => {
+                    const disabled = isSectionDisabled(sectionId);
+                    const active = !disabled && activeSection === sectionId;
+                    return (
+                      <button
+                        key={`mobile-subtab-${sectionId}`}
+                        type="button"
+                        className={`${active ? 'active' : ''} ${disabled ? 'is-disabled' : ''}`.trim()}
+                        onClick={() => openSection(sectionId)}
+                        disabled={disabled}
+                      >
+                        {SECTION_MOBILE_LABEL[sectionId]}
+                      </button>
+                    );
+                  })}
                 </nav>
               ) : null}
 
@@ -2027,7 +2056,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   <p>
                     {matriculaPrincipal
                       ? `${matriculaPrincipal.className} • ${formatDate(matriculaPrincipal.startDate)} a ${formatDate(matriculaPrincipal.endDate)}`
-                      : 'Você ainda não possui matrícula ativa. Assim que houver, os dados serão exibidos aqui.'}
+                      : 'Você ainda não tem turma cadastrada. Aguarde o professor atribuir uma turma para liberar suas aulas.'}
                   </p>
 
                   <div className="student-template-progress">
@@ -2357,17 +2386,22 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       </main>
 
       <nav className="student-template-bottom-nav" aria-label="Navegação móvel">
-        {MOBILE_NAV_ITEMS.map((item) => (
-          <button
-            key={`${item.label}-${item.target}`}
-            type="button"
-            className={item.sections.includes(activeSection) ? 'active' : ''}
-            onClick={() => openSection(item.target)}
-          >
-            <StudentIcon name={item.icon} />
-            <span>{item.label}</span>
-          </button>
-        ))}
+        {MOBILE_NAV_ITEMS.map((item) => {
+          const disabled = isSectionDisabled(item.target);
+          const active = !disabled && item.sections.includes(activeSection);
+          return (
+            <button
+              key={`${item.label}-${item.target}`}
+              type="button"
+              className={`${active ? 'active' : ''} ${disabled ? 'is-disabled' : ''}`.trim()}
+              onClick={() => openSection(item.target)}
+              disabled={disabled}
+            >
+              <StudentIcon name={item.icon} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
       </nav>
     </section>
   );

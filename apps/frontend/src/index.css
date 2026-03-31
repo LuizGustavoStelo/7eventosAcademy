@@ -3351,6 +3351,31 @@ table button:disabled {
   font-size: 0.78rem;
 }
 
+.native-classes-auto-enroll-toggle {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.32rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+}
+
+.native-classes-auto-enroll-toggle > div {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.native-classes-auto-enroll-toggle span {
+  font-size: 0.9rem;
+  color: #1f2937;
+}
+
+.native-classes-auto-enroll-toggle small {
+  color: #64748b;
+  font-weight: 500;
+}
+
 .native-student-list legend {
   padding: 0 0.2rem;
   font-size: 0.8rem;
@@ -5760,6 +5785,26 @@ table button {
   color: #1a6f70;
 }
 
+.student-template-menu button.is-disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  color: #8a9aae;
+  background: transparent;
+}
+
+.student-template-menu button.is-disabled .student-template-icon {
+  color: #9aabbe;
+}
+
+.student-template-menu button.is-disabled:hover {
+  background: transparent;
+  color: #8a9aae;
+}
+
+.student-template-menu button.is-disabled:hover .student-template-icon {
+  color: #9aabbe;
+}
+
 .student-template-main {
   margin-left: 248px;
   min-height: 100vh;
@@ -7435,6 +7480,12 @@ table button {
   color: var(--st-primary-strong);
 }
 
+.student-template-bottom-nav button.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: #8a9aae;
+}
+
 @media (max-width: 1320px) {
   .student-template-content {
     width: 100%;
@@ -7549,6 +7600,14 @@ table button {
     border-color: rgba(19, 147, 149, 0.38);
     color: #0f7779;
     background: rgba(19, 147, 149, 0.11);
+  }
+
+  .student-mobile-section-tabs button.is-disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    color: #8a9aae;
+    border-color: #d7e0e8;
+    background: #f4f7fa;
   }
 
   .student-template-support {

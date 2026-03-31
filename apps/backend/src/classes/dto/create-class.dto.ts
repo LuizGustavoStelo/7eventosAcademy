@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsInt,
   IsOptional,
@@ -26,4 +27,9 @@ export class CreateClassDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  autoEnrollNewStudents?: boolean;
 }

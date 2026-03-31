@@ -36,6 +36,7 @@ type SchoolClass = {
   name: string;
   totalSeats: number;
   occupiedSeats?: number;
+  autoEnrollNewStudents?: boolean;
   status: 'PLANNING' | 'ENROLLMENTS_OPEN' | 'IN_PROGRESS' | 'CLOSED';
   startDate: string;
   endDate: string | null;
@@ -53,6 +54,7 @@ type ClassFormState = {
   startDateTime: string;
   endDate: string;
   status: 'PLANNING' | 'ENROLLMENTS_OPEN' | 'IN_PROGRESS' | 'CLOSED';
+  autoEnrollNewStudents: boolean;
   selectedStudentIds: string[];
   recurrenceKind: RecurrenceKind;
   repeatUntil: string;
@@ -438,6 +440,7 @@ function defaultClassForm(): ClassFormState {
     startDateTime,
     endDate: '',
     status: 'ENROLLMENTS_OPEN',
+    autoEnrollNewStudents: true,
     selectedStudentIds: [],
     recurrenceKind: 'none',
     repeatUntil: '',
@@ -585,6 +588,7 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
       startDateTime: toBrDateTimeInput(schoolClass.startDate),
       endDate: toBrDateInput(schoolClass.endDate),
       status: schoolClass.status,
+      autoEnrollNewStudents: schoolClass.autoEnrollNewStudents ?? true,
       selectedStudentIds,
       recurrenceKind: recurrence.recurrenceKind,
       repeatUntil: toBrDateInput(recurrence.repeatUntil),
@@ -683,6 +687,7 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
   const syncEnrollments = async (
     classId: string,
     selectedStudentIds: string[],
+    options?: { preserveExisting?: boolean },
   ) => {
     const currentStudentIds = getClassEnrollmentStudentSet(classId);
     const desiredStudentIds = new Set(selectedStudentIds);
@@ -690,9 +695,11 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
     const toAdd = selectedStudentIds.filter(
       (studentId) => !currentStudentIds.has(studentId),
     );
-    const toRemove = Array.from(currentStudentIds).filter(
-      (studentId) => !desiredStudentIds.has(studentId),
-    );
+    const toRemove = options?.preserveExisting
+      ? []
+      : Array.from(currentStudentIds).filter(
+          (studentId) => !desiredStudentIds.has(studentId),
+        );
 
     const failures: string[] = [];
 
@@ -1057,6 +1064,7 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
         totalSeats: totalSeatsNumber,
         startDate: startDateIso,
         endDate: endDateIso,
+        autoEnrollNewStudents: form.autoEnrollNewStudents,
       };
 
       let classId = form.id;
@@ -1092,7 +1100,9 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
         });
       }
 
-      await syncEnrollments(classId, form.selectedStudentIds);
+      await syncEnrollments(classId, form.selectedStudentIds, {
+        preserveExisting: !form.id && form.autoEnrollNewStudents,
+      });
       await syncClassEventsToAgenda({
         classId,
         className: cleanName,
@@ -1671,6 +1681,25 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
                   </div>
                 </fieldset>
               ) : null}
+
+              <label className="native-classes-auto-enroll-toggle">
+                <div>
+                  <input
+                    type="checkbox"
+                    checked={form.autoEnrollNewStudents}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        autoEnrollNewStudents: event.target.checked,
+                      }))
+                    }
+                  />
+                  <span>Alunos recém-matriculados entram automaticamente</span>
+                </div>
+                <small>
+                  Quando ativo, alunos do curso entram automaticamente nesta turma (respeitando o limite de vagas).
+                </small>
+              </label>
 
               <fieldset className="native-student-list">
                 <legend>
