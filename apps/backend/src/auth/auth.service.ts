@@ -131,6 +131,17 @@ const SYSTEM_PERMISSIONS: Array<{ code: string; description: string }> = [
   { code: 'finance.write', description: 'Gerenciar financeiro' },
   { code: 'finance.reconcile', description: 'Conciliar financeiro' },
   { code: 'reports.read', description: 'Visualizar relatórios' },
+  { code: 'contracts.read', description: 'Visualizar contratos e modelos' },
+  {
+    code: 'contracts.templates.write',
+    description: 'Criar e editar modelos de contrato',
+  },
+  { code: 'contracts.send', description: 'Enviar contratos para assinatura' },
+  {
+    code: 'contracts.audit.read',
+    description: 'Visualizar trilha de auditoria de contratos',
+  },
+  { code: 'contracts.download', description: 'Baixar documentos de contrato' },
 ];
 
 const ROLE_TEMPLATES: RoleTemplate[] = [
@@ -173,6 +184,11 @@ const ROLE_PERMISSION_MATRIX: Record<string, string[]> = {
     'finance.write',
     'finance.reconcile',
     'reports.read',
+    'contracts.read',
+    'contracts.templates.write',
+    'contracts.send',
+    'contracts.audit.read',
+    'contracts.download',
   ],
   institution_admin: [
     'institution.members.read',
@@ -200,6 +216,11 @@ const ROLE_PERMISSION_MATRIX: Record<string, string[]> = {
     'finance.read',
     'finance.write',
     'reports.read',
+    'contracts.read',
+    'contracts.templates.write',
+    'contracts.send',
+    'contracts.audit.read',
+    'contracts.download',
   ],
   coordinator: [
     'courses.read',
@@ -218,6 +239,10 @@ const ROLE_PERMISSION_MATRIX: Record<string, string[]> = {
     'materials.write',
     'notices.write',
     'reports.read',
+    'contracts.read',
+    'contracts.templates.write',
+    'contracts.send',
+    'contracts.download',
   ],
   professor: [
     'courses.read',
@@ -229,6 +254,10 @@ const ROLE_PERMISSION_MATRIX: Record<string, string[]> = {
     'materials.read',
     'materials.write',
     'notices.write',
+    'contracts.read',
+    'contracts.templates.write',
+    'contracts.send',
+    'contracts.download',
   ],
   tutor: [
     'courses.read',
@@ -237,6 +266,8 @@ const ROLE_PERMISSION_MATRIX: Record<string, string[]> = {
     'enrollments.read',
     'attendance.read',
     'materials.read',
+    'contracts.read',
+    'contracts.download',
   ],
   secretaria: [
     'students.read',
@@ -246,6 +277,9 @@ const ROLE_PERMISSION_MATRIX: Record<string, string[]> = {
     'enrollments.create',
     'enrollments.delete',
     'reports.read',
+    'contracts.read',
+    'contracts.send',
+    'contracts.download',
   ],
   financeiro: [
     'students.read',
@@ -254,6 +288,8 @@ const ROLE_PERMISSION_MATRIX: Record<string, string[]> = {
     'finance.write',
     'finance.reconcile',
     'reports.read',
+    'contracts.read',
+    'contracts.download',
   ],
   viewer: [
     'courses.read',
@@ -264,6 +300,7 @@ const ROLE_PERMISSION_MATRIX: Record<string, string[]> = {
     'materials.read',
     'finance.read',
     'reports.read',
+    'contracts.read',
   ],
 };
 

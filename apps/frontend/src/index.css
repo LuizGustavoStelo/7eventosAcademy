@@ -2707,6 +2707,10 @@ table button:disabled {
   padding: 0.9rem;
 }
 
+.native-classes-pro-list {
+  font-family: 'Manrope', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
 .native-classes-pro-section-head {
   display: flex;
   align-items: center;
@@ -2717,6 +2721,7 @@ table button:disabled {
 
 .native-classes-pro-section-head h3 {
   margin: 0;
+  font-family: 'Sora', 'Manrope', sans-serif;
   font-size: 1.35rem;
 }
 
@@ -2776,6 +2781,7 @@ table button:disabled {
 }
 
 .native-classes-pro-item strong {
+  font-family: 'Sora', 'Manrope', sans-serif;
   font-size: 1rem;
   color: #0f172a;
 }
@@ -8361,6 +8367,286 @@ table button {
   }
 
   .native-lessons-student-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.native-contracts-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.native-contracts-main {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.native-contract-template-list {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 680px;
+  overflow: auto;
+}
+
+.native-contract-template-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.65rem 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.native-contract-template-item.is-active {
+  border-color: rgba(167, 58, 0, 0.45);
+  background: #fff8f3;
+}
+
+.native-contract-template-item strong {
+  display: block;
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+.native-contract-template-item small {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.native-contract-template-form,
+.native-contract-send-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.native-contract-span-all {
+  grid-column: 1 / -1;
+}
+
+.native-contract-template-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+  padding: 0.52rem 0.62rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.native-contract-send-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-weight: 600;
+}
+
+.native-contract-send-checkbox input {
+  margin-top: 0.14rem;
+}
+
+.native-contract-instance-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.native-contract-instance-filters select {
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  border-radius: 9px;
+  background: #fff;
+  color: #334155;
+  padding: 0.4rem 0.55rem;
+  font-weight: 600;
+}
+
+.native-contract-instance-filters button {
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 9px;
+  background: #fff;
+  color: #334155;
+  font-weight: 700;
+  padding: 0.38rem 0.62rem;
+  cursor: pointer;
+}
+
+.native-contract-details-modal {
+  width: min(1100px, 96vw);
+}
+
+.native-contract-details-content {
+  padding: 0.8rem 0.95rem 1rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.native-contract-details-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.native-contract-details-meta article {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 0.6rem 0.65rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.native-contract-details-meta span {
+  color: #64748b;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.native-contract-details-meta strong {
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.native-contract-document-preview iframe {
+  width: 100%;
+  min-height: 380px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.native-contract-audit-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.native-contract-audit-list article {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  padding: 0.55rem 0.62rem;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.native-contract-audit-list small {
+  color: #64748b;
+}
+
+.student-contracts-layout {
+  gap: 0.85rem;
+}
+
+.student-contract-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  padding: 0.58rem 0.62rem;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.student-contract-item.is-active {
+  border-color: rgba(167, 58, 0, 0.45);
+  background: #fff8f3;
+}
+
+.student-contract-item strong {
+  display: block;
+}
+
+.student-contract-item small {
+  color: #64748b;
+}
+
+.student-contract-actions {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.student-contract-actions p {
+  margin: 0;
+}
+
+.student-contract-actions button {
+  justify-self: start;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font-weight: 700;
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+}
+
+.student-contract-actions button:last-child {
+  background: #a73a00;
+  color: #fff;
+  border-color: #a73a00;
+}
+
+.student-contract-actions input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 10px;
+  padding: 0.52rem 0.62rem;
+  font-size: 0.94rem;
+}
+
+.student-contract-pin-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+}
+
+.student-contract-accept {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  color: #334155;
+}
+
+.student-contract-document-frame {
+  width: 100%;
+  min-height: 460px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 10px;
+  background: #fff;
+}
+
+@media (max-width: 1280px) {
+  .native-contracts-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .native-contract-details-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .native-contract-template-form,
+  .native-contract-send-form {
+    grid-template-columns: 1fr;
+  }
+
+  .native-contract-details-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .student-contract-pin-form {
     grid-template-columns: 1fr;
   }
 }

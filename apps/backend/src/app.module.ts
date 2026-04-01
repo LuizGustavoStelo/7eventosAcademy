@@ -8,6 +8,7 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { ClassesModule } from './classes/classes.module';
+import { ContractsModule } from './contracts/contracts.module';
 import { CoursesModule } from './courses/courses.module';
 import { PrismaModule } from './database/prisma.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
@@ -45,6 +46,7 @@ import { SuperadminAccountsModule } from './superadmin-accounts/superadmin-accou
     AuthModule,
     AgendaModule,
     AttendanceModule,
+    ContractsModule,
     CoursesModule,
     ClassesModule,
     StudentsModule,

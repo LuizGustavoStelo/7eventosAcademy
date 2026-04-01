@@ -1,0 +1,1097 @@
+import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
+import { API_BASE_URL, apiRequest } from './api';
+
+type ContractTemplate = {
+  id: string;
+  institutionId: string;
+  name: string;
+  description: string | null;
+  status: string;
+  draftTitle: string;
+  draftHtmlContent: string;
+  latestVersionNumber: number;
+  publishedAt: string | null;
+  updatedAt: string;
+  latestVersion: {
+    id: string;
+    versionNumber: number;
+    title: string;
+    publishedAt: string;
+  } | null;
+};
+
+type ContractInstanceItem = {
+  id: string;
+  status: string;
+  sentAt: string | null;
+  viewedAt: string | null;
+  signedAt: string | null;
+  signatureCode: string;
+  template: {
+    id: string;
+    name: string;
+  };
+  templateVersion: {
+    id: string;
+    versionNumber: number;
+    title: string;
+  };
+  student: {
+    id: string;
+    name: string;
+    emailMasked: string;
+  };
+};
+
+type ContractInstanceDetails = {
+  id: string;
+  status: string;
+  sentAt: string | null;
+  viewedAt: string | null;
+  signedAt: string | null;
+  signatureCode: string;
+  snapshotTemplateTitle: string;
+  documentHtml: string;
+  student: {
+    id: string;
+    name: string;
+    emailMasked: string;
+  };
+  template: {
+    id: string;
+    name: string;
+  };
+  templateVersion: {
+    id: string;
+    versionNumber: number;
+    title: string;
+  };
+  auditLogs?: Array<{
+    id: string;
+    action: string;
+    actorType: string;
+    actorUserId: string | null;
+    payload: unknown;
+    createdAt: string;
+  }>;
+};
+
+type StudentOption = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+type CourseOption = {
+  id: string;
+  name: string;
+};
+
+type ClassOption = {
+  id: string;
+  name: string;
+};
+
+type TemplateFormState = {
+  name: string;
+  description: string;
+  draftTitle: string;
+  draftHtmlContent: string;
+};
+
+type SendFormState = {
+  templateId: string;
+  studentId: string;
+  courseId: string;
+  classId: string;
+  enrollmentId: string;
+  expiresInHours: string;
+  sendEmail: boolean;
+};
+
+type ContractsNativeProps = {
+  token: string;
+};
+
+const DEFAULT_TEMPLATE_HTML = `<section>
+  <h2>Contrato de Prestação de Serviços Educacionais</h2>
+  <p>Aluno: <strong>{{student_name}}</strong></p>
+  <p>E-mail: <strong>{{student_email}}</strong></p>
+  <p>Curso: <strong>{{course_name}}</strong></p>
+  <p>Turma: <strong>{{class_name}}</strong></p>
+  <p>
+    Ao assinar este documento, o aluno declara que leu e aceita os termos
+    deste contrato em formato eletrônico.
+  </p>
+  <p>Código de assinatura: <strong>{{signature_code}}</strong></p>
+</section>`;
+
+function defaultTemplateForm(): TemplateFormState {
+  return {
+    name: '',
+    description: '',
+    draftTitle: 'Contrato Educacional',
+    draftHtmlContent: DEFAULT_TEMPLATE_HTML,
+  };
+}
+
+function defaultSendForm(): SendFormState {
+  return {
+    templateId: '',
+    studentId: '',
+    courseId: '',
+    classId: '',
+    enrollmentId: '',
+    expiresInHours: '72',
+    sendEmail: true,
+  };
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function templateStatusLabel(status: string): string {
+  const normalized = status.trim().toUpperCase();
+  if (normalized === 'DRAFT') return 'Rascunho';
+  if (normalized === 'PUBLISHED') return 'Publicado';
+  if (normalized === 'ARCHIVED') return 'Arquivado';
+  return status;
+}
+
+function templateStatusTone(status: string): string {
+  const normalized = status.trim().toUpperCase();
+  if (normalized === 'PUBLISHED') return 'is-success';
+  if (normalized === 'ARCHIVED') return 'is-muted';
+  return 'is-warning';
+}
+
+function contractStatusLabel(status: string): string {
+  const normalized = status.trim().toUpperCase();
+  if (normalized === 'SENT') return 'Enviado';
+  if (normalized === 'VIEWED') return 'Visualizado';
+  if (normalized === 'PIN_VERIFIED') return 'PIN validado';
+  if (normalized === 'SIGNED') return 'Assinado';
+  if (normalized === 'EXPIRED') return 'Expirado';
+  if (normalized === 'ARCHIVED') return 'Arquivado';
+  if (normalized === 'CANCELED') return 'Cancelado';
+  return status;
+}
+
+function contractStatusTone(status: string): string {
+  const normalized = status.trim().toUpperCase();
+  if (normalized === 'SIGNED') return 'is-success';
+  if (normalized === 'PIN_VERIFIED' || normalized === 'VIEWED') return 'is-info';
+  if (normalized === 'EXPIRED' || normalized === 'CANCELED') return 'is-danger';
+  if (normalized === 'ARCHIVED') return 'is-muted';
+  return 'is-warning';
+}
+
+function toSafePositiveInteger(value: string, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  const normalized = Math.trunc(parsed);
+  return normalized > 0 ? normalized : fallback;
+}
+
+export function ContractsNative({ token }: ContractsNativeProps) {
+  const [templates, setTemplates] = useState<ContractTemplate[]>([]);
+  const [instances, setInstances] = useState<ContractInstanceItem[]>([]);
+  const [students, setStudents] = useState<StudentOption[]>([]);
+  const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
+
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [templateForm, setTemplateForm] = useState<TemplateFormState>(() => defaultTemplateForm());
+  const [sendForm, setSendForm] = useState<SendFormState>(() => defaultSendForm());
+  const [instanceStatusFilter, setInstanceStatusFilter] = useState('all');
+
+  const [loading, setLoading] = useState(true);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [templatePublishing, setTemplatePublishing] = useState(false);
+  const [sendingInstance, setSendingInstance] = useState(false);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [downloadingInstanceId, setDownloadingInstanceId] = useState<string | null>(
+    null,
+  );
+
+  const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [formError, setFormError] = useState('');
+  const [sendError, setSendError] = useState('');
+
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedInstanceDetails, setSelectedInstanceDetails] =
+    useState<ContractInstanceDetails | null>(null);
+
+  const selectedTemplate = useMemo(
+    () => templates.find((item) => item.id === selectedTemplateId) ?? null,
+    [templates, selectedTemplateId],
+  );
+
+  const sendableTemplates = useMemo(
+    () =>
+      templates.filter(
+        (item) =>
+          item.status.trim().toUpperCase() === 'PUBLISHED' &&
+          Number(item.latestVersionNumber || 0) > 0,
+      ),
+    [templates],
+  );
+
+  const loadTemplates = async () => {
+    const data = await apiRequest<ContractTemplate[]>(token, '/contracts/templates', undefined, {
+      bypassCache: true,
+    });
+    setTemplates(Array.isArray(data) ? data : []);
+  };
+
+  const loadInstances = async (statusFilter: string) => {
+    const params = new URLSearchParams();
+    if (statusFilter !== 'all') {
+      params.set('status', statusFilter);
+    }
+
+    const suffix = params.toString();
+    const path = suffix ? `/contracts/instances?${suffix}` : '/contracts/instances';
+    const data = await apiRequest<ContractInstanceItem[]>(token, path, undefined, {
+      bypassCache: true,
+    });
+    setInstances(Array.isArray(data) ? data : []);
+  };
+
+  const loadOptions = async () => {
+    const [studentsData, coursesData, classesData] = await Promise.all([
+      apiRequest<StudentOption[]>(token, '/students', undefined, { bypassCache: true }),
+      apiRequest<CourseOption[]>(token, '/courses', undefined, { bypassCache: true }),
+      apiRequest<ClassOption[]>(token, '/classes', undefined, { bypassCache: true }),
+    ]);
+
+    const studentsSafe = (Array.isArray(studentsData) ? studentsData : []).map((item) => ({
+      id: item.id,
+      name: item.name,
+      email: item.email,
+    }));
+
+    const coursesSafe = (Array.isArray(coursesData) ? coursesData : []).map((item) => ({
+      id: item.id,
+      name: item.name,
+    }));
+
+    const classesSafe = (Array.isArray(classesData) ? classesData : []).map((item) => ({
+      id: item.id,
+      name: item.name,
+    }));
+
+    setStudents(studentsSafe);
+    setCourses(coursesSafe);
+    setClasses(classesSafe);
+  };
+
+  const loadAll = async (statusFilter: string, showLoading = true) => {
+    if (showLoading) setLoading(true);
+    setError('');
+    try {
+      await Promise.all([loadTemplates(), loadInstances(statusFilter), loadOptions()]);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Falha ao carregar módulo de contratos.',
+      );
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadAll(instanceStatusFilter, true);
+  }, [token]);
+
+  useEffect(() => {
+    if (!selectedTemplateId) return;
+
+    const currentTemplate = templates.find((item) => item.id === selectedTemplateId);
+    if (!currentTemplate) {
+      setSelectedTemplateId(null);
+      return;
+    }
+
+    setTemplateForm({
+      name: currentTemplate.name,
+      description: currentTemplate.description || '',
+      draftTitle: currentTemplate.draftTitle,
+      draftHtmlContent: currentTemplate.draftHtmlContent,
+    });
+  }, [selectedTemplateId, templates]);
+
+  useEffect(() => {
+    void loadInstances(instanceStatusFilter);
+  }, [instanceStatusFilter]);
+
+  useEffect(() => {
+    if (
+      sendForm.templateId &&
+      sendableTemplates.some((template) => template.id === sendForm.templateId)
+    ) {
+      return;
+    }
+    if (
+      selectedTemplateId &&
+      sendableTemplates.some((template) => template.id === selectedTemplateId)
+    ) {
+      setSendForm((current) => ({ ...current, templateId: selectedTemplateId }));
+      return;
+    }
+    if (sendableTemplates[0]?.id) {
+      setSendForm((current) => ({ ...current, templateId: sendableTemplates[0].id }));
+      return;
+    }
+    setSendForm((current) => ({ ...current, templateId: '' }));
+  }, [selectedTemplateId, sendableTemplates, sendForm.templateId]);
+
+  const openNewTemplate = () => {
+    setSelectedTemplateId(null);
+    setTemplateForm(defaultTemplateForm());
+    setFormError('');
+    setFeedback('');
+  };
+
+  const pickTemplate = (template: ContractTemplate) => {
+    setSelectedTemplateId(template.id);
+    setTemplateForm({
+      name: template.name,
+      description: template.description || '',
+      draftTitle: template.draftTitle,
+      draftHtmlContent: template.draftHtmlContent,
+    });
+    setFormError('');
+  };
+
+  const saveTemplate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFormError('');
+    setFeedback('');
+    setError('');
+
+    const payload = {
+      name: templateForm.name.trim(),
+      description: templateForm.description.trim() || undefined,
+      draftTitle: templateForm.draftTitle.trim(),
+      draftHtmlContent: templateForm.draftHtmlContent.trim(),
+    };
+
+    if (!payload.name || !payload.draftTitle || !payload.draftHtmlContent) {
+      setFormError('Preencha nome, título e conteúdo HTML do contrato.');
+      return;
+    }
+
+    if (selectedTemplate && selectedTemplate.status.trim().toUpperCase() === 'PUBLISHED') {
+      setFormError(
+        'Modelos publicados não aceitam edição direta. Use "Publicar versão" para atualizar conteúdo.',
+      );
+      return;
+    }
+
+    setTemplateSaving(true);
+    try {
+      if (selectedTemplateId) {
+        await apiRequest<ContractTemplate>(token, `/contracts/templates/${selectedTemplateId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        setFeedback('Rascunho do modelo atualizado com sucesso.');
+      } else {
+        const created = await apiRequest<{ id: string }>(token, '/contracts/templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        setSelectedTemplateId(created.id);
+        setFeedback('Modelo criado com sucesso.');
+      }
+
+      await loadTemplates();
+    } catch (saveError) {
+      setFormError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'Falha ao salvar o modelo de contrato.',
+      );
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
+
+  const publishTemplate = async () => {
+    if (!selectedTemplateId) {
+      setFormError('Selecione um modelo para publicar.');
+      return;
+    }
+
+    setFormError('');
+    setFeedback('');
+    setError('');
+    setTemplatePublishing(true);
+
+    try {
+      await apiRequest(token, `/contracts/templates/${selectedTemplateId}/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: templateForm.draftTitle.trim(),
+          htmlContent: templateForm.draftHtmlContent.trim(),
+        }),
+      });
+
+      await Promise.all([loadTemplates(), loadInstances(instanceStatusFilter)]);
+      setFeedback('Versão do contrato publicada com sucesso.');
+    } catch (publishError) {
+      setFormError(
+        publishError instanceof Error
+          ? publishError.message
+          : 'Falha ao publicar o modelo.',
+      );
+    } finally {
+      setTemplatePublishing(false);
+    }
+  };
+
+  const sendContract = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSendError('');
+    setFeedback('');
+    setError('');
+
+    if (!sendForm.templateId || !sendForm.studentId) {
+      setSendError('Selecione o modelo e o aluno para envio.');
+      return;
+    }
+
+    const payload = {
+      templateId: sendForm.templateId,
+      studentId: sendForm.studentId,
+      enrollmentId: sendForm.enrollmentId.trim() || undefined,
+      courseId: sendForm.courseId || undefined,
+      classId: sendForm.classId || undefined,
+      expiresInHours: toSafePositiveInteger(sendForm.expiresInHours, 72),
+      sendEmail: sendForm.sendEmail,
+    };
+
+    setSendingInstance(true);
+    try {
+      const result = await apiRequest<{
+        instanceId: string;
+        signatureCode: string;
+      }>(token, '/contracts/instances/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      await loadInstances(instanceStatusFilter);
+      setFeedback(
+        `Contrato enviado com sucesso. Código de assinatura: ${result.signatureCode}.`,
+      );
+      setSendForm((current) => ({
+        ...current,
+        enrollmentId: '',
+        expiresInHours: current.expiresInHours || '72',
+      }));
+    } catch (sendErr) {
+      setSendError(
+        sendErr instanceof Error ? sendErr.message : 'Falha ao enviar contrato.',
+      );
+    } finally {
+      setSendingInstance(false);
+    }
+  };
+
+  const openInstanceDetails = async (instanceId: string) => {
+    setLoadingDetails(true);
+    setDetailsOpen(true);
+    setSelectedInstanceDetails(null);
+    try {
+      const details = await apiRequest<ContractInstanceDetails>(
+        token,
+        `/contracts/instances/${instanceId}`,
+        undefined,
+        { bypassCache: true },
+      );
+      setSelectedInstanceDetails(details);
+    } catch (detailError) {
+      setDetailsOpen(false);
+      setError(
+        detailError instanceof Error
+          ? detailError.message
+          : 'Falha ao carregar detalhes do contrato.',
+      );
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const downloadInstance = async (instanceId: string) => {
+    setDownloadingInstanceId(instanceId);
+    setError('');
+    setFeedback('');
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/contracts/instances/${instanceId}/download`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        let message = `Falha ao baixar contrato (${response.status}).`;
+        try {
+          const payload = (await response.json()) as { message?: string | string[] };
+          if (Array.isArray(payload.message)) {
+            message = payload.message.join('\n');
+          } else if (typeof payload.message === 'string') {
+            message = payload.message;
+          }
+        } catch {
+          // mantém mensagem padrão
+        }
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition') || '';
+      const filenameMatch = disposition.match(/filename=\"?([^\";]+)\"?/i);
+      const filename = filenameMatch?.[1] || `contrato-${instanceId}.html`;
+
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      setError(
+        downloadError instanceof Error
+          ? downloadError.message
+          : 'Falha ao baixar contrato.',
+      );
+    } finally {
+      setDownloadingInstanceId((current) =>
+        current === instanceId ? null : current,
+      );
+    }
+  };
+
+  const instancesCountByStatus = useMemo(() => {
+    const counter = {
+      total: instances.length,
+      sent: 0,
+      viewed: 0,
+      pinVerified: 0,
+      signed: 0,
+    };
+
+    for (const item of instances) {
+      const status = item.status.trim().toUpperCase();
+      if (status === 'SENT') counter.sent += 1;
+      if (status === 'VIEWED') counter.viewed += 1;
+      if (status === 'PIN_VERIFIED') counter.pinVerified += 1;
+      if (status === 'SIGNED') counter.signed += 1;
+    }
+
+    return counter;
+  }, [instances]);
+
+  return (
+    <section className="native-page native-contracts">
+      <header className="native-page-header">
+        <h2>Contratos</h2>
+        <p>
+          Crie modelos, publique versões, envie contratos para assinatura do aluno e
+          acompanhe o ciclo de assinatura com rastreabilidade.
+        </p>
+      </header>
+
+      <div className="native-kpi-grid native-kpi-grid-small">
+        <article className="native-kpi-card">
+          <span>Total de envios</span>
+          <strong>{instancesCountByStatus.total}</strong>
+          <small>{instancesCountByStatus.signed} assinados</small>
+        </article>
+        <article className="native-kpi-card">
+          <span>Pendentes</span>
+          <strong>
+            {instancesCountByStatus.sent + instancesCountByStatus.viewed + instancesCountByStatus.pinVerified}
+          </strong>
+          <small>
+            {instancesCountByStatus.sent} enviados • {instancesCountByStatus.viewed} visualizados
+          </small>
+        </article>
+      </div>
+
+      {loading ? <p className="native-info">Carregando contratos...</p> : null}
+      {error ? <p className="native-error">{error}</p> : null}
+      {feedback ? <p className="native-success">{feedback}</p> : null}
+
+      <div className="native-contracts-layout">
+        <aside className="native-contracts-sidebar">
+          <article className="native-panel">
+            <header className="native-panel-header">
+              <h3>Modelos</h3>
+              <button type="button" onClick={openNewTemplate}>
+                Novo
+              </button>
+            </header>
+
+            <div className="native-contract-template-list">
+              {templates.length === 0 ? (
+                <p className="native-info">Nenhum modelo cadastrado.</p>
+              ) : (
+                templates.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    className={`native-contract-template-item ${
+                      selectedTemplateId === template.id ? 'is-active' : ''
+                    }`}
+                    onClick={() => pickTemplate(template)}
+                  >
+                    <div>
+                      <strong>{template.name}</strong>
+                      <small>
+                        Versão {template.latestVersionNumber} • Atualizado em{' '}
+                        {formatDateTime(template.updatedAt)}
+                      </small>
+                    </div>
+                    <span className={`native-status-chip ${templateStatusTone(template.status)}`}>
+                      {templateStatusLabel(template.status)}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </article>
+        </aside>
+
+        <div className="native-contracts-main">
+          <article className="native-panel">
+            <header className="native-panel-header">
+              <h3>{selectedTemplate ? 'Editar modelo' : 'Novo modelo de contrato'}</h3>
+              {selectedTemplate ? (
+                <small>
+                  {selectedTemplate.latestVersion
+                    ? `Última publicação: v${selectedTemplate.latestVersion.versionNumber} em ${formatDateTime(
+                        selectedTemplate.latestVersion.publishedAt,
+                      )}`
+                    : 'Sem versão publicada'}
+                </small>
+              ) : null}
+            </header>
+
+            <form className="native-form-grid native-contract-template-form" onSubmit={saveTemplate}>
+              <label>
+                Nome interno do modelo
+                <input
+                  value={templateForm.name}
+                  onChange={(event) =>
+                    setTemplateForm((current) => ({ ...current, name: event.target.value }))
+                  }
+                  placeholder="Ex: Contrato padrão de matrícula"
+                  required
+                />
+              </label>
+
+              <label>
+                Título visível no contrato
+                <input
+                  value={templateForm.draftTitle}
+                  onChange={(event) =>
+                    setTemplateForm((current) => ({
+                      ...current,
+                      draftTitle: event.target.value,
+                    }))
+                  }
+                  placeholder="Ex: Contrato de Prestação de Serviços"
+                  required
+                />
+              </label>
+
+              <label className="native-contract-span-all">
+                Descrição (opcional)
+                <input
+                  value={templateForm.description}
+                  onChange={(event) =>
+                    setTemplateForm((current) => ({
+                      ...current,
+                      description: event.target.value,
+                    }))
+                  }
+                  placeholder="Uso interno para diferenciar modelos"
+                />
+              </label>
+
+              <label className="native-contract-span-all">
+                HTML do contrato (placeholders: {'{{student_name}}'}, {'{{student_email}}'}, {'{{course_name}}'}, {'{{class_name}}'}, {'{{signature_code}}'})
+                <textarea
+                  rows={14}
+                  value={templateForm.draftHtmlContent}
+                  onChange={(event) =>
+                    setTemplateForm((current) => ({
+                      ...current,
+                      draftHtmlContent: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </label>
+
+              {formError ? <p className="native-error native-contract-span-all">{formError}</p> : null}
+
+              <div className="native-modal-actions">
+                {selectedTemplate ? (
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => void publishTemplate()}
+                    disabled={templatePublishing}
+                  >
+                    {templatePublishing ? 'Publicando...' : 'Publicar versão'}
+                  </button>
+                ) : null}
+                <button type="submit" disabled={templateSaving}>
+                  {templateSaving
+                    ? 'Salvando...'
+                    : selectedTemplate
+                      ? 'Salvar rascunho'
+                      : 'Criar modelo'}
+                </button>
+              </div>
+            </form>
+          </article>
+
+          <article className="native-panel">
+            <header className="native-panel-header">
+              <h3>Enviar para assinatura</h3>
+            </header>
+
+            <form className="native-form-grid native-contract-send-form" onSubmit={sendContract}>
+              <label>
+                Modelo publicado
+                <select
+                  value={sendForm.templateId}
+                  onChange={(event) =>
+                    setSendForm((current) => ({
+                      ...current,
+                      templateId: event.target.value,
+                    }))
+                  }
+                  required
+                >
+                  <option value="">Selecione</option>
+                  {sendableTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} (v{template.latestVersionNumber})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {sendableTemplates.length === 0 ? (
+                <p className="native-info native-contract-span-all">
+                  Publique ao menos um modelo para habilitar envios.
+                </p>
+              ) : null}
+
+              <label>
+                Aluno
+                <select
+                  value={sendForm.studentId}
+                  onChange={(event) =>
+                    setSendForm((current) => ({
+                      ...current,
+                      studentId: event.target.value,
+                    }))
+                  }
+                  required
+                >
+                  <option value="">Selecione</option>
+                  {students.map((student) => (
+                    <option key={student.id} value={student.id}>
+                      {student.name} • {student.email}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Curso (opcional)
+                <select
+                  value={sendForm.courseId}
+                  onChange={(event) =>
+                    setSendForm((current) => ({
+                      ...current,
+                      courseId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Sem vínculo</option>
+                  {courses.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Turma (opcional)
+                <select
+                  value={sendForm.classId}
+                  onChange={(event) =>
+                    setSendForm((current) => ({
+                      ...current,
+                      classId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Sem vínculo</option>
+                  {classes.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Matrícula (UUID opcional)
+                <input
+                  value={sendForm.enrollmentId}
+                  onChange={(event) =>
+                    setSendForm((current) => ({
+                      ...current,
+                      enrollmentId: event.target.value,
+                    }))
+                  }
+                  placeholder="Informe somente se precisar vincular"
+                />
+              </label>
+
+              <label>
+                Expiração do link (horas)
+                <input
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={sendForm.expiresInHours}
+                  onChange={(event) =>
+                    setSendForm((current) => ({
+                      ...current,
+                      expiresInHours: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+
+              <label className="native-contract-send-checkbox native-contract-span-all">
+                <input
+                  type="checkbox"
+                  checked={sendForm.sendEmail}
+                  onChange={(event) =>
+                    setSendForm((current) => ({
+                      ...current,
+                      sendEmail: event.target.checked,
+                    }))
+                  }
+                />
+                <span>Enviar convite por e-mail automaticamente</span>
+              </label>
+
+              {sendError ? <p className="native-error native-contract-span-all">{sendError}</p> : null}
+
+              <div className="native-modal-actions">
+                <button type="submit" disabled={sendingInstance}>
+                  {sendingInstance ? 'Enviando...' : 'Enviar contrato'}
+                </button>
+              </div>
+            </form>
+          </article>
+
+          <article className="native-panel">
+            <header className="native-panel-header">
+              <h3>Envios recentes</h3>
+              <div className="native-contract-instance-filters">
+                <select
+                  value={instanceStatusFilter}
+                  onChange={(event) => setInstanceStatusFilter(event.target.value)}
+                >
+                  <option value="all">Todos</option>
+                  <option value="sent">Enviado</option>
+                  <option value="viewed">Visualizado</option>
+                  <option value="pin_verified">PIN validado</option>
+                  <option value="signed">Assinado</option>
+                  <option value="expired">Expirado</option>
+                  <option value="archived">Arquivado</option>
+                  <option value="canceled">Cancelado</option>
+                </select>
+                <button type="button" onClick={() => void loadInstances(instanceStatusFilter)}>
+                  Atualizar
+                </button>
+              </div>
+            </header>
+
+            <div className="native-table-wrap">
+              <table className="native-table">
+                <thead>
+                  <tr>
+                    <th>Modelo</th>
+                    <th>Aluno</th>
+                    <th>Status</th>
+                    <th>Enviado em</th>
+                    <th>Assinado em</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {instances.length === 0 ? (
+                    <tr>
+                      <td colSpan={6}>Nenhum envio encontrado.</td>
+                    </tr>
+                  ) : (
+                    instances.map((instance) => (
+                      <tr key={instance.id}>
+                        <td>
+                          <strong>{instance.template.name}</strong>
+                          <br />
+                          <small>{instance.templateVersion.title}</small>
+                        </td>
+                        <td>
+                          <strong>{instance.student.name}</strong>
+                          <br />
+                          <small>{instance.student.emailMasked}</small>
+                        </td>
+                        <td>
+                          <span className={`native-status-chip ${contractStatusTone(instance.status)}`}>
+                            {contractStatusLabel(instance.status)}
+                          </span>
+                        </td>
+                        <td>{formatDateTime(instance.sentAt)}</td>
+                        <td>{formatDateTime(instance.signedAt)}</td>
+                        <td>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void downloadInstance(instance.id);
+                            }}
+                            disabled={downloadingInstanceId === instance.id}
+                          >
+                            {downloadingInstanceId === instance.id
+                              ? 'Baixando...'
+                              : 'Baixar'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void openInstanceDetails(instance.id);
+                            }}
+                          >
+                            Detalhes
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      {detailsOpen ? (
+        <div className="native-modal-backdrop" onClick={() => setDetailsOpen(false)}>
+          <section className="native-modal native-contract-details-modal" onClick={(event) => event.stopPropagation()}>
+            <header>
+              <h3>Detalhes do contrato</h3>
+              <button type="button" onClick={() => setDetailsOpen(false)}>
+                Fechar
+              </button>
+            </header>
+
+            {loadingDetails ? <p className="native-info">Carregando detalhes...</p> : null}
+
+            {!loadingDetails && selectedInstanceDetails ? (
+              <div className="native-contract-details-content">
+                <div className="native-contract-details-meta">
+                  <article>
+                    <span>Status</span>
+                    <strong>{contractStatusLabel(selectedInstanceDetails.status)}</strong>
+                  </article>
+                  <article>
+                    <span>Aluno</span>
+                    <strong>{selectedInstanceDetails.student.name}</strong>
+                  </article>
+                  <article>
+                    <span>Código de assinatura</span>
+                    <strong>{selectedInstanceDetails.signatureCode}</strong>
+                  </article>
+                  <article>
+                    <span>Assinado em</span>
+                    <strong>{formatDateTime(selectedInstanceDetails.signedAt)}</strong>
+                  </article>
+                </div>
+
+                <article className="native-panel native-contract-document-preview">
+                  <header className="native-panel-header">
+                    <h3>{selectedInstanceDetails.snapshotTemplateTitle}</h3>
+                  </header>
+                  <iframe
+                    title="Pré-visualização do contrato"
+                    sandbox=""
+                    srcDoc={selectedInstanceDetails.documentHtml}
+                  />
+                </article>
+
+                <article className="native-panel">
+                  <header className="native-panel-header">
+                    <h3>Auditoria</h3>
+                  </header>
+                  {selectedInstanceDetails.auditLogs && selectedInstanceDetails.auditLogs.length > 0 ? (
+                    <div className="native-contract-audit-list">
+                      {selectedInstanceDetails.auditLogs.map((log) => (
+                        <article key={log.id}>
+                          <strong>{log.action}</strong>
+                          <small>
+                            {log.actorType} • {formatDateTime(log.createdAt)}
+                          </small>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="native-info">Sem trilha de auditoria disponível para seu perfil.</p>
+                  )}
+                </article>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
+    </section>
+  );
+}

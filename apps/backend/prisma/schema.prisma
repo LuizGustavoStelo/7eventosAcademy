@@ -108,6 +108,26 @@ enum InstitutionMemberStatus {
   @@map("institution_member_status")
 }
 
+enum ContractTemplateStatus {
+  DRAFT     @map("draft")
+  PUBLISHED @map("published")
+  ARCHIVED  @map("archived")
+
+  @@map("contract_template_status")
+}
+
+enum ContractInstanceStatus {
+  SENT         @map("sent")
+  VIEWED       @map("viewed")
+  PIN_VERIFIED @map("pin_verified")
+  SIGNED       @map("signed")
+  EXPIRED      @map("expired")
+  ARCHIVED     @map("archived")
+  CANCELED     @map("canceled")
+
+  @@map("contract_instance_status")
+}
+
 model User {
   id             String         @id @default(uuid()) @db.Uuid
   ownerAdminId   String?        @map("owner_admin_id") @db.Uuid
@@ -133,6 +153,12 @@ model User {
   financialConfig AccountFinancialConfig?
   ownedMonthlyCharges MonthlyCharge[] @relation("monthly_charge_owner")
   classNoticeViews ClassNoticeView[]
+  createdContractTemplates ContractTemplate[] @relation("contract_template_created_by")
+  updatedContractTemplates ContractTemplate[] @relation("contract_template_updated_by")
+  publishedContractTemplateVersions ContractTemplateVersion[] @relation("contract_template_version_published_by")
+  studentContractInstances ContractInstance[] @relation("contract_instance_student")
+  createdContractInstances ContractInstance[] @relation("contract_instance_created_by")
+  contractAuditEntries ContractAuditLog[] @relation("contract_audit_actor")
 
   @@index([ownerAdminId], map: "users_owner_admin_idx")
   @@index([institutionId], map: "users_institution_idx")
@@ -153,6 +179,12 @@ model Institution {
   classes      SchoolClass[]
   studentCourses StudentCourse[]
   enrollments  Enrollment[]
+  contractTemplates ContractTemplate[]
+  contractTemplateVersions ContractTemplateVersion[]
+  contractInstances ContractInstance[]
+  contractSigningTokens ContractSigningToken[]
+  contractAuditLogs ContractAuditLog[]
+  contractArtifacts ContractArtifact[]
 
   @@index([status], map: "institutions_status_idx")
   @@map("institutions")
@@ -264,6 +296,7 @@ model Course {
   ownerAdmin        User               @relation("course_owner", fields: [ownerAdminId], references: [id], onDelete: Cascade)
   classes           SchoolClass[]
   studentCourses    StudentCourse[]
+  contractInstances ContractInstance[]
 
   @@index([ownerAdminId], map: "courses_owner_admin_idx")
   @@index([institutionId], map: "courses_institution_idx")
@@ -361,6 +394,7 @@ model SchoolClass {
   studyMaterials StudyMaterial[]
   classNotices  ClassNotice[]
   lives         Live[]
+  contractInstances ContractInstance[]
 
   @@index([institutionId], map: "classes_institution_idx")
   @@map("classes")
@@ -378,10 +412,185 @@ model Enrollment {
   schoolClass    SchoolClass      @relation(fields: [classId], references: [id], onDelete: Cascade)
   student        User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
   monthlyCharges MonthlyCharge[]
+  contractInstances ContractInstance[]
 
   @@unique([classId, studentId])
   @@index([institutionId], map: "enrollments_institution_idx")
   @@map("enrollments")
+}
+
+model ContractTemplate {
+  id                  String                @id @default(uuid()) @db.Uuid
+  institutionId       String                @map("institution_id") @db.Uuid
+  name                String
+  description         String?
+  status              ContractTemplateStatus @default(DRAFT)
+  draftTitle          String                @map("draft_title")
+  draftHtmlContent    String                @map("draft_html_content")
+  latestVersionNumber Int                   @default(0) @map("latest_version_number")
+  publishedAt         DateTime?             @map("published_at")
+  createdByUserId     String                @map("created_by_user_id") @db.Uuid
+  updatedByUserId     String                @map("updated_by_user_id") @db.Uuid
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
+  institution         Institution           @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  createdByUser       User                  @relation("contract_template_created_by", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedByUser       User                  @relation("contract_template_updated_by", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  versions            ContractTemplateVersion[]
+  instances           ContractInstance[]
+
+  @@index([institutionId], map: "contract_templates_institution_idx")
+  @@index([institutionId, status], map: "contract_templates_institution_status_idx")
+  @@map("contract_templates")
+}
+
+model ContractTemplateVersion {
+  id                String            @id @default(uuid()) @db.Uuid
+  institutionId     String            @map("institution_id") @db.Uuid
+  templateId        String            @map("template_id") @db.Uuid
+  versionNumber     Int               @map("version_number")
+  title             String
+  htmlContent       String            @map("html_content")
+  placeholdersJson  Json?             @map("placeholders_json")
+  contentHash       String            @map("content_hash")
+  publishedByUserId String            @map("published_by_user_id") @db.Uuid
+  publishedAt       DateTime          @map("published_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  institution       Institution       @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  template          ContractTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  publishedByUser   User              @relation("contract_template_version_published_by", fields: [publishedByUserId], references: [id], onDelete: Restrict)
+  instances         ContractInstance[]
+
+  @@unique([templateId, versionNumber], map: "contract_template_versions_template_version_key")
+  @@index([institutionId], map: "contract_template_versions_institution_idx")
+  @@map("contract_template_versions")
+}
+
+model ContractInstance {
+  id                        String               @id @default(uuid()) @db.Uuid
+  institutionId             String               @map("institution_id") @db.Uuid
+  templateId                String               @map("template_id") @db.Uuid
+  templateVersionId         String               @map("template_version_id") @db.Uuid
+  studentId                 String               @map("student_id") @db.Uuid
+  enrollmentId              String?              @map("enrollment_id") @db.Uuid
+  courseId                  String?              @map("course_id") @db.Uuid
+  classId                   String?              @map("class_id") @db.Uuid
+  status                    ContractInstanceStatus @default(SENT)
+  sentAt                    DateTime             @default(now()) @map("sent_at")
+  viewedAt                  DateTime?            @map("viewed_at")
+  signedAt                  DateTime?            @map("signed_at")
+  archivedAt                DateTime?            @map("archived_at")
+  archivedReason            String?              @map("archived_reason")
+  snapshotTemplateTitle     String               @map("snapshot_template_title")
+  snapshotTemplateHtml      String               @map("snapshot_template_html")
+  snapshotStudentData       Json?                @map("snapshot_student_data")
+  unsignedHtmlSnapshot      String               @map("unsigned_html_snapshot")
+  signedHtmlSnapshot        String?              @map("signed_html_snapshot")
+  unsignedContentHash       String               @map("unsigned_content_hash")
+  signedContentHash         String?              @map("signed_content_hash")
+  signedPdfHash             String?              @map("signed_pdf_hash")
+  signatureCode             String               @map("signature_code")
+  acceptedTermsText         String?              @map("accepted_terms_text")
+  acceptedTermsVersion      String?              @map("accepted_terms_version")
+  acceptedAt                DateTime?            @map("accepted_at")
+  signerIp                  String?              @map("signer_ip")
+  signerUserAgent           String?              @map("signer_user_agent")
+  signerTimezone            String?              @map("signer_timezone")
+  signerOtpChannel          String?              @map("signer_otp_channel")
+  signerOtpDestinationMasked String?             @map("signer_otp_destination_masked")
+  createdByUserId           String               @map("created_by_user_id") @db.Uuid
+  createdAt                 DateTime             @default(now()) @map("created_at")
+  updatedAt                 DateTime             @updatedAt @map("updated_at")
+  institution               Institution          @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  template                  ContractTemplate     @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  templateVersion           ContractTemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  student                   User                 @relation("contract_instance_student", fields: [studentId], references: [id], onDelete: Cascade)
+  enrollment                Enrollment?          @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  course                    Course?              @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  schoolClass               SchoolClass?         @relation(fields: [classId], references: [id], onDelete: SetNull)
+  createdByUser             User                 @relation("contract_instance_created_by", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  signingTokens             ContractSigningToken[]
+  auditLogs                 ContractAuditLog[]
+  artifacts                 ContractArtifact[]
+
+  @@unique([signatureCode], map: "contract_instances_signature_code_key")
+  @@index([institutionId], map: "contract_instances_institution_idx")
+  @@index([institutionId, studentId], map: "contract_instances_institution_student_idx")
+  @@index([institutionId, status], map: "contract_instances_institution_status_idx")
+  @@index([templateId], map: "contract_instances_template_idx")
+  @@map("contract_instances")
+}
+
+model ContractSigningToken {
+  id                String          @id @default(uuid()) @db.Uuid
+  institutionId     String          @map("institution_id") @db.Uuid
+  contractInstanceId String         @map("contract_instance_id") @db.Uuid
+  tokenHash         String          @map("token_hash")
+  expiresAt         DateTime        @map("expires_at")
+  usedAt            DateTime?       @map("used_at")
+  otpChannel        String          @default("email") @map("otp_channel")
+  otpDestination    String?         @map("otp_destination")
+  pinHash           String?         @map("pin_hash")
+  pinExpiresAt      DateTime?       @map("pin_expires_at")
+  pinAttempts       Int             @default(0) @map("pin_attempts")
+  pinLastAttemptAt  DateTime?       @map("pin_last_attempt_at")
+  pinBlockedUntil   DateTime?       @map("pin_blocked_until")
+  verifiedAt        DateTime?       @map("verified_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  institution       Institution     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  contractInstance  ContractInstance @relation(fields: [contractInstanceId], references: [id], onDelete: Cascade)
+  auditLogs         ContractAuditLog[]
+
+  @@unique([tokenHash], map: "contract_signing_tokens_token_hash_key")
+  @@index([institutionId], map: "contract_signing_tokens_institution_idx")
+  @@index([contractInstanceId], map: "contract_signing_tokens_instance_idx")
+  @@index([expiresAt], map: "contract_signing_tokens_expires_at_idx")
+  @@map("contract_signing_tokens")
+}
+
+model ContractAuditLog {
+  id                    String              @id @default(uuid()) @db.Uuid
+  institutionId         String              @map("institution_id") @db.Uuid
+  contractInstanceId    String              @map("contract_instance_id") @db.Uuid
+  contractSigningTokenId String?            @map("contract_signing_token_id") @db.Uuid
+  actorType             String              @map("actor_type")
+  actorUserId           String?             @map("actor_user_id") @db.Uuid
+  action                String
+  payload               Json?
+  previousHash          String?             @map("previous_hash")
+  entryHash             String              @map("entry_hash")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  institution           Institution         @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  contractInstance      ContractInstance    @relation(fields: [contractInstanceId], references: [id], onDelete: Cascade)
+  contractSigningToken  ContractSigningToken? @relation(fields: [contractSigningTokenId], references: [id], onDelete: SetNull)
+  actorUser             User?               @relation("contract_audit_actor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([institutionId], map: "contract_audit_logs_institution_idx")
+  @@index([contractInstanceId], map: "contract_audit_logs_instance_idx")
+  @@index([contractSigningTokenId], map: "contract_audit_logs_token_idx")
+  @@index([createdAt], map: "contract_audit_logs_created_at_idx")
+  @@map("contract_audit_logs")
+}
+
+model ContractArtifact {
+  id                String          @id @default(uuid()) @db.Uuid
+  institutionId     String          @map("institution_id") @db.Uuid
+  contractInstanceId String         @map("contract_instance_id") @db.Uuid
+  artifactType      String          @map("artifact_type")
+  storageProvider   String          @map("storage_provider")
+  storageKey        String          @map("storage_key")
+  mimeType          String          @map("mime_type")
+  sizeBytes         Int             @map("size_bytes")
+  sha256            String
+  createdAt         DateTime        @default(now()) @map("created_at")
+  institution       Institution     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  contractInstance  ContractInstance @relation(fields: [contractInstanceId], references: [id], onDelete: Cascade)
+
+  @@unique([storageKey], map: "contract_artifacts_storage_key_key")
+  @@index([institutionId], map: "contract_artifacts_institution_idx")
+  @@index([contractInstanceId], map: "contract_artifacts_instance_idx")
+  @@map("contract_artifacts")
 }
 
 model MonthlyCharge {

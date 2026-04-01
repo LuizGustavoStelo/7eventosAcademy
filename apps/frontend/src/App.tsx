@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AgendaNative } from './native/AgendaNative';
 import { ClassesNative } from './native/ClassesNative';
+import { ContractsNative } from './native/ContractsNative';
 import { ContentNative } from './native/ContentNative';
 import { CoursesNative } from './native/CoursesNative';
 import { DashboardNative } from './native/DashboardNative';
@@ -154,6 +155,13 @@ const SECOES_ADMIN: NavSection[] = [
     renderMode: 'native',
   },
   {
+    id: 'admin_contratos',
+    label: 'Contratos',
+    subtitle: 'Modelos, envio e assinatura eletrônica',
+    templatePath: '/templates/admin_professor_contratos/index.html',
+    renderMode: 'native',
+  },
+  {
     id: 'admin_aulas',
     label: 'Aulas',
     subtitle: 'Lançamento de presença por aula (retroativo e bloqueio de futuras)',
@@ -209,6 +217,7 @@ const ICONE_POR_SECAO: Record<string, string> = {
   admin_cursos: 'school',
   admin_gestao_turmas: 'groups',
   admin_alunos_matriculas: 'person',
+  admin_contratos: 'fact_check',
   admin_aulas: 'fact_check',
   admin_agenda: 'calendar_today',
   admin_financeiro: 'payments',
@@ -425,6 +434,7 @@ const SEARCH_SECTION_ALIAS: Array<{ sectionId: string; terms: string[] }> = [
   { sectionId: 'admin_cursos', terms: ['curso', 'cursos'] },
   { sectionId: 'admin_gestao_turmas', terms: ['turma', 'turmas', 'classe', 'classes'] },
   { sectionId: 'admin_alunos_matriculas', terms: ['aluno', 'alunos', 'matricula', 'matriculas'] },
+  { sectionId: 'admin_contratos', terms: ['contrato', 'contratos', 'assinatura', 'assinaturas'] },
   { sectionId: 'admin_aulas', terms: ['aula', 'aulas', 'presenca', 'presencas'] },
   { sectionId: 'admin_agenda', terms: ['agenda', 'evento', 'eventos', 'calendario'] },
   { sectionId: 'admin_financeiro', terms: ['financeiro', 'mensalidade', 'cobranca', 'cobrancas', 'pagamento'] },
@@ -1684,6 +1694,10 @@ export default function App() {
 
             {secaoAtiva === 'admin_alunos_matriculas' ? (
               <StudentsNative token={token} />
+            ) : null}
+
+            {secaoAtiva === 'admin_contratos' ? (
+              <ContractsNative token={token} />
             ) : null}
 
             {secaoAtiva === 'admin_agenda' ? (

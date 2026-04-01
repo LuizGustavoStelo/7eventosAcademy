@@ -9,6 +9,10 @@ import {
   buildAccountVerificationEmail,
   type AccountVerificationAudience,
 } from './templates/account-verification-email.template';
+import {
+  buildContractInvitationEmail,
+  buildContractPinEmail,
+} from './templates/contract-signature-email.template';
 
 type SendAccountVerificationEmailParams = {
   to: string;
@@ -16,6 +20,22 @@ type SendAccountVerificationEmailParams = {
   verificationCode: string;
   expiresInMinutes: number;
   audience: AccountVerificationAudience;
+};
+
+type SendContractInvitationEmailParams = {
+  to: string;
+  recipientName: string;
+  templateTitle: string;
+  signingLink: string;
+  expiresAtIso: string;
+};
+
+type SendContractSigningPinEmailParams = {
+  to: string;
+  recipientName: string;
+  templateTitle: string;
+  pinCode: string;
+  expiresInMinutes: number;
 };
 
 @Injectable()
@@ -49,6 +69,52 @@ export class MailService {
       );
       throw new InternalServerErrorException(
         'Não foi possível enviar o e-mail de confirmação no momento.',
+      );
+    }
+  }
+
+  async sendContractInvitationEmail(
+    params: SendContractInvitationEmailParams,
+  ): Promise<void> {
+    const template = buildContractInvitationEmail(params);
+
+    try {
+      await this.getTransporter().sendMail({
+        from: this.resolveSenderAddress(),
+        to: params.to,
+        subject: template.subject,
+        text: template.text,
+        html: template.html,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Falha ao enviar convite de contrato para ${params.to}: ${this.formatMailError(error)}`,
+      );
+      throw new InternalServerErrorException(
+        'Não foi possível enviar o e-mail de contrato no momento.',
+      );
+    }
+  }
+
+  async sendContractSigningPinEmail(
+    params: SendContractSigningPinEmailParams,
+  ): Promise<void> {
+    const template = buildContractPinEmail(params);
+
+    try {
+      await this.getTransporter().sendMail({
+        from: this.resolveSenderAddress(),
+        to: params.to,
+        subject: template.subject,
+        text: template.text,
+        html: template.html,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Falha ao enviar PIN de assinatura para ${params.to}: ${this.formatMailError(error)}`,
+      );
+      throw new InternalServerErrorException(
+        'Não foi possível enviar o código de assinatura no momento.',
       );
     }
   }

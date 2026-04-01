@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { apiRequest } from './api';
+import { StudentContractsNative } from './StudentContractsNative';
 
 type StudentProfile = {
   documentCpf: string | null;
@@ -128,6 +129,7 @@ const SECTION_IDS = [
   'st-student-finance',
   'st-student-live',
   'st-student-notices',
+  'st-student-contracts',
   'st-student-materials',
   'st-student-certificate',
   'st-student-profile',
@@ -144,6 +146,7 @@ type IconName =
   | 'payments'
   | 'folder_open'
   | 'notifications_active'
+  | 'description'
   | 'verified'
   | 'person'
   | 'search'
@@ -170,6 +173,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Transmissões', icon: 'live_tv', target: 'st-student-live' },
   { label: 'Frequência', icon: 'checklist_rtl', target: 'st-student-course' },
   { label: 'Financeiro', icon: 'payments', target: 'st-student-finance' },
+  { label: 'Contratos', icon: 'description', target: 'st-student-contracts' },
   { label: 'Materiais', icon: 'folder_open', target: 'st-student-materials' },
   { label: 'Notificações', icon: 'notifications_active', target: 'st-student-notices' },
   { label: 'Certificado', icon: 'verified', target: 'st-student-certificate' },
@@ -193,7 +197,7 @@ const MOBILE_NAV_ITEMS: MobileNavItem[] = [
     label: 'Financeiro',
     icon: 'payments',
     target: 'st-student-finance',
-    sections: ['st-student-materials', 'st-student-finance'],
+    sections: ['st-student-materials', 'st-student-finance', 'st-student-contracts'],
   },
   {
     label: 'Notificações',
@@ -230,6 +234,10 @@ const SECTION_META: Record<SectionId, { title: string; subtitle: string }> = {
     title: 'Financeiro',
     subtitle: 'Acompanhe mensalidades, vencimentos e status das suas cobranças.',
   },
+  'st-student-contracts': {
+    title: 'Contratos',
+    subtitle: 'Revise, valide com PIN e assine seus contratos eletrônicos.',
+  },
   'st-student-live': {
     title: 'Transmissões',
     subtitle: 'Conteúdos ao vivo e aulas em destaque.',
@@ -258,6 +266,7 @@ const SECTION_MOBILE_LABEL: Record<SectionId, string> = {
   'st-student-classes': 'Aulas',
   'st-student-agenda': 'Agenda',
   'st-student-finance': 'Financeiro',
+  'st-student-contracts': 'Contratos',
   'st-student-live': 'Transmissões',
   'st-student-notices': 'Notificações',
   'st-student-materials': 'Materiais',
@@ -268,6 +277,7 @@ const SECTION_MOBILE_LABEL: Record<SectionId, string> = {
 const STUDENT_SECTIONS_ENABLED_WITHOUT_CLASS = new Set<SectionId>([
   'st-student-panel',
   'st-student-finance',
+  'st-student-contracts',
   'st-student-profile',
 ]);
 
@@ -282,6 +292,7 @@ const STUDENT_SEARCH_ALIAS: Array<{ target: SectionId; terms: string[] }> = [
   { target: 'st-student-live', terms: ['transmissao', 'transmissoes', 'live'] },
   { target: 'st-student-course', terms: ['frequencia', 'presenca', 'desempenho'] },
   { target: 'st-student-finance', terms: ['financeiro', 'mensalidade', 'cobranca', 'pagamento'] },
+  { target: 'st-student-contracts', terms: ['contrato', 'contratos', 'assinatura', 'assinar'] },
   { target: 'st-student-materials', terms: ['material', 'materiais', 'arquivo', 'arquivos'] },
   { target: 'st-student-notices', terms: ['aviso', 'avisos', 'notificacao', 'notificacoes', 'comunicado'] },
   { target: 'st-student-certificate', terms: ['certificado'] },
@@ -612,6 +623,16 @@ function StudentIcon({ name, className }: { name: IconName; className?: string }
     );
   }
 
+  if (name === 'description') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
+        <path d="M6 3h9l5 5v13H6z" />
+        <path d="M15 3v5h5" />
+        <path d="M9 12h8M9 16h8" />
+      </svg>
+    );
+  }
+
   if (name === 'verified') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={classes}>
@@ -724,6 +745,12 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const [showFinanceValues, setShowFinanceValues] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const initialContractId = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const query = new URLSearchParams(window.location.search);
+    const value = query.get('contractId')?.trim() || '';
+    return value || null;
+  }, []);
 
   const loadFallback = async (bypassCache = false): Promise<StudentDashboardPayload> => {
     const [me, matriculas, materiais, avisos] = await Promise.all([
@@ -934,6 +961,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       const sectionFromHash = parseSectionFromHash(window.location.hash);
       if (sectionFromHash) {
         setActiveSection(sectionFromHash);
+      } else if (initialContractId) {
+        setActiveSection('st-student-contracts');
       }
     };
 
@@ -942,7 +971,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     return () => {
       window.removeEventListener('hashchange', applyHash);
     };
-  }, []);
+  }, [initialContractId]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -1636,6 +1665,15 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
             )}
           </article>
         </section>
+      );
+    }
+
+    if (activeSection === 'st-student-contracts') {
+      return (
+        <StudentContractsNative
+          token={token}
+          initialContractId={initialContractId}
+        />
       );
     }
 
