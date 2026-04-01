@@ -107,7 +107,9 @@ export class ContractsController {
     @Body() dto: SendContractInstanceDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.contractsService.sendInstance(dto, request.user);
+    return this.contractsService.sendInstance(dto, request.user, {
+      publicOrigin: this.resolvePublicOrigin(request),
+    });
   }
 
   @Public()
@@ -233,5 +235,39 @@ export class ContractsController {
       ip: request.ip ?? null,
       userAgent: userAgent ?? null,
     });
+  }
+
+  private resolvePublicOrigin(request: FastifyRequest): string | null {
+    const forwardedProtoRaw = this.headerValue(
+      request.headers['x-forwarded-proto'],
+    );
+    const forwardedHostRaw = this.headerValue(request.headers['x-forwarded-host']);
+    const hostRaw = forwardedHostRaw || this.headerValue(request.headers.host);
+    if (!hostRaw) return null;
+
+    const protoCandidate = forwardedProtoRaw
+      .split(',')[0]
+      ?.trim()
+      .toLowerCase();
+    const requestProtocol = String(
+      (request as { protocol?: string })?.protocol ?? '',
+    )
+      .trim()
+      .toLowerCase();
+    const protocol =
+      protoCandidate === 'https' || protoCandidate === 'http'
+        ? protoCandidate
+        : requestProtocol === 'https' || requestProtocol === 'http'
+          ? requestProtocol
+          : 'https';
+    const host = hostRaw.split(',')[0]?.trim();
+    if (!host) return null;
+
+    return `${protocol}://${host}`;
+  }
+
+  private headerValue(value: string | string[] | undefined): string {
+    if (Array.isArray(value)) return String(value[0] ?? '').trim();
+    return String(value ?? '').trim();
   }
 }

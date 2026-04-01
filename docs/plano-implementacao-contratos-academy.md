@@ -557,6 +557,84 @@ Devem ser portados do `7Eventos` apenas:
 
 Não deve ser portada diretamente a implementação legada.
 
+## Passos que dependem de você
+
+Para concluir a implantação em produção com estabilidade e conformidade, estes pontos precisam ser definidos/configurados por você:
+
+### 1. URL pública de assinatura (obrigatório)
+
+Definir a variável `CONTRACT_SIGNING_PUBLIC_BASE_URL` com URL absoluta.
+
+Formato recomendado:
+
+- `https://SEU-DOMINIO/api/contracts/sign/{token}`
+
+Exemplo:
+
+- `https://academy.7eventos.com/api/contracts/sign/{token}`
+
+Sem isso, clientes de e-mail podem converter link relativo para URL inválida (caso do `http:///api/...`).
+
+### 2. URL de redirecionamento pós-token (obrigatório)
+
+Definir `CONTRACT_SIGNING_REDIRECT_URL` para onde o backend deve redirecionar após validar o token.
+
+Exemplo:
+
+- `https://academy.7eventos.com/`
+
+### 3. Domínios autorizados no CORS (obrigatório)
+
+Definir `CORS_ORIGINS` com os domínios reais do frontend administrativo/aluno.
+
+Exemplo:
+
+- `https://academy.7eventos.com,https://admin.7eventos.com`
+
+### 4. E-mail transacional (obrigatório)
+
+Validar/confirmar credenciais SMTP de produção:
+
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_SECURE`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM` (recomendado)
+
+### 5. Evidências imutáveis em storage externo (decisão sua)
+
+Hoje o Academy grava artefatos em `storageProvider = db`.
+
+Para paridade completa com o 7Eventos (camada adicional de imutabilidade), você precisa aprovar e fornecer:
+
+- provedor (`Cloudflare R2` ou `S3` compatível);
+- bucket privado;
+- credenciais de acesso;
+- política de retenção/versionamento;
+- regra de acesso apenas por backend (sem público).
+
+### 6. Política de retenção e descarte (conformidade)
+
+Definir formalmente:
+
+- prazo de retenção de contratos assinados;
+- prazo de retenção de logs de auditoria;
+- prazo de retenção de tokens/OTP expirados;
+- procedimento de descarte e trilha de descarte.
+
+### 7. Termo institucional de assinatura eletrônica
+
+Validar com jurídico/compliance o texto oficial do termo de aceite e versionamento interno do termo (`accepted_terms_version`).
+
+### 8. Operação e segurança
+
+Confirmar:
+
+- responsável por rotação de segredos (SMTP e storage);
+- responsável por resposta a incidentes de segurança;
+- rotina de backup e restore das tabelas de contratos/auditoria.
+
 ## Referências oficiais
 
 - Lei nº 13.709/2018: https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/L13709.htm

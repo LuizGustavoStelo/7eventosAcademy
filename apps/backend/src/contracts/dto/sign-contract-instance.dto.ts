@@ -4,6 +4,10 @@ export class SignContractInstanceDto {
   @IsBoolean()
   acceptTerms!: boolean;
 
+  @IsString()
+  @MaxLength(800000)
+  signatureData!: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(200)
@@ -24,4 +28,3 @@ export class SignContractInstanceDto {
   @MaxLength(80)
   signerTimezone?: string;
 }
-

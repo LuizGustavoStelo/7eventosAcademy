@@ -1,3 +1,9 @@
+import {
+  escapeHtml,
+  renderAcademyMailShell,
+  type MailTemplate,
+} from './academy-mail-template.helper';
+
 type BuildContractInvitationEmailParams = {
   recipientName: string;
   templateTitle: string;
@@ -14,7 +20,7 @@ type BuildContractPinEmailParams = {
 
 export function buildContractInvitationEmail(
   params: BuildContractInvitationEmailParams,
-) {
+): MailTemplate {
   const expiresAt = new Date(params.expiresAtIso);
   const expiresAtLabel = Number.isNaN(expiresAt.getTime())
     ? params.expiresAtIso
@@ -26,68 +32,113 @@ export function buildContractInvitationEmail(
         minute: '2-digit',
       }).format(expiresAt);
 
+  const safeRecipientName = escapeHtml(params.recipientName || 'usuário');
+  const safeTemplateTitle = escapeHtml(params.templateTitle || 'Contrato');
+  const safeSigningLink = escapeHtml(params.signingLink);
+  const safeExpiresAtLabel = escapeHtml(expiresAtLabel);
+
   const subject = `Contrato disponível para assinatura: ${params.templateTitle}`;
+
   const text = [
-    `Olá, ${params.recipientName}.`,
+    `Olá, ${params.recipientName || 'usuário'}!`,
     '',
-    `Você recebeu um contrato para assinatura: ${params.templateTitle}.`,
-    `Acesse o link para revisar e assinar: ${params.signingLink}`,
+    'Um contrato foi disponibilizado para você na 7Eventos Academy.',
+    `Contrato: ${params.templateTitle}`,
+    `Link para revisar e assinar: ${params.signingLink}`,
     `Validade do link: ${expiresAtLabel}.`,
     '',
-    'Se você não reconhece este envio, desconsidere este e-mail.',
+    'Se você não reconhece este envio, desconsidere esta mensagem.',
+    '',
+    'Equipe 7Eventos Academy',
   ].join('\n');
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.5;">
-      <h2 style="margin: 0 0 12px;">Contrato disponível para assinatura</h2>
-      <p>Olá, <strong>${escapeHtml(params.recipientName)}</strong>.</p>
-      <p>Você recebeu um contrato para assinatura:</p>
-      <p style="margin: 12px 0;"><strong>${escapeHtml(params.templateTitle)}</strong></p>
-      <p>
-        <a href="${escapeHtml(params.signingLink)}" style="display: inline-block; padding: 10px 14px; background: #0f766e; color: #fff; text-decoration: none; border-radius: 8px;">
-          Revisar e assinar
-        </a>
-      </p>
-      <p style="margin-top: 12px;">Validade do link: <strong>${escapeHtml(expiresAtLabel)}</strong>.</p>
-      <p style="color: #6b7280;">Se você não reconhece este envio, desconsidere este e-mail.</p>
+  const bodyHtml = `
+    <p style="margin:0 0 12px;font-size:16px;line-height:1.6;color:#1f2937;">Olá, <strong>${safeRecipientName}</strong>!</p>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#374151;">
+      Um contrato foi disponibilizado para você. Revise o documento e, se estiver de acordo,
+      conclua a assinatura eletrônica.
+    </p>
+
+    <div style="margin:0 0 18px;background:#fff7f0;border:1px solid #fed7aa;border-radius:14px;padding:14px 16px;">
+      <div style="font-size:12px;color:#9a3412;text-transform:uppercase;letter-spacing:1.4px;font-weight:700;">Contrato</div>
+      <div style="margin-top:6px;font-size:16px;line-height:1.5;color:#1f2937;font-weight:700;">${safeTemplateTitle}</div>
+      <div style="margin-top:8px;font-size:13px;line-height:1.6;color:#6b7280;">Validade do link: <strong>${safeExpiresAtLabel}</strong></div>
     </div>
-  `;
+
+    <div style="margin:0 0 18px;text-align:center;">
+      <a href="${safeSigningLink}" style="display:inline-block;padding:12px 18px;background:#b45309;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:700;font-size:14px;">
+        Revisar e assinar contrato
+      </a>
+    </div>
+
+    <p style="margin:0;font-size:13px;line-height:1.6;color:#6b7280;">
+      Se você não reconhece este envio, pode ignorar este e-mail com segurança.
+    </p>
+  `.trim();
+
+  const html = renderAcademyMailShell({
+    subject,
+    headerTitle: 'Contrato para assinatura',
+    headerSubtitle: 'Ação necessária para concluir sua assinatura eletrônica.',
+    bodyHtml,
+  });
 
   return { subject, text, html };
 }
 
-export function buildContractPinEmail(params: BuildContractPinEmailParams) {
+export function buildContractPinEmail(
+  params: BuildContractPinEmailParams,
+): MailTemplate {
+  const safeRecipientName = escapeHtml(params.recipientName || 'usuário');
+  const safeTemplateTitle = escapeHtml(params.templateTitle || 'Contrato');
+  const safePinCode = escapeHtml(params.pinCode);
+
   const subject = `Código de assinatura do contrato: ${params.templateTitle}`;
+
   const text = [
-    `Olá, ${params.recipientName}.`,
+    `Olá, ${params.recipientName || 'usuário'}!`,
     '',
-    `Seu código de confirmação para assinatura do contrato "${params.templateTitle}" é: ${params.pinCode}`,
-    `Validade: ${params.expiresInMinutes} minutos.`,
+    `Recebemos uma solicitação para assinar o contrato "${params.templateTitle}".`,
+    'Use o código abaixo para confirmar a assinatura:',
     '',
+    params.pinCode,
+    '',
+    `Validade do código: ${params.expiresInMinutes} minutos.`,
     'Não compartilhe este código com terceiros.',
+    '',
+    'Equipe 7Eventos Academy',
   ].join('\n');
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.5;">
-      <h2 style="margin: 0 0 12px;">Código de confirmação</h2>
-      <p>Olá, <strong>${escapeHtml(params.recipientName)}</strong>.</p>
-      <p>Use o código abaixo para concluir a assinatura do contrato:</p>
-      <p style="margin: 16px 0; font-size: 28px; font-weight: 700; letter-spacing: 6px;">${escapeHtml(params.pinCode)}</p>
-      <p>Contrato: <strong>${escapeHtml(params.templateTitle)}</strong></p>
-      <p>Validade: <strong>${params.expiresInMinutes} minutos</strong>.</p>
-      <p style="color: #b91c1c;">Não compartilhe este código com terceiros.</p>
+  const bodyHtml = `
+    <p style="margin:0 0 12px;font-size:16px;line-height:1.6;color:#1f2937;">Olá, <strong>${safeRecipientName}</strong>!</p>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#374151;">
+      Para concluir a assinatura eletrônica do contrato abaixo, informe este código na plataforma:
+    </p>
+
+    <div style="margin:0 auto 18px;max-width:320px;background:#fff7f0;border:1px dashed #f59e0b;border-radius:14px;padding:16px 14px;text-align:center;">
+      <div style="font-size:12px;color:#9a3412;text-transform:uppercase;letter-spacing:1.6px;font-weight:700;">Código de assinatura</div>
+      <div style="margin-top:8px;font-size:34px;line-height:1;font-weight:800;letter-spacing:8px;color:#b45309;font-family:'Trebuchet MS',Arial,sans-serif;">${safePinCode}</div>
     </div>
-  `;
+
+    <div style="margin:0 0 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;">
+      <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Contrato</div>
+      <div style="margin-top:4px;font-size:14px;line-height:1.6;color:#1f2937;font-weight:700;">${safeTemplateTitle}</div>
+    </div>
+
+    <p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:#6b7280;">
+      Este código expira em <strong>${params.expiresInMinutes} minutos</strong>.
+    </p>
+    <p style="margin:0;font-size:13px;line-height:1.6;color:#991b1b;">
+      Não compartilhe este código com terceiros.
+    </p>
+  `.trim();
+
+  const html = renderAcademyMailShell({
+    subject,
+    headerTitle: 'Confirmação por código',
+    headerSubtitle: 'Use este código para validar sua assinatura eletrônica.',
+    bodyHtml,
+  });
 
   return { subject, text, html };
 }
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-

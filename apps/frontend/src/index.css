@@ -8540,7 +8540,33 @@ table button {
 }
 
 .student-contracts-layout {
-  gap: 0.85rem;
+  gap: 0.9rem;
+}
+
+.student-contracts-main-grid {
+  align-items: start;
+}
+
+.student-contract-list-card,
+.student-contract-sign-card,
+.student-contract-preview-card {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.student-contract-section-head {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.student-contract-section-head h4 {
+  margin: 0;
+}
+
+.student-contract-section-head p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
 }
 
 .student-contract-item {
@@ -8560,6 +8586,7 @@ table button {
 .student-contract-item.is-active {
   border-color: rgba(167, 58, 0, 0.45);
   background: #fff8f3;
+  box-shadow: 0 2px 8px rgba(167, 58, 0, 0.1);
 }
 
 .student-contract-item strong {
@@ -8570,17 +8597,47 @@ table button {
   color: #64748b;
 }
 
-.student-contract-actions {
+.student-contract-sign-flow {
   display: grid;
-  gap: 0.6rem;
+  gap: 0.75rem;
 }
 
-.student-contract-actions p {
-  margin: 0;
+.student-contract-summary-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.student-contract-actions button {
-  justify-self: start;
+.student-contract-summary-grid article {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 0.55rem 0.62rem;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.student-contract-summary-grid span {
+  color: #64748b;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.student-contract-summary-grid strong {
+  color: #0f172a;
+  font-size: 0.93rem;
+}
+
+.student-contract-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.student-contract-action-row button,
+.student-contract-step button {
   border: 1px solid rgba(15, 23, 42, 0.16);
   border-radius: 10px;
   background: #fff;
@@ -8588,21 +8645,86 @@ table button {
   font-weight: 700;
   padding: 0.5rem 0.7rem;
   cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
-.student-contract-actions button:last-child {
-  background: #a73a00;
-  color: #fff;
-  border-color: #a73a00;
+.student-contract-action-row button:hover:not(:disabled),
+.student-contract-step button:hover:not(:disabled) {
+  border-color: rgba(167, 58, 0, 0.5);
 }
 
-.student-contract-actions input {
+.student-contract-action-row button:disabled,
+.student-contract-step button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.student-contract-complete-note {
+  border: 1px solid rgba(22, 163, 74, 0.3);
+  background: #f0fdf4;
+  color: #166534;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.91rem;
+}
+
+.student-contract-step {
+  border: 1px solid rgba(15, 23, 42, 0.13);
+  border-radius: 12px;
+  padding: 0.7rem;
+  background: #fff;
+  display: grid;
+  gap: 0.62rem;
+}
+
+.student-contract-step.is-complete {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: #f0fdf4;
+}
+
+.student-contract-step.is-disabled {
+  opacity: 0.72;
+}
+
+.student-contract-step header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.student-contract-step header span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #a73a00;
+  background: #fff3e8;
+}
+
+.student-contract-step header h5 {
+  margin: 0;
+  font-size: 0.98rem;
+  color: #0f172a;
+}
+
+.student-contract-step p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.student-contract-step input {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid rgba(15, 23, 42, 0.14);
   border-radius: 10px;
   padding: 0.52rem 0.62rem;
   font-size: 0.94rem;
+  background: #fff;
 }
 
 .student-contract-pin-form {
@@ -8611,11 +8733,46 @@ table button {
   gap: 0.5rem;
 }
 
+.student-contract-signature-canvas-wrap {
+  border: 1px dashed rgba(148, 163, 184, 0.8);
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 0.55rem;
+}
+
+.student-contract-signature-canvas {
+  width: 100%;
+  height: 190px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  background: #fff;
+  display: block;
+}
+
+.student-contract-signature-helper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.student-contract-signature-helper small {
+  color: #64748b;
+  font-size: 0.79rem;
+}
+
 .student-contract-accept {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
   color: #334155;
+  font-size: 0.9rem;
+}
+
+.student-contract-sign-submit {
+  background: #a73a00 !important;
+  color: #fff !important;
+  border-color: #a73a00 !important;
 }
 
 .student-contract-document-frame {
@@ -8634,6 +8791,10 @@ table button {
   .native-contract-details-meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .student-contract-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
@@ -8646,7 +8807,34 @@ table button {
     grid-template-columns: 1fr;
   }
 
+  .student-contracts-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .student-contract-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .student-contract-action-row button {
+    flex: 1 1 100%;
+  }
+
   .student-contract-pin-form {
     grid-template-columns: 1fr;
+  }
+
+  .student-contract-signature-helper {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .student-contract-signature-helper button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .student-contract-signature-canvas {
+    height: 170px;
   }
 }

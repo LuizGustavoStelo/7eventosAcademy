@@ -34,6 +34,10 @@ type ContractRequestContext = {
   userAgent?: string | null;
 };
 
+type ContractSendContext = {
+  publicOrigin?: string | null;
+};
+
 const DEFAULT_SIGNING_TOKEN_HOURS = 72;
 const MAX_SIGNING_TOKEN_HOURS = 168;
 const DEFAULT_PIN_TTL_MINUTES = 10;
@@ -378,7 +382,11 @@ export class ContractsService {
     };
   }
 
-  async sendInstance(dto: SendContractInstanceDto, actor: ContractActor) {
+  async sendInstance(
+    dto: SendContractInstanceDto,
+    actor: ContractActor,
+    context?: ContractSendContext,
+  ) {
     const institutionId = this.requireActiveInstitutionId(actor);
     const template = await this.prisma.contractTemplate.findFirst({
       where: {
@@ -558,7 +566,11 @@ export class ContractsService {
       };
     });
 
-    const signingLink = this.buildSigningLink(rawToken, txResult.instanceId);
+    const signingLink = this.buildSigningLink(
+      rawToken,
+      txResult.instanceId,
+      context?.publicOrigin,
+    );
     let emailStatus: 'sent' | 'failed' | 'skipped' = 'skipped';
     if (dto.sendEmail !== false) {
       try {
@@ -1130,6 +1142,10 @@ export class ContractsService {
     }
 
     const signerName = dto.signerName?.trim() || instance.student.name;
+    const signatureData = this.normalizeSignatureDataUrl(dto.signatureData);
+    if (!signatureData) {
+      throw new BadRequestException('Assinatura desenhada inválida.');
+    }
     const acceptedTermsText =
       dto.acceptedTermsText?.trim() || DEFAULT_SIGNATURE_TERMS_TEXT;
     const acceptedTermsVersion =
@@ -1139,9 +1155,11 @@ export class ContractsService {
       signerName,
       signedAt: now,
       signatureCode: instance.signatureCode,
+      signatureData,
     });
     const signedContentHash = this.sha256(signedHtmlSnapshot);
     const signedPdfHash = this.sha256(`pdf:${signedHtmlSnapshot}`);
+    const signatureImageHash = this.sha256(signatureData);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.contractInstance.update({
@@ -1209,6 +1227,7 @@ export class ContractsService {
           signatureCode: instance.signatureCode,
           signedContentHash,
           signedPdfHash,
+          signatureImageHash,
           termsVersion: acceptedTermsVersion,
         },
       });
@@ -1290,6 +1309,7 @@ export class ContractsService {
       signerName: string;
       signedAt: Date;
       signatureCode: string;
+      signatureData: string;
     },
   ) {
     const signedAtLabel = new Intl.DateTimeFormat('pt-BR', {
@@ -1313,13 +1333,36 @@ export class ContractsService {
         <p style="margin:0;font-family:Arial,sans-serif;">
           <strong>Código de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
         </p>
+        <div style="margin-top:12px;">
+          <p style="margin:0 0 6px;font-family:Arial,sans-serif;"><strong>Assinatura:</strong></p>
+          <img
+            alt="Assinatura desenhada do signatário"
+            src="${this.escapeHtml(params.signatureData)}"
+            style="display:block;max-width:360px;width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;background:#fff;"
+          />
+        </div>
       </section>
     `;
 
     return `${unsignedHtml}\n${signatureBlock}`.trim();
   }
 
-  private buildSigningLink(rawToken: string, instanceId: string): string {
+  private normalizeSignatureDataUrl(value: string): string | null {
+    const raw = String(value ?? '').trim();
+    if (!raw) return null;
+    const match = raw.match(/^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/i);
+    if (!match) return null;
+    const base64 = match[2] ?? '';
+    if (!base64) return null;
+    const approxBytes = Math.floor((base64.length * 3) / 4);
+    if (approxBytes <= 0 || approxBytes > 600 * 1024) return null;
+    return raw;
+  }
+  private buildSigningLink(
+    rawToken: string,
+    instanceId: string,
+    publicOrigin?: string | null,
+  ): string {
     const configuredBase = this.configService
       .get<string>('CONTRACT_SIGNING_PUBLIC_BASE_URL')
       ?.trim();
@@ -1339,7 +1382,27 @@ export class ContractsService {
       const separator = normalizedBase.includes('?') ? '&' : '?';
       return `${normalizedBase}${separator}contractId=${encodeURIComponent(instanceId)}#tab=st-student-contracts`;
     }
+
+    const normalizedOrigin = this.normalizeAbsoluteOrigin(publicOrigin);
+    if (normalizedOrigin) {
+      return `${normalizedOrigin}/api/contracts/sign/${encodeURIComponent(rawToken)}`;
+    }
+
     return `/api/contracts/sign/${rawToken}`;
+  }
+
+  private normalizeAbsoluteOrigin(value?: string | null): string | null {
+    const normalized = String(value ?? '').trim();
+    if (!normalized) return null;
+    try {
+      const parsed = new URL(normalized);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        return null;
+      }
+      return parsed.origin;
+    } catch {
+      return null;
+    }
   }
 
   private async generateUniqueSignatureCode(): Promise<string> {
