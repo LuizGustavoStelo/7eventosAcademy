@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { API_BASE_URL, apiRequest } from './api';
+import { ContractWordEditor, type ContractPlaceholder } from './ContractWordEditor';
 
 type ContractTemplate = {
   id: string;
@@ -126,6 +127,17 @@ const DEFAULT_TEMPLATE_HTML = `<section>
   </p>
   <p>Código de assinatura: <strong>{{signature_code}}</strong></p>
 </section>`;
+
+const CONTRACT_EDITOR_PLACEHOLDERS: ContractPlaceholder[] = [
+  { id: 'student_name', label: 'Aluno: nome', token: '{{student_name}}' },
+  { id: 'student_email', label: 'Aluno: e-mail', token: '{{student_email}}' },
+  { id: 'student_document', label: 'Aluno: documento', token: '{{student_document}}' },
+  { id: 'course_name', label: 'Curso: nome', token: '{{course_name}}' },
+  { id: 'class_name', label: 'Turma: nome', token: '{{class_name}}' },
+  { id: 'signed_by_name', label: 'Assinante', token: '{{signed_by_name}}' },
+  { id: 'signed_at', label: 'Data/hora da assinatura', token: '{{signed_at}}' },
+  { id: 'signature_code', label: 'Código da assinatura', token: '{{signature_code}}' },
+];
 
 function defaultTemplateForm(): TemplateFormState {
   return {
@@ -746,20 +758,20 @@ export function ContractsNative({ token }: ContractsNativeProps) {
                 />
               </label>
 
-              <label className="native-contract-span-all">
-                HTML do contrato (placeholders: {'{{student_name}}'}, {'{{student_email}}'}, {'{{course_name}}'}, {'{{class_name}}'}, {'{{signature_code}}'})
-                <textarea
-                  rows={14}
+              <div className="native-contract-span-all">
+                <p className="native-contract-editor-label">Documento do contrato</p>
+                <ContractWordEditor
                   value={templateForm.draftHtmlContent}
-                  onChange={(event) =>
+                  onChange={(nextHtml) =>
                     setTemplateForm((current) => ({
                       ...current,
-                      draftHtmlContent: event.target.value,
+                      draftHtmlContent: nextHtml,
                     }))
                   }
-                  required
+                  placeholders={CONTRACT_EDITOR_PLACEHOLDERS}
+                  disabled={selectedTemplate?.status.trim().toUpperCase() === 'ARCHIVED'}
                 />
-              </label>
+              </div>
 
               {formError ? <p className="native-error native-contract-span-all">{formError}</p> : null}
 
