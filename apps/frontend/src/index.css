@@ -8378,6 +8378,10 @@ table button {
   align-items: start;
 }
 
+.native-contracts-layout.is-editor-page {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .native-contracts-main {
   display: grid;
   gap: 0.85rem;

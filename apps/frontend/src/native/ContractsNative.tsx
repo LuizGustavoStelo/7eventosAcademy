@@ -340,6 +340,12 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   useEffect(() => {
     if (!isEditorMode) return;
     const params = new URLSearchParams(window.location.search);
+    const isNewTemplate = params.get('novo') === '1';
+    if (isNewTemplate) {
+      setSelectedTemplateId(null);
+      setTemplateForm(defaultTemplateForm());
+      return;
+    }
     const templateId = params.get('templateId')?.trim() || '';
     if (templateId) {
       setSelectedTemplateId(templateId);
@@ -396,7 +402,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   const openEditorPage = (templateId?: string) => {
     const target = templateId
       ? `/editar-contrato?templateId=${encodeURIComponent(templateId)}`
-      : '/editar-contrato';
+      : '/editar-contrato?novo=1';
     window.location.href = target;
   };
 
@@ -736,8 +742,9 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       {error ? <p className="native-error">{error}</p> : null}
       {feedback ? <p className="native-success">{feedback}</p> : null}
 
-      <div className="native-contracts-layout">
-        <aside className="native-contracts-sidebar">
+      <div className={`native-contracts-layout ${isEditorMode ? 'is-editor-page' : ''}`}>
+        {!isEditorMode ? (
+          <aside className="native-contracts-sidebar">
           <article className="native-panel">
             <header className="native-panel-header">
               <h3>Modelos</h3>
@@ -774,7 +781,8 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
               )}
             </div>
           </article>
-        </aside>
+          </aside>
+        ) : null}
 
         <div className="native-contracts-main">
           {isEditorMode ? (
