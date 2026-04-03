@@ -557,6 +557,9 @@ export default function App() {
   const [hasTopbarNotification, setHasTopbarNotification] = useState(false);
 
   const queryParams = new URLSearchParams(window.location.search);
+  const normalizedPathname =
+    (window.location.pathname || '/').replace(/\/+$/, '') || '/';
+  const isContractEditorPath = normalizedPathname === '/editar-contrato';
   const isEmbedded = queryParams.get('embed') === '1';
   const appMode = queryParams.get('app');
   const isStudentPortalMode = appMode === 'student';
@@ -1654,18 +1657,22 @@ export default function App() {
 
         <div className="template-frame-wrap">
           <div className="native-content-wrap">
-            {secaoAtiva === 'superadmin_dashboard_global' ? (
+            {isContractEditorPath ? (
+              <ContractsNative token={token} mode="editor" />
+            ) : null}
+
+            {!isContractEditorPath && secaoAtiva === 'superadmin_dashboard_global' ? (
               <SuperadminDashboardNative
                 token={token}
                 onNavigate={(sectionId) => setSecaoAtiva(sectionId)}
               />
             ) : null}
 
-            {secaoAtiva === 'superadmin_gestao_contas' ? (
+            {!isContractEditorPath && secaoAtiva === 'superadmin_gestao_contas' ? (
               <SuperadminAccountsNative token={token} />
             ) : null}
 
-            {secaoAtiva === 'superadmin_impersonacao' ? (
+            {!isContractEditorPath && secaoAtiva === 'superadmin_impersonacao' ? (
               <SuperadminImpersonationNative
                 token={token}
                 onNavigate={(sectionId) => setSecaoAtiva(sectionId)}
@@ -1673,61 +1680,61 @@ export default function App() {
               />
             ) : null}
 
-            {secaoAtiva === 'superadmin_wordpress_plugin' ? (
+            {!isContractEditorPath && secaoAtiva === 'superadmin_wordpress_plugin' ? (
               <SuperadminWordpressNative token={token} />
             ) : null}
 
-            {secaoAtiva === 'admin_dashboard_conta' ? (
+            {!isContractEditorPath && secaoAtiva === 'admin_dashboard_conta' ? (
               <DashboardNative
                 token={token}
                 onNavigate={(sectionId) => setSecaoAtiva(sectionId)}
               />
             ) : null}
 
-            {secaoAtiva === 'admin_gestao_turmas' ? (
+            {!isContractEditorPath && secaoAtiva === 'admin_gestao_turmas' ? (
               <ClassesNative token={token} onNavigate={(sectionId) => setSecaoAtiva(sectionId)} />
             ) : null}
 
-            {secaoAtiva === 'admin_cursos' ? (
+            {!isContractEditorPath && secaoAtiva === 'admin_cursos' ? (
               <CoursesNative token={token} />
             ) : null}
 
-            {secaoAtiva === 'admin_alunos_matriculas' ? (
+            {!isContractEditorPath && secaoAtiva === 'admin_alunos_matriculas' ? (
               <StudentsNative token={token} />
             ) : null}
 
-            {secaoAtiva === 'admin_contratos' ? (
-              <ContractsNative token={token} />
+            {!isContractEditorPath && secaoAtiva === 'admin_contratos' ? (
+              <ContractsNative token={token} mode="hub" />
             ) : null}
 
-            {secaoAtiva === 'admin_agenda' ? (
+            {!isContractEditorPath && secaoAtiva === 'admin_agenda' ? (
               <AgendaNative
                 token={token}
                 onNavigate={(sectionId) => setSecaoAtiva(sectionId)}
               />
             ) : null}
 
-            {secaoAtiva === 'admin_aulas' ? (
+            {!isContractEditorPath && secaoAtiva === 'admin_aulas' ? (
               <LessonsNative token={token} />
             ) : null}
 
-            {secaoAtiva === 'admin_financeiro' ? (
+            {!isContractEditorPath && secaoAtiva === 'admin_financeiro' ? (
               <FinanceNative token={token} />
             ) : null}
 
-            {secaoAtiva === 'admin_conteudo' ? (
+            {!isContractEditorPath && secaoAtiva === 'admin_conteudo' ? (
               <ContentNative token={token} />
             ) : null}
 
-            {secaoAtiva === 'admin_avisos' ? (
+            {!isContractEditorPath && secaoAtiva === 'admin_avisos' ? (
               <NoticesNative token={token} />
             ) : null}
 
-            {secaoAtiva === 'admin_relatorios' ? (
+            {!isContractEditorPath && secaoAtiva === 'admin_relatorios' ? (
               <ReportsNative token={token} />
             ) : null}
 
-            {secaoAtiva === 'admin_configuracoes' ? (
+            {!isContractEditorPath && secaoAtiva === 'admin_configuracoes' ? (
               <SettingsNative
                 token={token}
                 isDarkTheme={temaEscuro}

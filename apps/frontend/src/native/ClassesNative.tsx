@@ -690,7 +690,10 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
   const syncEnrollments = async (
     classId: string,
     selectedStudentIds: string[],
-    options?: { preserveExisting?: boolean },
+    options?: {
+      preserveExisting?: boolean;
+      ignoreAlreadyEnrolledOnAdd?: boolean;
+    },
   ) => {
     const currentStudentIds = getClassEnrollmentStudentSet(classId);
     const desiredStudentIds = new Set(selectedStudentIds);
@@ -705,6 +708,10 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
         );
 
     const failures: string[] = [];
+    const isAlreadyEnrolledMessage = (message: string) =>
+      /já está matriculado na turma|ja esta matriculado na turma|já está matriculado na turma/i.test(
+        message,
+      );
 
     for (const studentId of toAdd) {
       try {
@@ -714,6 +721,13 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
           body: JSON.stringify({ classId, studentId }),
         });
       } catch (syncError) {
+        if (
+          options?.ignoreAlreadyEnrolledOnAdd &&
+          syncError instanceof Error &&
+          isAlreadyEnrolledMessage(syncError.message)
+        ) {
+          continue;
+        }
         failures.push(
           syncError instanceof Error
             ? `Falha ao adicionar aluno: ${syncError.message}`
@@ -1105,6 +1119,7 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
 
       await syncEnrollments(classId, form.selectedStudentIds, {
         preserveExisting: !form.id && form.autoEnrollNewStudents,
+        ignoreAlreadyEnrolledOnAdd: !form.id && form.autoEnrollNewStudents,
       });
       await syncClassEventsToAgenda({
         classId,

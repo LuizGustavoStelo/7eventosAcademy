@@ -121,14 +121,14 @@ export class StudentsService {
     const jobTitle = dto.jobTitle.trim();
     const birthDate = new Date(dto.birthDate);
     if (Number.isNaN(birthDate.getTime()) || birthDate > new Date()) {
-      throw new BadRequestException('Data de nascimento invÃ¡lida.');
+      throw new BadRequestException('Data de nascimento inválida.');
     }
     if (
       !Number.isInteger(graduationConclusionYear) ||
       graduationConclusionYear < 1900 ||
       graduationConclusionYear > 9999
     ) {
-      throw new BadRequestException('Ano de conclusÃ£o da graduaÃ§Ã£o invÃ¡lido.');
+      throw new BadRequestException('Ano de conclusão da graduação inválido.');
     }
 
     const existingCpf = await this.prisma.studentProfile.findUnique({
@@ -137,7 +137,7 @@ export class StudentsService {
     });
 
     if (existingCpf) {
-      throw new BadRequestException('CPF jÃ¡ utilizado em outro cadastro.');
+      throw new BadRequestException('CPF já utilizado em outro cadastro.');
     }
 
     const uniqueCourseIds = [...new Set(dto.courseIds ?? [])];
@@ -170,7 +170,7 @@ export class StudentsService {
 
     if (!institutionId) {
       throw new BadRequestException(
-        'NÃ£o foi possÃ­vel identificar a instituiÃ§Ã£o do cadastro.',
+        'Não foi possível identificar a instituição do cadastro.',
       );
     }
 
@@ -282,7 +282,7 @@ export class StudentsService {
         select: { id: true },
       });
       if (existingUser && existingUser.id !== studentId) {
-        throw new BadRequestException('JÃ¡ existe um usuÃ¡rio com este e-mail.');
+        throw new BadRequestException('Já existe um usuário com este e-mail.');
       }
       dataToUpdate.email = email;
     }
@@ -308,7 +308,7 @@ export class StudentsService {
       if (dto.birthDate) {
         const bd = new Date(dto.birthDate);
         if (Number.isNaN(bd.getTime()) || bd > new Date()) {
-          throw new BadRequestException('Data de nascimento invÃ¡lida.');
+          throw new BadRequestException('Data de nascimento inválida.');
         }
         profileData.birthDate = bd;
       } else {
@@ -397,7 +397,7 @@ export class StudentsService {
             },
           });
           if (courses.length !== uniqueCourseIds.length) {
-            throw new BadRequestException('Um ou mais cursos informados sÃ£o invÃ¡lidos.');
+            throw new BadRequestException('Um ou mais cursos informados são inválidos.');
           }
           institutionByCourseId = new Map(
             courses.map((course) => [course.id, course.institutionId]),
@@ -449,7 +449,7 @@ export class StudentsService {
     });
 
     if (courses.length !== uniqueCourseIds.length) {
-      throw new BadRequestException('Um ou mais cursos informados sÃ£o invÃ¡lidos.');
+      throw new BadRequestException('Um ou mais cursos informados são inválidos.');
     }
 
     const institutionByCourseId = new Map(
@@ -548,7 +548,7 @@ export class StudentsService {
     });
 
     if (!student) {
-      throw new NotFoundException('Aluno nÃ£o encontrado.');
+      throw new NotFoundException('Aluno não encontrado.');
     }
 
     const enrollmentsByClassId = new Map<string, number>();
@@ -602,7 +602,7 @@ export class StudentsService {
 
     if (rows.length < 2) {
       throw new BadRequestException(
-        'CSV invÃ¡lido. Informe cabeÃ§alho e pelo menos uma linha de aluno.',
+        'CSV inválido. Informe cabeçalho e pelo menos uma linha de aluno.',
       );
     }
 
@@ -664,7 +664,7 @@ export class StudentsService {
     });
 
     if (!student) {
-      throw new NotFoundException('Aluno nÃ£o encontrado.');
+      throw new NotFoundException('Aluno não encontrado.');
     }
 
     const mapped = await this.mapStudentsWithAvatar([student]);
@@ -682,7 +682,7 @@ export class StudentsService {
     });
 
     if (!student) {
-      throw new NotFoundException('Aluno nÃ£o encontrado.');
+      throw new NotFoundException('Aluno não encontrado.');
     }
   }
 
@@ -693,7 +693,7 @@ export class StudentsService {
     });
 
     if (existingUser) {
-      throw new BadRequestException('JÃ¡ existe um usuÃ¡rio com este e-mail.');
+      throw new BadRequestException('Já existe um usuário com este e-mail.');
     }
   }
 
@@ -711,7 +711,7 @@ export class StudentsService {
 
     if (total !== courseIds.length) {
       throw new BadRequestException(
-        'Um ou mais cursos informados sÃ£o invÃ¡lidos.',
+        'Um ou mais cursos informados são inválidos.',
       );
     }
   }
@@ -771,7 +771,7 @@ export class StudentsService {
 
     if (actor.role === 'superadmin') {
       throw new NotFoundException(
-        'Selecione uma instituiÃ§Ã£o ativa para criar alunos.',
+        'Selecione uma instituição ativa para criar alunos.',
       );
     }
 
@@ -786,7 +786,7 @@ export class StudentsService {
 
     if (!membership?.institutionId) {
       throw new NotFoundException(
-        'Nenhuma instituiÃ§Ã£o ativa foi encontrada para este usuÃ¡rio.',
+        'Nenhuma instituição ativa foi encontrada para este usuário.',
       );
     }
 
@@ -815,7 +815,7 @@ export class StudentsService {
 
     if (!adminMember?.userId) {
       throw new NotFoundException(
-        'NÃ£o hÃ¡ administrador ativo para a instituiÃ§Ã£o selecionada.',
+        'Não há administrador ativo para a instituição selecionada.',
       );
     }
 
@@ -835,7 +835,7 @@ export class StudentsService {
     const institutionIds = [...new Set(courses.map((course) => course.institutionId))];
     if (institutionIds.length > 1) {
       throw new BadRequestException(
-        'Selecione cursos de apenas uma instituiÃ§Ã£o por cadastro.',
+        'Selecione cursos de apenas uma instituição por cadastro.',
       );
     }
 
@@ -849,7 +849,7 @@ export class StudentsService {
   private normalizeCpf(input: string) {
     const normalized = input.replace(/\D+/g, '');
     if (normalized.length !== 11) {
-      throw new BadRequestException('CPF invÃ¡lido.');
+      throw new BadRequestException('CPF inválido.');
     }
 
     return normalized;
@@ -858,7 +858,7 @@ export class StudentsService {
   private normalizePhone(input: string) {
     const normalized = input.replace(/[^\d+]/g, '');
     if (normalized.length < 10) {
-      throw new BadRequestException('Telefone invÃ¡lido.');
+      throw new BadRequestException('Telefone inválido.');
     }
 
     return normalized;
@@ -933,7 +933,7 @@ export class StudentsService {
     ) {
       return {
         statusKey: 'pre_active',
-        statusLabel: 'PrÃ©-matrÃ­cula',
+        statusLabel: 'Pré-matrícula',
       };
     }
 
@@ -942,7 +942,7 @@ export class StudentsService {
     ) {
       return {
         statusKey: 'completed',
-        statusLabel: 'ConcluÃ­do',
+        statusLabel: 'Concluído',
       };
     }
 
@@ -1010,9 +1010,9 @@ export class StudentsService {
         if (error instanceof BadRequestException) {
           const message = String(error.message || '').toLowerCase();
           if (
-            message.includes('jÃ¡ matriculado') ||
-            message.includes('nao hÃ¡ vagas') ||
-            message.includes('nÃ£o hÃ¡ vagas')
+            message.includes('já matriculado') ||
+            message.includes('nao há vagas') ||
+            message.includes('não há vagas')
           ) {
             continue;
           }
@@ -1124,7 +1124,7 @@ export class StudentsService {
       !jobTitle
     ) {
       throw new BadRequestException(
-        'Campos obrigatÃ³rios no CSV: nome, email, cpf, rg, orgaoExpedidor, telefone, dataNascimento, cidadeQueNasceu, estadoCivil, endereco, cep, nomeDoPai, nomeDaMae, graduacao, anoDeConclusaoDaGraduacao, empresaOndeTrabalha, cargo.',
+        'Campos obrigatórios no CSV: nome, email, cpf, rg, orgaoExpedidor, telefone, dataNascimento, cidadeQueNasceu, estadoCivil, endereco, cep, nomeDoPai, nomeDaMae, graduacao, anoDeConclusaoDaGraduacao, empresaOndeTrabalha, cargo.',
       );
     }
 
@@ -1137,7 +1137,7 @@ export class StudentsService {
     const birthDate = this.normalizeBirthDateFromCsv(birthDateRaw);
     const graduationConclusionYear = Number(graduationConclusionYearRaw);
     if (!Number.isInteger(graduationConclusionYear)) {
-      throw new BadRequestException('Ano de conclusÃ£o da graduaÃ§Ã£o invÃ¡lido no CSV.');
+      throw new BadRequestException('Ano de conclusão da graduação inválido no CSV.');
     }
 
     return {
@@ -1181,7 +1181,6 @@ export class StudentsService {
       return `${year}-${month}-${day}`;
     }
 
-    throw new BadRequestException('Data de nascimento invÃ¡lida no CSV.');
+    throw new BadRequestException('Data de nascimento inválida no CSV.');
   }
 }
-

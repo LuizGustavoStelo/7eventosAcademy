@@ -147,15 +147,15 @@ function statusVisual(statusKey: string | undefined) {
     case 'active':
       return { tone: 'is-success', label: 'Ativo' };
     case 'pre_active':
-      return { tone: 'is-warning', label: 'PrÃ©-matrÃ­cula' };
+      return { tone: 'is-warning', label: 'Pré-matrícula' };
     case 'completed':
-      return { tone: 'is-info', label: 'ConcluÃ­do' };
+      return { tone: 'is-info', label: 'Concluído' };
     case 'inactive':
       return { tone: 'is-muted', label: 'Inativo' };
     case 'pending_course':
       return { tone: 'is-neutral', label: 'Sem curso' };
     default:
-      return { tone: 'is-neutral', label: 'Sem definiÃ§Ã£o' };
+      return { tone: 'is-neutral', label: 'Sem definição' };
   }
 }
 
@@ -361,7 +361,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
 
     if (!form.id) {
       if (!password || password.length < 8) {
-        setFormError('A senha deve ter no mÃ­nimo 8 caracteres.');
+        setFormError('A senha deve ter no mínimo 8 caracteres.');
         return;
       }
       if (
@@ -539,7 +539,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
       setImportModalOpen(false);
       setCsvFile(null);
       setFeedback(
-        `ImportaÃ§Ã£o concluÃ­da. Sucesso: ${result.importedCount}. Falhas: ${result.failedCount}.`,
+        `Importação concluída. Sucesso: ${result.importedCount}. Falhas: ${result.failedCount}.`,
       );
     } catch (importError) {
       setError(
@@ -636,7 +636,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
         'courseIds',
       ],
       [
-        'JoÃ£o Silva',
+        'João Silva',
         'joao@email.com',
         'Senha@123',
         '12345678901',
@@ -644,13 +644,13 @@ export function StudentsNative({ token }: StudentsNativeProps) {
         'SSP',
         '65999990000',
         '1998-03-10',
-        'CuiabÃ¡',
+        'Cuiabá',
         'solteiro',
         'Rua Exemplo, 123, Centro',
         '78000000',
-        'JosÃ© Silva',
+        'José Silva',
         'Maria Silva',
-        'AdministraÃ§Ã£o',
+        'Administração',
         '2020',
         'Empresa Exemplo',
         'Analista',
@@ -674,10 +674,10 @@ export function StudentsNative({ token }: StudentsNativeProps) {
   return (
     <section className="native-page native-students">
       <header className="native-page-header">
-        <h2>Alunos e matrÃ­culas</h2>
+        <h2>Alunos e matrículas</h2>
         <p>
-          GestÃ£o nativa da base de alunos com ediÃ§Ã£o rÃ¡pida, importaÃ§Ã£o em lote e
-          menor custo de renderizaÃ§Ã£o.
+          Gestão nativa da base de alunos com edição rápida, importação em lote e
+          menor custo de renderização.
         </p>
       </header>
 
@@ -690,17 +690,17 @@ export function StudentsNative({ token }: StudentsNativeProps) {
         <article className="native-kpi-card">
           <span>Ativos</span>
           <strong>{activeStudents}</strong>
-          <small>{preEnrollmentStudents} em prÃ©-matrÃ­cula</small>
+          <small>{preEnrollmentStudents} em pré-matrícula</small>
         </article>
         <article className="native-kpi-card">
-          <span>Com matrÃ­cula</span>
+          <span>Com matrícula</span>
           <strong>{withEnrollments}</strong>
           <small>{students.length - withEnrollments} sem turma ativa</small>
         </article>
         <article className="native-kpi-card">
           <span>Sem curso</span>
           <strong>{pendingCourseStudents}</strong>
-          <small>Precisam de vÃ­nculo com curso</small>
+          <small>Precisam de vínculo com curso</small>
         </article>
       </div>
 
@@ -737,11 +737,11 @@ export function StudentsNative({ token }: StudentsNativeProps) {
             <thead>
               <tr>
                 <th>Aluno</th>
-                <th>MatrÃ­cula</th>
+                <th>Matrícula</th>
                 <th>Curso principal</th>
                 <th>Turmas</th>
                 <th>Status</th>
-                <th>AÃ§Ãµes</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -755,7 +755,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
                   const firstCourse =
                     student.enrollments?.[0]?.class?.course?.name ||
                     student.courses?.[0]?.course?.name ||
-                    'Curso nÃ£o vinculado';
+                    'Curso não vinculado';
 
                   return (
                     <tr key={student.id}>
@@ -832,7 +832,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
                 <strong>{toDisplayDate(selectedStudent.profile?.birthDate)}</strong>
               </article>
               <article>
-                <span>MatrÃ­culas em turma</span>
+                <span>Matrículas em turma</span>
                 <strong>{selectedStudent.enrollments?.length ?? 0}</strong>
               </article>
             </div>
@@ -856,7 +856,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
                 <ul>
                   {selectedStudent.enrollments.map((item) => (
                     <li key={item.id}>
-                      {item.class?.name ?? 'Turma nÃ£o encontrada'} (
+                      {item.class?.name ?? 'Turma não encontrada'} (
                       {item.class?.course?.name ?? 'Curso indefinido'})
                     </li>
                   ))}
@@ -943,7 +943,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
               </label>
 
               <label>
-                Senha {form.id ? '(opcional para ediÃ§Ã£o)' : ''}
+                Senha {form.id ? '(opcional para edição)' : ''}
                 <input
                   type="password"
                   value={form.password}
@@ -956,7 +956,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
               </label>
 
               <label>
-                CPF {!form.id ? '(obrigatÃ³rio no cadastro)' : ''}
+                CPF {!form.id ? '(obrigatório no cadastro)' : ''}
                 <input
                   value={form.documentCpf}
                   onChange={(event) =>
@@ -969,7 +969,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
               </label>
 
               <label>
-                Telefone {!form.id ? '(obrigatÃ³rio no cadastro)' : ''}
+                Telefone {!form.id ? '(obrigatório no cadastro)' : ''}
                 <input
                   value={form.phone}
                   onChange={(event) =>
@@ -979,7 +979,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
               </label>
 
               <label>
-                Data de nascimento {!form.id ? '(obrigatÃ³ria no cadastro)' : ''}
+                Data de nascimento {!form.id ? '(obrigatória no cadastro)' : ''}
                 <input
                   type="date"
                   value={form.birthDate}
@@ -1164,7 +1164,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
 
             <div className="native-import-body">
               <p>
-                Selecione um arquivo CSV no padrÃ£o da plataforma. Use o botÃ£o
+                Selecione um arquivo CSV no padrão da plataforma. Use o botão
                 <strong> Modelo CSV</strong> para baixar a estrutura correta.
               </p>
 
@@ -1205,4 +1205,3 @@ export function StudentsNative({ token }: StudentsNativeProps) {
     </section>
   );
 }
-

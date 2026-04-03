@@ -113,6 +113,7 @@ type SendFormState = {
 
 type ContractsNativeProps = {
   token: string;
+  mode?: 'hub' | 'editor';
 };
 
 const DEFAULT_TEMPLATE_HTML = `<section>
@@ -216,7 +217,8 @@ function toSafePositiveInteger(value: string, fallback: number): number {
   return normalized > 0 ? normalized : fallback;
 }
 
-export function ContractsNative({ token }: ContractsNativeProps) {
+export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
+  const isEditorMode = mode === 'editor';
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [instances, setInstances] = useState<ContractInstanceItem[]>([]);
   const [students, setStudents] = useState<StudentOption[]>([]);
@@ -236,6 +238,7 @@ export function ContractsNative({ token }: ContractsNativeProps) {
   const [downloadingInstanceId, setDownloadingInstanceId] = useState<string | null>(
     null,
   );
+  const [deletingInstanceId, setDeletingInstanceId] = useState<string | null>(null);
 
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -314,7 +317,11 @@ export function ContractsNative({ token }: ContractsNativeProps) {
     if (showLoading) setLoading(true);
     setError('');
     try {
-      await Promise.all([loadTemplates(), loadInstances(statusFilter), loadOptions()]);
+      if (isEditorMode) {
+        await loadTemplates();
+      } else {
+        await Promise.all([loadTemplates(), loadInstances(statusFilter), loadOptions()]);
+      }
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -328,7 +335,19 @@ export function ContractsNative({ token }: ContractsNativeProps) {
 
   useEffect(() => {
     void loadAll(instanceStatusFilter, true);
-  }, [token]);
+  }, [token, isEditorMode]);
+
+  useEffect(() => {
+    if (!isEditorMode) return;
+    const params = new URLSearchParams(window.location.search);
+    const templateId = params.get('templateId')?.trim() || '';
+    if (templateId) {
+      setSelectedTemplateId(templateId);
+    } else {
+      setSelectedTemplateId(null);
+      setTemplateForm(defaultTemplateForm());
+    }
+  }, [isEditorMode]);
 
   useEffect(() => {
     if (!selectedTemplateId) return;
@@ -348,10 +367,12 @@ export function ContractsNative({ token }: ContractsNativeProps) {
   }, [selectedTemplateId, templates]);
 
   useEffect(() => {
+    if (isEditorMode) return;
     void loadInstances(instanceStatusFilter);
-  }, [instanceStatusFilter]);
+  }, [instanceStatusFilter, isEditorMode]);
 
   useEffect(() => {
+    if (isEditorMode) return;
     if (
       sendForm.templateId &&
       sendableTemplates.some((template) => template.id === sendForm.templateId)
@@ -370,9 +391,20 @@ export function ContractsNative({ token }: ContractsNativeProps) {
       return;
     }
     setSendForm((current) => ({ ...current, templateId: '' }));
-  }, [selectedTemplateId, sendableTemplates, sendForm.templateId]);
+  }, [selectedTemplateId, sendableTemplates, sendForm.templateId, isEditorMode]);
+
+  const openEditorPage = (templateId?: string) => {
+    const target = templateId
+      ? `/editar-contrato?templateId=${encodeURIComponent(templateId)}`
+      : '/editar-contrato';
+    window.location.href = target;
+  };
 
   const openNewTemplate = () => {
+    if (!isEditorMode) {
+      openEditorPage();
+      return;
+    }
     setSelectedTemplateId(null);
     setTemplateForm(defaultTemplateForm());
     setFormError('');
@@ -380,6 +412,10 @@ export function ContractsNative({ token }: ContractsNativeProps) {
   };
 
   const pickTemplate = (template: ContractTemplate) => {
+    if (!isEditorMode) {
+      openEditorPage(template.id);
+      return;
+    }
     setSelectedTemplateId(template.id);
     setTemplateForm({
       name: template.name,
@@ -610,6 +646,37 @@ export function ContractsNative({ token }: ContractsNativeProps) {
     }
   };
 
+  const deleteInstance = async (instance: ContractInstanceItem) => {
+    const shouldDelete = window.confirm(
+      `Deseja realmente apagar o contrato "${instance.template.name}" de ${instance.student.name}? Esta ação remove o contrato também da visão do aluno.`,
+    );
+    if (!shouldDelete) return;
+
+    setDeletingInstanceId(instance.id);
+    setError('');
+    setFeedback('');
+
+    try {
+      await apiRequest<{ success: boolean }>(token, `/contracts/instances/${instance.id}`, {
+        method: 'DELETE',
+      });
+
+      if (selectedInstanceDetails?.id === instance.id) {
+        setDetailsOpen(false);
+        setSelectedInstanceDetails(null);
+      }
+
+      await loadInstances(instanceStatusFilter);
+      setFeedback('Contrato apagado com sucesso.');
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error ? deleteError.message : 'Falha ao apagar contrato.',
+      );
+    } finally {
+      setDeletingInstanceId((current) => (current === instance.id ? null : current));
+    }
+  };
+
   const instancesCountByStatus = useMemo(() => {
     const counter = {
       total: instances.length,
@@ -633,29 +700,37 @@ export function ContractsNative({ token }: ContractsNativeProps) {
   return (
     <section className="native-page native-contracts">
       <header className="native-page-header">
-        <h2>Contratos</h2>
-        <p>
-          Crie modelos, publique versões, envie contratos para assinatura do aluno e
-          acompanhe o ciclo de assinatura com rastreabilidade.
-        </p>
+        <h2>{isEditorMode ? 'Editor de contrato' : 'Contratos'}</h2>
+        {isEditorMode ? (
+          <p>
+            Página dedicada para criar e editar modelos de contrato.
+          </p>
+        ) : (
+          <p>
+            Crie modelos, publique versões, envie contratos para assinatura do aluno e
+            acompanhe o ciclo de assinatura com rastreabilidade.
+          </p>
+        )}
       </header>
 
-      <div className="native-kpi-grid native-kpi-grid-small">
-        <article className="native-kpi-card">
-          <span>Total de envios</span>
-          <strong>{instancesCountByStatus.total}</strong>
-          <small>{instancesCountByStatus.signed} assinados</small>
-        </article>
-        <article className="native-kpi-card">
-          <span>Pendentes</span>
-          <strong>
-            {instancesCountByStatus.sent + instancesCountByStatus.viewed + instancesCountByStatus.pinVerified}
-          </strong>
-          <small>
-            {instancesCountByStatus.sent} enviados • {instancesCountByStatus.viewed} visualizados
-          </small>
-        </article>
-      </div>
+      {!isEditorMode ? (
+        <div className="native-kpi-grid native-kpi-grid-small">
+          <article className="native-kpi-card">
+            <span>Total de envios</span>
+            <strong>{instancesCountByStatus.total}</strong>
+            <small>{instancesCountByStatus.signed} assinados</small>
+          </article>
+          <article className="native-kpi-card">
+            <span>Pendentes</span>
+            <strong>
+              {instancesCountByStatus.sent + instancesCountByStatus.viewed + instancesCountByStatus.pinVerified}
+            </strong>
+            <small>
+              {instancesCountByStatus.sent} enviados • {instancesCountByStatus.viewed} visualizados
+            </small>
+          </article>
+        </div>
+      ) : null}
 
       {loading ? <p className="native-info">Carregando contratos...</p> : null}
       {error ? <p className="native-error">{error}</p> : null}
@@ -702,104 +777,127 @@ export function ContractsNative({ token }: ContractsNativeProps) {
         </aside>
 
         <div className="native-contracts-main">
-          <article className="native-panel">
-            <header className="native-panel-header">
-              <h3>{selectedTemplate ? 'Editar modelo' : 'Novo modelo de contrato'}</h3>
-              {selectedTemplate ? (
-                <small>
-                  {selectedTemplate.latestVersion
-                    ? `Última publicação: v${selectedTemplate.latestVersion.versionNumber} em ${formatDateTime(
-                        selectedTemplate.latestVersion.publishedAt,
-                      )}`
-                    : 'Sem versão publicada'}
-                </small>
-              ) : null}
-            </header>
-
-            <form className="native-form-grid native-contract-template-form" onSubmit={saveTemplate}>
-              <label>
-                Nome interno do modelo
-                <input
-                  value={templateForm.name}
-                  onChange={(event) =>
-                    setTemplateForm((current) => ({ ...current, name: event.target.value }))
-                  }
-                  placeholder="Ex: Contrato padrão de matrícula"
-                  required
-                />
-              </label>
-
-              <label>
-                Título visível no contrato
-                <input
-                  value={templateForm.draftTitle}
-                  onChange={(event) =>
-                    setTemplateForm((current) => ({
-                      ...current,
-                      draftTitle: event.target.value,
-                    }))
-                  }
-                  placeholder="Ex: Contrato de Prestação de Serviços"
-                  required
-                />
-              </label>
-
-              <label className="native-contract-span-all">
-                Descrição (opcional)
-                <input
-                  value={templateForm.description}
-                  onChange={(event) =>
-                    setTemplateForm((current) => ({
-                      ...current,
-                      description: event.target.value,
-                    }))
-                  }
-                  placeholder="Uso interno para diferenciar modelos"
-                />
-              </label>
-
-              <div className="native-contract-span-all">
-                <p className="native-contract-editor-label">Documento do contrato</p>
-                <ContractWordEditor
-                  value={templateForm.draftHtmlContent}
-                  onChange={(nextHtml) =>
-                    setTemplateForm((current) => ({
-                      ...current,
-                      draftHtmlContent: nextHtml,
-                    }))
-                  }
-                  placeholders={CONTRACT_EDITOR_PLACEHOLDERS}
-                  disabled={selectedTemplate?.status.trim().toUpperCase() === 'ARCHIVED'}
-                />
-              </div>
-
-              {formError ? <p className="native-error native-contract-span-all">{formError}</p> : null}
-
-              <div className="native-modal-actions">
-                {selectedTemplate ? (
+          {isEditorMode ? (
+            <article className="native-panel">
+              <header className="native-panel-header">
+                <h3>{selectedTemplate ? 'Editar modelo' : 'Novo modelo de contrato'}</h3>
+                <div className="native-modal-actions">
                   <button
                     type="button"
                     className="ghost"
-                    onClick={() => void publishTemplate()}
-                    disabled={templatePublishing}
+                    onClick={() => {
+                      window.location.href = '/';
+                    }}
                   >
-                    {templatePublishing ? 'Publicando...' : 'Publicar versão'}
+                    Voltar
                   </button>
+                </div>
+                {selectedTemplate ? (
+                  <small>
+                    {selectedTemplate.latestVersion
+                      ? `Última publicação: v${selectedTemplate.latestVersion.versionNumber} em ${formatDateTime(
+                          selectedTemplate.latestVersion.publishedAt,
+                        )}`
+                      : 'Sem versão publicada'}
+                  </small>
                 ) : null}
-                <button type="submit" disabled={templateSaving}>
-                  {templateSaving
-                    ? 'Salvando...'
-                    : selectedTemplate
-                      ? 'Salvar rascunho'
-                      : 'Criar modelo'}
-                </button>
-              </div>
-            </form>
-          </article>
+              </header>
 
-          <article className="native-panel">
+              <form className="native-form-grid native-contract-template-form" onSubmit={saveTemplate}>
+                <label>
+                  Nome interno do modelo
+                  <input
+                    value={templateForm.name}
+                    onChange={(event) =>
+                      setTemplateForm((current) => ({ ...current, name: event.target.value }))
+                    }
+                    placeholder="Ex: Contrato padrão de matrícula"
+                    required
+                  />
+                </label>
+
+                <label>
+                  Título visível no contrato
+                  <input
+                    value={templateForm.draftTitle}
+                    onChange={(event) =>
+                      setTemplateForm((current) => ({
+                        ...current,
+                        draftTitle: event.target.value,
+                      }))
+                    }
+                    placeholder="Ex: Contrato de Prestação de Serviços"
+                    required
+                  />
+                </label>
+
+                <label className="native-contract-span-all">
+                  Descrição (opcional)
+                  <input
+                    value={templateForm.description}
+                    onChange={(event) =>
+                      setTemplateForm((current) => ({
+                        ...current,
+                        description: event.target.value,
+                      }))
+                    }
+                    placeholder="Uso interno para diferenciar modelos"
+                  />
+                </label>
+
+                <div className="native-contract-span-all">
+                  <p className="native-contract-editor-label">Documento do contrato</p>
+                  <ContractWordEditor
+                    value={templateForm.draftHtmlContent}
+                    onChange={(nextHtml) =>
+                      setTemplateForm((current) => ({
+                        ...current,
+                        draftHtmlContent: nextHtml,
+                      }))
+                    }
+                    placeholders={CONTRACT_EDITOR_PLACEHOLDERS}
+                    disabled={selectedTemplate?.status.trim().toUpperCase() === 'ARCHIVED'}
+                  />
+                </div>
+
+                {formError ? <p className="native-error native-contract-span-all">{formError}</p> : null}
+
+                <div className="native-modal-actions">
+                  {selectedTemplate ? (
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => void publishTemplate()}
+                      disabled={templatePublishing}
+                    >
+                      {templatePublishing ? 'Publicando...' : 'Publicar versão'}
+                    </button>
+                  ) : null}
+                  <button type="submit" disabled={templateSaving}>
+                    {templateSaving
+                      ? 'Salvando...'
+                      : selectedTemplate
+                        ? 'Salvar rascunho'
+                        : 'Criar modelo'}
+                  </button>
+                </div>
+              </form>
+            </article>
+          ) : null}
+
+          {!isEditorMode ? (
+            <article className="native-panel">
             <header className="native-panel-header">
               <h3>Enviar para assinatura</h3>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  openEditorPage(selectedTemplateId ?? undefined);
+                }}
+              >
+                Abrir editor
+              </button>
             </header>
 
             <form className="native-form-grid native-contract-send-form" onSubmit={sendContract}>
@@ -943,9 +1041,11 @@ export function ContractsNative({ token }: ContractsNativeProps) {
                 </button>
               </div>
             </form>
-          </article>
+            </article>
+          ) : null}
 
-          <article className="native-panel">
+          {!isEditorMode ? (
+            <article className="native-panel">
             <header className="native-panel-header">
               <h3>Envios recentes</h3>
               <div className="native-contract-instance-filters">
@@ -1025,6 +1125,16 @@ export function ContractsNative({ token }: ContractsNativeProps) {
                           >
                             Detalhes
                           </button>
+                          <button
+                            type="button"
+                            className="danger"
+                            onClick={() => {
+                              void deleteInstance(instance);
+                            }}
+                            disabled={deletingInstanceId === instance.id}
+                          >
+                            {deletingInstanceId === instance.id ? 'Apagando...' : 'Apagar'}
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -1032,11 +1142,12 @@ export function ContractsNative({ token }: ContractsNativeProps) {
                 </tbody>
               </table>
             </div>
-          </article>
+            </article>
+          ) : null}
         </div>
       </div>
 
-      {detailsOpen ? (
+      {!isEditorMode && detailsOpen ? (
         <div className="native-modal-backdrop" onClick={() => setDetailsOpen(false)}>
           <section className="native-modal native-contract-details-modal" onClick={(event) => event.stopPropagation()}>
             <header>

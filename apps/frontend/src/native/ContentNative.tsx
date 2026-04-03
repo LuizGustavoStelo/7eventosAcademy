@@ -556,8 +556,8 @@ export function ContentNative({ token }: ContentNativeProps) {
                   <div className="native-content-meta">
                     <strong>{material.title}</strong>
                     <small>
-                      {material.schoolClass?.name || 'Turma'} â€¢{' '}
-                      {material.schoolClass?.course?.name || 'Curso'} â€¢{' '}
+                      {material.schoolClass?.name || 'Turma'} •{' '}
+                      {material.schoolClass?.course?.name || 'Curso'} •{' '}
                       {formatDate(material.createdAt)}
                     </small>
                     {material.description ? <p>{material.description}</p> : null}
@@ -788,4 +788,3 @@ export function ContentNative({ token }: ContentNativeProps) {
     </section>
   );
 }
-

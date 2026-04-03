@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -110,6 +111,16 @@ export class ContractsController {
     return this.contractsService.sendInstance(dto, request.user, {
       publicOrigin: this.resolvePublicOrigin(request),
     });
+  }
+
+  @Roles('admin', 'superadmin')
+  @RequirePermissions('contracts.send')
+  @Delete('instances/:instanceId')
+  async deleteInstance(
+    @Param('instanceId') instanceId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.contractsService.deleteInstance(instanceId, request.user);
   }
 
   @Public()

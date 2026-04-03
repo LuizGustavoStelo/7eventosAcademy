@@ -607,6 +607,39 @@ export class ContractsService {
     };
   }
 
+  async deleteInstance(instanceId: string, actor: ContractActor) {
+    const institutionId = this.requireActiveInstitutionId(actor);
+
+    if (!this.isContractDeletionEnabled()) {
+      throw new BadRequestException(
+        'A exclusão de contratos está desativada nesta instituição.',
+      );
+    }
+
+    const existing = await this.prisma.contractInstance.findFirst({
+      where: {
+        id: instanceId,
+        institutionId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Contrato não encontrado.');
+    }
+
+    await this.prisma.contractInstance.delete({
+      where: { id: existing.id },
+    });
+
+    return {
+      success: true,
+      deletedId: existing.id,
+    };
+  }
+
   async listMyInstances(actor: ContractActor) {
     const instances = await this.prisma.contractInstance.findMany({
       where: {
@@ -1252,6 +1285,17 @@ export class ContractsService {
     }
 
     return institutionId;
+  }
+
+  private isContractDeletionEnabled(): boolean {
+    const raw = String(
+      this.configService.get<string>('CONTRACTS_ALLOW_DELETE') ?? 'true',
+    )
+      .trim()
+      .toLowerCase();
+
+    if (!raw) return true;
+    return !['0', 'false', 'off', 'no', 'n'].includes(raw);
   }
 
   private parseInstanceStatus(
