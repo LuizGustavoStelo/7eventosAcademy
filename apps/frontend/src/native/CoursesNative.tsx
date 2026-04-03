@@ -5,6 +5,7 @@ import { apiRequest, formatCurrency } from './api';
 type CourseStatus = 'ACTIVE' | 'DRAFT' | 'INACTIVE';
 type CourseModality = 'PRESENTIAL' | 'HYBRID' | 'EAD';
 type CoursePaymentModel = 'CASH' | 'INSTALLMENTS';
+type InstallmentStartMode = 'ON_ENROLLMENT' | 'SCHEDULED';
 
 type Course = {
   id: string;
@@ -17,8 +18,10 @@ type Course = {
   modality?: CourseModality | null;
   status?: CourseStatus | null;
   paymentModel?: CoursePaymentModel | null;
+  enrollmentFee?: number | null;
   installmentMonths?: number | null;
   installmentValue?: number | null;
+  installmentStartDate?: string | null;
   bannerUrl?: string | null;
   enrolledStudentsCount?: number;
 };
@@ -34,8 +37,12 @@ type CourseFormState = {
   modality: CourseModality;
   status: CourseStatus;
   paymentModel: CoursePaymentModel;
+  hasEnrollmentFee: boolean;
+  enrollmentFee: string;
   installmentMonths: string;
   installmentValue: string;
+  installmentStartMode: InstallmentStartMode;
+  installmentStartDate: string;
 };
 
 type CourseBannerUploadResponse = {
@@ -80,8 +87,12 @@ function emptyForm(): CourseFormState {
     modality: 'PRESENTIAL',
     status: 'ACTIVE',
     paymentModel: 'CASH',
+    hasEnrollmentFee: false,
+    enrollmentFee: '0',
     installmentMonths: '12',
     installmentValue: '0',
+    installmentStartMode: 'ON_ENROLLMENT',
+    installmentStartDate: '',
   };
 }
 
@@ -109,6 +120,20 @@ function parseNumberSafe(value: string): number | undefined {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return undefined;
   return parsed >= 0 ? parsed : undefined;
+}
+
+function toDateInputValue(value?: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDateLabel(value?: string | null): string {
+  if (!value) return 'Na matrícula';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Na matrícula';
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(date);
 }
 
 function sanitizeOnlyLetters(value: string): string {
@@ -202,6 +227,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     const installmentValue =
       Number(course.installmentValue || 0) ||
       (months > 0 ? price / months : 0);
+    const enrollmentFee = Number(course.enrollmentFee || 0);
+    const installmentStartDate = toDateInputValue(course.installmentStartDate);
 
     setForm({
       id: course.id,
@@ -214,8 +241,12 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       modality: (course.modality as CourseModality) || 'PRESENTIAL',
       status: (course.status as CourseStatus) || 'ACTIVE',
       paymentModel: (course.paymentModel as CoursePaymentModel) || 'CASH',
+      hasEnrollmentFee: enrollmentFee > 0,
+      enrollmentFee: String(enrollmentFee),
       installmentMonths: String(Math.max(1, months)),
       installmentValue: String(installmentValue),
+      installmentStartMode: installmentStartDate ? 'SCHEDULED' : 'ON_ENROLLMENT',
+      installmentStartDate,
     });
     setPreviewBannerUrl(course.bannerUrl || FALLBACK_BANNER);
     setSelectedBannerFile(null);
@@ -268,6 +299,9 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       category: cleanCategory || undefined,
       coordinator: cleanCoordinator || undefined,
       price: parseNumberSafe(form.price),
+      enrollmentFee: form.hasEnrollmentFee
+        ? parseNumberSafe(form.enrollmentFee)
+        : 0,
       modality: form.modality,
       status: form.status,
       paymentModel: form.paymentModel,
@@ -288,16 +322,40 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       return;
     }
 
+    if (form.hasEnrollmentFee && payloadBase.enrollmentFee === undefined) {
+      setFormError('Informe um valor de matrícula válido.');
+      return;
+    }
+
     const installments =
       form.paymentModel === 'INSTALLMENTS'
         ? {
             installmentMonths: parseIntSafe(form.installmentMonths),
             installmentValue: parseNumberSafe(form.installmentValue),
+            installmentStartDate:
+              form.installmentStartMode === 'SCHEDULED'
+                ? form.installmentStartDate
+                  ? `${form.installmentStartDate}T00:00:00.000Z`
+                  : undefined
+                : null,
           }
-        : { installmentMonths: undefined, installmentValue: undefined };
+        : {
+            installmentMonths: undefined,
+            installmentValue: undefined,
+            installmentStartDate: undefined,
+          };
 
     if (form.paymentModel === 'INSTALLMENTS' && !installments.installmentMonths) {
       setFormError('Informe a duração das mensalidades em meses.');
+      return;
+    }
+
+    if (
+      form.paymentModel === 'INSTALLMENTS' &&
+      form.installmentStartMode === 'SCHEDULED' &&
+      !form.installmentStartDate
+    ) {
+      setFormError('Informe a data de início das mensalidades.');
       return;
     }
 
@@ -379,6 +437,22 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     return `${months}x de ${formatCurrency(installment)}`;
   }, [form.paymentModel, form.installmentMonths, form.installmentValue]);
 
+  const previewEnrollmentFee = useMemo(() => {
+    if (!form.hasEnrollmentFee) return 'Sem matrícula';
+    return formatCurrency(parseNumberSafe(form.enrollmentFee) || 0);
+  }, [form.hasEnrollmentFee, form.enrollmentFee]);
+
+  const previewInstallmentStart = useMemo(() => {
+    if (form.paymentModel !== 'INSTALLMENTS') return '-';
+    if (form.installmentStartMode !== 'SCHEDULED') return 'Na matrícula';
+    if (!form.installmentStartDate) return 'Data não definida';
+    return formatDateLabel(form.installmentStartDate);
+  }, [
+    form.paymentModel,
+    form.installmentStartMode,
+    form.installmentStartDate,
+  ]);
+
   return (
     <section className="native-page native-courses">
       <header className="native-page-header">
@@ -420,6 +494,14 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       Number(course.installmentValue || 0),
                     )}`
                   : 'À vista';
+              const enrollmentFeeSummary =
+                Number(course.enrollmentFee || 0) > 0
+                  ? formatCurrency(Number(course.enrollmentFee || 0))
+                  : 'Sem matrícula';
+              const installmentStartSummary =
+                paymentModel === 'INSTALLMENTS'
+                  ? formatDateLabel(course.installmentStartDate)
+                  : '-';
 
               return (
                 <article key={course.id} className="native-course-card">
@@ -454,6 +536,13 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       </small>
                       <small className="full">
                         Pagamento: <strong>{paymentSummary}</strong>
+                      </small>
+                      <small className="full">
+                        Matrícula: <strong>{enrollmentFeeSummary}</strong>
+                      </small>
+                      <small className="full">
+                        Início mensalidades:{' '}
+                        <strong>{installmentStartSummary}</strong>
                       </small>
                       <small className="full">
                         Alunos matriculados:{' '}
@@ -564,6 +653,34 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                 </label>
 
                 <label>
+                  Cobrar matrícula
+                  <select
+                    value={form.hasEnrollmentFee ? 'YES' : 'NO'}
+                    onChange={(event) =>
+                      updateForm('hasEnrollmentFee', event.target.value === 'YES')
+                    }
+                  >
+                    <option value="NO">Não</option>
+                    <option value="YES">Sim</option>
+                  </select>
+                </label>
+
+                {form.hasEnrollmentFee ? (
+                  <label>
+                    Valor da matrícula (R$)
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.enrollmentFee}
+                      onChange={(event) =>
+                        updateForm('enrollmentFee', event.target.value)
+                      }
+                    />
+                  </label>
+                ) : null}
+
+                <label>
                   Modelo de pagamento
                   <select
                     value={form.paymentModel}
@@ -608,6 +725,39 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                         }
                       />
                     </label>
+
+                    <label>
+                      Início das mensalidades
+                      <select
+                        value={form.installmentStartMode}
+                        onChange={(event) =>
+                          updateForm(
+                            'installmentStartMode',
+                            event.target.value as InstallmentStartMode,
+                          )
+                        }
+                      >
+                        <option value="ON_ENROLLMENT">Na matrícula</option>
+                        <option value="SCHEDULED">Agendar início</option>
+                      </select>
+                    </label>
+
+                    {form.installmentStartMode === 'SCHEDULED' ? (
+                      <label>
+                        Data de início das mensalidades
+                        <input
+                          type="date"
+                          value={form.installmentStartDate}
+                          onChange={(event) =>
+                            updateForm('installmentStartDate', event.target.value)
+                          }
+                        />
+                        <small>
+                          Use este campo apenas quando o início das parcelas for
+                          diferente da data da matrícula.
+                        </small>
+                      </label>
+                    ) : null}
                   </>
                 ) : null}
 
@@ -699,6 +849,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       <span>{modalityLabel[form.modality]}</span>
                       <span>{statusLabel[form.status]}</span>
                       <span>{previewPayment}</span>
+                      <span>Matrícula: {previewEnrollmentFee}</span>
+                      <span>Início mensalidades: {previewInstallmentStart}</span>
                     </div>
                   </div>
                 </article>

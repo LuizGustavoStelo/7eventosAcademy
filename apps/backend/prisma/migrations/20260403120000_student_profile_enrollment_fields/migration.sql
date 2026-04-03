@@ -1,4 +1,4 @@
-﻿ALTER TABLE "student_profiles"
+ALTER TABLE "student_profiles"
   ADD COLUMN "document_rg" TEXT,
   ADD COLUMN "issuing_authority" TEXT,
   ADD COLUMN "birth_city" TEXT,

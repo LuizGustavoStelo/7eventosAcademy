@@ -33,8 +33,10 @@ export class CoursesService {
     const paymentData = this.normalizePayment({
       price: dto.price,
       paymentModel: dto.paymentModel,
+      enrollmentFee: dto.enrollmentFee,
       installmentMonths: dto.installmentMonths,
       installmentValue: dto.installmentValue,
+      installmentStartDate: dto.installmentStartDate,
     });
 
     const course = await this.prisma.course.create({
@@ -115,12 +117,26 @@ export class CoursesService {
           ? Number(current.installmentValue)
           : undefined
         : dto.installmentValue;
+    const enrollmentFee =
+      dto.enrollmentFee === undefined
+        ? current.enrollmentFee
+          ? Number(current.enrollmentFee)
+          : undefined
+        : dto.enrollmentFee;
+    const installmentStartDate =
+      dto.installmentStartDate === undefined
+        ? current.installmentStartDate
+          ? current.installmentStartDate.toISOString()
+          : undefined
+        : dto.installmentStartDate;
 
     const paymentData = this.normalizePayment({
       price,
       paymentModel,
+      enrollmentFee,
       installmentMonths,
       installmentValue,
+      installmentStartDate,
     });
 
     const course = await this.prisma.course.update({
@@ -304,8 +320,12 @@ export class CoursesService {
     return {
       ...course,
       price: course.price ? Number(course.price) : null,
+      enrollmentFee: course.enrollmentFee ? Number(course.enrollmentFee) : null,
       installmentValue: course.installmentValue
         ? Number(course.installmentValue)
+        : null,
+      installmentStartDate: course.installmentStartDate
+        ? course.installmentStartDate.toISOString()
         : null,
       bannerAssetId: banner?.assetId ?? null,
       bannerUrl: banner?.url ?? null,
@@ -323,16 +343,24 @@ export class CoursesService {
   private normalizePayment(input: {
     price?: number;
     paymentModel?: CoursePaymentModelDto | CoursePaymentModel;
+    enrollmentFee?: number;
     installmentMonths?: number;
     installmentValue?: number;
+    installmentStartDate?: string;
   }) {
     const paymentModel = input.paymentModel ?? CoursePaymentModelDto.CASH;
+    const enrollmentFee =
+      input.enrollmentFee === undefined
+        ? null
+        : this.toDecimal(Math.max(0, Number(input.enrollmentFee)));
 
     if (paymentModel !== CoursePaymentModelDto.INSTALLMENTS) {
       return {
         paymentModel: CoursePaymentModelDto.CASH,
+        enrollmentFee,
         installmentMonths: null,
         installmentValue: null,
+        installmentStartDate: null,
       };
     }
 
@@ -346,8 +374,12 @@ export class CoursesService {
 
     return {
       paymentModel: CoursePaymentModelDto.INSTALLMENTS,
+      enrollmentFee,
       installmentMonths: months,
       installmentValue: this.toDecimal(installmentValue),
+      installmentStartDate: input.installmentStartDate
+        ? new Date(input.installmentStartDate)
+        : null,
     };
   }
 }

@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsEnum,
   IsInt,
+  IsISO8601,
   IsNumber,
   IsOptional,
   IsString,
@@ -43,6 +44,12 @@ export class UpdateCourseDto {
   price?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  enrollmentFee?: number;
+
+  @IsOptional()
   @IsEnum(CourseModalityDto)
   modality?: CourseModalityDto;
 
@@ -65,4 +72,8 @@ export class UpdateCourseDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   installmentValue?: number;
+
+  @IsOptional()
+  @IsISO8601()
+  installmentStartDate?: string;
 }
