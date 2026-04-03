@@ -461,15 +461,33 @@ export class ContractsService {
 
     let courseName = '';
     let className = '';
+    let coursePaymentModel = '';
+    let courseTotalPrice = 0;
+    let courseEnrollmentFee = 0;
+    let courseInstallmentMonths = 0;
+    let courseInstallmentValue = 0;
     if (dto.courseId) {
       const course = await this.prisma.course.findFirst({
         where: { id: dto.courseId, institutionId },
-        select: { id: true, name: true },
+        select: {
+          id: true,
+          name: true,
+          paymentModel: true,
+          price: true,
+          enrollmentFee: true,
+          installmentMonths: true,
+          installmentValue: true,
+        },
       });
       if (!course) {
         throw new NotFoundException('Curso informado não encontrado.');
       }
       courseName = course.name;
+      coursePaymentModel = String(course.paymentModel || '');
+      courseTotalPrice = Number(course.price ?? 0);
+      courseEnrollmentFee = Number(course.enrollmentFee ?? 0);
+      courseInstallmentMonths = Number(course.installmentMonths ?? 0);
+      courseInstallmentValue = Number(course.installmentValue ?? 0);
     }
 
     if (dto.classId) {
@@ -490,11 +508,59 @@ export class ContractsService {
           institutionId,
           studentId: dto.studentId,
         },
-        select: { id: true },
+        select: {
+          id: true,
+          schoolClass: {
+            select: {
+              id: true,
+              name: true,
+              course: {
+                select: {
+                  id: true,
+                  name: true,
+                  paymentModel: true,
+                  price: true,
+                  enrollmentFee: true,
+                  installmentMonths: true,
+                  installmentValue: true,
+                },
+              },
+            },
+          },
+        },
       });
       if (!enrollment) {
         throw new NotFoundException(
           'Matrícula informada não encontrada para este aluno.',
+        );
+      }
+      if (!className) {
+        className = enrollment.schoolClass?.name || className;
+      }
+      if (!courseName) {
+        courseName = enrollment.schoolClass?.course?.name || courseName;
+      }
+      if (!coursePaymentModel) {
+        coursePaymentModel = String(
+          enrollment.schoolClass?.course?.paymentModel || '',
+        );
+      }
+      if (courseTotalPrice <= 0) {
+        courseTotalPrice = Number(enrollment.schoolClass?.course?.price ?? 0);
+      }
+      if (courseEnrollmentFee <= 0) {
+        courseEnrollmentFee = Number(
+          enrollment.schoolClass?.course?.enrollmentFee ?? 0,
+        );
+      }
+      if (courseInstallmentMonths <= 0) {
+        courseInstallmentMonths = Number(
+          enrollment.schoolClass?.course?.installmentMonths ?? 0,
+        );
+      }
+      if (courseInstallmentValue <= 0) {
+        courseInstallmentValue = Number(
+          enrollment.schoolClass?.course?.installmentValue ?? 0,
         );
       }
     }
@@ -517,6 +583,24 @@ export class ContractsService {
             )
             .join('\n')
         : '';
+    const installmentsSum = installments.reduce(
+      (acc, item) => acc + item.amountValue,
+      0,
+    );
+    const installmentsAverage =
+      installments.length > 0 ? installmentsSum / installments.length : 0;
+    const financialTotal = courseTotalPrice > 0 ? courseTotalPrice : installmentsSum;
+    const paymentMethodLabel = this.paymentModelLabelPtBr(
+      coursePaymentModel,
+      installments.length,
+    );
+    const formsAndValuesSummary = [
+      `Forma de pagamento: ${paymentMethodLabel}`,
+      `Valor total: ${this.formatCurrencyPtBr(financialTotal)}`,
+      `Taxa de matrícula: ${this.formatCurrencyPtBr(courseEnrollmentFee)}`,
+      `Quantidade de parcelas: ${installments.length || courseInstallmentMonths || 0}`,
+      `Valor da parcela: ${this.formatCurrencyPtBr(courseInstallmentValue || installmentsAverage)}`,
+    ].join(' | ');
 
     const signatureCode = await this.generateUniqueSignatureCode();
     const unsignedHtmlSnapshot = this.renderTemplate(
@@ -586,6 +670,16 @@ export class ContractsService {
           installments.length > 0 ? String(installments.length) : '0',
         financeiro_parcelas_texto: installmentsText,
         financeiro_parcelas_tabela_html: installmentsTableHtml,
+        financeiro_forma_pagamento: paymentMethodLabel,
+        financeiro_valor_total: this.formatCurrencyPtBr(financialTotal),
+        financeiro_taxa_matricula: this.formatCurrencyPtBr(courseEnrollmentFee),
+        financeiro_quantidade_parcelas: String(
+          installments.length || courseInstallmentMonths || 0,
+        ),
+        financeiro_valor_parcela: this.formatCurrencyPtBr(
+          courseInstallmentValue || installmentsAverage,
+        ),
+        financeiro_formas_valores_resumo: formsAndValuesSummary,
         contrato_cidade_assinatura: this.resolveContractCity(),
         contrato_data_emissao: this.formatDatePtBr(now),
         contrato_data_emissao_extenso: this.formatDateLongPtBr(now),
@@ -593,6 +687,10 @@ export class ContractsService {
         assinado_por_nome: '',
         assinado_em: '',
         codigo_assinatura: signatureCode,
+        contratada_nome: this.resolveContractProviderName(),
+        contratada_cnpj: this.resolveContractProviderDocument(),
+        contratada_endereco: this.resolveContractProviderAddress(),
+        contrato_foro: this.resolveContractForum(),
       },
     );
     const unsignedContentHash = this.sha256(unsignedHtmlSnapshot);
@@ -1528,6 +1626,7 @@ export class ContractsService {
     Array<{
       number: number;
       dueDateLabel: string;
+      amountValue: number;
       amountLabel: string;
       statusLabel: string;
     }>
@@ -1552,6 +1651,7 @@ export class ContractsService {
     return charges.map((charge, index) => ({
       number: index + 1,
       dueDateLabel: this.formatDatePtBr(charge.dueDate),
+      amountValue: Number(charge.amount ?? 0),
       amountLabel: this.formatCurrencyPtBr(Number(charge.amount)),
       statusLabel: this.chargeStatusLabel(charge.status),
     }));
@@ -1565,10 +1665,25 @@ export class ContractsService {
     return 'Pendente';
   }
 
+  private paymentModelLabelPtBr(
+    paymentModelRaw: string,
+    installmentsCount: number,
+  ): string {
+    const normalized = String(paymentModelRaw || '').trim().toUpperCase();
+    if (normalized === 'INSTALLMENTS' || installmentsCount > 1) {
+      return 'Parcelado';
+    }
+    if (normalized === 'CASH') {
+      return 'À vista';
+    }
+    return installmentsCount > 1 ? 'Parcelado' : 'À vista';
+  }
+
   private buildInstallmentsTableHtml(
     installments: Array<{
       number: number;
       dueDateLabel: string;
+      amountValue: number;
       amountLabel: string;
       statusLabel: string;
     }>,
@@ -1599,6 +1714,38 @@ export class ContractsService {
       this.configService.get<string>('CONTRACT_DEFAULT_CITY') || 'Goiânia',
     ).trim();
     return value || 'Goiânia';
+  }
+
+  private resolveContractProviderName(): string {
+    const value = String(
+      this.configService.get<string>('CONTRACT_PROVIDER_NAME') ||
+        'INSTITUTO PROJEÇÃO',
+    ).trim();
+    return value || 'INSTITUTO PROJEÇÃO';
+  }
+
+  private resolveContractProviderDocument(): string {
+    const value = String(
+      this.configService.get<string>('CONTRACT_PROVIDER_DOCUMENT') ||
+        '27.683.733/0001-24',
+    ).trim();
+    return value || '27.683.733/0001-24';
+  }
+
+  private resolveContractProviderAddress(): string {
+    const value = String(
+      this.configService.get<string>('CONTRACT_PROVIDER_ADDRESS') ||
+        'Av. T1, nº 2266, edifício Alpha, Setor Bueno, Goiânia - GO, CEP 74.210-045',
+    ).trim();
+    return value;
+  }
+
+  private resolveContractForum(): string {
+    const value = String(
+      this.configService.get<string>('CONTRACT_FORUM') ||
+        'Comarca de Goiânia/GO',
+    ).trim();
+    return value || 'Comarca de Goiânia/GO';
   }
 
   private buildSignedHtml(

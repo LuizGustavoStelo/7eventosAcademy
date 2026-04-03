@@ -121,6 +121,9 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
   <p style="margin:0 0 16px;text-align:center;">
     Pós-graduação: <strong>{{curso_nome}}</strong>
   </p>
+  <p style="margin:0 0 16px;text-align:center;font-size:11px;color:#4b5563;">
+    {{contratada_nome}} - CNPJ {{contratada_cnpj}} - {{contratada_endereco}}
+  </p>
 
   <h3 style="margin:0 0 8px;font-size:13px;">1. Identificação do(a) contratante</h3>
   <table style="width:100%;border-collapse:collapse;font-size:12px;">
@@ -164,11 +167,31 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
     O CONTRATANTE declara ciência das normas acadêmicas, financeiras e regimentais aplicáveis,
     incluindo critérios de frequência, avaliação, reposição de módulos e emissão de certificado.
   </p>
+  <p style="margin:0 0 8px;">
+    Fica eleito o foro de <strong>{{contrato_foro}}</strong> para dirimir eventuais conflitos contratuais.
+  </p>
+
+  <div data-contract-page-break="true" style="page-break-after: always;"></div>
 
   <h3 style="margin:16px 0 8px;font-size:13px;">3. Condições financeiras</h3>
   <p style="margin:0 0 8px;">
     Matrícula vinculada ao ID <strong>{{matricula_id}}</strong>. Total de parcelas: <strong>{{financeiro_parcelas_total}}</strong>.
   </p>
+  <table style="width:100%;border-collapse:collapse;font-size:12px;margin:0 0 10px;">
+    <tbody>
+      <tr>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Forma de pagamento</strong><br />{{financeiro_forma_pagamento}}</td>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Valor total</strong><br />{{financeiro_valor_total}}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Taxa de matrícula</strong><br />{{financeiro_taxa_matricula}}</td>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Valor da parcela</strong><br />{{financeiro_valor_parcela}}</td>
+      </tr>
+      <tr>
+        <td colspan="2" style="border:1px solid #d1d5db;padding:6px;"><strong>Resumo de formas e valores</strong><br />{{financeiro_formas_valores_resumo}}</td>
+      </tr>
+    </tbody>
+  </table>
   <div style="margin:0 0 10px;">
     {{{financeiro_parcelas_tabela_html}}}
   </div>
@@ -191,7 +214,7 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
         <td style="width:50%;padding:8px 0 8px 12px;vertical-align:top;">
           <div style="border-top:1px solid #111827;padding-top:6px;">
             CONTRATADA<br />
-            INSTITUTO PROJEÇÃO
+            {{contratada_nome}}
           </div>
         </td>
       </tr>
@@ -260,6 +283,10 @@ const CONTRACT_EDITOR_PLACEHOLDERS: ContractPlaceholder[] = [
   { id: 'curso_nome', label: 'Curso: nome', token: '{{curso_nome}}' },
   { id: 'turma_nome', label: 'Turma: nome', token: '{{turma_nome}}' },
   { id: 'matricula_id', label: 'Matrícula: ID', token: '{{matricula_id}}' },
+  { id: 'contratada_nome', label: 'Contratada: nome', token: '{{contratada_nome}}' },
+  { id: 'contratada_cnpj', label: 'Contratada: CNPJ', token: '{{contratada_cnpj}}' },
+  { id: 'contratada_endereco', label: 'Contratada: endereço', token: '{{contratada_endereco}}' },
+  { id: 'contrato_foro', label: 'Contrato: foro', token: '{{contrato_foro}}' },
   {
     id: 'financeiro_parcelas_total',
     label: 'Financeiro: total de parcelas',
@@ -274,6 +301,32 @@ const CONTRACT_EDITOR_PLACEHOLDERS: ContractPlaceholder[] = [
     id: 'financeiro_parcelas_tabela_html',
     label: 'Financeiro: tabela de parcelas (HTML)',
     token: '{{{financeiro_parcelas_tabela_html}}}',
+  },
+  {
+    id: 'financeiro_forma_pagamento',
+    label: 'Financeiro: forma de pagamento',
+    token: '{{financeiro_forma_pagamento}}',
+  },
+  { id: 'financeiro_valor_total', label: 'Financeiro: valor total', token: '{{financeiro_valor_total}}' },
+  {
+    id: 'financeiro_taxa_matricula',
+    label: 'Financeiro: taxa de matrícula',
+    token: '{{financeiro_taxa_matricula}}',
+  },
+  {
+    id: 'financeiro_quantidade_parcelas',
+    label: 'Financeiro: quantidade de parcelas',
+    token: '{{financeiro_quantidade_parcelas}}',
+  },
+  {
+    id: 'financeiro_valor_parcela',
+    label: 'Financeiro: valor da parcela',
+    token: '{{financeiro_valor_parcela}}',
+  },
+  {
+    id: 'financeiro_formas_valores_resumo',
+    label: 'Financeiro: resumo formas/valores',
+    token: '{{financeiro_formas_valores_resumo}}',
   },
   { id: 'contrato_cidade_assinatura', label: 'Contrato: cidade da assinatura', token: '{{contrato_cidade_assinatura}}' },
   { id: 'contrato_data_emissao', label: 'Contrato: data de emissão', token: '{{contrato_data_emissao}}' },
