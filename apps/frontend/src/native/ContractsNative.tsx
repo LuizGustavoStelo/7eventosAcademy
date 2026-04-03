@@ -116,28 +116,180 @@ type ContractsNativeProps = {
   mode?: 'hub' | 'editor';
 };
 
-const DEFAULT_TEMPLATE_HTML = `<section>
-  <h2>Contrato de Prestação de Serviços Educacionais</h2>
-  <p>Aluno: <strong>{{student_name}}</strong></p>
-  <p>E-mail: <strong>{{student_email}}</strong></p>
-  <p>Curso: <strong>{{course_name}}</strong></p>
-  <p>Turma: <strong>{{class_name}}</strong></p>
-  <p>
-    Ao assinar este documento, o aluno declara que leu e aceita os termos
-    deste contrato em formato eletrônico.
+const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#111827;">
+  <h2 style="margin:0 0 4px;font-size:16px;text-align:center;">INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS</h2>
+  <p style="margin:0 0 16px;text-align:center;">
+    Pós-graduação: <strong>{{curso_nome}}</strong>
   </p>
-  <p>Código de assinatura: <strong>{{signature_code}}</strong></p>
+
+  <h3 style="margin:0 0 8px;font-size:13px;">1. Identificação do(a) contratante</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <tbody>
+      <tr>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Aluno(a)</strong><br />{{aluno_nome}}</td>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>E-mail</strong><br />{{aluno_email}}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>CPF</strong><br />{{aluno_cpf}}</td>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>RG / Órgão</strong><br />{{aluno_rg}} - {{aluno_orgao_expedidor}}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Data de nascimento</strong><br />{{aluno_data_nascimento}}</td>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Telefone</strong><br />{{aluno_telefone}}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Pai</strong><br />{{aluno_nome_pai}}</td>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Mãe</strong><br />{{aluno_nome_mae}}</td>
+      </tr>
+      <tr>
+        <td colspan="2" style="border:1px solid #d1d5db;padding:6px;"><strong>Endereço</strong><br />{{aluno_endereco}}, {{aluno_numero_endereco}} - CEP {{aluno_cep}} - {{aluno_cidade_nascimento}}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Graduação</strong><br />{{aluno_graduacao}}</td>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Ano de conclusão</strong><br />{{aluno_ano_conclusao_graduacao}}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Empresa</strong><br />{{aluno_empresa}}</td>
+        <td style="border:1px solid #d1d5db;padding:6px;"><strong>Cargo</strong><br />{{aluno_cargo}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 style="margin:16px 0 8px;font-size:13px;">2. Cláusulas e condições</h3>
+  <p style="margin:0 0 8px;">
+    A CONTRATADA prestará os serviços educacionais relativos ao curso <strong>{{curso_nome}}</strong>,
+    turma <strong>{{turma_nome}}</strong>, conforme calendário acadêmico vigente.
+  </p>
+  <p style="margin:0 0 8px;">
+    O CONTRATANTE declara ciência das normas acadêmicas, financeiras e regimentais aplicáveis,
+    incluindo critérios de frequência, avaliação, reposição de módulos e emissão de certificado.
+  </p>
+
+  <h3 style="margin:16px 0 8px;font-size:13px;">3. Condições financeiras</h3>
+  <p style="margin:0 0 8px;">
+    Matrícula vinculada ao ID <strong>{{matricula_id}}</strong>. Total de parcelas: <strong>{{financeiro_parcelas_total}}</strong>.
+  </p>
+  <div style="margin:0 0 10px;">
+    {{{financeiro_parcelas_tabela_html}}}
+  </div>
+
+  <h3 style="margin:16px 0 8px;font-size:13px;">4. Assinaturas</h3>
+  <p style="margin:0 0 24px;">
+    {{contrato_cidade_assinatura}}, {{contrato_data_emissao_extenso}}.
+  </p>
+
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <tbody>
+      <tr>
+        <td style="width:50%;padding:8px 12px 8px 0;vertical-align:top;">
+          <div style="border-top:1px solid #111827;padding-top:6px;">
+            ALUNO(A) - CONTRATANTE/BENEFICIÁRIO<br />
+            Nome: {{aluno_nome}}<br />
+            CPF: {{aluno_cpf}}
+          </div>
+        </td>
+        <td style="width:50%;padding:8px 0 8px 12px;vertical-align:top;">
+          <div style="border-top:1px solid #111827;padding-top:6px;">
+            CONTRATADA<br />
+            INSTITUTO PROJEÇÃO
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:24px 12px 8px 0;vertical-align:top;">
+          <div style="border-top:1px solid #111827;padding-top:6px;">
+            Testemunha 1 - Nome:<br />
+            CPF:
+          </div>
+        </td>
+        <td style="padding:24px 0 8px 12px;vertical-align:top;">
+          <div style="border-top:1px solid #111827;padding-top:6px;">
+            Testemunha 2 - Nome:<br />
+            CPF:
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="margin:16px 0 0;font-size:11px;color:#4b5563;">
+    Código de assinatura eletrônica: <strong>{{codigo_assinatura}}</strong>
+  </p>
 </section>`;
 
 const CONTRACT_EDITOR_PLACEHOLDERS: ContractPlaceholder[] = [
-  { id: 'student_name', label: 'Aluno: nome', token: '{{student_name}}' },
-  { id: 'student_email', label: 'Aluno: e-mail', token: '{{student_email}}' },
-  { id: 'student_document', label: 'Aluno: documento', token: '{{student_document}}' },
-  { id: 'course_name', label: 'Curso: nome', token: '{{course_name}}' },
-  { id: 'class_name', label: 'Turma: nome', token: '{{class_name}}' },
-  { id: 'signed_by_name', label: 'Assinante', token: '{{signed_by_name}}' },
-  { id: 'signed_at', label: 'Data/hora da assinatura', token: '{{signed_at}}' },
-  { id: 'signature_code', label: 'Código da assinatura', token: '{{signature_code}}' },
+  { id: 'aluno_nome', label: 'Aluno: nome', token: '{{aluno_nome}}' },
+  { id: 'aluno_email', label: 'Aluno: e-mail', token: '{{aluno_email}}' },
+  { id: 'aluno_documento', label: 'Aluno: documento (CPF)', token: '{{aluno_documento}}' },
+  { id: 'aluno_cpf', label: 'Aluno: CPF', token: '{{aluno_cpf}}' },
+  { id: 'aluno_rg', label: 'Aluno: RG', token: '{{aluno_rg}}' },
+  {
+    id: 'aluno_orgao_expedidor',
+    label: 'Aluno: órgão expedidor',
+    token: '{{aluno_orgao_expedidor}}',
+  },
+  { id: 'aluno_telefone', label: 'Aluno: telefone', token: '{{aluno_telefone}}' },
+  {
+    id: 'aluno_data_nascimento',
+    label: 'Aluno: data de nascimento',
+    token: '{{aluno_data_nascimento}}',
+  },
+  { id: 'aluno_cidade_nascimento', label: 'Aluno: cidade de nascimento', token: '{{aluno_cidade_nascimento}}' },
+  {
+    id: 'aluno_estado_civil',
+    label: 'Aluno: estado civil',
+    token: '{{aluno_estado_civil}}',
+  },
+  { id: 'aluno_nome_pai', label: 'Aluno: nome do pai', token: '{{aluno_nome_pai}}' },
+  { id: 'aluno_nome_mae', label: 'Aluno: nome da mãe', token: '{{aluno_nome_mae}}' },
+  { id: 'aluno_graduacao', label: 'Aluno: graduação', token: '{{aluno_graduacao}}' },
+  {
+    id: 'aluno_ano_conclusao_graduacao',
+    label: 'Aluno: ano de conclusão',
+    token: '{{aluno_ano_conclusao_graduacao}}',
+  },
+  { id: 'aluno_empresa', label: 'Aluno: empresa', token: '{{aluno_empresa}}' },
+  { id: 'aluno_cargo', label: 'Aluno: cargo', token: '{{aluno_cargo}}' },
+  { id: 'aluno_cep', label: 'Aluno: CEP', token: '{{aluno_cep}}' },
+  { id: 'aluno_endereco', label: 'Aluno: endereço', token: '{{aluno_endereco}}' },
+  {
+    id: 'aluno_numero_endereco',
+    label: 'Aluno: número',
+    token: '{{aluno_numero_endereco}}',
+  },
+  { id: 'curso_nome', label: 'Curso: nome', token: '{{curso_nome}}' },
+  { id: 'turma_nome', label: 'Turma: nome', token: '{{turma_nome}}' },
+  { id: 'matricula_id', label: 'Matrícula: ID', token: '{{matricula_id}}' },
+  {
+    id: 'financeiro_parcelas_total',
+    label: 'Financeiro: total de parcelas',
+    token: '{{financeiro_parcelas_total}}',
+  },
+  {
+    id: 'financeiro_parcelas_texto',
+    label: 'Financeiro: parcelas (texto)',
+    token: '{{financeiro_parcelas_texto}}',
+  },
+  {
+    id: 'financeiro_parcelas_tabela_html',
+    label: 'Financeiro: tabela de parcelas (HTML)',
+    token: '{{{financeiro_parcelas_tabela_html}}}',
+  },
+  { id: 'contrato_cidade_assinatura', label: 'Contrato: cidade da assinatura', token: '{{contrato_cidade_assinatura}}' },
+  { id: 'contrato_data_emissao', label: 'Contrato: data de emissão', token: '{{contrato_data_emissao}}' },
+  {
+    id: 'contrato_data_emissao_extenso',
+    label: 'Contrato: data por extenso',
+    token: '{{contrato_data_emissao_extenso}}',
+  },
+  {
+    id: 'contrato_datahora_emissao',
+    label: 'Contrato: data/hora de emissão',
+    token: '{{contrato_datahora_emissao}}',
+  },
+  { id: 'assinado_por_nome', label: 'Assinante', token: '{{assinado_por_nome}}' },
+  { id: 'assinado_em', label: 'Data/hora da assinatura', token: '{{assinado_em}}' },
+  { id: 'codigo_assinatura', label: 'Código da assinatura', token: '{{codigo_assinatura}}' },
 ];
 
 function defaultTemplateForm(): TemplateFormState {

@@ -436,6 +436,21 @@ export class ContractsService {
         studentProfile: {
           select: {
             documentCpf: true,
+            documentRg: true,
+            issuingAuthority: true,
+            phone: true,
+            birthDate: true,
+            birthCity: true,
+            maritalStatus: true,
+            fatherName: true,
+            motherName: true,
+            graduation: true,
+            graduationConclusionYear: true,
+            companyName: true,
+            jobTitle: true,
+            zipCode: true,
+            street: true,
+            streetNumber: true,
           },
         },
       },
@@ -484,6 +499,25 @@ export class ContractsService {
       }
     }
 
+    const now = new Date();
+    const installments = await this.resolveInstallmentsForContract(
+      institutionId,
+      dto.enrollmentId ?? null,
+    );
+    const installmentsTableHtml =
+      installments.length > 0
+        ? this.buildInstallmentsTableHtml(installments)
+        : '';
+    const installmentsText =
+      installments.length > 0
+        ? installments
+            .map(
+              (item) =>
+                `Parcela ${item.number} - vencimento ${item.dueDateLabel} - ${item.amountLabel}`,
+            )
+            .join('\n')
+        : '';
+
     const signatureCode = await this.generateUniqueSignatureCode();
     const unsignedHtmlSnapshot = this.renderTemplate(
       templateVersion.htmlContent,
@@ -491,11 +525,74 @@ export class ContractsService {
         student_name: student.name,
         student_email: student.email,
         student_document: student.studentProfile?.documentCpf || '',
+        student_cpf: student.studentProfile?.documentCpf || '',
+        student_rg: student.studentProfile?.documentRg || '',
+        student_issuing_authority: student.studentProfile?.issuingAuthority || '',
+        student_phone: student.studentProfile?.phone || '',
+        student_birth_date: this.formatDatePtBr(student.studentProfile?.birthDate),
+        student_birth_city: student.studentProfile?.birthCity || '',
+        student_marital_status: student.studentProfile?.maritalStatus || '',
+        student_father_name: student.studentProfile?.fatherName || '',
+        student_mother_name: student.studentProfile?.motherName || '',
+        student_graduation: student.studentProfile?.graduation || '',
+        student_graduation_conclusion_year: student.studentProfile?.graduationConclusionYear
+          ? String(student.studentProfile.graduationConclusionYear)
+          : '',
+        student_company_name: student.studentProfile?.companyName || '',
+        student_job_title: student.studentProfile?.jobTitle || '',
+        student_zip_code: student.studentProfile?.zipCode || '',
+        student_address: student.studentProfile?.street || '',
+        student_street_number: student.studentProfile?.streetNumber || '',
         course_name: courseName,
         class_name: className,
+        enrollment_id: dto.enrollmentId || '',
+        financial_installments_count:
+          installments.length > 0 ? String(installments.length) : '0',
+        financial_installments_text: installmentsText,
+        financial_installments_table_html: installmentsTableHtml,
+        financial_installments_rows_html: installmentsTableHtml,
+        contract_sign_city: this.resolveContractCity(),
+        contract_issue_date: this.formatDatePtBr(now),
+        contract_issue_date_long: this.formatDateLongPtBr(now),
+        contract_issue_datetime: this.formatDateTimePtBr(now),
         signed_by_name: '',
         signed_at: '',
         signature_code: signatureCode,
+        aluno_nome: student.name,
+        aluno_email: student.email,
+        aluno_documento: student.studentProfile?.documentCpf || '',
+        aluno_cpf: student.studentProfile?.documentCpf || '',
+        aluno_rg: student.studentProfile?.documentRg || '',
+        aluno_orgao_expedidor: student.studentProfile?.issuingAuthority || '',
+        aluno_telefone: student.studentProfile?.phone || '',
+        aluno_data_nascimento: this.formatDatePtBr(student.studentProfile?.birthDate),
+        aluno_cidade_nascimento: student.studentProfile?.birthCity || '',
+        aluno_estado_civil: student.studentProfile?.maritalStatus || '',
+        aluno_nome_pai: student.studentProfile?.fatherName || '',
+        aluno_nome_mae: student.studentProfile?.motherName || '',
+        aluno_graduacao: student.studentProfile?.graduation || '',
+        aluno_ano_conclusao_graduacao: student.studentProfile?.graduationConclusionYear
+          ? String(student.studentProfile.graduationConclusionYear)
+          : '',
+        aluno_empresa: student.studentProfile?.companyName || '',
+        aluno_cargo: student.studentProfile?.jobTitle || '',
+        aluno_cep: student.studentProfile?.zipCode || '',
+        aluno_endereco: student.studentProfile?.street || '',
+        aluno_numero_endereco: student.studentProfile?.streetNumber || '',
+        curso_nome: courseName,
+        turma_nome: className,
+        matricula_id: dto.enrollmentId || '',
+        financeiro_parcelas_total:
+          installments.length > 0 ? String(installments.length) : '0',
+        financeiro_parcelas_texto: installmentsText,
+        financeiro_parcelas_tabela_html: installmentsTableHtml,
+        contrato_cidade_assinatura: this.resolveContractCity(),
+        contrato_data_emissao: this.formatDatePtBr(now),
+        contrato_data_emissao_extenso: this.formatDateLongPtBr(now),
+        contrato_datahora_emissao: this.formatDateTimePtBr(now),
+        assinado_por_nome: '',
+        assinado_em: '',
+        codigo_assinatura: signatureCode,
       },
     );
     const unsignedContentHash = this.sha256(unsignedHtmlSnapshot);
@@ -503,7 +600,6 @@ export class ContractsService {
       dto.expiresInHours ?? DEFAULT_SIGNING_TOKEN_HOURS,
       MAX_SIGNING_TOKEN_HOURS,
     );
-    const now = new Date();
     const expiresAt = new Date(now.getTime() + tokenHours * 60 * 60 * 1000);
     const rawToken = randomBytes(32).toString('base64url');
     const tokenHash = this.sha256(rawToken);
@@ -526,6 +622,24 @@ export class ContractsService {
             name: student.name,
             email: student.email,
             documentCpf: student.studentProfile?.documentCpf || null,
+            documentRg: student.studentProfile?.documentRg || null,
+            issuingAuthority: student.studentProfile?.issuingAuthority || null,
+            phone: student.studentProfile?.phone || null,
+            birthDate: student.studentProfile?.birthDate
+              ? student.studentProfile.birthDate.toISOString()
+              : null,
+            birthCity: student.studentProfile?.birthCity || null,
+            maritalStatus: student.studentProfile?.maritalStatus || null,
+            fatherName: student.studentProfile?.fatherName || null,
+            motherName: student.studentProfile?.motherName || null,
+            graduation: student.studentProfile?.graduation || null,
+            graduationConclusionYear:
+              student.studentProfile?.graduationConclusionYear ?? null,
+            companyName: student.studentProfile?.companyName || null,
+            jobTitle: student.studentProfile?.jobTitle || null,
+            zipCode: student.studentProfile?.zipCode || null,
+            street: student.studentProfile?.street || null,
+            streetNumber: student.studentProfile?.streetNumber || null,
           } as Prisma.InputJsonValue,
           unsignedHtmlSnapshot,
           unsignedContentHash,
@@ -1336,15 +1450,155 @@ export class ContractsService {
     return withoutJsUrls.trim();
   }
 
+  private formatDatePtBr(value?: Date | string | null): string {
+    if (!value) return '';
+    const parsed = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return new Intl.DateTimeFormat('pt-BR').format(parsed);
+  }
+
+  private formatDateTimePtBr(value?: Date | string | null): string {
+    if (!value) return '';
+    const parsed = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(parsed);
+  }
+
+  private formatDateLongPtBr(value?: Date | string | null): string {
+    if (!value) return '';
+    const parsed = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(parsed);
+  }
+
+  private formatCurrencyPtBr(value: number): string {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value || 0);
+  }
+
   private renderTemplate(
     htmlContent: string,
     variables: Record<string, string>,
   ): string {
     const sanitizedHtml = this.sanitizeContractHtml(htmlContent);
-    return sanitizedHtml.replace(
+    const withRawVariables = sanitizedHtml.replace(
+      /\{\{\{\s*([a-zA-Z0-9_]+)\s*\}\}\}/g,
+      (_match, key: string) => this.resolveTemplateRawValue(key, variables),
+    );
+    return withRawVariables.replace(
       /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g,
       (_match, key: string) => this.escapeHtml(variables[key] ?? ''),
     );
+  }
+
+  private resolveTemplateRawValue(
+    key: string,
+    variables: Record<string, string>,
+  ): string {
+    const rawHtmlKeys = new Set([
+      'financial_installments_table_html',
+      'financial_installments_rows_html',
+      'financeiro_parcelas_tabela_html',
+    ]);
+    const value = variables[key] ?? '';
+    if (!rawHtmlKeys.has(key)) {
+      return this.escapeHtml(value);
+    }
+    return value;
+  }
+
+  private async resolveInstallmentsForContract(
+    institutionId: string,
+    enrollmentId?: string | null,
+  ): Promise<
+    Array<{
+      number: number;
+      dueDateLabel: string;
+      amountLabel: string;
+      statusLabel: string;
+    }>
+  > {
+    if (!enrollmentId) return [];
+
+    const charges = await this.prisma.monthlyCharge.findMany({
+      where: {
+        enrollmentId,
+        enrollment: {
+          institutionId,
+        },
+      },
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
+      select: {
+        dueDate: true,
+        amount: true,
+        status: true,
+      },
+    });
+
+    return charges.map((charge, index) => ({
+      number: index + 1,
+      dueDateLabel: this.formatDatePtBr(charge.dueDate),
+      amountLabel: this.formatCurrencyPtBr(Number(charge.amount)),
+      statusLabel: this.chargeStatusLabel(charge.status),
+    }));
+  }
+
+  private chargeStatusLabel(status: string): string {
+    const normalized = String(status || '').trim().toUpperCase();
+    if (normalized === 'PAID') return 'Pago';
+    if (normalized === 'OVERDUE') return 'Em atraso';
+    if (normalized === 'CANCELED') return 'Cancelado';
+    return 'Pendente';
+  }
+
+  private buildInstallmentsTableHtml(
+    installments: Array<{
+      number: number;
+      dueDateLabel: string;
+      amountLabel: string;
+      statusLabel: string;
+    }>,
+  ): string {
+    if (!installments.length) return '';
+    const rows = installments
+      .map(
+        (item) =>
+          `<tr><td>${this.escapeHtml(String(item.number))}</td><td>${this.escapeHtml(item.dueDateLabel)}</td><td>${this.escapeHtml(item.amountLabel)}</td><td>${this.escapeHtml(item.statusLabel)}</td></tr>`,
+      )
+      .join('');
+
+    return `<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px;">
+      <thead>
+        <tr>
+          <th style="text-align:left;border:1px solid #d1d5db;padding:6px;">Parcela</th>
+          <th style="text-align:left;border:1px solid #d1d5db;padding:6px;">Vencimento</th>
+          <th style="text-align:left;border:1px solid #d1d5db;padding:6px;">Valor</th>
+          <th style="text-align:left;border:1px solid #d1d5db;padding:6px;">Status</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  private resolveContractCity(): string {
+    const value = String(
+      this.configService.get<string>('CONTRACT_DEFAULT_CITY') || 'Goiânia',
+    ).trim();
+    return value || 'Goiânia';
   }
 
   private buildSignedHtml(
