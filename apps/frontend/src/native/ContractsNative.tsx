@@ -160,16 +160,50 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
 
   <h3 style="margin:16px 0 8px;font-size:13px;">2. Cláusulas e condições</h3>
   <p style="margin:0 0 8px;">
-    A CONTRATADA prestará os serviços educacionais relativos ao curso <strong>{{curso_nome}}</strong>,
-    turma <strong>{{turma_nome}}</strong>, conforme calendário acadêmico vigente.
+    O presente INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS,
+    em específico para desenvolvimento de curso de Pós-Graduação Lato Sensu, é celebrado
+    entre o(a) CONTRATANTE e a CONTRATADA {{contratada_nome}}, observando-se a legislação
+    educacional e consumerista aplicável.
   </p>
-  <p style="margin:0 0 8px;">
-    O CONTRATANTE declara ciência das normas acadêmicas, financeiras e regimentais aplicáveis,
-    incluindo critérios de frequência, avaliação, reposição de módulos e emissão de certificado.
-  </p>
-  <p style="margin:0 0 8px;">
-    Fica eleito o foro de <strong>{{contrato_foro}}</strong> para dirimir eventuais conflitos contratuais.
-  </p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA PRIMEIRA:</strong> O presente contrato tem como objeto a prestação de serviços educacionais pela CONTRATADA ao CONTRATANTE, durante o desenvolvimento do curso <strong>{{curso_nome}}</strong>, turma <strong>{{turma_nome}}</strong>, nos períodos de sua ocorrência e prazos definidos em calendário e cronograma acadêmico.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA SEGUNDA:</strong> A CONTRATADA assegura ao CONTRATANTE/BENEFICIÁRIO vaga no corpo discente, ministrando aulas e demais atividades escolares, cujo planejamento pedagógico atende à legislação vigente.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA TERCEIRA:</strong> A CONTRATADA resguarda-se no direito de alterar estrutura curricular, ementas e organização acadêmica, visando adequação às demandas pedagógicas e de mercado.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA QUARTA:</strong> Os serviços contratados referem-se aos procedimentos relativos ao currículo do curso constante na matrícula, integrante deste contrato. Excluem-se serviços facultativos e de caráter pessoal do CONTRATANTE/BENEFICIÁRIO, como emissão de documentos extraordinários e outros não condizentes com a prática acadêmica regular.</p>
+  <p style="margin:0 0 6px;"><strong>§ 1º</strong> - As aulas serão ministradas em salas, laboratórios, ambientes virtuais ou locais indicados pela CONTRATADA, conforme natureza dos conteúdos, saídas de campo e técnicas pedagógicas necessárias.</p>
+  <p style="margin:0 0 6px;"><strong>§ 2º</strong> - Reserva-se à CONTRATADA, até 5 (cinco) dias antes do início de cada turma, o direito de cancelar turma com número insuficiente de alunos, assegurando ao CONTRATANTE realocação em turma equivalente, quando disponível.</p>
+  <p style="margin:0 0 8px;"><strong>§ 3º</strong> - É de exclusiva competência da CONTRATADA a orientação técnica e pedagógica decorrente da prestação dos serviços educacionais.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA QUINTA:</strong> Em contrapartida aos serviços prestados pela CONTRATADA, o(a) CONTRATANTE pagará os valores e parcelas descritos na seção financeira deste instrumento.</p>
+  <p style="margin:10px 0 6px;"><strong>§ 2º</strong> - Através da Modalidade de Pós Graduação MODULAR, o aluno terá a RENOVAÇÃO DE MATRÍCULA automática a cada 03 (três módulos), desde que atenda os seguintes critérios:</p>
+  <ul style="margin:0 0 10px 18px;padding:0;">
+    <li style="margin:0 0 4px;">Ter assinado o Contrato de Prestações de Serviços Educacionais ORIGINÁRIO e apresentado toda a documentação necessária;</li>
+    <li style="margin:0 0 4px;">Estar totalmente adimplente em suas mensalidades até o mês precedente ao da renovação de matrícula;</li>
+    <li style="margin:0 0 4px;">Caso a situação financeira esteja satisfatória, o CONTRATANTE não precisará efetuar qualquer procedimento, pois sua rematrícula estará assegurada;</li>
+    <li style="margin:0 0 4px;">Na vigência de alguma pendência, a matrícula só poderá ser renovada se o CONTRATANTE obtiver a liberação no Departamento Financeiro da CONTRATADA;</li>
+    <li style="margin:0 0 4px;">A realização dos módulos seguintes ao módulo realizado só poderá ocorrer mediante cumprimento dos encargos pedagógicos e financeiros do módulo anterior, conforme previsão de disciplinas.</li>
+  </ul>
+  <p style="margin:0 0 8px;"><strong>§ 3º</strong> - Os pagamentos das parcelas deverão ser efetuados até a data do vencimento prevista, nos locais indicados pela CONTRATADA. A primeira parcela será cobrada no ato da matrícula.</p>
+  <p style="margin:0 0 6px;"><strong>§ 4º</strong> - A CONTRATADA poderá conceder descontos para pagamento dentro da data de pontualidade, sem obrigação de prorrogação ou alteração de datas.</p>
+  <p style="margin:0 0 6px;"><strong>§ 5º</strong> - O não pagamento no prazo firmado poderá acarretar perda de descontos promocionais.</p>
+  <p style="margin:0 0 8px;"><strong>§ 6º</strong> - O não recebimento de boleto não isenta o CONTRATANTE do pagamento no vencimento, devendo buscar segunda via nos canais oficiais da CONTRATADA.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA SEXTA:</strong> Em caso de inadimplência, incidirão multa e juros conforme legislação e políticas financeiras da CONTRATADA, podendo haver cobrança administrativa e/ou judicial, observadas as regras legais vigentes.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA SÉTIMA - CANCELAMENTO/RESCISÃO:</strong> A rescisão por iniciativa do CONTRATANTE deverá ser formalizada por escrito, com antecedência mínima exigida pela instituição e regularização das obrigações financeiras vencidas e vincendas previstas contratualmente.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA OITAVA:</strong> A CONTRATADA não se responsabiliza pela guarda de objetos pessoais, documentos, valores ou veículos do CONTRATANTE, salvo nos casos legalmente comprovados de responsabilidade direta.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA NONA:</strong> O abandono de aulas sem formalização de cancelamento não extingue obrigações financeiras e acadêmicas previstas neste contrato e no regulamento institucional.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA:</strong> O CONTRATANTE deverá cumprir frequência mínima e critérios de aproveitamento acadêmico para certificação, conforme normas do curso e exigências legais.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA PRIMEIRA:</strong> O prazo de entrega de TCC/Artigo e regras de reposição de módulos observarão manual acadêmico e regulamento vigente da CONTRATADA.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA SEGUNDA:</strong> O CONTRATANTE autoriza, de forma gratuita e nos limites legais, o uso de imagem para fins institucionais e publicitários da CONTRATADA.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA TERCEIRA:</strong> O CONTRATANTE compromete-se a manter dados cadastrais atualizados, inclusive endereço e telefones, sob pena de validade das comunicações enviadas aos dados constantes em cadastro.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA QUARTA:</strong> Danos causados pelo CONTRATANTE a instalações, mobiliários ou equipamentos da CONTRATADA deverão ser ressarcidos.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA QUINTA:</strong> A renovação de vínculo acadêmico poderá ser recusada em caso de descumprimento de obrigações contratuais, acadêmicas ou financeiras.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA SEXTA:</strong> A apresentação de trabalho final e emissão de documentos acadêmicos podem exigir regularidade financeira do CONTRATANTE.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA SÉTIMA:</strong> A CONTRATADA não responde por serviços de estacionamento, vigilância ou guarda de veículos, cabendo responsabilidade ao proprietário/condutor.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA OITAVA:</strong> As partes reconhecem plena validade das cláusulas pactuadas neste instrumento.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA NONA:</strong> O contrato extingue-se com o cumprimento dos créditos/módulos do curso, observadas as exigências de conclusão e certificação.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA VIGÉSIMA:</strong> As partes atribuem ao presente contrato eficácia jurídica plena para todos os fins legais cabíveis.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA VIGÉSIMA PRIMEIRA:</strong> Casos omissos poderão ser tratados entre o aluno e os setores competentes da CONTRATADA.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA VIGÉSIMA SEGUNDA:</strong> As informações cadastrais e documentais do preâmbulo são de inteira responsabilidade do CONTRATANTE.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA VIGÉSIMA TERCEIRA:</strong> Havendo convenção arbitral aplicável, controvérsias patrimoniais disponíveis poderão ser resolvidas em câmara de mediação/conciliação/arbitragem, conforme legislação vigente.</p>
+  <p style="margin:0 0 8px;"><strong>CLÁUSULA VIGÉSIMA QUARTA - DO FORO:</strong> Fica eleito o foro de <strong>{{contrato_foro}}</strong> para dirimir conflitos não submetidos à arbitragem.</p>
 
   <div data-contract-page-break="true" style="page-break-after: always;"></div>
 
