@@ -7,7 +7,10 @@ const autoResolveEnabled =
   String(process.env.PRISMA_AUTO_RESOLVE_FAILED_MIGRATIONS ?? 'true').toLowerCase() !==
   'false';
 
-const defaultAllowedMigrations = ['20260329110000_email_verification'];
+const defaultAllowedMigrations = [
+  '20260329110000_email_verification',
+  '20260403120000_student_profile_enrollment_fields',
+];
 
 const allowedMigrations = (
   process.env.PRISMA_AUTO_RESOLVE_ALLOWLIST || defaultAllowedMigrations.join(',')
