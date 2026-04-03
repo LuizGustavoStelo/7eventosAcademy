@@ -3,9 +3,12 @@ import {
   IsArray,
   IsDateString,
   IsEmail,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -30,11 +33,58 @@ export class UpdateStudentDto {
 
   @IsOptional()
   @IsString()
+  documentRg?: string;
+
+  @IsOptional()
+  @IsString()
+  issuingAuthority?: string;
+
+  @IsOptional()
+  @IsString()
   phone?: string;
 
   @IsOptional()
   @IsDateString()
   birthDate?: string;
+
+  @IsOptional()
+  @IsString()
+  birthCity?: string;
+
+  @IsOptional()
+  @IsString()
+  maritalStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  fatherName?: string;
+
+  @IsOptional()
+  @IsString()
+  motherName?: string;
+
+  @IsOptional()
+  @IsString()
+  graduation?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1900)
+  @Max(9999)
+  graduationConclusionYear?: number;
+
+  @IsOptional()
+  @IsString()
+  companyName?: string;
+
+  @IsOptional()
+  @IsString()
+  jobTitle?: string;
 
   @IsOptional()
   @IsString()

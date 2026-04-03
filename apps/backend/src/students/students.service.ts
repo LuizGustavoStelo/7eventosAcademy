@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   Injectable,
   NotFoundException,
@@ -107,13 +107,28 @@ export class StudentsService {
     await this.ensureEmailAvailable(email);
 
     const documentCpf = this.normalizeCpf(dto.documentCpf);
+    const documentRg = dto.documentRg.trim();
+    const issuingAuthority = dto.issuingAuthority.trim();
     const phone = this.normalizePhone(dto.phone);
-    const guardianPhone = dto.guardianPhone
-      ? this.normalizePhone(dto.guardianPhone)
-      : undefined;
+    const birthCity = dto.birthCity.trim();
+    const maritalStatus = dto.maritalStatus.trim();
+    const address = dto.address.trim();
+    const fatherName = dto.fatherName.trim();
+    const motherName = dto.motherName.trim();
+    const graduation = dto.graduation.trim();
+    const graduationConclusionYear = Number(dto.graduationConclusionYear);
+    const companyName = dto.companyName.trim();
+    const jobTitle = dto.jobTitle.trim();
     const birthDate = new Date(dto.birthDate);
     if (Number.isNaN(birthDate.getTime()) || birthDate > new Date()) {
-      throw new BadRequestException('Data de nascimento inválida.');
+      throw new BadRequestException('Data de nascimento invÃ¡lida.');
+    }
+    if (
+      !Number.isInteger(graduationConclusionYear) ||
+      graduationConclusionYear < 1900 ||
+      graduationConclusionYear > 9999
+    ) {
+      throw new BadRequestException('Ano de conclusÃ£o da graduaÃ§Ã£o invÃ¡lido.');
     }
 
     const existingCpf = await this.prisma.studentProfile.findUnique({
@@ -122,7 +137,7 @@ export class StudentsService {
     });
 
     if (existingCpf) {
-      throw new BadRequestException('CPF já utilizado em outro cadastro.');
+      throw new BadRequestException('CPF jÃ¡ utilizado em outro cadastro.');
     }
 
     const uniqueCourseIds = [...new Set(dto.courseIds ?? [])];
@@ -155,7 +170,7 @@ export class StudentsService {
 
     if (!institutionId) {
       throw new BadRequestException(
-        'Não foi possível identificar a instituição do cadastro.',
+        'NÃ£o foi possÃ­vel identificar a instituiÃ§Ã£o do cadastro.',
       );
     }
 
@@ -181,20 +196,25 @@ export class StudentsService {
           studentProfile: {
             create: {
               documentCpf,
+              documentRg,
+              issuingAuthority,
               phone,
               birthDate,
-              gender: dto.gender,
-              guardianName: dto.guardianName,
-              guardianPhone,
+              birthCity,
+              maritalStatus,
+              fatherName,
+              motherName,
+              graduation,
+              graduationConclusionYear,
+              companyName,
+              jobTitle,
               zipCode: dto.zipCode,
-              street: dto.street,
+              street: dto.street ?? address,
               streetNumber: dto.streetNumber,
               complement: dto.complement,
               neighborhood: dto.neighborhood,
               city: dto.city,
               state: dto.state,
-              country: dto.country,
-              notes: dto.notes,
             },
           },
           studentCourses:
@@ -262,7 +282,7 @@ export class StudentsService {
         select: { id: true },
       });
       if (existingUser && existingUser.id !== studentId) {
-        throw new BadRequestException('Já existe um usuário com este e-mail.');
+        throw new BadRequestException('JÃ¡ existe um usuÃ¡rio com este e-mail.');
       }
       dataToUpdate.email = email;
     }
@@ -275,6 +295,12 @@ export class StudentsService {
     if (dto.documentCpf !== undefined) {
       profileData.documentCpf = dto.documentCpf ? this.normalizeCpf(dto.documentCpf) : null;
     }
+    if (dto.documentRg !== undefined) {
+      profileData.documentRg = dto.documentRg ? dto.documentRg.trim() : null;
+    }
+    if (dto.issuingAuthority !== undefined) {
+      profileData.issuingAuthority = dto.issuingAuthority ? dto.issuingAuthority.trim() : null;
+    }
     if (dto.phone !== undefined) {
       profileData.phone = dto.phone ? this.normalizePhone(dto.phone) : null;
     }
@@ -282,12 +308,37 @@ export class StudentsService {
       if (dto.birthDate) {
         const bd = new Date(dto.birthDate);
         if (Number.isNaN(bd.getTime()) || bd > new Date()) {
-          throw new BadRequestException('Data de nascimento inválida.');
+          throw new BadRequestException('Data de nascimento invÃ¡lida.');
         }
         profileData.birthDate = bd;
       } else {
         profileData.birthDate = null;
       }
+    }
+    if (dto.birthCity !== undefined) {
+      profileData.birthCity = dto.birthCity ? dto.birthCity.trim() : null;
+    }
+    if (dto.maritalStatus !== undefined) {
+      profileData.maritalStatus = dto.maritalStatus ? dto.maritalStatus.trim() : null;
+    }
+    if (dto.fatherName !== undefined) {
+      profileData.fatherName = dto.fatherName ? dto.fatherName.trim() : null;
+    }
+    if (dto.motherName !== undefined) {
+      profileData.motherName = dto.motherName ? dto.motherName.trim() : null;
+    }
+    if (dto.graduation !== undefined) {
+      profileData.graduation = dto.graduation ? dto.graduation.trim() : null;
+    }
+    if (dto.graduationConclusionYear !== undefined) {
+      profileData.graduationConclusionYear =
+        dto.graduationConclusionYear ?? null;
+    }
+    if (dto.companyName !== undefined) {
+      profileData.companyName = dto.companyName ? dto.companyName.trim() : null;
+    }
+    if (dto.jobTitle !== undefined) {
+      profileData.jobTitle = dto.jobTitle ? dto.jobTitle.trim() : null;
     }
 
     if (dto.gender !== undefined) profileData.gender = dto.gender;
@@ -296,6 +347,9 @@ export class StudentsService {
       profileData.guardianPhone = dto.guardianPhone ? this.normalizePhone(dto.guardianPhone) : null;
     }
     if (dto.zipCode !== undefined) profileData.zipCode = dto.zipCode;
+    if (dto.address !== undefined) {
+      profileData.street = dto.address ? dto.address.trim() : null;
+    }
     if (dto.street !== undefined) profileData.street = dto.street;
     if (dto.streetNumber !== undefined) profileData.streetNumber = dto.streetNumber;
     if (dto.complement !== undefined) profileData.complement = dto.complement;
@@ -343,7 +397,7 @@ export class StudentsService {
             },
           });
           if (courses.length !== uniqueCourseIds.length) {
-            throw new BadRequestException('Um ou mais cursos informados são inválidos.');
+            throw new BadRequestException('Um ou mais cursos informados sÃ£o invÃ¡lidos.');
           }
           institutionByCourseId = new Map(
             courses.map((course) => [course.id, course.institutionId]),
@@ -395,7 +449,7 @@ export class StudentsService {
     });
 
     if (courses.length !== uniqueCourseIds.length) {
-      throw new BadRequestException('Um ou mais cursos informados são inválidos.');
+      throw new BadRequestException('Um ou mais cursos informados sÃ£o invÃ¡lidos.');
     }
 
     const institutionByCourseId = new Map(
@@ -494,7 +548,7 @@ export class StudentsService {
     });
 
     if (!student) {
-      throw new NotFoundException('Aluno não encontrado.');
+      throw new NotFoundException('Aluno nÃ£o encontrado.');
     }
 
     const enrollmentsByClassId = new Map<string, number>();
@@ -548,7 +602,7 @@ export class StudentsService {
 
     if (rows.length < 2) {
       throw new BadRequestException(
-        'CSV inválido. Informe cabeçalho e pelo menos uma linha de aluno.',
+        'CSV invÃ¡lido. Informe cabeÃ§alho e pelo menos uma linha de aluno.',
       );
     }
 
@@ -610,7 +664,7 @@ export class StudentsService {
     });
 
     if (!student) {
-      throw new NotFoundException('Aluno não encontrado.');
+      throw new NotFoundException('Aluno nÃ£o encontrado.');
     }
 
     const mapped = await this.mapStudentsWithAvatar([student]);
@@ -628,7 +682,7 @@ export class StudentsService {
     });
 
     if (!student) {
-      throw new NotFoundException('Aluno não encontrado.');
+      throw new NotFoundException('Aluno nÃ£o encontrado.');
     }
   }
 
@@ -639,7 +693,7 @@ export class StudentsService {
     });
 
     if (existingUser) {
-      throw new BadRequestException('Já existe um usuário com este e-mail.');
+      throw new BadRequestException('JÃ¡ existe um usuÃ¡rio com este e-mail.');
     }
   }
 
@@ -657,7 +711,7 @@ export class StudentsService {
 
     if (total !== courseIds.length) {
       throw new BadRequestException(
-        'Um ou mais cursos informados são inválidos.',
+        'Um ou mais cursos informados sÃ£o invÃ¡lidos.',
       );
     }
   }
@@ -717,7 +771,7 @@ export class StudentsService {
 
     if (actor.role === 'superadmin') {
       throw new NotFoundException(
-        'Selecione uma instituição ativa para criar alunos.',
+        'Selecione uma instituiÃ§Ã£o ativa para criar alunos.',
       );
     }
 
@@ -732,7 +786,7 @@ export class StudentsService {
 
     if (!membership?.institutionId) {
       throw new NotFoundException(
-        'Nenhuma instituição ativa foi encontrada para este usuário.',
+        'Nenhuma instituiÃ§Ã£o ativa foi encontrada para este usuÃ¡rio.',
       );
     }
 
@@ -761,7 +815,7 @@ export class StudentsService {
 
     if (!adminMember?.userId) {
       throw new NotFoundException(
-        'Não há administrador ativo para a instituição selecionada.',
+        'NÃ£o hÃ¡ administrador ativo para a instituiÃ§Ã£o selecionada.',
       );
     }
 
@@ -781,7 +835,7 @@ export class StudentsService {
     const institutionIds = [...new Set(courses.map((course) => course.institutionId))];
     if (institutionIds.length > 1) {
       throw new BadRequestException(
-        'Selecione cursos de apenas uma instituição por cadastro.',
+        'Selecione cursos de apenas uma instituiÃ§Ã£o por cadastro.',
       );
     }
 
@@ -795,7 +849,7 @@ export class StudentsService {
   private normalizeCpf(input: string) {
     const normalized = input.replace(/\D+/g, '');
     if (normalized.length !== 11) {
-      throw new BadRequestException('CPF inválido.');
+      throw new BadRequestException('CPF invÃ¡lido.');
     }
 
     return normalized;
@@ -804,7 +858,7 @@ export class StudentsService {
   private normalizePhone(input: string) {
     const normalized = input.replace(/[^\d+]/g, '');
     if (normalized.length < 10) {
-      throw new BadRequestException('Telefone inválido.');
+      throw new BadRequestException('Telefone invÃ¡lido.');
     }
 
     return normalized;
@@ -879,7 +933,7 @@ export class StudentsService {
     ) {
       return {
         statusKey: 'pre_active',
-        statusLabel: 'Pré-matrícula',
+        statusLabel: 'PrÃ©-matrÃ­cula',
       };
     }
 
@@ -888,7 +942,7 @@ export class StudentsService {
     ) {
       return {
         statusKey: 'completed',
-        statusLabel: 'Concluído',
+        statusLabel: 'ConcluÃ­do',
       };
     }
 
@@ -956,9 +1010,9 @@ export class StudentsService {
         if (error instanceof BadRequestException) {
           const message = String(error.message || '').toLowerCase();
           if (
-            message.includes('já matriculado') ||
-            message.includes('nao há vagas') ||
-            message.includes('não há vagas')
+            message.includes('jÃ¡ matriculado') ||
+            message.includes('nao hÃ¡ vagas') ||
+            message.includes('nÃ£o hÃ¡ vagas')
           ) {
             continue;
           }
@@ -1034,12 +1088,43 @@ export class StudentsService {
     const password =
       row.senha || row.password || randomBytes(8).toString('base64url');
     const documentCpf = row.cpf || row.documentocpf || row.documentcpf;
+    const documentRg = row.rg || row.documentorg || row.documentrg;
+    const issuingAuthority = row.orgaoexpedidor || row.issuingauthority;
     const phone = row.telefone || row.phone;
     const birthDateRaw = row.datanascimento || row.birthdate;
+    const birthCity = row.cidadequenasceu || row.birthcity;
+    const maritalStatus = row.estadocivil || row.maritalstatus;
+    const address = row.endereco || row.address || row.rua || row.street;
+    const zipCode = row.cep || row.zipcode;
+    const fatherName = row.nomedopai || row.fathername;
+    const motherName = row.nomedamae || row.mothername;
+    const graduation = row.graduacao || row.graduation;
+    const graduationConclusionYearRaw =
+      row.anodeconclusaodagraduacao || row.graduationconclusionyear;
+    const companyName = row.empresaondetrabalha || row.companyname;
+    const jobTitle = row.cargo || row.jobtitle;
 
-    if (!name || !email || !documentCpf || !phone || !birthDateRaw) {
+    if (
+      !name ||
+      !email ||
+      !documentCpf ||
+      !documentRg ||
+      !issuingAuthority ||
+      !phone ||
+      !birthDateRaw ||
+      !birthCity ||
+      !maritalStatus ||
+      !address ||
+      !zipCode ||
+      !fatherName ||
+      !motherName ||
+      !graduation ||
+      !graduationConclusionYearRaw ||
+      !companyName ||
+      !jobTitle
+    ) {
       throw new BadRequestException(
-        'Campos obrigatórios no CSV: nome, email, cpf, telefone, dataNascimento.',
+        'Campos obrigatÃ³rios no CSV: nome, email, cpf, rg, orgaoExpedidor, telefone, dataNascimento, cidadeQueNasceu, estadoCivil, endereco, cep, nomeDoPai, nomeDaMae, graduacao, anoDeConclusaoDaGraduacao, empresaOndeTrabalha, cargo.',
       );
     }
 
@@ -1050,26 +1135,36 @@ export class StudentsService {
       .filter(Boolean);
 
     const birthDate = this.normalizeBirthDateFromCsv(birthDateRaw);
+    const graduationConclusionYear = Number(graduationConclusionYearRaw);
+    if (!Number.isInteger(graduationConclusionYear)) {
+      throw new BadRequestException('Ano de conclusÃ£o da graduaÃ§Ã£o invÃ¡lido no CSV.');
+    }
 
     return {
       name,
       email,
       password,
       documentCpf,
+      documentRg,
+      issuingAuthority,
       phone,
       birthDate,
-      gender: row.genero || row.gender || undefined,
-      guardianName: row.nomeresponsavel || row.guardianname || undefined,
-      guardianPhone: row.telefoneresponsavel || row.guardianphone || undefined,
-      zipCode: row.cep || row.zipcode || undefined,
-      street: row.rua || row.street || undefined,
+      birthCity,
+      maritalStatus,
+      address,
+      fatherName,
+      motherName,
+      graduation,
+      graduationConclusionYear,
+      companyName,
+      jobTitle,
+      zipCode,
+      street: address,
       streetNumber: row.numero || row.streetnumber || undefined,
       complement: row.complemento || row.complement || undefined,
       neighborhood: row.bairro || row.neighborhood || undefined,
       city: row.cidade || row.city || undefined,
       state: row.estado || row.state || undefined,
-      country: row.pais || row.country || undefined,
-      notes: row.observacoes || row.notes || undefined,
       courseIds,
     };
   }
@@ -1086,6 +1181,7 @@ export class StudentsService {
       return `${year}-${month}-${day}`;
     }
 
-    throw new BadRequestException('Data de nascimento inválida no CSV.');
+    throw new BadRequestException('Data de nascimento invÃ¡lida no CSV.');
   }
 }
+

@@ -3,6 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { UserRole } from '@prisma/client';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../database/prisma.service';
@@ -14,16 +18,28 @@ import {
 import { CreateImpersonationSessionDto } from './dto/create-impersonation-session.dto';
 
 type SicoobSettings = {
+  // Legacy field kept only for backward compatibility with old payloads.
+  clientSecret?: string;
   clientId: string;
-  clientSecret: string;
   tokenUrl: string;
-  baseUrl: string;
-  sandboxBaseUrl: string;
+  baseUrls: SicoobBaseUrls;
+  sandboxBaseUrls: SicoobBaseUrls;
+  // Legacy fields kept only for backward compatibility with old payloads.
+  baseUrl?: string;
+  sandboxBaseUrl?: string;
   webhookUrl: string;
   numeroCliente: string;
   scopes: string[];
   certificatePem: string;
   privateKeyPem: string;
+};
+
+type SicoobBaseUrls = {
+  cobrancaBancaria: string;
+  cobrancaBancariaPagamentos: string;
+  pixPagamentos: string;
+  pixRecebimentos: string;
+  spbTransferencias: string;
 };
 
 type GenericSettings = {
@@ -37,10 +53,23 @@ type FinancialSettings = {
 
 const DEFAULT_SICOOB_TOKEN_URL =
   'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
-const DEFAULT_SICOOB_BASE_URL =
-  'https://api.sicoob.com.br/cobranca-bancaria/v3';
-const DEFAULT_SICOOB_SANDBOX_BASE_URL =
-  'https://sandbox.sicoob.com.br/sicoob/sandbox/cobranca-bancaria/v3';
+const DEFAULT_SICOOB_BASE_URLS: SicoobBaseUrls = {
+  cobrancaBancaria: 'https://api.sicoob.com.br/cobranca-bancaria/v3',
+  cobrancaBancariaPagamentos: 'https://api.sicoob.com.br/pagamentos/v3',
+  pixPagamentos: 'https://api.sicoob.com.br/pix-pagamentos/v2',
+  pixRecebimentos: 'https://api.sicoob.com.br/pix/api/v2',
+  spbTransferencias: 'https://api.sicoob.com.br/spb/v2',
+};
+const DEFAULT_SICOOB_SANDBOX_BASE_URLS: SicoobBaseUrls = {
+  cobrancaBancaria:
+    'https://sandbox.sicoob.com.br/sicoob/sandbox/cobranca-bancaria/v3',
+  cobrancaBancariaPagamentos:
+    'https://sandbox.sicoob.com.br/sicoob/sandbox/cobranca-bancaria-pagamentos/v3',
+  pixPagamentos:
+    'https://sandbox.sicoob.com.br/sicoob/sandbox/pix-pagamentos/v2',
+  pixRecebimentos: 'https://sandbox.sicoob.com.br/sicoob/sandbox/pix/api/v2',
+  spbTransferencias: 'https://sandbox.sicoob.com.br/sicoob/sandbox/spb/v2',
+};
 const DEFAULT_SICOOB_SCOPES = [
   'boletos_inclusao',
   'boletos_consulta',
@@ -165,6 +194,16 @@ export class SuperadminAccountsService {
 
     const settings = this.decryptSettings(config?.encryptedSettings);
     const sicoob = settings.sicoob;
+    const baseUrls = this.resolveSicoobBaseUrls(
+      sicoob,
+      DEFAULT_SICOOB_BASE_URLS,
+      'baseUrl',
+    );
+    const sandboxBaseUrls = this.resolveSicoobBaseUrls(
+      sicoob,
+      DEFAULT_SICOOB_SANDBOX_BASE_URLS,
+      'sandboxBaseUrl',
+    );
 
     return {
       user: {
@@ -182,13 +221,11 @@ export class SuperadminAccountsService {
         sicoob: {
           clientId: sicoob?.clientId ?? '',
           tokenUrl: sicoob?.tokenUrl ?? DEFAULT_SICOOB_TOKEN_URL,
-          baseUrl: sicoob?.baseUrl ?? DEFAULT_SICOOB_BASE_URL,
-          sandboxBaseUrl:
-            sicoob?.sandboxBaseUrl ?? DEFAULT_SICOOB_SANDBOX_BASE_URL,
+          baseUrls,
+          sandboxBaseUrls,
           webhookUrl: sicoob?.webhookUrl ?? '',
           numeroCliente: sicoob?.numeroCliente ?? '',
           scopes: sicoob?.scopes ?? DEFAULT_SICOOB_SCOPES,
-          clientSecretConfigured: Boolean(sicoob?.clientSecret),
           certificateConfigured: Boolean(sicoob?.certificatePem),
           privateKeyConfigured: Boolean(sicoob?.privateKeyPem),
         },
@@ -300,25 +337,75 @@ export class SuperadminAccountsService {
 
     if (provider === 'sicoob') {
       const currentSicoob = current.sicoob;
+      const currentBaseUrls = this.resolveSicoobBaseUrls(
+        currentSicoob,
+        DEFAULT_SICOOB_BASE_URLS,
+        'baseUrl',
+      );
+      const currentSandboxBaseUrls = this.resolveSicoobBaseUrls(
+        currentSicoob,
+        DEFAULT_SICOOB_SANDBOX_BASE_URLS,
+        'sandboxBaseUrl',
+      );
+      let certificatePem =
+        dto.sicoobCertificatePem?.trim() ||
+        currentSicoob?.certificatePem?.trim() ||
+        '';
+      let privateKeyPem =
+        dto.sicoobPrivateKeyPem?.trim() ||
+        currentSicoob?.privateKeyPem?.trim() ||
+        '';
+      const pfxBase64 = dto.sicoobCertificatePfxBase64?.trim() || '';
+      if (pfxBase64) {
+        const extractedPem = this.extractPemPairFromPfxBase64(
+          pfxBase64,
+          dto.sicoobCertificatePfxPassphrase ?? '',
+        );
+        certificatePem = extractedPem.certificatePem;
+        privateKeyPem = extractedPem.privateKeyPem;
+      }
+
       const nextSicoob: SicoobSettings = {
         clientId:
           dto.sicoobClientId?.trim() || currentSicoob?.clientId?.trim() || '',
-        clientSecret:
-          dto.sicoobClientSecret?.trim() ||
-          currentSicoob?.clientSecret?.trim() ||
-          '',
         tokenUrl:
           dto.sicoobTokenUrl?.trim() ||
           currentSicoob?.tokenUrl?.trim() ||
           DEFAULT_SICOOB_TOKEN_URL,
-        baseUrl:
-          dto.sicoobBaseUrl?.trim() ||
-          currentSicoob?.baseUrl?.trim() ||
-          DEFAULT_SICOOB_BASE_URL,
-        sandboxBaseUrl:
-          dto.sicoobSandboxBaseUrl?.trim() ||
-          currentSicoob?.sandboxBaseUrl?.trim() ||
-          DEFAULT_SICOOB_SANDBOX_BASE_URL,
+        baseUrls: {
+          cobrancaBancaria:
+            dto.sicoobBaseUrlCobrancaBancaria?.trim() ||
+            currentBaseUrls.cobrancaBancaria,
+          cobrancaBancariaPagamentos:
+            dto.sicoobBaseUrlCobrancaBancariaPagamentos?.trim() ||
+            currentBaseUrls.cobrancaBancariaPagamentos,
+          pixPagamentos:
+            dto.sicoobBaseUrlPixPagamentos?.trim() ||
+            currentBaseUrls.pixPagamentos,
+          pixRecebimentos:
+            dto.sicoobBaseUrlPixRecebimentos?.trim() ||
+            currentBaseUrls.pixRecebimentos,
+          spbTransferencias:
+            dto.sicoobBaseUrlSpbTransferencias?.trim() ||
+            currentBaseUrls.spbTransferencias,
+        },
+        sandboxBaseUrls: {
+          cobrancaBancaria:
+            dto.sicoobSandboxBaseUrlCobrancaBancaria?.trim() ||
+            currentSandboxBaseUrls.cobrancaBancaria,
+          cobrancaBancariaPagamentos:
+            dto.sicoobSandboxBaseUrlCobrancaBancariaPagamentos?.trim() ||
+            currentSandboxBaseUrls.cobrancaBancariaPagamentos,
+          pixPagamentos:
+            dto.sicoobSandboxBaseUrlPixPagamentos?.trim() ||
+            currentSandboxBaseUrls.pixPagamentos,
+          pixRecebimentos:
+            dto.sicoobSandboxBaseUrlPixRecebimentos?.trim() ||
+            currentSandboxBaseUrls.pixRecebimentos,
+          spbTransferencias:
+            dto.sicoobSandboxBaseUrlSpbTransferencias?.trim() ||
+            currentSandboxBaseUrls.spbTransferencias,
+        },
         webhookUrl:
           dto.sicoobWebhookUrl?.trim() ||
           currentSicoob?.webhookUrl?.trim() ||
@@ -332,19 +419,12 @@ export class SuperadminAccountsService {
             currentSicoob?.scopes ??
             DEFAULT_SICOOB_SCOPES.slice(),
         ),
-        certificatePem:
-          dto.sicoobCertificatePem?.trim() ||
-          currentSicoob?.certificatePem?.trim() ||
-          '',
-        privateKeyPem:
-          dto.sicoobPrivateKeyPem?.trim() ||
-          currentSicoob?.privateKeyPem?.trim() ||
-          '',
+        certificatePem,
+        privateKeyPem,
       };
 
-      const requiredFieldMap: Array<[string, string]> = [
+      const requiredFieldMap: Array<[keyof SicoobSettings, string]> = [
         ['clientId', 'Client ID'],
-        ['clientSecret', 'Client Secret'],
         ['tokenUrl', 'URL de token'],
         ['numeroCliente', 'Número do cliente/cedente'],
         ['certificatePem', 'Certificado público (PEM/CRT)'],
@@ -352,7 +432,7 @@ export class SuperadminAccountsService {
       ];
 
       for (const [field, label] of requiredFieldMap) {
-        const value = nextSicoob[field as keyof SicoobSettings];
+        const value = nextSicoob[field];
         if (!value || (typeof value === 'string' && value.trim() === '')) {
           throw new BadRequestException(
             `Para Sicoob, o campo "${label}" é obrigatório.`,
@@ -360,16 +440,27 @@ export class SuperadminAccountsService {
         }
       }
 
-      if (environment === 'sandbox' && !nextSicoob.sandboxBaseUrl) {
-        throw new BadRequestException(
-          'Informe a URL base de sandbox da Sicoob.',
-        );
-      }
+      const productLabelMap: Array<[keyof SicoobBaseUrls, string]> = [
+        ['cobrancaBancaria', 'Cobrança Bancária V3'],
+        ['cobrancaBancariaPagamentos', 'Cobrança Bancária Pagamentos'],
+        ['pixPagamentos', 'Pix Pagamentos'],
+        ['pixRecebimentos', 'Pix Recebimentos'],
+        ['spbTransferencias', 'SPB Transferências'],
+      ];
+      const urlsToValidate =
+        environment === 'sandbox'
+          ? nextSicoob.sandboxBaseUrls
+          : nextSicoob.baseUrls;
 
-      if (environment === 'production' && !nextSicoob.baseUrl) {
-        throw new BadRequestException(
-          'Informe a URL base de produção da Sicoob.',
-        );
+      for (const [productKey, productLabel] of productLabelMap) {
+        const value = urlsToValidate[productKey];
+        if (!value || value.trim() === '') {
+          const environmentLabel =
+            environment === 'sandbox' ? 'sandbox' : 'produção';
+          throw new BadRequestException(
+            `Para Sicoob, informe a URL base de ${environmentLabel} para ${productLabel}.`,
+          );
+        }
       }
 
       return { sicoob: nextSicoob };
@@ -388,6 +479,131 @@ export class SuperadminAccountsService {
         apiKey,
       },
     };
+  }
+
+  private resolveSicoobBaseUrls(
+    sicoob: SicoobSettings | undefined,
+    defaults: SicoobBaseUrls,
+    legacyField: 'baseUrl' | 'sandboxBaseUrl',
+  ): SicoobBaseUrls {
+    const urls =
+      legacyField === 'baseUrl' ? sicoob?.baseUrls : sicoob?.sandboxBaseUrls;
+    const legacyValue = sicoob?.[legacyField]?.trim() || '';
+
+    return {
+      cobrancaBancaria:
+        urls?.cobrancaBancaria?.trim() ||
+        legacyValue ||
+        defaults.cobrancaBancaria,
+      cobrancaBancariaPagamentos:
+        urls?.cobrancaBancariaPagamentos?.trim() ||
+        defaults.cobrancaBancariaPagamentos,
+      pixPagamentos: urls?.pixPagamentos?.trim() || defaults.pixPagamentos,
+      pixRecebimentos:
+        urls?.pixRecebimentos?.trim() || defaults.pixRecebimentos,
+      spbTransferencias:
+        urls?.spbTransferencias?.trim() || defaults.spbTransferencias,
+    };
+  }
+
+  private extractPemPairFromPfxBase64(
+    pfxBase64: string,
+    passphrase: string,
+  ): { certificatePem: string; privateKeyPem: string } {
+    const tempDir = mkdtempSync(join(tmpdir(), 'sicoob-pfx-'));
+    const pfxPath = join(tempDir, 'certificate.pfx');
+    const certPath = join(tempDir, 'certificate.pem');
+    const keyPath = join(tempDir, 'private-key.pem');
+
+    try {
+      const pfxBuffer = Buffer.from(pfxBase64, 'base64');
+      if (!pfxBuffer || pfxBuffer.length === 0) {
+        throw new BadRequestException(
+          'Arquivo PFX inválido. Verifique o conteúdo enviado.',
+        );
+      }
+      writeFileSync(pfxPath, pfxBuffer);
+
+      const commandEnv = {
+        ...process.env,
+        SICOOB_PFX_PASS: passphrase,
+      };
+
+      execFileSync(
+        'openssl',
+        [
+          'pkcs12',
+          '-in',
+          pfxPath,
+          '-clcerts',
+          '-nokeys',
+          '-out',
+          certPath,
+          '-passin',
+          'env:SICOOB_PFX_PASS',
+        ],
+        { stdio: 'pipe', env: commandEnv },
+      );
+
+      execFileSync(
+        'openssl',
+        [
+          'pkcs12',
+          '-in',
+          pfxPath,
+          '-nocerts',
+          '-nodes',
+          '-out',
+          keyPath,
+          '-passin',
+          'env:SICOOB_PFX_PASS',
+        ],
+        { stdio: 'pipe', env: commandEnv },
+      );
+
+      const certContent = readFileSync(certPath, 'utf8');
+      const keyContent = readFileSync(keyPath, 'utf8');
+
+      const certificatePem = this.extractPemBlock(
+        certContent,
+        /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g,
+      );
+      const privateKeyPem = this.extractPemBlock(
+        keyContent,
+        /-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA )?PRIVATE KEY-----/g,
+      );
+
+      return { certificatePem, privateKeyPem };
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'ENOENT'
+      ) {
+        throw new BadRequestException(
+          'OpenSSL não está disponível no servidor para processar PFX. Use os campos manuais (PEM/KEY) ou instale o OpenSSL.',
+        );
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(
+        'Não foi possível extrair certificado e chave privada do PFX. Verifique o arquivo e a senha.',
+      );
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  }
+
+  private extractPemBlock(content: string, pattern: RegExp): string {
+    const match = content.match(pattern);
+    if (!match || match.length === 0) {
+      throw new BadRequestException(
+        'Formato de certificado/chave inválido ao processar o PFX.',
+      );
+    }
+    return match[0].trim();
   }
 
   private normalizeProvider(provider: string): FinancialProvider {
@@ -425,3 +641,4 @@ export class SuperadminAccountsService {
     }
   }
 }
+

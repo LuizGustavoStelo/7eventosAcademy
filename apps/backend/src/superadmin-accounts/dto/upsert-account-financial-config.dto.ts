@@ -37,19 +37,47 @@ export class UpsertAccountFinancialConfigDto {
 
   @IsOptional()
   @IsString()
-  sicoobClientSecret?: string;
-
-  @IsOptional()
-  @IsString()
   sicoobTokenUrl?: string;
 
   @IsOptional()
   @IsString()
-  sicoobBaseUrl?: string;
+  sicoobBaseUrlCobrancaBancaria?: string;
 
   @IsOptional()
   @IsString()
-  sicoobSandboxBaseUrl?: string;
+  sicoobBaseUrlCobrancaBancariaPagamentos?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobBaseUrlPixPagamentos?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobBaseUrlPixRecebimentos?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobBaseUrlSpbTransferencias?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobSandboxBaseUrlCobrancaBancaria?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobSandboxBaseUrlCobrancaBancariaPagamentos?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobSandboxBaseUrlPixPagamentos?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobSandboxBaseUrlPixRecebimentos?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobSandboxBaseUrlSpbTransferencias?: string;
 
   @IsOptional()
   @IsString()
@@ -71,6 +99,14 @@ export class UpsertAccountFinancialConfigDto {
   @IsOptional()
   @IsString()
   sicoobPrivateKeyPem?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobCertificatePfxBase64?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobCertificatePfxPassphrase?: string;
 
   @IsOptional()
   @IsString()

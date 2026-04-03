@@ -307,9 +307,19 @@ model StudentProfile {
   id            String    @id @default(uuid()) @db.Uuid
   userId        String    @unique @map("user_id") @db.Uuid
   documentCpf   String?   @unique @map("document_cpf")
+  documentRg    String?   @map("document_rg")
+  issuingAuthority String? @map("issuing_authority")
   phone         String?
   birthDate     DateTime? @map("birth_date")
+  birthCity     String?   @map("birth_city")
+  maritalStatus String?   @map("marital_status")
   gender        String?
+  fatherName    String?   @map("father_name")
+  motherName    String?   @map("mother_name")
+  graduation    String?
+  graduationConclusionYear Int? @map("graduation_conclusion_year")
+  companyName   String?   @map("company_name")
+  jobTitle      String?   @map("job_title")
   guardianName  String?   @map("guardian_name")
   guardianPhone String?   @map("guardian_phone")
   zipCode       String?   @map("zip_code")

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { apiRequest, formatCurrency } from './api';
 
 type FinanceProvider = 'manual' | 'sicoob' | 'asaas' | 'stripe';
@@ -31,6 +31,14 @@ type AccountsDashboardResponse = {
   accounts: DashboardAccount[];
 };
 
+type SicoobBaseUrls = {
+  cobrancaBancaria: string;
+  cobrancaBancariaPagamentos: string;
+  pixPagamentos: string;
+  pixRecebimentos: string;
+  spbTransferencias: string;
+};
+
 type AccountFinancialResponse = {
   user: {
     id: string;
@@ -47,12 +55,11 @@ type AccountFinancialResponse = {
     sicoob: {
       clientId: string;
       tokenUrl: string;
-      baseUrl: string;
-      sandboxBaseUrl: string;
+      baseUrls: SicoobBaseUrls;
+      sandboxBaseUrls: SicoobBaseUrls;
       webhookUrl: string;
       numeroCliente: string;
       scopes: string[];
-      clientSecretConfigured: boolean;
       certificateConfigured: boolean;
       privateKeyConfigured: boolean;
     };
@@ -83,19 +90,28 @@ type FinancialFormState = {
   isActive: boolean;
   genericApiKey: string;
   sicoobClientId: string;
-  sicoobClientSecret: string;
   sicoobNumeroCliente: string;
   sicoobTokenUrl: string;
-  sicoobBaseUrl: string;
-  sicoobSandboxBaseUrl: string;
+  sicoobBaseUrlCobrancaBancaria: string;
+  sicoobBaseUrlCobrancaBancariaPagamentos: string;
+  sicoobBaseUrlPixPagamentos: string;
+  sicoobBaseUrlPixRecebimentos: string;
+  sicoobBaseUrlSpbTransferencias: string;
+  sicoobSandboxBaseUrlCobrancaBancaria: string;
+  sicoobSandboxBaseUrlCobrancaBancariaPagamentos: string;
+  sicoobSandboxBaseUrlPixPagamentos: string;
+  sicoobSandboxBaseUrlPixRecebimentos: string;
+  sicoobSandboxBaseUrlSpbTransferencias: string;
   sicoobWebhookUrl: string;
   sicoobScopes: string;
   sicoobCertificatePem: string;
   sicoobPrivateKeyPem: string;
+  sicoobCertificatePfxBase64: string;
+  sicoobCertificatePfxPassphrase: string;
+  sicoobCertificatePfxFileName: string;
 };
 
 type ConfigFlags = {
-  clientSecretConfigured: boolean;
   certificateConfigured: boolean;
   privateKeyConfigured: boolean;
 };
@@ -115,15 +131,25 @@ function defaultForm(): FinancialFormState {
     isActive: false,
     genericApiKey: '',
     sicoobClientId: '',
-    sicoobClientSecret: '',
     sicoobNumeroCliente: '',
     sicoobTokenUrl: '',
-    sicoobBaseUrl: '',
-    sicoobSandboxBaseUrl: '',
+    sicoobBaseUrlCobrancaBancaria: '',
+    sicoobBaseUrlCobrancaBancariaPagamentos: '',
+    sicoobBaseUrlPixPagamentos: '',
+    sicoobBaseUrlPixRecebimentos: '',
+    sicoobBaseUrlSpbTransferencias: '',
+    sicoobSandboxBaseUrlCobrancaBancaria: '',
+    sicoobSandboxBaseUrlCobrancaBancariaPagamentos: '',
+    sicoobSandboxBaseUrlPixPagamentos: '',
+    sicoobSandboxBaseUrlPixRecebimentos: '',
+    sicoobSandboxBaseUrlSpbTransferencias: '',
     sicoobWebhookUrl: '',
     sicoobScopes: '',
     sicoobCertificatePem: '',
     sicoobPrivateKeyPem: '',
+    sicoobCertificatePfxBase64: '',
+    sicoobCertificatePfxPassphrase: '',
+    sicoobCertificatePfxFileName: '',
   };
 }
 
@@ -177,6 +203,19 @@ function resolveAvatar(avatarUrl?: string | null): string {
   return cleaned;
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = '';
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return window.btoa(binary);
+}
+
 export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProps) {
   const [loading, setLoading] = useState(true);
   const [loadingConfig, setLoadingConfig] = useState(false);
@@ -195,7 +234,6 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [form, setForm] = useState<FinancialFormState>(() => defaultForm());
   const [configFlags, setConfigFlags] = useState<ConfigFlags>({
-    clientSecretConfigured: false,
     certificateConfigured: false,
     privateKeyConfigured: false,
   });
@@ -245,21 +283,36 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
         isActive: Boolean(data.finance.isActive),
         genericApiKey: '',
         sicoobClientId: data.finance.sicoob.clientId ?? '',
-        sicoobClientSecret: '',
         sicoobNumeroCliente: data.finance.sicoob.numeroCliente ?? '',
         sicoobTokenUrl: data.finance.sicoob.tokenUrl ?? '',
-        sicoobBaseUrl: data.finance.sicoob.baseUrl ?? '',
-        sicoobSandboxBaseUrl: data.finance.sicoob.sandboxBaseUrl ?? '',
+        sicoobBaseUrlCobrancaBancaria: data.finance.sicoob.baseUrls?.cobrancaBancaria ?? '',
+        sicoobBaseUrlCobrancaBancariaPagamentos:
+          data.finance.sicoob.baseUrls?.cobrancaBancariaPagamentos ?? '',
+        sicoobBaseUrlPixPagamentos: data.finance.sicoob.baseUrls?.pixPagamentos ?? '',
+        sicoobBaseUrlPixRecebimentos: data.finance.sicoob.baseUrls?.pixRecebimentos ?? '',
+        sicoobBaseUrlSpbTransferencias: data.finance.sicoob.baseUrls?.spbTransferencias ?? '',
+        sicoobSandboxBaseUrlCobrancaBancaria:
+          data.finance.sicoob.sandboxBaseUrls?.cobrancaBancaria ?? '',
+        sicoobSandboxBaseUrlCobrancaBancariaPagamentos:
+          data.finance.sicoob.sandboxBaseUrls?.cobrancaBancariaPagamentos ?? '',
+        sicoobSandboxBaseUrlPixPagamentos:
+          data.finance.sicoob.sandboxBaseUrls?.pixPagamentos ?? '',
+        sicoobSandboxBaseUrlPixRecebimentos:
+          data.finance.sicoob.sandboxBaseUrls?.pixRecebimentos ?? '',
+        sicoobSandboxBaseUrlSpbTransferencias:
+          data.finance.sicoob.sandboxBaseUrls?.spbTransferencias ?? '',
         sicoobWebhookUrl: data.finance.sicoob.webhookUrl ?? '',
         sicoobScopes: Array.isArray(data.finance.sicoob.scopes)
           ? data.finance.sicoob.scopes.join(', ')
           : '',
         sicoobCertificatePem: '',
         sicoobPrivateKeyPem: '',
+        sicoobCertificatePfxBase64: '',
+        sicoobCertificatePfxPassphrase: '',
+        sicoobCertificatePfxFileName: '',
       });
 
       setConfigFlags({
-        clientSecretConfigured: Boolean(data.finance.sicoob.clientSecretConfigured),
         certificateConfigured: Boolean(data.finance.sicoob.certificateConfigured),
         privateKeyConfigured: Boolean(data.finance.sicoob.privateKeyConfigured),
       });
@@ -329,6 +382,35 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
     });
   }, [students, studentsSearch]);
 
+  const handlePfxFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setForm((current) => ({
+        ...current,
+        sicoobCertificatePfxBase64: '',
+        sicoobCertificatePfxFileName: '',
+      }));
+      return;
+    }
+
+    try {
+      const base64 = arrayBufferToBase64(await file.arrayBuffer());
+      setForm((current) => ({
+        ...current,
+        sicoobCertificatePfxBase64: base64,
+        sicoobCertificatePfxFileName: file.name,
+      }));
+      setFormError('');
+    } catch {
+      setFormError('Falha ao processar arquivo PFX. Tente novamente.');
+      setForm((current) => ({
+        ...current,
+        sicoobCertificatePfxBase64: '',
+        sicoobCertificatePfxFileName: '',
+      }));
+    }
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedAccountId) {
@@ -350,11 +432,24 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
 
       if (form.provider === 'sicoob') {
         payload.sicoobClientId = form.sicoobClientId.trim();
-        payload.sicoobClientSecret = form.sicoobClientSecret.trim() || undefined;
         payload.sicoobNumeroCliente = form.sicoobNumeroCliente.trim();
         payload.sicoobTokenUrl = form.sicoobTokenUrl.trim();
-        payload.sicoobBaseUrl = form.sicoobBaseUrl.trim();
-        payload.sicoobSandboxBaseUrl = form.sicoobSandboxBaseUrl.trim();
+        payload.sicoobBaseUrlCobrancaBancaria = form.sicoobBaseUrlCobrancaBancaria.trim();
+        payload.sicoobBaseUrlCobrancaBancariaPagamentos =
+          form.sicoobBaseUrlCobrancaBancariaPagamentos.trim();
+        payload.sicoobBaseUrlPixPagamentos = form.sicoobBaseUrlPixPagamentos.trim();
+        payload.sicoobBaseUrlPixRecebimentos = form.sicoobBaseUrlPixRecebimentos.trim();
+        payload.sicoobBaseUrlSpbTransferencias = form.sicoobBaseUrlSpbTransferencias.trim();
+        payload.sicoobSandboxBaseUrlCobrancaBancaria =
+          form.sicoobSandboxBaseUrlCobrancaBancaria.trim();
+        payload.sicoobSandboxBaseUrlCobrancaBancariaPagamentos =
+          form.sicoobSandboxBaseUrlCobrancaBancariaPagamentos.trim();
+        payload.sicoobSandboxBaseUrlPixPagamentos =
+          form.sicoobSandboxBaseUrlPixPagamentos.trim();
+        payload.sicoobSandboxBaseUrlPixRecebimentos =
+          form.sicoobSandboxBaseUrlPixRecebimentos.trim();
+        payload.sicoobSandboxBaseUrlSpbTransferencias =
+          form.sicoobSandboxBaseUrlSpbTransferencias.trim();
         payload.sicoobWebhookUrl = form.sicoobWebhookUrl.trim() || undefined;
         payload.sicoobScopes = form.sicoobScopes
           .split(/[\n,;]+/)
@@ -362,6 +457,11 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
           .filter(Boolean);
         payload.sicoobCertificatePem = form.sicoobCertificatePem.trim() || undefined;
         payload.sicoobPrivateKeyPem = form.sicoobPrivateKeyPem.trim() || undefined;
+        if (form.sicoobCertificatePfxBase64.trim()) {
+          payload.sicoobCertificatePfxBase64 = form.sicoobCertificatePfxBase64.trim();
+          payload.sicoobCertificatePfxPassphrase =
+            form.sicoobCertificatePfxPassphrase;
+        }
       }
 
       if (form.provider !== 'manual' && form.provider !== 'sicoob') {
@@ -630,26 +730,6 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                       </label>
 
                       <label>
-                        Client Secret
-                        <input
-                          type="password"
-                          value={form.sicoobClientSecret}
-                          onChange={(event) =>
-                            setForm((current) => ({
-                              ...current,
-                              sicoobClientSecret: event.target.value,
-                            }))
-                          }
-                          placeholder="Preencha para cadastrar/atualizar"
-                        />
-                        <small>
-                          {configFlags.clientSecretConfigured
-                            ? 'Client Secret já configurado'
-                            : 'Client Secret ainda não cadastrado'}
-                        </small>
-                      </label>
-
-                      <label>
                         Número do cliente/cedente
                         <input
                           value={form.sicoobNumeroCliente}
@@ -676,26 +756,130 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                       </label>
 
                       <label>
-                        URL base de produção
+                        URL base Produção - Cobrança Bancária V3
                         <input
-                          value={form.sicoobBaseUrl}
+                          value={form.sicoobBaseUrlCobrancaBancaria}
                           onChange={(event) =>
                             setForm((current) => ({
                               ...current,
-                              sicoobBaseUrl: event.target.value,
+                              sicoobBaseUrlCobrancaBancaria: event.target.value,
                             }))
                           }
                         />
                       </label>
 
                       <label>
-                        URL base de sandbox
+                        URL base Produção - Cobrança Bancária Pagamentos
                         <input
-                          value={form.sicoobSandboxBaseUrl}
+                          value={form.sicoobBaseUrlCobrancaBancariaPagamentos}
                           onChange={(event) =>
                             setForm((current) => ({
                               ...current,
-                              sicoobSandboxBaseUrl: event.target.value,
+                              sicoobBaseUrlCobrancaBancariaPagamentos: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        URL base Produção - Pix Pagamentos
+                        <input
+                          value={form.sicoobBaseUrlPixPagamentos}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobBaseUrlPixPagamentos: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        URL base Produção - Pix Recebimentos
+                        <input
+                          value={form.sicoobBaseUrlPixRecebimentos}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobBaseUrlPixRecebimentos: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        URL base Produção - SPB Transferências
+                        <input
+                          value={form.sicoobBaseUrlSpbTransferencias}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobBaseUrlSpbTransferencias: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        URL base Sandbox - Cobrança Bancária V3
+                        <input
+                          value={form.sicoobSandboxBaseUrlCobrancaBancaria}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobSandboxBaseUrlCobrancaBancaria: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        URL base Sandbox - Cobrança Bancária Pagamentos
+                        <input
+                          value={form.sicoobSandboxBaseUrlCobrancaBancariaPagamentos}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobSandboxBaseUrlCobrancaBancariaPagamentos: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        URL base Sandbox - Pix Pagamentos
+                        <input
+                          value={form.sicoobSandboxBaseUrlPixPagamentos}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobSandboxBaseUrlPixPagamentos: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        URL base Sandbox - Pix Recebimentos
+                        <input
+                          value={form.sicoobSandboxBaseUrlPixRecebimentos}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobSandboxBaseUrlPixRecebimentos: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        URL base Sandbox - SPB Transferências
+                        <input
+                          value={form.sicoobSandboxBaseUrlSpbTransferencias}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobSandboxBaseUrlSpbTransferencias: event.target.value,
                             }))
                           }
                         />
@@ -724,6 +908,37 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                               sicoobWebhookUrl: event.target.value,
                             }))
                           }
+                        />
+                      </label>
+
+                      <label>
+                        Upload automático (PFX/P12)
+                        <input
+                          type="file"
+                          accept=".pfx,.p12,application/x-pkcs12"
+                          onChange={(event) => {
+                            void handlePfxFileChange(event);
+                          }}
+                        />
+                        <small>
+                          {form.sicoobCertificatePfxFileName
+                            ? `Arquivo selecionado: ${form.sicoobCertificatePfxFileName}`
+                            : 'Opcional. Envie PFX + senha para extração automática de certificado e chave.'}
+                        </small>
+                      </label>
+
+                      <label>
+                        Senha do PFX
+                        <input
+                          type="password"
+                          value={form.sicoobCertificatePfxPassphrase}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobCertificatePfxPassphrase: event.target.value,
+                            }))
+                          }
+                          placeholder="Preencha se usar upload PFX"
                         />
                       </label>
 
@@ -889,3 +1104,4 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
     </section>
   );
 }
+

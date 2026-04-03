@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { API_BASE_URL } from './api';
 import { toPtBrApiMessage } from '../errorMessages';
@@ -22,30 +22,26 @@ type CourseCatalogItem = {
   bannerUrl?: string | null;
 };
 
-type ViaCepPayload = {
-  logradouro?: string;
-  bairro?: string;
-  localidade?: string;
-  uf?: string;
-  complemento?: string;
-  erro?: boolean;
-};
-
 type RegistrationPayload = {
   name: string;
   email: string;
   password: string;
   documentCpf: string;
+  documentRg: string;
+  issuingAuthority: string;
   phone: string;
   birthDate: string;
-  gender?: string;
-  zipCode?: string;
+  birthCity: string;
+  maritalStatus: string;
+  address: string;
+  zipCode: string;
+  fatherName: string;
+  motherName: string;
+  graduation: string;
+  graduationConclusionYear: number;
+  companyName: string;
+  jobTitle: string;
   street?: string;
-  streetNumber?: string;
-  complement?: string;
-  neighborhood?: string;
-  city?: string;
-  state?: string;
   courseIds?: string[];
 };
 
@@ -56,27 +52,21 @@ type PasswordStrength = {
 };
 
 const steps = [
-  {
-    title: 'Dados pessoais',
-    description: 'Identificação e acesso',
-  },
-  {
-    title: 'Endereço',
-    description: 'Localização automática por CEP',
-  },
-  {
-    title: 'Curso',
-    description: 'Escolha da formação',
-  },
+  { title: 'Identificação', description: 'Dados pessoais e documentação' },
+  { title: 'Formação', description: 'Filiação e graduação' },
+  { title: 'Profissional', description: 'Empresa, cargo e acesso' },
+  { title: 'Matrícula', description: 'Endereço e curso no IES' },
+];
+
+const maritalStatusOptions = [
+  { value: 'solteiro', label: 'Solteiro(a)' },
+  { value: 'casado', label: 'Casado(a)' },
+  { value: 'divorciado', label: 'Divorciado(a)' },
+  { value: 'viuvo', label: 'Viúvo(a)' },
+  { value: 'uniao_estavel', label: 'União estável' },
 ];
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
-
-const sleep = (ms: number) =>
-  new Promise<void>((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-
 const onlyDigits = (value: string) => value.replace(/\D/g, '');
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
@@ -84,16 +74,23 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
 });
 
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+
+function normalizeTextInput(value: string) {
+  return value.replace(/\s{2,}/g, ' ').trimStart();
+}
+
 function normalizeNameInput(value: string) {
-  return value
-    .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s]/g, '')
-    .replace(/\s{2,}/g, ' ');
+  return normalizeTextInput(value).replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s]/g, '');
 }
 
 function isValidPersonName(value: string) {
   const normalized = value.trim();
   if (normalized.length < 3) return false;
-  return /^[A-Za-zÀ-ÖØ-öø-ÿ]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]+)*$/.test(normalized);
+  return /^[A-Za-zÀ-ÖØ-öø-ÿ]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]+)+$/.test(normalized);
 }
 
 function formatCpf(value: string) {
@@ -101,6 +98,14 @@ function formatCpf(value: string) {
   return digits
     .replace(/^(\d{3})(\d)/, '$1.$2')
     .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1-$2');
+}
+
+function formatRg(value: string) {
+  const digits = onlyDigits(value).slice(0, 9);
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
     .replace(/\.(\d{3})(\d)/, '.$1-$2');
 }
 
@@ -122,40 +127,6 @@ function formatZipCode(value: string) {
   return digits.replace(/^(\d{5})(\d)/, '$1-$2');
 }
 
-function normalizeState(value: string) {
-  return value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2);
-}
-
-function isValidCpf(value: string) {
-  const cpf = onlyDigits(value);
-  if (cpf.length !== 11) return false;
-  if (/^(\d)\1{10}$/.test(cpf)) return false;
-
-  const calcDigit = (base: string, factor: number) => {
-    let total = 0;
-    for (let index = 0; index < base.length; index += 1) {
-      total += Number(base[index]) * (factor - index);
-    }
-    const remainder = (total * 10) % 11;
-    return remainder === 10 ? 0 : remainder;
-  };
-
-  const firstDigit = calcDigit(cpf.slice(0, 9), 10);
-  const secondDigit = calcDigit(cpf.slice(0, 10), 11);
-  return firstDigit === Number(cpf[9]) && secondDigit === Number(cpf[10]);
-}
-
-function isValidPhone(value: string) {
-  const phoneDigits = onlyDigits(value);
-  if (phoneDigits.length < 10 || phoneDigits.length > 11) return false;
-  if (/^(\d)\1+$/.test(phoneDigits)) return false;
-  return true;
-}
-
-function isValidZipCode(value: string) {
-  return onlyDigits(value).length === 8;
-}
-
 function formatBirthDate(value: string) {
   const digits = onlyDigits(value).slice(0, 8);
   if (digits.length <= 2) return digits;
@@ -163,6 +134,9 @@ function formatBirthDate(value: string) {
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
 
+function formatGraduationYear(value: string) {
+  return onlyDigits(value).slice(0, 4);
+}
 function birthDateToIso(value: string) {
   const digits = onlyDigits(value);
   if (digits.length !== 8) return '';
@@ -191,6 +165,49 @@ function birthDateToIso(value: string) {
 
 function isValidBirthDate(value: string) {
   return Boolean(birthDateToIso(value));
+}
+
+function isValidCpf(value: string) {
+  const cpf = onlyDigits(value);
+  if (cpf.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+  const calcDigit = (base: string, factor: number) => {
+    let total = 0;
+    for (let index = 0; index < base.length; index += 1) {
+      total += Number(base[index]) * (factor - index);
+    }
+    const remainder = (total * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+
+  const firstDigit = calcDigit(cpf.slice(0, 9), 10);
+  const secondDigit = calcDigit(cpf.slice(0, 10), 11);
+  return firstDigit === Number(cpf[9]) && secondDigit === Number(cpf[10]);
+}
+
+function isValidRg(value: string) {
+  const rg = onlyDigits(value);
+  return rg.length >= 7 && rg.length <= 9;
+}
+
+function isValidPhone(value: string) {
+  const phoneDigits = onlyDigits(value);
+  if (phoneDigits.length < 10 || phoneDigits.length > 11) return false;
+  if (/^(\d)\1+$/.test(phoneDigits)) return false;
+  return true;
+}
+
+function isValidZipCode(value: string) {
+  return onlyDigits(value).length === 8;
+}
+
+function isValidGraduationConclusionYear(value: string) {
+  const digits = onlyDigits(value);
+  if (digits.length !== 4) return false;
+  const year = Number(digits);
+  const currentYear = new Date().getFullYear();
+  return year >= 1900 && year <= currentYear;
 }
 
 function passwordStrength(password: string): PasswordStrength {
@@ -259,36 +276,40 @@ async function readError(response: Response) {
   }
   return 'Não foi possível concluir o cadastro.';
 }
-
 export function StudentRegistrationNative({ embedded }: StudentRegistrationNativeProps) {
   const [loading, setLoading] = useState(false);
   const [coursesLoading, setCoursesLoading] = useState(false);
-  const [zipLookupLoading, setZipLookupLoading] = useState(false);
   const [codeLoading, setCodeLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [codeError, setCodeError] = useState('');
   const [coursesError, setCoursesError] = useState('');
-  const [zipLookupError, setZipLookupError] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
 
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [documentCpf, setDocumentCpf] = useState('');
+  const [documentRg, setDocumentRg] = useState('');
+  const [issuingAuthority, setIssuingAuthority] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [birthCity, setBirthCity] = useState('');
+  const [maritalStatus, setMaritalStatus] = useState('');
+
+  const [fatherName, setFatherName] = useState('');
+  const [motherName, setMotherName] = useState('');
+  const [graduation, setGraduation] = useState('');
+  const [graduationConclusionYear, setGraduationConclusionYear] = useState('');
+
+  const [companyName, setCompanyName] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [documentCpf, setDocumentCpf] = useState('');
-  const [phone, setPhone] = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [gender, setGender] = useState('');
+
   const [zipCode, setZipCode] = useState('');
-  const [street, setStreet] = useState('');
-  const [streetNumber, setStreetNumber] = useState('');
-  const [complement, setComplement] = useState('');
-  const [neighborhood, setNeighborhood] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [zipAutofilled, setZipAutofilled] = useState(false);
+  const [address, setAddress] = useState('');
   const [selectedCourseId, setSelectedCourseId] = useState('');
+
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [courses, setCourses] = useState<CourseCatalogItem[]>([]);
@@ -301,9 +322,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     setCoursesError('');
     try {
       const response = await requestWithRetry(`${API_BASE_URL}/mis/v1/public/cursos`);
-      if (!response.ok) {
-        throw new Error(await readError(response));
-      }
+      if (!response.ok) throw new Error(await readError(response));
 
       const payload = (await response.json()) as CourseCatalogItem[];
       const onlyActive = Array.isArray(payload)
@@ -333,128 +352,56 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   };
 
   const validateStepOne = () => {
-    if (!name.trim() || name.trim().length < 3) {
-      return 'Informe seu nome completo.';
-    }
-    if (!isValidPersonName(name)) {
-      return 'O nome deve conter apenas letras e espaços.';
-    }
-    if (!emailRegex.test(email.trim())) {
-      return 'Informe um e-mail válido.';
-    }
-    if (password.length < 8) {
-      return 'A senha deve ter pelo menos 8 caracteres.';
-    }
-    if (strength.score < 3) {
-      return 'Use uma senha pelo menos média (misture letras, números e símbolos).';
-    }
-    if (!confirmPassword) {
-      return 'Confirme sua senha para continuar.';
-    }
-    if (password !== confirmPassword) {
-      return 'A confirmação de senha não confere.';
-    }
-    if (!isValidCpf(documentCpf)) {
-      return 'Informe um CPF válido.';
-    }
-    if (!isValidPhone(phone)) {
-      return 'Informe um telefone válido com DDD.';
-    }
-    if (!isValidBirthDate(birthDate)) {
-      return 'Informe uma data de nascimento válida no formato DD/MM/AAAA.';
-    }
+    if (!name.trim() || name.trim().length < 3) return 'Informe seu nome completo.';
+    if (!isValidPersonName(name)) return 'O nome deve conter nome e sobrenome, usando apenas letras.';
+    if (!isValidPhone(phone)) return 'Informe um telefone válido com DDD.';
+    if (!emailRegex.test(email.trim())) return 'Informe um e-mail válido.';
+    if (!isValidCpf(documentCpf)) return 'Informe um CPF válido.';
+    if (!isValidRg(documentRg)) return 'Informe um RG válido.';
+    if (!issuingAuthority.trim()) return 'Informe o órgão expedidor do RG.';
+    if (!isValidBirthDate(birthDate)) return 'Informe uma data de nascimento válida no formato DD/MM/AAAA.';
+    if (!birthCity.trim()) return 'Informe a cidade em que nasceu.';
+    if (!maritalStatus) return 'Selecione o estado civil.';
     return '';
   };
 
   const validateStepTwo = () => {
-    if (!isValidZipCode(zipCode)) {
-      return 'Informe um CEP válido com 8 dígitos.';
-    }
-    if (!street.trim() || !neighborhood.trim() || !city.trim() || !state.trim()) {
-      return 'Complete o endereço a partir do CEP para continuar.';
-    }
-    if (!streetNumber.trim()) {
-      return 'Informe o número da casa.';
-    }
-    if (normalizeState(state).length !== 2) {
-      return 'Informe um estado válido (UF).';
-    }
+    if (!fatherName.trim() || !isValidPersonName(fatherName)) return 'Informe o nome completo do pai.';
+    if (!motherName.trim() || !isValidPersonName(motherName)) return 'Informe o nome completo da mãe.';
+    if (!graduation.trim()) return 'Informe sua graduação.';
+    if (!isValidGraduationConclusionYear(graduationConclusionYear)) return 'Informe um ano de conclusão da graduação válido.';
     return '';
   };
 
   const validateStepThree = () => {
-    if (coursesLoading) {
-      return 'Aguarde o carregamento dos cursos.';
-    }
-    if (!selectedCourseId) {
-      return 'Selecione um curso para concluir o cadastro.';
-    }
+    if (!companyName.trim()) return 'Informe a empresa onde trabalha.';
+    if (!jobTitle.trim()) return 'Informe o cargo.';
+    if (password.length < 8) return 'A senha deve ter pelo menos 8 caracteres.';
+    if (strength.score < 3) return 'Use uma senha pelo menos média (misture letras, números e símbolos).';
+    if (!confirmPassword) return 'Confirme sua senha para continuar.';
+    if (password !== confirmPassword) return 'A confirmação de senha não confere.';
     return '';
   };
 
-  const resetAddress = () => {
-    setStreet('');
-    setNeighborhood('');
-    setCity('');
-    setState('');
-  };
-
-  const lookupZipCode = async (zipDigitsInput?: string) => {
-    const zipDigits = zipDigitsInput ?? onlyDigits(zipCode);
-    if (zipDigits.length !== 8) {
-      setZipLookupError('Informe um CEP válido para buscar o endereço.');
-      return false;
-    }
-
-    setZipLookupLoading(true);
-    setZipLookupError('');
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${zipDigits}/json/`);
-      if (!response.ok) {
-        throw new Error('Falha ao consultar o CEP.');
-      }
-
-      const payload = (await response.json()) as ViaCepPayload;
-      if (payload.erro) {
-        setZipAutofilled(false);
-        setZipLookupError('CEP não encontrado. Verifique os dados digitados.');
-        return false;
-      }
-
-      setZipCode(formatZipCode(zipDigits));
-      setStreet((payload.logradouro || '').trim());
-      setNeighborhood((payload.bairro || '').trim());
-      setCity((payload.localidade || '').trim());
-      setState(normalizeState(payload.uf || ''));
-      if (!complement.trim() && payload.complemento) {
-        setComplement(payload.complemento.trim());
-      }
-      setZipAutofilled(true);
-      return true;
-    } catch {
-      setZipAutofilled(false);
-      setZipLookupError('Não foi possível consultar o CEP agora. Tente novamente.');
-      return false;
-    } finally {
-      setZipLookupLoading(false);
-    }
-  };
-
-  const ensureZipLookup = async () => {
-    const zipDigits = onlyDigits(zipCode);
-    if (zipDigits.length !== 8) return;
-    if (street.trim() && neighborhood.trim() && city.trim() && state.trim()) return;
-    await lookupZipCode(zipDigits);
+  const validateStepFour = () => {
+    if (!isValidZipCode(zipCode)) return 'Informe um CEP válido com 8 dígitos.';
+    if (!address.trim()) return 'Informe o endereço completo.';
+    if (coursesLoading) return 'Aguarde o carregamento dos cursos.';
+    if (!selectedCourseId) return 'Selecione um curso para concluir o cadastro.';
+    return '';
   };
 
   const goToNextStep = async () => {
+    await Promise.resolve();
     setError('');
-    if (currentStep === 1) {
-      await ensureZipLookup();
-    }
-
     const validation =
-      currentStep === 0 ? validateStepOne() : currentStep === 1 ? validateStepTwo() : '';
+      currentStep === 0
+        ? validateStepOne()
+        : currentStep === 1
+          ? validateStepTwo()
+          : currentStep === 2
+            ? validateStepThree()
+            : '';
 
     if (validation) {
       setError(validation);
@@ -471,22 +418,24 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
   const resetForm = () => {
     setName('');
+    setPhone('');
     setEmail('');
+    setDocumentCpf('');
+    setDocumentRg('');
+    setIssuingAuthority('');
+    setBirthDate('');
+    setBirthCity('');
+    setMaritalStatus('');
+    setFatherName('');
+    setMotherName('');
+    setGraduation('');
+    setGraduationConclusionYear('');
+    setCompanyName('');
+    setJobTitle('');
     setPassword('');
     setConfirmPassword('');
-    setDocumentCpf('');
-    setPhone('');
-    setBirthDate('');
-    setGender('');
     setZipCode('');
-    setStreet('');
-    setStreetNumber('');
-    setComplement('');
-    setNeighborhood('');
-    setCity('');
-    setState('');
-    setZipAutofilled(false);
-    setZipLookupError('');
+    setAddress('');
     setSelectedCourseId('');
     setCurrentStep(0);
   };
@@ -497,12 +446,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     setSuccess('');
     setCodeError('');
 
-    await ensureZipLookup();
-
-    const allValidations = [validateStepOne(), validateStepTwo(), validateStepThree()].filter(
-      Boolean,
-    );
-
+    const allValidations = [validateStepOne(), validateStepTwo(), validateStepThree(), validateStepFour()].filter(Boolean);
     if (allValidations.length > 0) {
       setError(allValidations[0] || 'Revise os campos obrigatórios.');
       return;
@@ -510,19 +454,24 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
     const payload: RegistrationPayload = {
       name: name.trim().replace(/\s{2,}/g, ' '),
-      email: email.trim().toLowerCase(),
-      password,
-      documentCpf: onlyDigits(documentCpf),
       phone: onlyDigits(phone),
+      email: email.trim().toLowerCase(),
+      documentCpf: onlyDigits(documentCpf),
+      documentRg: onlyDigits(documentRg),
+      issuingAuthority: issuingAuthority.trim(),
       birthDate: birthDateToIso(birthDate),
-      gender: gender || undefined,
-      zipCode: onlyDigits(zipCode) || undefined,
-      street: street.trim() || undefined,
-      streetNumber: streetNumber.trim() || undefined,
-      complement: complement.trim() || undefined,
-      neighborhood: neighborhood.trim() || undefined,
-      city: city.trim() || undefined,
-      state: normalizeState(state) || undefined,
+      birthCity: birthCity.trim(),
+      maritalStatus,
+      address: address.trim(),
+      zipCode: onlyDigits(zipCode),
+      fatherName: fatherName.trim().replace(/\s{2,}/g, ' '),
+      motherName: motherName.trim().replace(/\s{2,}/g, ' '),
+      graduation: graduation.trim(),
+      graduationConclusionYear: Number(onlyDigits(graduationConclusionYear)),
+      companyName: companyName.trim(),
+      jobTitle: jobTitle.trim(),
+      password,
+      street: address.trim(),
       courseIds: selectedCourseId ? [selectedCourseId] : undefined,
     };
 
@@ -530,24 +479,15 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     try {
       const response = await requestWithRetry(`${API_BASE_URL}/mis/v1/public/cadastros`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        throw new Error(await readError(response));
-      }
-
+      if (!response.ok) throw new Error(await readError(response));
       setPendingVerificationEmail(payload.email);
       setVerificationCode('');
     } catch (submitError) {
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : 'Não foi possível concluir o cadastro.',
-      );
+      setError(submitError instanceof Error ? submitError.message : 'Não foi possível concluir o cadastro.');
     } finally {
       setLoading(false);
     }
@@ -567,40 +507,28 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     try {
       const response = await requestWithRetry(`${API_BASE_URL}/auth/verify-email-code`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: pendingVerificationEmail,
-          code,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: pendingVerificationEmail, code }),
       });
 
-      if (!response.ok) {
-        throw new Error(await readError(response));
-      }
+      if (!response.ok) throw new Error(await readError(response));
 
       setPendingVerificationEmail('');
       setVerificationCode('');
       setSuccess('Cadastro realizado com sucesso. Seu e-mail foi confirmado.');
       resetForm();
     } catch (confirmError) {
-      setCodeError(
-        confirmError instanceof Error
-          ? confirmError.message
-          : 'Não foi possível confirmar o código.',
-      );
+      setCodeError(confirmError instanceof Error ? confirmError.message : 'Não foi possível confirmar o código.');
     } finally {
       setCodeLoading(false);
     }
   };
-
   return (
     <section className={`native-student-register ${embedded ? 'is-embedded' : ''}`}>
       <article className="native-student-register-card">
         <header>
-          <h1>Cadastro de aluno</h1>
-          <p>Preencha seus dados para criar o acesso à plataforma acadêmica.</p>
+          <h1>Formulário de matrícula</h1>
+          <p>Preencha cada etapa com atenção para concluir seu cadastro de aluno.</p>
         </header>
 
         {error ? <p className="native-error">{error}</p> : null}
@@ -653,6 +581,18 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               </label>
 
               <label>
+                Telefone *
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(event) => setPhone(formatPhone(event.target.value))}
+                  disabled={loading}
+                  inputMode="numeric"
+                  placeholder="(00) 00000-0000"
+                />
+              </label>
+
+              <label>
                 E-mail *
                 <input
                   type="email"
@@ -664,69 +604,37 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               </label>
 
               <label>
-                Senha *
+                CPF *
                 <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  disabled={loading}
-                  autoComplete="new-password"
-                />
-                {password ? (
-                  <small className={`native-student-password-strength ${strength.toneClass}`}>
-                    Força da senha: {strength.label}
-                  </small>
-                ) : null}
-              </label>
-
-              {password ? (
-                <label>
-                  Confirmar senha *
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    disabled={loading}
-                    autoComplete="new-password"
-                  />
-                </label>
-              ) : (
-                <label>
-                  CPF *
-                  <input
-                    type="text"
-                    value={documentCpf}
-                    onChange={(event) => setDocumentCpf(formatCpf(event.target.value))}
-                    disabled={loading}
-                    inputMode="numeric"
-                    placeholder="000.000.000-00"
-                  />
-                </label>
-              )}
-
-              {password ? (
-                <label>
-                  CPF *
-                  <input
-                    type="text"
-                    value={documentCpf}
-                    onChange={(event) => setDocumentCpf(formatCpf(event.target.value))}
-                    disabled={loading}
-                    inputMode="numeric"
-                    placeholder="000.000.000-00"
-                  />
-                </label>
-              ) : null}
-
-              <label>
-                Telefone *
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(event) => setPhone(formatPhone(event.target.value))}
+                  type="text"
+                  value={documentCpf}
+                  onChange={(event) => setDocumentCpf(formatCpf(event.target.value))}
                   disabled={loading}
                   inputMode="numeric"
-                  placeholder="(00) 00000-0000"
+                  placeholder="000.000.000-00"
+                />
+              </label>
+
+              <label>
+                RG *
+                <input
+                  type="text"
+                  value={documentRg}
+                  onChange={(event) => setDocumentRg(formatRg(event.target.value))}
+                  disabled={loading}
+                  inputMode="numeric"
+                  placeholder="00.000.000-0"
+                />
+              </label>
+
+              <label>
+                Órgão expedidor *
+                <input
+                  type="text"
+                  value={issuingAuthority}
+                  onChange={(event) => setIssuingAuthority(normalizeTextInput(event.target.value).toUpperCase())}
+                  disabled={loading}
+                  placeholder="Ex.: SSP"
                 />
               </label>
 
@@ -745,16 +653,28 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               </label>
 
               <label>
-                Gênero
+                Cidade que nasceu *
+                <input
+                  type="text"
+                  value={birthCity}
+                  onChange={(event) => setBirthCity(normalizeTextInput(event.target.value))}
+                  disabled={loading}
+                />
+              </label>
+
+              <label>
+                Estado civil *
                 <select
-                  value={gender}
-                  onChange={(event) => setGender(event.target.value)}
+                  value={maritalStatus}
+                  onChange={(event) => setMaritalStatus(event.target.value)}
                   disabled={loading}
                 >
-                  <option value="">Prefiro não informar</option>
-                  <option value="masculino">Masculino</option>
-                  <option value="feminino">Feminino</option>
-                  <option value="outro">Outro</option>
+                  <option value="">Selecione</option>
+                  {maritalStatusOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </label>
             </>
@@ -763,190 +683,202 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
           {currentStep === 1 ? (
             <>
               <label>
+                Nome do pai *
+                <input
+                  type="text"
+                  value={fatherName}
+                  onChange={(event) => setFatherName(normalizeNameInput(event.target.value))}
+                  onBlur={() => setFatherName((current) => current.trim().replace(/\s{2,}/g, ' '))}
+                  disabled={loading}
+                />
+              </label>
+
+              <label>
+                Nome da mãe *
+                <input
+                  type="text"
+                  value={motherName}
+                  onChange={(event) => setMotherName(normalizeNameInput(event.target.value))}
+                  onBlur={() => setMotherName((current) => current.trim().replace(/\s{2,}/g, ' '))}
+                  disabled={loading}
+                />
+              </label>
+
+              <label>
+                Graduação *
+                <input
+                  type="text"
+                  value={graduation}
+                  onChange={(event) => setGraduation(normalizeTextInput(event.target.value))}
+                  disabled={loading}
+                  placeholder="Ex.: Administração"
+                />
+              </label>
+
+              <label>
+                Ano de conclusão da graduação *
+                <input
+                  type="text"
+                  value={graduationConclusionYear}
+                  onChange={(event) => setGraduationConclusionYear(formatGraduationYear(event.target.value))}
+                  disabled={loading}
+                  inputMode="numeric"
+                  placeholder="AAAA"
+                  maxLength={4}
+                />
+              </label>
+            </>
+          ) : null}
+          {currentStep === 2 ? (
+            <>
+              <label>
+                Empresa onde trabalha *
+                <input
+                  type="text"
+                  value={companyName}
+                  onChange={(event) => setCompanyName(normalizeTextInput(event.target.value))}
+                  disabled={loading}
+                />
+              </label>
+
+              <label>
+                Cargo *
+                <input
+                  type="text"
+                  value={jobTitle}
+                  onChange={(event) => setJobTitle(normalizeTextInput(event.target.value))}
+                  disabled={loading}
+                />
+              </label>
+
+              <label>
+                Senha de acesso *
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  disabled={loading}
+                  autoComplete="new-password"
+                />
+                {password ? (
+                  <small className={`native-student-password-strength ${strength.toneClass}`}>
+                    Força da senha: {strength.label}
+                  </small>
+                ) : null}
+              </label>
+
+              <label>
+                Confirmar senha *
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  disabled={loading}
+                  autoComplete="new-password"
+                />
+              </label>
+            </>
+          ) : null}
+
+          {currentStep === 3 ? (
+            <>
+              <label>
                 CEP *
                 <input
                   type="text"
                   value={zipCode}
-                  onChange={(event) => {
-                    const maskedZipCode = formatZipCode(event.target.value);
-                    setZipCode(maskedZipCode);
-                    setZipLookupError('');
-                    if (onlyDigits(maskedZipCode).length < 8) {
-                      setZipAutofilled(false);
-                      resetAddress();
-                    }
-                  }}
-                  onBlur={() => {
-                    void lookupZipCode();
-                  }}
+                  onChange={(event) => setZipCode(formatZipCode(event.target.value))}
                   disabled={loading}
                   inputMode="numeric"
                   placeholder="00000-000"
                 />
               </label>
 
-              <label>
-                Número *
-                <input
-                  type="text"
-                  value={streetNumber}
-                  onChange={(event) => setStreetNumber(event.target.value)}
-                  disabled={loading}
-                  placeholder="Ex.: 123"
-                />
-              </label>
-
               <label className="full">
-                Rua *
+                Endereço *
                 <input
                   type="text"
-                  value={street}
-                  onChange={(event) => setStreet(event.target.value)}
+                  value={address}
+                  onChange={(event) => setAddress(normalizeTextInput(event.target.value))}
                   disabled={loading}
-                  readOnly={zipAutofilled}
+                  placeholder="Rua, número, bairro e complemento"
                 />
               </label>
 
-              <label>
-                Bairro *
-                <input
-                  type="text"
-                  value={neighborhood}
-                  onChange={(event) => setNeighborhood(event.target.value)}
-                  disabled={loading}
-                  readOnly={zipAutofilled}
-                />
-              </label>
+              <section className="native-student-register-courses full" aria-label="Escolha do curso">
+                <header className="native-student-register-courses-header">
+                  <h3>Curso no IES</h3>
+                  <p>Selecione o curso para finalizar sua matrícula.</p>
+                </header>
 
-              <label>
-                Cidade *
-                <input
-                  type="text"
-                  value={city}
-                  onChange={(event) => setCity(event.target.value)}
-                  disabled={loading}
-                  readOnly={zipAutofilled}
-                />
-              </label>
+                {coursesLoading ? <p className="native-info">Carregando cursos...</p> : null}
 
-              <label>
-                Estado (UF) *
-                <input
-                  type="text"
-                  value={state}
-                  onChange={(event) => setState(normalizeState(event.target.value))}
-                  disabled={loading}
-                  readOnly={zipAutofilled}
-                  maxLength={2}
-                />
-              </label>
+                {!coursesLoading && coursesError ? (
+                  <div className="native-public-course-empty">
+                    <p>{coursesError}</p>
+                    <button type="button" onClick={() => void loadCourses()} disabled={loading}>
+                      Tentar novamente
+                    </button>
+                  </div>
+                ) : null}
 
-              <label>
-                Complemento
-                <input
-                  type="text"
-                  value={complement}
-                  onChange={(event) => setComplement(event.target.value)}
-                  disabled={loading}
-                  placeholder="Opcional"
-                />
-              </label>
+                {!coursesLoading && !coursesError && courses.length === 0 ? (
+                  <div className="native-public-course-empty">
+                    <p>Nenhum curso disponível no momento.</p>
+                  </div>
+                ) : null}
 
-              <p className="native-student-register-hint full">
-                {zipLookupLoading
-                  ? 'Consultando CEP...'
-                  : zipLookupError
-                    ? zipLookupError
-                    : 'Preencha o CEP para carregar automaticamente rua, bairro, cidade e estado.'}
-              </p>
-            </>
-          ) : null}
-
-          {currentStep === 2 ? (
-            <section className="native-student-register-courses full" aria-label="Escolha do curso">
-              <header className="native-student-register-courses-header">
-                <h3>Escolha seu curso</h3>
-                <p>
-                  Selecione a formação desejada. Você poderá concluir sua matrícula no painel
-                  acadêmico após o cadastro.
-                </p>
-              </header>
-
-              {coursesLoading ? <p className="native-info">Carregando cursos...</p> : null}
-
-              {!coursesLoading && coursesError ? (
-                <div className="native-public-course-empty">
-                  <p>{coursesError}</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void loadCourses();
-                    }}
-                    disabled={loading}
-                  >
-                    Tentar novamente
-                  </button>
-                </div>
-              ) : null}
-
-              {!coursesLoading && !coursesError && courses.length === 0 ? (
-                <div className="native-public-course-empty">
-                  <p>Nenhum curso disponível no momento.</p>
-                </div>
-              ) : null}
-
-              {!coursesLoading && !coursesError && courses.length > 0 ? (
-                <div className="native-public-course-grid">
-                  {courses.map((course) => {
-                    const selected = selectedCourseId === course.id;
-                    return (
-                      <button
-                        key={course.id}
-                        type="button"
-                        className={`native-public-course-card ${selected ? 'is-selected' : ''}`}
-                        onClick={() => setSelectedCourseId(course.id)}
-                        disabled={loading}
-                      >
-                        {course.bannerUrl ? (
-                          <img src={course.bannerUrl} alt={`Banner do curso ${course.name}`} />
-                        ) : (
-                          <div className="native-public-course-banner-fallback">
-                            <span>{course.name}</span>
+                {!coursesLoading && !coursesError && courses.length > 0 ? (
+                  <div className="native-public-course-grid">
+                    {courses.map((course) => {
+                      const selected = selectedCourseId === course.id;
+                      return (
+                        <button
+                          key={course.id}
+                          type="button"
+                          className={`native-public-course-card ${selected ? 'is-selected' : ''}`}
+                          onClick={() => setSelectedCourseId(course.id)}
+                          disabled={loading}
+                        >
+                          {course.bannerUrl ? (
+                            <img src={course.bannerUrl} alt={`Banner do curso ${course.name}`} />
+                          ) : (
+                            <div className="native-public-course-banner-fallback">
+                              <span>{course.name}</span>
+                            </div>
+                          )}
+                          <div className="native-public-course-content">
+                            <header>
+                              <h4>{course.name}</h4>
+                              <span>{modalityLabel(course.modality)}</span>
+                            </header>
+                            <p>{course.description || 'Curso acadêmico profissional.'}</p>
+                            <dl>
+                              <div>
+                                <dt>Carga horária</dt>
+                                <dd>{course.workloadHours ? `${course.workloadHours}h` : 'Não informada'}</dd>
+                              </div>
+                              <div>
+                                <dt>Categoria</dt>
+                                <dd>{course.category || 'Não informada'}</dd>
+                              </div>
+                              <div>
+                                <dt>Professor</dt>
+                                <dd>{course.coordinator || 'Não informado'}</dd>
+                              </div>
+                              <div>
+                                <dt>Pagamento</dt>
+                                <dd>{installmentLabel(course)}</dd>
+                              </div>
+                            </dl>
                           </div>
-                        )}
-                        <div className="native-public-course-content">
-                          <header>
-                            <h4>{course.name}</h4>
-                            <span>{modalityLabel(course.modality)}</span>
-                          </header>
-                          <p>{course.description || 'Curso acadêmico profissional.'}</p>
-                          <dl>
-                            <div>
-                              <dt>Carga horária</dt>
-                              <dd>
-                                {course.workloadHours ? `${course.workloadHours}h` : 'Não informada'}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt>Categoria</dt>
-                              <dd>{course.category || 'Não informada'}</dd>
-                            </div>
-                            <div>
-                              <dt>Professor</dt>
-                              <dd>{course.coordinator || 'Não informada'}</dd>
-                            </div>
-                            <div>
-                              <dt>Pagamento</dt>
-                              <dd>{installmentLabel(course)}</dd>
-                            </div>
-                          </dl>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </section>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </section>
+            </>
           ) : null}
 
           <div className="native-student-register-actions full">
@@ -961,13 +893,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
             {isFinalStep ? (
               <button
                 type="submit"
-                disabled={
-                  loading ||
-                  coursesLoading ||
-                  codeLoading ||
-                  Boolean(pendingVerificationEmail) ||
-                  Boolean(success)
-                }
+                disabled={loading || coursesLoading || codeLoading || Boolean(pendingVerificationEmail) || Boolean(success)}
               >
                 {loading ? 'Concluindo cadastro...' : 'Finalizar matrícula e criar acesso'}
               </button>
@@ -982,12 +908,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
       {pendingVerificationEmail ? (
         <div className="native-student-register-modal-backdrop" role="presentation">
-          <div
-            className="native-student-register-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="student-register-confirm-title"
-          >
+          <div className="native-student-register-modal" role="dialog" aria-modal="true" aria-labelledby="student-register-confirm-title">
             <h3 id="student-register-confirm-title">Confirme seu e-mail</h3>
             <p>
               Digite o código de 6 dígitos enviado para <strong>{pendingVerificationEmail}</strong>.
@@ -997,9 +918,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               <input
                 type="text"
                 value={verificationCode}
-                onChange={(event) =>
-                  setVerificationCode(event.target.value.replace(/\D+/g, '').slice(0, 6))
-                }
+                onChange={(event) => setVerificationCode(event.target.value.replace(/\D+/g, '').slice(0, 6))}
                 inputMode="numeric"
                 placeholder="000000"
                 autoFocus
@@ -1015,12 +934,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
       {success ? (
         <div className="native-student-register-modal-backdrop" role="presentation">
-          <div
-            className="native-student-register-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="student-register-success-title"
-          >
+          <div className="native-student-register-modal" role="dialog" aria-modal="true" aria-labelledby="student-register-success-title">
             <h3 id="student-register-success-title">Cadastro concluído</h3>
             <p>{success}</p>
             <a className="native-student-register-login-link" href={buildPortalLink()}>

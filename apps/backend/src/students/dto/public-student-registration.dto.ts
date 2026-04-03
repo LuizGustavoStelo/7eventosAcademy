@@ -3,9 +3,12 @@ import {
   IsArray,
   IsDateString,
   IsEmail,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -25,22 +28,46 @@ export class PublicStudentRegistrationDto {
   documentCpf!: string;
 
   @IsString()
+  documentRg!: string;
+
+  @IsString()
+  issuingAuthority!: string;
+
+  @IsString()
   phone!: string;
 
   @IsDateString()
   birthDate!: string;
 
-  @IsOptional()
   @IsString()
-  gender?: string;
+  birthCity!: string;
 
-  @IsOptional()
   @IsString()
-  guardianName?: string;
+  maritalStatus!: string;
 
-  @IsOptional()
   @IsString()
-  guardianPhone?: string;
+  address!: string;
+
+  @IsString()
+  fatherName!: string;
+
+  @IsString()
+  motherName!: string;
+
+  @IsString()
+  graduation!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1900)
+  @Max(9999)
+  graduationConclusionYear!: number;
+
+  @IsString()
+  companyName!: string;
+
+  @IsString()
+  jobTitle!: string;
 
   @IsOptional()
   @IsString()
@@ -69,14 +96,6 @@ export class PublicStudentRegistrationDto {
   @IsOptional()
   @IsString()
   state?: string;
-
-  @IsOptional()
-  @IsString()
-  country?: string;
-
-  @IsOptional()
-  @IsString()
-  notes?: string;
 
   @IsOptional()
   @IsArray()

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { apiRequest } from './api';
 
@@ -27,8 +27,20 @@ type StudentEnrollment = {
 
 type StudentProfile = {
   documentCpf?: string | null;
+  documentRg?: string | null;
+  issuingAuthority?: string | null;
   phone?: string | null;
   birthDate?: string | null;
+  birthCity?: string | null;
+  maritalStatus?: string | null;
+  fatherName?: string | null;
+  motherName?: string | null;
+  graduation?: string | null;
+  graduationConclusionYear?: number | null;
+  companyName?: string | null;
+  jobTitle?: string | null;
+  zipCode?: string | null;
+  street?: string | null;
 };
 
 type Student = {
@@ -56,8 +68,20 @@ type StudentFormState = {
   email: string;
   password: string;
   documentCpf: string;
+  documentRg: string;
+  issuingAuthority: string;
   phone: string;
   birthDate: string;
+  birthCity: string;
+  maritalStatus: string;
+  fatherName: string;
+  motherName: string;
+  graduation: string;
+  graduationConclusionYear: string;
+  companyName: string;
+  jobTitle: string;
+  zipCode: string;
+  address: string;
   courseIds: string[];
 };
 
@@ -76,8 +100,20 @@ function defaultFormState(): StudentFormState {
     email: '',
     password: '',
     documentCpf: '',
+    documentRg: '',
+    issuingAuthority: '',
     phone: '',
     birthDate: '',
+    birthCity: '',
+    maritalStatus: '',
+    fatherName: '',
+    motherName: '',
+    graduation: '',
+    graduationConclusionYear: '',
+    companyName: '',
+    jobTitle: '',
+    zipCode: '',
+    address: '',
     courseIds: [],
   };
 }
@@ -111,15 +147,15 @@ function statusVisual(statusKey: string | undefined) {
     case 'active':
       return { tone: 'is-success', label: 'Ativo' };
     case 'pre_active':
-      return { tone: 'is-warning', label: 'Pré-matrícula' };
+      return { tone: 'is-warning', label: 'PrÃ©-matrÃ­cula' };
     case 'completed':
-      return { tone: 'is-info', label: 'Concluído' };
+      return { tone: 'is-info', label: 'ConcluÃ­do' };
     case 'inactive':
       return { tone: 'is-muted', label: 'Inativo' };
     case 'pending_course':
       return { tone: 'is-neutral', label: 'Sem curso' };
     default:
-      return { tone: 'is-neutral', label: 'Sem definição' };
+      return { tone: 'is-neutral', label: 'Sem definiÃ§Ã£o' };
   }
 }
 
@@ -247,8 +283,22 @@ export function StudentsNative({ token }: StudentsNativeProps) {
       email: student.email || '',
       password: '',
       documentCpf: student.profile?.documentCpf || '',
+      documentRg: student.profile?.documentRg || '',
+      issuingAuthority: student.profile?.issuingAuthority || '',
       phone: student.profile?.phone || '',
       birthDate: toDateInput(student.profile?.birthDate),
+      birthCity: student.profile?.birthCity || '',
+      maritalStatus: student.profile?.maritalStatus || '',
+      fatherName: student.profile?.fatherName || '',
+      motherName: student.profile?.motherName || '',
+      graduation: student.profile?.graduation || '',
+      graduationConclusionYear: student.profile?.graduationConclusionYear
+        ? String(student.profile.graduationConclusionYear)
+        : '',
+      companyName: student.profile?.companyName || '',
+      jobTitle: student.profile?.jobTitle || '',
+      zipCode: student.profile?.zipCode || '',
+      address: student.profile?.street || '',
       courseIds:
         student.courses
           ?.map((item) => item.course?.id)
@@ -289,8 +339,20 @@ export function StudentsNative({ token }: StudentsNativeProps) {
     const email = form.email.trim().toLowerCase();
     const password = form.password.trim();
     const documentCpf = form.documentCpf.trim();
+    const documentRg = form.documentRg.trim();
+    const issuingAuthority = form.issuingAuthority.trim();
     const phone = form.phone.trim();
     const birthDate = form.birthDate;
+    const birthCity = form.birthCity.trim();
+    const maritalStatus = form.maritalStatus.trim();
+    const fatherName = form.fatherName.trim();
+    const motherName = form.motherName.trim();
+    const graduation = form.graduation.trim();
+    const graduationConclusionYear = Number(form.graduationConclusionYear);
+    const companyName = form.companyName.trim();
+    const jobTitle = form.jobTitle.trim();
+    const zipCode = form.zipCode.trim();
+    const address = form.address.trim();
 
     if (!name || !email) {
       setFormError('Informe nome e e-mail.');
@@ -299,11 +361,29 @@ export function StudentsNative({ token }: StudentsNativeProps) {
 
     if (!form.id) {
       if (!password || password.length < 8) {
-        setFormError('A senha deve ter no mínimo 8 caracteres.');
+        setFormError('A senha deve ter no mÃ­nimo 8 caracteres.');
         return;
       }
-      if (!documentCpf || !phone || !birthDate) {
-        setFormError('Para novo aluno, CPF, telefone e nascimento são obrigatórios.');
+      if (
+        !documentCpf ||
+        !documentRg ||
+        !issuingAuthority ||
+        !phone ||
+        !birthDate ||
+        !birthCity ||
+        !maritalStatus ||
+        !fatherName ||
+        !motherName ||
+        !graduation ||
+        !Number.isInteger(graduationConclusionYear) ||
+        !companyName ||
+        !jobTitle ||
+        !zipCode ||
+        !address
+      ) {
+        setFormError(
+          'Para novo aluno, preencha todos os campos obrigatórios de documentação, formação, trabalho e endereço.',
+        );
         return;
       }
     }
@@ -319,8 +399,22 @@ export function StudentsNative({ token }: StudentsNativeProps) {
             email,
             password: password || undefined,
             documentCpf: documentCpf || undefined,
+            documentRg: documentRg || undefined,
+            issuingAuthority: issuingAuthority || undefined,
             phone: phone || undefined,
             birthDate: birthDate || undefined,
+            birthCity: birthCity || undefined,
+            maritalStatus: maritalStatus || undefined,
+            fatherName: fatherName || undefined,
+            motherName: motherName || undefined,
+            graduation: graduation || undefined,
+            graduationConclusionYear: Number.isInteger(graduationConclusionYear)
+              ? graduationConclusionYear
+              : undefined,
+            companyName: companyName || undefined,
+            jobTitle: jobTitle || undefined,
+            zipCode: zipCode || undefined,
+            address: address || undefined,
             courseIds: form.courseIds,
           }),
         });
@@ -334,8 +428,20 @@ export function StudentsNative({ token }: StudentsNativeProps) {
             email,
             password,
             documentCpf,
+            documentRg,
+            issuingAuthority,
             phone,
             birthDate,
+            birthCity,
+            maritalStatus,
+            fatherName,
+            motherName,
+            graduation,
+            graduationConclusionYear,
+            companyName,
+            jobTitle,
+            zipCode,
+            address,
             courseIds: form.courseIds,
           }),
         });
@@ -433,7 +539,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
       setImportModalOpen(false);
       setCsvFile(null);
       setFeedback(
-        `Importação concluída. Sucesso: ${result.importedCount}. Falhas: ${result.failedCount}.`,
+        `ImportaÃ§Ã£o concluÃ­da. Sucesso: ${result.importedCount}. Falhas: ${result.failedCount}.`,
       );
     } catch (importError) {
       setError(
@@ -445,13 +551,48 @@ export function StudentsNative({ token }: StudentsNativeProps) {
   };
 
   const exportCsv = () => {
-    const header = ['nome', 'email', 'cpf', 'telefone', 'dataNascimento', 'courseIds'];
+    const header = [
+      'nome',
+      'email',
+      'senha',
+      'cpf',
+      'rg',
+      'orgaoExpedidor',
+      'telefone',
+      'dataNascimento',
+      'cidadeQueNasceu',
+      'estadoCivil',
+      'endereco',
+      'cep',
+      'nomeDoPai',
+      'nomeDaMae',
+      'graduacao',
+      'anoDeConclusaoDaGraduacao',
+      'empresaOndeTrabalha',
+      'cargo',
+      'courseIds',
+    ];
     const lines = students.map((student) => [
       student.name || '',
       student.email || '',
+      '',
       student.profile?.documentCpf || '',
+      student.profile?.documentRg || '',
+      student.profile?.issuingAuthority || '',
       student.profile?.phone || '',
       toDateInput(student.profile?.birthDate),
+      student.profile?.birthCity || '',
+      student.profile?.maritalStatus || '',
+      student.profile?.street || '',
+      student.profile?.zipCode || '',
+      student.profile?.fatherName || '',
+      student.profile?.motherName || '',
+      student.profile?.graduation || '',
+      student.profile?.graduationConclusionYear
+        ? String(student.profile.graduationConclusionYear)
+        : '',
+      student.profile?.companyName || '',
+      student.profile?.jobTitle || '',
       (student.courses || [])
         .map((item) => item.course?.id)
         .filter((id): id is string => Boolean(id))
@@ -473,15 +614,47 @@ export function StudentsNative({ token }: StudentsNativeProps) {
 
   const downloadCsvModel = () => {
     const modelRows = [
-      ['nome', 'email', 'senha', 'cpf', 'telefone', 'dataNascimento', 'courseIds'],
       [
-        'João Silva',
+        'nome',
+        'email',
+        'senha',
+        'cpf',
+        'rg',
+        'orgaoExpedidor',
+        'telefone',
+        'dataNascimento',
+        'cidadeQueNasceu',
+        'estadoCivil',
+        'endereco',
+        'cep',
+        'nomeDoPai',
+        'nomeDaMae',
+        'graduacao',
+        'anoDeConclusaoDaGraduacao',
+        'empresaOndeTrabalha',
+        'cargo',
+        'courseIds',
+      ],
+      [
+        'JoÃ£o Silva',
         'joao@email.com',
         'Senha@123',
         '12345678901',
+        '123456789',
+        'SSP',
         '65999990000',
         '1998-03-10',
-        'uuid-curso-1|uuid-curso-2',
+        'CuiabÃ¡',
+        'solteiro',
+        'Rua Exemplo, 123, Centro',
+        '78000000',
+        'JosÃ© Silva',
+        'Maria Silva',
+        'AdministraÃ§Ã£o',
+        '2020',
+        'Empresa Exemplo',
+        'Analista',
+        'uuid-curso-1',
       ],
     ];
 
@@ -501,10 +674,10 @@ export function StudentsNative({ token }: StudentsNativeProps) {
   return (
     <section className="native-page native-students">
       <header className="native-page-header">
-        <h2>Alunos e matrículas</h2>
+        <h2>Alunos e matrÃ­culas</h2>
         <p>
-          Gestão nativa da base de alunos com edição rápida, importação em lote e
-          menor custo de renderização.
+          GestÃ£o nativa da base de alunos com ediÃ§Ã£o rÃ¡pida, importaÃ§Ã£o em lote e
+          menor custo de renderizaÃ§Ã£o.
         </p>
       </header>
 
@@ -517,17 +690,17 @@ export function StudentsNative({ token }: StudentsNativeProps) {
         <article className="native-kpi-card">
           <span>Ativos</span>
           <strong>{activeStudents}</strong>
-          <small>{preEnrollmentStudents} em pré-matrícula</small>
+          <small>{preEnrollmentStudents} em prÃ©-matrÃ­cula</small>
         </article>
         <article className="native-kpi-card">
-          <span>Com matrícula</span>
+          <span>Com matrÃ­cula</span>
           <strong>{withEnrollments}</strong>
           <small>{students.length - withEnrollments} sem turma ativa</small>
         </article>
         <article className="native-kpi-card">
           <span>Sem curso</span>
           <strong>{pendingCourseStudents}</strong>
-          <small>Precisam de vínculo com curso</small>
+          <small>Precisam de vÃ­nculo com curso</small>
         </article>
       </div>
 
@@ -564,11 +737,11 @@ export function StudentsNative({ token }: StudentsNativeProps) {
             <thead>
               <tr>
                 <th>Aluno</th>
-                <th>Matrícula</th>
+                <th>MatrÃ­cula</th>
                 <th>Curso principal</th>
                 <th>Turmas</th>
                 <th>Status</th>
-                <th>Ações</th>
+                <th>AÃ§Ãµes</th>
               </tr>
             </thead>
             <tbody>
@@ -582,7 +755,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
                   const firstCourse =
                     student.enrollments?.[0]?.class?.course?.name ||
                     student.courses?.[0]?.course?.name ||
-                    'Curso não vinculado';
+                    'Curso nÃ£o vinculado';
 
                   return (
                     <tr key={student.id}>
@@ -659,7 +832,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
                 <strong>{toDisplayDate(selectedStudent.profile?.birthDate)}</strong>
               </article>
               <article>
-                <span>Matrículas em turma</span>
+                <span>MatrÃ­culas em turma</span>
                 <strong>{selectedStudent.enrollments?.length ?? 0}</strong>
               </article>
             </div>
@@ -683,7 +856,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
                 <ul>
                   {selectedStudent.enrollments.map((item) => (
                     <li key={item.id}>
-                      {item.class?.name ?? 'Turma não encontrada'} (
+                      {item.class?.name ?? 'Turma nÃ£o encontrada'} (
                       {item.class?.course?.name ?? 'Curso indefinido'})
                     </li>
                   ))}
@@ -770,7 +943,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
               </label>
 
               <label>
-                Senha {form.id ? '(opcional para edição)' : ''}
+                Senha {form.id ? '(opcional para ediÃ§Ã£o)' : ''}
                 <input
                   type="password"
                   value={form.password}
@@ -783,7 +956,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
               </label>
 
               <label>
-                CPF {!form.id ? '(obrigatório no cadastro)' : ''}
+                CPF {!form.id ? '(obrigatÃ³rio no cadastro)' : ''}
                 <input
                   value={form.documentCpf}
                   onChange={(event) =>
@@ -796,7 +969,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
               </label>
 
               <label>
-                Telefone {!form.id ? '(obrigatório no cadastro)' : ''}
+                Telefone {!form.id ? '(obrigatÃ³rio no cadastro)' : ''}
                 <input
                   value={form.phone}
                   onChange={(event) =>
@@ -806,12 +979,136 @@ export function StudentsNative({ token }: StudentsNativeProps) {
               </label>
 
               <label>
-                Data de nascimento {!form.id ? '(obrigatória no cadastro)' : ''}
+                Data de nascimento {!form.id ? '(obrigatÃ³ria no cadastro)' : ''}
                 <input
                   type="date"
                   value={form.birthDate}
                   onChange={(event) =>
                     setForm((current) => ({ ...current, birthDate: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                RG {!form.id ? '(obrigatório no cadastro)' : ''}
+                <input
+                  value={form.documentRg}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, documentRg: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                Órgão expedidor {!form.id ? '(obrigatório no cadastro)' : ''}
+                <input
+                  value={form.issuingAuthority}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, issuingAuthority: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                Cidade que nasceu {!form.id ? '(obrigatória no cadastro)' : ''}
+                <input
+                  value={form.birthCity}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, birthCity: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                Estado civil {!form.id ? '(obrigatório no cadastro)' : ''}
+                <input
+                  value={form.maritalStatus}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, maritalStatus: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                Nome do pai {!form.id ? '(obrigatório no cadastro)' : ''}
+                <input
+                  value={form.fatherName}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, fatherName: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                Nome da mãe {!form.id ? '(obrigatória no cadastro)' : ''}
+                <input
+                  value={form.motherName}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, motherName: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                Graduação {!form.id ? '(obrigatória no cadastro)' : ''}
+                <input
+                  value={form.graduation}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, graduation: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                Ano de conclusão {!form.id ? '(obrigatório no cadastro)' : ''}
+                <input
+                  value={form.graduationConclusionYear}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      graduationConclusionYear: event.target.value.replace(/\D+/g, '').slice(0, 4),
+                    }))
+                  }
+                  inputMode="numeric"
+                />
+              </label>
+
+              <label>
+                Empresa {!form.id ? '(obrigatória no cadastro)' : ''}
+                <input
+                  value={form.companyName}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, companyName: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                Cargo {!form.id ? '(obrigatório no cadastro)' : ''}
+                <input
+                  value={form.jobTitle}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, jobTitle: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                CEP {!form.id ? '(obrigatório no cadastro)' : ''}
+                <input
+                  value={form.zipCode}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, zipCode: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label className="full">
+                Endereço {!form.id ? '(obrigatório no cadastro)' : ''}
+                <input
+                  value={form.address}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, address: event.target.value }))
                   }
                 />
               </label>
@@ -867,7 +1164,7 @@ export function StudentsNative({ token }: StudentsNativeProps) {
 
             <div className="native-import-body">
               <p>
-                Selecione um arquivo CSV no padrão da plataforma. Use o botão
+                Selecione um arquivo CSV no padrÃ£o da plataforma. Use o botÃ£o
                 <strong> Modelo CSV</strong> para baixar a estrutura correta.
               </p>
 
@@ -908,3 +1205,4 @@ export function StudentsNative({ token }: StudentsNativeProps) {
     </section>
   );
 }
+
