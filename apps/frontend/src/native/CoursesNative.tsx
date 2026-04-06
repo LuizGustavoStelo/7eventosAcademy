@@ -101,7 +101,7 @@ const statusLabel: Record<CourseStatus, string> = {
 
 const modalityLabel: Record<CourseModality, string> = {
   PRESENTIAL: 'Presencial',
-  HYBRID: 'HÃ­brido',
+  HYBRID: 'Híbrido',
   EAD: 'EAD',
 };
 
@@ -437,9 +437,9 @@ function toDateInputValue(value?: string | null): string {
 }
 
 function formatDateLabel(value?: string | null): string {
-  if (!value) return 'Na matrÃ­cula';
+  if (!value) return 'Na matrícula';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Na matrÃ­cula';
+  if (Number.isNaN(date.getTime())) return 'Na matrícula';
   return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(date);
 }
 
@@ -733,17 +733,17 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     }
 
     if (!payloadBase.workloadHours) {
-      setFormError('Informe uma carga horÃ¡ria vÃ¡lida.');
+      setFormError('Informe uma carga horária válida.');
       return;
     }
 
     if (payloadBase.price === undefined) {
-      setFormError('Informe um valor total vÃ¡lido.');
+      setFormError('Informe um valor total válido.');
       return;
     }
 
     if (form.hasEnrollmentFee && payloadBase.enrollmentFee === undefined) {
-      setFormError('Informe um valor de matrÃ­cula vÃ¡lido.');
+      setFormError('Informe um valor de matrícula válido.');
       return;
     }
 
@@ -766,7 +766,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
           };
 
     if (form.paymentModel === 'INSTALLMENTS' && !installments.installmentMonths) {
-      setFormError('Informe a duraÃ§Ã£o das mensalidades em meses.');
+      setFormError('Informe a duração das mensalidades em meses.');
       return;
     }
 
@@ -775,7 +775,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       form.installmentStartMode === 'SCHEDULED' &&
       !form.installmentStartDate
     ) {
-      setFormError('Informe a data de inÃ­cio das mensalidades.');
+      setFormError('Informe a data de início das mensalidades.');
       return;
     }
 
@@ -933,7 +933,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       setSelectedBannerFile(null);
       setPreviewBannerUrl(FALLBACK_BANNER);
       setDeleteConfirm(false);
-      setFeedback('Curso excluÃ­do com sucesso.');
+      setFeedback('Curso excluído com sucesso.');
     } catch (removeError) {
       setFormError(
         removeError instanceof Error
@@ -984,14 +984,14 @@ export function CoursesNative({ token }: CoursesNativeProps) {
   );
 
   const previewEnrollmentFee = useMemo(() => {
-    if (!form.hasEnrollmentFee) return 'Sem matrÃ­cula';
+    if (!form.hasEnrollmentFee) return 'Sem matrícula';
     return formatCurrency(parseNumberSafe(form.enrollmentFee) || 0);
   }, [form.hasEnrollmentFee, form.enrollmentFee]);
 
   const previewInstallmentStart = useMemo(() => {
     if (form.paymentModel !== 'INSTALLMENTS') return '-';
-    if (form.installmentStartMode !== 'SCHEDULED') return 'Na matrÃ­cula';
-    if (!form.installmentStartDate) return 'Data nÃ£o definida';
+    if (form.installmentStartMode !== 'SCHEDULED') return 'Na matrícula';
+    if (!form.installmentStartDate) return 'Data não definida';
     return formatDateLabel(form.installmentStartDate);
   }, [
     form.paymentModel,
@@ -1002,9 +1002,9 @@ export function CoursesNative({ token }: CoursesNativeProps) {
   return (
     <section className="native-page native-courses">
       <header className="native-page-header">
-        <h2>GestÃ£o de cursos</h2>
+        <h2>Gestão de cursos</h2>
         <p>
-          CatÃ¡logo acadÃªmico nativo com ediÃ§Ã£o de preÃ§os, modalidade, pagamento e
+          Catálogo acadêmico nativo com edição de preços, modalidade, pagamento e
           banner.
         </p>
       </header>
@@ -1062,7 +1062,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
               const enrollmentFeeSummary =
                 Number(course.enrollmentFee || 0) > 0
                   ? formatCurrency(Number(course.enrollmentFee || 0))
-                  : 'Sem matrÃ­cula';
+                  : 'Sem matrícula';
               const installmentStartSummary =
                 paymentModel === 'INSTALLMENTS'
                   ? formatDateLabel(course.installmentStartDate)
@@ -1082,7 +1082,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       </span>
                     </div>
 
-                    <p>{course.description || 'Sem descriÃ§Ã£o cadastrada.'}</p>
+                    <p>{course.description || 'Sem descrição cadastrada.'}</p>
 
                     <div className="native-course-meta">
                       <small>
@@ -1092,7 +1092,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                         Modalidade: <strong>{modalityLabel[modality]}</strong>
                       </small>
                       <small>
-                        Carga horÃ¡ria:{' '}
+                        Carga horária:{' '}
                         <strong>{Number(course.workloadHours || 0)}h</strong>
                       </small>
                       <small>
@@ -1103,10 +1103,10 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                         Pagamento: <strong>{paymentSummary}{paymentSummaryExtra}</strong>
                       </small>
                       <small className="full">
-                        MatrÃ­cula: <strong>{enrollmentFeeSummary}</strong>
+                        Matrícula: <strong>{enrollmentFeeSummary}</strong>
                       </small>
                       <small className="full">
-                        InÃ­cio mensalidades:{' '}
+                        In?cio mensalidades:{' '}
                         <strong>{installmentStartSummary}</strong>
                       </small>
                       <small className="full">
@@ -1141,7 +1141,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         <div className="native-modal-backdrop" onClick={() => setModalOpen(false)}>
           <section className="native-modal native-course-modal" onClick={(event) => event.stopPropagation()}>
             <header>
-              <h3>{form.id ? 'Editar curso' : 'Novo curso acadÃªmico'}</h3>
+              <h3>{form.id ? 'Editar curso' : 'Novo curso acadêmico'}</h3>
               <button type="button" onClick={() => setModalOpen(false)}>
                 Fechar
               </button>
@@ -1192,7 +1192,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                 </label>
 
                 <label>
-                  Carga horÃ¡ria (horas)
+                  Carga horária (horas)
                   <input
                     type="number"
                     min={1}
@@ -1218,21 +1218,21 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                 </label>
 
                 <label>
-                  Cobrar matrÃ­cula
+                  Cobrar matrícula
                   <select
                     value={form.hasEnrollmentFee ? 'YES' : 'NO'}
                     onChange={(event) =>
                       updateForm('hasEnrollmentFee', event.target.value === 'YES')
                     }
                   >
-                    <option value="NO">NÃ£o</option>
+                    <option value="NO">N?o</option>
                     <option value="YES">Sim</option>
                   </select>
                 </label>
 
                 {form.hasEnrollmentFee ? (
                   <label>
-                    Valor da matrÃ­cula (R$)
+                    Valor da matrícula (R$)
                     <input
                       type="number"
                       min={0}
@@ -1268,7 +1268,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                 {form.paymentModel === 'INSTALLMENTS' ? (
                   <>
                     <label>
-                      DuraÃ§Ã£o em meses
+                      Dura??o em meses
                       <input
                         type="number"
                         min={1}
@@ -1295,7 +1295,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                     </label>
 
                     <label>
-                      InÃ­cio das mensalidades
+                      In?cio das mensalidades
                       <select
                         value={form.installmentStartMode}
                         onChange={(event) =>
@@ -1305,14 +1305,14 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                           )
                         }
                       >
-                        <option value="ON_ENROLLMENT">Na matrÃ­cula</option>
-                        <option value="SCHEDULED">Agendar inÃ­cio</option>
+                        <option value="ON_ENROLLMENT">Na matrícula</option>
+                        <option value="SCHEDULED">Agendar início</option>
                       </select>
                     </label>
 
                     {form.installmentStartMode === 'SCHEDULED' ? (
                       <label>
-                        Data de inÃ­cio das mensalidades
+                        Data de início das mensalidades
                         <input
                           type="date"
                           value={form.installmentStartDate}
@@ -1321,8 +1321,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                           }
                         />
                         <small>
-                          Use este campo apenas quando o inÃ­cio das parcelas for
-                          diferente da data da matrÃ­cula.
+                          Use este campo apenas quando o início das parcelas for
+                          diferente da data da matrícula.
                         </small>
                       </label>
                     ) : null}
@@ -1591,7 +1591,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                     }
                   >
                     <option value="PRESENTIAL">Presencial</option>
-                    <option value="HYBRID">HÃ­brido</option>
+                    <option value="HYBRID">Híbrido</option>
                     <option value="EAD">EAD</option>
                   </select>
                 </label>
@@ -1611,7 +1611,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                 </label>
 
                 <label>
-                  DescriÃ§Ã£o
+                  Descrição
                   <textarea
                     rows={6}
                     value={form.description}
@@ -1637,7 +1637,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       }}
                       disabled={saving}
                     >
-                      {deleteConfirm ? 'Confirmar exclusÃ£o' : 'Excluir curso'}
+                      {deleteConfirm ? 'Confirmar exclusão' : 'Excluir curso'}
                     </button>
                   ) : null}
                   <button
@@ -1654,16 +1654,16 @@ export function CoursesNative({ token }: CoursesNativeProps) {
               </form>
 
               <aside className="native-course-preview">
-                <h4>PrÃ©-visualizaÃ§Ã£o</h4>
+                <h4>Pré-visualização</h4>
                 <article>
                   <img
                     src={previewBannerUrl || FALLBACK_BANNER}
-                    alt="PrÃ©via do banner do curso"
+                    alt="Prévia do banner do curso"
                   />
                   <div>
                     <strong>{form.name || 'Curso'}</strong>
                     <small>{form.category || 'Categoria'}</small>
-                    <p>{form.description || 'DescriÃ§Ã£o do curso.'}</p>
+                    <p>{form.description || 'Descrição do curso.'}</p>
                     <div className="native-course-preview-meta">
                       <span>{parseIntSafe(form.workloadHours) || 0}h</span>
                       <span>{formatCurrency(parseNumberSafe(form.price) || 0)}</span>
@@ -1680,8 +1680,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                           +{previewActivePaymentOptions.length - previewPaymentLines.length} opção(ões)
                         </span>
                       ) : null}
-                      <span>MatrÃ­cula: {previewEnrollmentFee}</span>
-                      <span>InÃ­cio mensalidades: {previewInstallmentStart}</span>
+                      <span>Matrícula: {previewEnrollmentFee}</span>
+                      <span>In?cio mensalidades: {previewInstallmentStart}</span>
                     </div>
                   </div>
                 </article>
