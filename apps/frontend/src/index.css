@@ -8504,6 +8504,14 @@ table button {
   cursor: pointer;
 }
 
+.native-contract-template-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .native-contract-template-delete {
   width: 32px;
   height: 32px;
@@ -8889,12 +8897,30 @@ table button {
   font-size: 0.79rem;
 }
 
+.student-contract-step-note {
+  border: 1px dashed rgba(148, 163, 184, 0.65);
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #475569;
+  padding: 0.62rem 0.72rem;
+  font-size: 0.86rem;
+}
+
 .student-contract-accept {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 0.5rem;
   color: #334155;
   font-size: 0.9rem;
+}
+
+.student-contract-accept input {
+  margin-top: 0.22rem;
+}
+
+.student-contract-accept span {
+  line-height: 1.35;
 }
 
 .student-contract-sign-submit {

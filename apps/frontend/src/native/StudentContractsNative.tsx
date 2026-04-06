@@ -127,6 +127,7 @@ export function StudentContractsNative({
   const selectedStatus = selectedContract?.status.trim().toUpperCase() ?? '';
   const selectedIsSigned = selectedStatus === 'SIGNED';
   const selectedPinVerified = selectedStatus === 'PIN_VERIFIED' || selectedStatus === 'SIGNED';
+  const shouldShowSignatureStep = selectedPinVerified && !selectedIsSigned;
 
   const resetSignatureCanvas = useCallback(() => {
     const canvas = signatureCanvasRef.current;
@@ -602,65 +603,77 @@ export function StudentContractsNative({
                     </form>
                   </section>
 
-                  <section className={`student-contract-step ${selectedPinVerified ? '' : 'is-disabled'}`}>
-                    <header>
-                      <span>Etapa 2</span>
-                      <h5>Assinar contrato</h5>
-                    </header>
-                    <p>
-                      Digite seu nome, desenhe sua assinatura e confirme o aceite para concluir.
-                    </p>
+                  {shouldShowSignatureStep ? (
+                    <section className="student-contract-step">
+                      <header>
+                        <span>Etapa 2</span>
+                        <h5>Assinar contrato</h5>
+                      </header>
+                      <p>
+                        Digite seu nome, desenhe sua assinatura e confirme o aceite para concluir.
+                      </p>
 
-                    <input
-                      value={signerName}
-                      onChange={(event) => setSignerName(event.target.value)}
-                      placeholder="Nome do assinante (opcional)"
-                      disabled={!selectedPinVerified || signing}
-                    />
-
-                    <div className="student-contract-signature-canvas-wrap">
-                      <canvas
-                        ref={signatureCanvasRef}
-                        className="student-contract-signature-canvas"
-                        style={{ touchAction: 'none' }}
-                        onPointerDown={handleSignaturePointerDown}
-                        onPointerMove={handleSignaturePointerMove}
-                        onPointerUp={(event) => finishSignaturePointer(event.pointerId)}
-                        onPointerLeave={(event) => finishSignaturePointer(event.pointerId)}
-                        onPointerCancel={(event) => finishSignaturePointer(event.pointerId)}
+                      <input
+                        value={signerName}
+                        onChange={(event) => setSignerName(event.target.value)}
+                        placeholder="Nome do assinante (opcional)"
+                        disabled={signing}
                       />
-                    </div>
 
-                    <div className="student-contract-signature-helper">
-                      <small>Use mouse ou toque para desenhar sua assinatura.</small>
+                      <div className="student-contract-signature-canvas-wrap">
+                        <canvas
+                          ref={signatureCanvasRef}
+                          className="student-contract-signature-canvas"
+                          style={{ touchAction: 'none' }}
+                          onPointerDown={handleSignaturePointerDown}
+                          onPointerMove={handleSignaturePointerMove}
+                          onPointerUp={(event) => finishSignaturePointer(event.pointerId)}
+                          onPointerLeave={(event) => finishSignaturePointer(event.pointerId)}
+                          onPointerCancel={(event) => finishSignaturePointer(event.pointerId)}
+                        />
+                      </div>
+
+                      <div className="student-contract-signature-helper">
+                        <small>Use mouse ou toque para desenhar sua assinatura.</small>
+                        <button
+                          type="button"
+                          onClick={clearSignature}
+                          disabled={!hasSignatureStroke || signing}
+                        >
+                          Limpar assinatura
+                        </button>
+                      </div>
+
+                      <label className="student-contract-accept">
+                        <input
+                          type="checkbox"
+                          checked={acceptTerms}
+                          onChange={(event) => setAcceptTerms(event.target.checked)}
+                          disabled={signing}
+                        />
+                        <span>Declaro que li e aceito os termos da assinatura eletrônica.</span>
+                      </label>
+
                       <button
                         type="button"
-                        onClick={clearSignature}
-                        disabled={!selectedPinVerified || !hasSignatureStroke || signing}
+                        onClick={() => void signContract()}
+                        disabled={signing}
+                        className="student-contract-sign-submit"
                       >
-                        Limpar assinatura
+                        {signing ? 'Assinando...' : 'Assinar contrato'}
                       </button>
-                    </div>
-
-                    <label className="student-contract-accept">
-                      <input
-                        type="checkbox"
-                        checked={acceptTerms}
-                        onChange={(event) => setAcceptTerms(event.target.checked)}
-                        disabled={!selectedPinVerified || signing}
-                      />
-                      <span>Declaro que li e aceito os termos da assinatura eletrônica.</span>
-                    </label>
-
-                    <button
-                      type="button"
-                      onClick={() => void signContract()}
-                      disabled={signing || !selectedPinVerified}
-                      className="student-contract-sign-submit"
-                    >
-                      {signing ? 'Assinando...' : 'Assinar contrato'}
-                    </button>
-                  </section>
+                    </section>
+                  ) : (
+                    <section className="student-contract-step is-disabled">
+                      <header>
+                        <span>Etapa 2</span>
+                        <h5>Assinar contrato</h5>
+                      </header>
+                      <p className="student-contract-step-note">
+                        Etapa 2 será liberada após validar o PIN.
+                      </p>
+                    </section>
+                  )}
                 </>
               )}
             </div>

@@ -48,6 +48,23 @@ type StudentNotice = {
   publishedAt: string | null;
 };
 
+type StudentContractNoticeItem = {
+  id: string;
+  status: string;
+  institutionSignedAt?: string | null;
+  institutionSignaturePending?: boolean;
+};
+
+type StudentNoticeFeedItem = {
+  id: string;
+  title: string;
+  body: string;
+  priority: 'high' | 'normal' | string;
+  className: string;
+  publishedAt: string | null;
+  isContractReminder?: boolean;
+};
+
 type StudentAgendaEvent = {
   id: string;
   type: 'class' | 'live' | string;
@@ -483,6 +500,20 @@ function normalizeChargeStatus(status: string | null | undefined) {
   return status;
 }
 
+function hasPendingContractSignature(item: StudentContractNoticeItem): boolean {
+  const normalizedStatus = String(item.status || '').trim().toUpperCase();
+  if (normalizedStatus === 'SENT' || normalizedStatus === 'VIEWED' || normalizedStatus === 'PIN_VERIFIED') {
+    return true;
+  }
+
+  if (normalizedStatus === 'SIGNED') {
+    if (item.institutionSignaturePending) return true;
+    if (!item.institutionSignedAt) return true;
+  }
+
+  return false;
+}
+
 function isChargeOverdue(charge: Pick<StudentCharge, 'status' | 'dueDate'> | null | undefined) {
   if (!charge) return false;
   const normalizedStatus = String(charge.status || '')
@@ -802,6 +833,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [showFinanceValues, setShowFinanceValues] = useState(false);
+  const [pendingContractNotificationCount, setPendingContractNotificationCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const initialContractId = useMemo(() => {
@@ -897,12 +929,31 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       } catch {
         setAttendanceSummary(null);
       }
+
+      try {
+        const contracts = await apiRequest<StudentContractNoticeItem[]>(
+          token,
+          '/contracts/my',
+          undefined,
+          {
+            cacheTtlMs: STUDENT_CACHE_TTL_MS,
+            bypassCache,
+          },
+        );
+        const pendingCount = (Array.isArray(contracts) ? contracts : []).filter((item) =>
+          hasPendingContractSignature(item),
+        ).length;
+        setPendingContractNotificationCount(pendingCount);
+      } catch {
+        setPendingContractNotificationCount(0);
+      }
     } catch (loadError) {
       setError(
         loadError instanceof Error
           ? loadError.message
           : 'Não foi possível carregar a Área do Aluno.',
       );
+      setPendingContractNotificationCount(0);
     } finally {
       setLoading(false);
     }
@@ -1133,7 +1184,40 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     });
   }, [agenda, matriculas]);
 
-  const recentNotices = useMemo(() => avisos.slice(0, 6), [avisos]);
+  const noticesFeed = useMemo<StudentNoticeFeedItem[]>(() => {
+    const mappedNotices: StudentNoticeFeedItem[] = avisos.map((item) => ({
+      id: item.id,
+      title: item.title,
+      body: item.body,
+      priority: item.priority,
+      className: item.className,
+      publishedAt: item.publishedAt,
+    }));
+
+    if (pendingContractNotificationCount <= 0) {
+      return mappedNotices;
+    }
+
+    const contractReminder: StudentNoticeFeedItem = {
+      id: `contracts-pending-${pendingContractNotificationCount}`,
+      title:
+        pendingContractNotificationCount === 1
+          ? 'Contrato com assinatura pendente'
+          : 'Contratos com assinatura pendente',
+      body:
+        pendingContractNotificationCount === 1
+          ? 'Existe 1 contrato aguardando assinatura. Acesse a área de Contratos para concluir.'
+          : `Existem ${pendingContractNotificationCount} contratos aguardando assinatura. Acesse a área de Contratos para concluir.`,
+      priority: 'high',
+      className: 'Contratos',
+      publishedAt: new Date().toISOString(),
+      isContractReminder: true,
+    };
+
+    return [contractReminder, ...mappedNotices];
+  }, [avisos, pendingContractNotificationCount]);
+
+  const recentNotices = useMemo(() => noticesFeed.slice(0, 6), [noticesFeed]);
   const recentMaterials = useMemo(() => materiais.slice(0, 12), [materiais]);
 
   const liveMaterials = useMemo(
@@ -2047,7 +2131,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               onClick={() => openSection('st-student-notices')}
             >
               <StudentIcon name="notifications_active" />
-              {avisos.length > 0 ? <span className="student-template-icon-dot" /> : null}
+              {noticesFeed.length > 0 ? <span className="student-template-icon-dot" /> : null}
             </button>
             <button type="button" className="student-template-icon-btn" aria-label="Ajuda">
               <StudentIcon name="help" />
@@ -2529,3 +2613,4 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     </section>
   );
 }
+

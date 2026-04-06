@@ -133,6 +133,16 @@ export class ContractsController {
     return this.contractsService.deleteInstance(instanceId, request.user);
   }
 
+  @Roles('admin', 'superadmin')
+  @RequirePermissions('contracts.send')
+  @Post('instances/:instanceId/sign-institution')
+  async signInstitutionInstance(
+    @Param('instanceId') instanceId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.contractsService.signInstitutionInstance(instanceId, request.user);
+  }
+
   @Public()
   @Get('sign/:token')
   async openSigningLink(

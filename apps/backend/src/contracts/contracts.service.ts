@@ -46,7 +46,7 @@ const MAX_PIN_ATTEMPTS = 5;
 const PIN_BLOCK_MINUTES = 15;
 const DEFAULT_SIGNATURE_TERMS_VERSION = 'v1';
 const DEFAULT_SIGNATURE_TERMS_TEXT =
-  'Declaro que li e aceito os termos para assinatura eletrônica deste contrato.';
+  'Declaro que li e aceito os termos da assinatura eletrônica.';
 
 @Injectable()
 export class ContractsService {
@@ -351,21 +351,33 @@ export class ContractsService {
       orderBy: [{ createdAt: 'desc' }],
     });
 
-    return instances.map((instance) => ({
-      id: instance.id,
-      status: instance.status,
-      sentAt: instance.sentAt,
-      viewedAt: instance.viewedAt,
-      signedAt: instance.signedAt,
-      signatureCode: instance.signatureCode,
-      template: instance.template,
-      templateVersion: instance.templateVersion,
-      student: {
-        id: instance.student.id,
-        name: instance.student.name,
-        emailMasked: this.maskEmail(instance.student.email),
-      },
-    }));
+    return instances.map((instance) => {
+      const institutionSignature = this.readInstitutionSignature(
+        instance.snapshotStudentData,
+      );
+      const institutionSignaturePending =
+        instance.status === ContractInstanceStatus.SIGNED &&
+        !institutionSignature.signedAt;
+
+      return {
+        id: instance.id,
+        status: instance.status,
+        sentAt: instance.sentAt,
+        viewedAt: instance.viewedAt,
+        signedAt: instance.signedAt,
+        signatureCode: instance.signatureCode,
+        institutionSignedAt: institutionSignature.signedAt,
+        institutionSignedByName: institutionSignature.signedByName,
+        institutionSignaturePending,
+        template: instance.template,
+        templateVersion: instance.templateVersion,
+        student: {
+          id: instance.student.id,
+          name: instance.student.name,
+          emailMasked: this.maskEmail(instance.student.email),
+        },
+      };
+    });
   }
 
   async getInstanceDetails(instanceId: string, actor: ContractActor) {
@@ -409,6 +421,13 @@ export class ContractsService {
       throw new NotFoundException('Contrato não encontrado.');
     }
 
+    const institutionSignature = this.readInstitutionSignature(
+      instance.snapshotStudentData,
+    );
+    const institutionSignaturePending =
+      instance.status === ContractInstanceStatus.SIGNED &&
+      !institutionSignature.signedAt;
+
     return {
       id: instance.id,
       status: instance.status,
@@ -416,6 +435,9 @@ export class ContractsService {
       viewedAt: instance.viewedAt,
       signedAt: instance.signedAt,
       signatureCode: instance.signatureCode,
+      institutionSignedAt: institutionSignature.signedAt,
+      institutionSignedByName: institutionSignature.signedByName,
+      institutionSignaturePending,
       snapshotTemplateTitle: instance.snapshotTemplateTitle,
       documentHtml:
         instance.status === ContractInstanceStatus.SIGNED &&
@@ -789,6 +811,11 @@ export class ContractsService {
             zipCode: student.studentProfile?.zipCode || null,
             street: student.studentProfile?.street || null,
             streetNumber: student.studentProfile?.streetNumber || null,
+            institutionSignature: {
+              signedAt: null,
+              signedByUserId: null,
+              signedByName: null,
+            },
           } as Prisma.InputJsonValue,
           unsignedHtmlSnapshot,
           unsignedContentHash,
@@ -903,6 +930,117 @@ export class ContractsService {
     };
   }
 
+  async signInstitutionInstance(instanceId: string, actor: ContractActor) {
+    const institutionId = this.requireActiveInstitutionId(actor);
+    const instance = await this.prisma.contractInstance.findFirst({
+      where: {
+        id: instanceId,
+        institutionId,
+      },
+      select: {
+        id: true,
+        institutionId: true,
+        status: true,
+        signatureCode: true,
+        signedHtmlSnapshot: true,
+        unsignedHtmlSnapshot: true,
+        snapshotStudentData: true,
+      },
+    });
+
+    if (!instance) {
+      throw new NotFoundException('Contrato não encontrado.');
+    }
+
+    if (instance.status !== ContractInstanceStatus.SIGNED) {
+      throw new BadRequestException(
+        'A assinatura institucional só pode ser registrada após assinatura do aluno.',
+      );
+    }
+
+    const institutionSignature = this.readInstitutionSignature(
+      instance.snapshotStudentData,
+    );
+    if (institutionSignature.signedAt) {
+      throw new BadRequestException('Assinatura institucional já registrada.');
+    }
+
+    const signer = await this.prisma.user.findFirst({
+      where: {
+        id: actor.sub,
+        institutionId,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    if (!signer) {
+      throw new NotFoundException(
+        'Usuário responsável pela assinatura institucional não encontrado.',
+      );
+    }
+
+    const now = new Date();
+    const baseHtml = instance.signedHtmlSnapshot || instance.unsignedHtmlSnapshot;
+    const institutionSignatureBlock = this.buildInstitutionSignatureBlockHtml({
+      signerName: signer.name,
+      signedAt: now,
+      signatureCode: instance.signatureCode,
+    });
+    const signedHtmlSnapshot = `${baseHtml}\n${institutionSignatureBlock}`.trim();
+    const signedContentHash = this.sha256(signedHtmlSnapshot);
+    const signedPdfHash = this.sha256(`pdf:${signedHtmlSnapshot}`);
+
+    const snapshotBase = this.snapshotToRecord(instance.snapshotStudentData);
+    const snapshotStudentData = {
+      ...snapshotBase,
+      institutionSignature: {
+        signedAt: now.toISOString(),
+        signedByUserId: signer.id,
+        signedByName: signer.name,
+      },
+    } as Prisma.InputJsonValue;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.contractInstance.update({
+        where: { id: instance.id },
+        data: {
+          snapshotStudentData,
+          signedHtmlSnapshot,
+          signedContentHash,
+          signedPdfHash,
+        },
+      });
+
+      await this.appendAudit(tx, {
+        institutionId: instance.institutionId,
+        contractInstanceId: instance.id,
+        action: 'institution_signed',
+        actorType: 'admin',
+        actorUserId: actor.sub,
+        payload: {
+          signedAt: now.toISOString(),
+          signedByName: signer.name,
+          signatureCode: instance.signatureCode,
+          signedContentHash,
+          signedPdfHash,
+        },
+      });
+    });
+
+    return {
+      id: instance.id,
+      status: ContractInstanceStatus.SIGNED,
+      institutionSignedAt: now.toISOString(),
+      institutionSignedByName: signer.name,
+      institutionSignaturePending: false,
+      signedContentHash,
+      signedPdfHash,
+    };
+  }
+
   async listMyInstances(actor: ContractActor) {
     const instances = await this.prisma.contractInstance.findMany({
       where: {
@@ -926,16 +1064,28 @@ export class ContractsService {
       orderBy: [{ sentAt: 'desc' }],
     });
 
-    return instances.map((instance) => ({
-      id: instance.id,
-      status: instance.status,
-      sentAt: instance.sentAt,
-      viewedAt: instance.viewedAt,
-      signedAt: instance.signedAt,
-      signatureCode: instance.signatureCode,
-      template: instance.template,
-      templateVersion: instance.templateVersion,
-    }));
+    return instances.map((instance) => {
+      const institutionSignature = this.readInstitutionSignature(
+        instance.snapshotStudentData,
+      );
+      const institutionSignaturePending =
+        instance.status === ContractInstanceStatus.SIGNED &&
+        !institutionSignature.signedAt;
+
+      return {
+        id: instance.id,
+        status: instance.status,
+        sentAt: instance.sentAt,
+        viewedAt: instance.viewedAt,
+        signedAt: instance.signedAt,
+        signatureCode: instance.signatureCode,
+        institutionSignedAt: institutionSignature.signedAt,
+        institutionSignedByName: institutionSignature.signedByName,
+        institutionSignaturePending,
+        template: instance.template,
+        templateVersion: instance.templateVersion,
+      };
+    });
   }
 
   async resolveSigningToken(rawToken: string) {
@@ -1116,6 +1266,13 @@ export class ContractsService {
       throw new NotFoundException('Contrato não encontrado.');
     }
 
+    const institutionSignature = this.readInstitutionSignature(
+      refreshed.snapshotStudentData,
+    );
+    const institutionSignaturePending =
+      refreshed.status === ContractInstanceStatus.SIGNED &&
+      !institutionSignature.signedAt;
+
     return {
       id: refreshed.id,
       status: refreshed.status,
@@ -1123,6 +1280,9 @@ export class ContractsService {
       viewedAt: refreshed.viewedAt,
       signedAt: refreshed.signedAt,
       signatureCode: refreshed.signatureCode,
+      institutionSignedAt: institutionSignature.signedAt,
+      institutionSignedByName: institutionSignature.signedByName,
+      institutionSignaturePending,
       acceptedAt: refreshed.acceptedAt,
       acceptedTermsVersion: refreshed.acceptedTermsVersion,
       template: refreshed.template,
@@ -1797,6 +1957,80 @@ export class ContractsService {
         'Comarca de Goiânia/GO',
     ).trim();
     return value || 'Comarca de Goiânia/GO';
+  }
+
+  private snapshotToRecord(
+    snapshot: Prisma.JsonValue | null,
+  ): Record<string, unknown> {
+    if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)) {
+      return { ...(snapshot as Record<string, unknown>) };
+    }
+    return {};
+  }
+
+  private readInstitutionSignature(snapshot: Prisma.JsonValue | null): {
+    signedAt: string | null;
+    signedByName: string | null;
+  } {
+    const base = this.snapshotToRecord(snapshot);
+    const rawSignature = base.institutionSignature;
+    if (
+      !rawSignature ||
+      typeof rawSignature !== 'object' ||
+      Array.isArray(rawSignature)
+    ) {
+      return {
+        signedAt: null,
+        signedByName: null,
+      };
+    }
+
+    const signature = rawSignature as Record<string, unknown>;
+    const signedAtRaw = signature.signedAt;
+    const signedByNameRaw = signature.signedByName;
+    const signedAt =
+      typeof signedAtRaw === 'string' && signedAtRaw.trim()
+        ? signedAtRaw.trim()
+        : null;
+    const signedByName =
+      typeof signedByNameRaw === 'string' && signedByNameRaw.trim()
+        ? signedByNameRaw.trim()
+        : null;
+
+    return {
+      signedAt,
+      signedByName,
+    };
+  }
+
+  private buildInstitutionSignatureBlockHtml(params: {
+    signerName: string;
+    signedAt: Date;
+    signatureCode: string;
+  }) {
+    const signedAtLabel = new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(params.signedAt);
+
+    return `
+      <section style="margin-top:24px;padding:16px;border:1px solid #d1d5db;border-radius:8px;background:#f8fafc;">
+        <h4 style="margin:0 0 8px;font-family:Arial,sans-serif;">Assinatura institucional</h4>
+        <p style="margin:0 0 6px;font-family:Arial,sans-serif;">
+          <strong>Assinado por:</strong> ${this.escapeHtml(params.signerName)}
+        </p>
+        <p style="margin:0 0 6px;font-family:Arial,sans-serif;">
+          <strong>Data/hora:</strong> ${this.escapeHtml(signedAtLabel)}
+        </p>
+        <p style="margin:0;font-family:Arial,sans-serif;">
+          <strong>Código de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
+        </p>
+      </section>
+    `;
   }
 
   private buildSignedHtml(

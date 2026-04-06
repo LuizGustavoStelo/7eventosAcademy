@@ -87,6 +87,13 @@ type TopbarNotice = {
   expiresAt?: string | null;
 };
 
+type TopbarContractInstance = {
+  id: string;
+  status: string;
+  institutionSignedAt?: string | null;
+  institutionSignaturePending?: boolean;
+};
+
 const SESSION_TOKEN_KEY = 'academy-auth-token';
 const SESSION_USER_KEY = 'academy-auth-user';
 const IMPERSONATION_SOURCE_TOKEN_KEY = 'academy-impersonation-source-token';
@@ -471,6 +478,20 @@ function hasActiveNotice(notice: TopbarNotice, nowMs: number): boolean {
   }
 
   return true;
+}
+
+function hasPendingContractSignature(item: TopbarContractInstance): boolean {
+  const normalizedStatus = String(item.status || '').trim().toUpperCase();
+  if (normalizedStatus === 'SENT' || normalizedStatus === 'VIEWED' || normalizedStatus === 'PIN_VERIFIED') {
+    return true;
+  }
+
+  if (normalizedStatus === 'SIGNED') {
+    if (item.institutionSignaturePending) return true;
+    if (!item.institutionSignedAt) return true;
+  }
+
+  return false;
 }
 
 function maskEmail(value: string | null | undefined) {
@@ -892,24 +913,47 @@ export default function App() {
 
     const loadTopbarNotifications = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/classes/notices/all`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const [noticesResult, contractInstancesResult] = await Promise.allSettled([
+          fetch(`${API_BASE_URL}/classes/notices/all`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }),
+          fetch(`${API_BASE_URL}/contracts/instances`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }),
+        ]);
 
-        if (!response.ok) {
-          if (isMounted) setHasTopbarNotification(false);
-          return;
+        let notices: TopbarNotice[] = [];
+        if (noticesResult.status === 'fulfilled' && noticesResult.value.ok) {
+          const payload = (await noticesResult.value.json()) as TopbarNotice[] | unknown;
+          notices = Array.isArray(payload) ? payload : [];
         }
 
-        const payload = (await response.json()) as TopbarNotice[] | unknown;
-        const notices = Array.isArray(payload) ? payload : [];
+        let contracts: TopbarContractInstance[] = [];
+        if (
+          contractInstancesResult.status === 'fulfilled'
+          && contractInstancesResult.value.ok
+        ) {
+          const payload =
+            (await contractInstancesResult.value.json()) as
+              | TopbarContractInstance[]
+              | unknown;
+          contracts = Array.isArray(payload) ? payload : [];
+        }
+
         const nowMs = Date.now();
         const hasAnyActiveNotice = notices.some((notice) =>
           hasActiveNotice(notice, nowMs),
         );
-        if (isMounted) setHasTopbarNotification(hasAnyActiveNotice);
+        const hasContractPendingSignatures = contracts.some((item) =>
+          hasPendingContractSignature(item),
+        );
+        if (isMounted) {
+          setHasTopbarNotification(hasAnyActiveNotice || hasContractPendingSignatures);
+        }
       } catch {
         if (isMounted) setHasTopbarNotification(false);
       }

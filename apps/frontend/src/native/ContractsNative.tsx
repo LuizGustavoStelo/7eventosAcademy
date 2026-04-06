@@ -29,6 +29,9 @@ type ContractInstanceItem = {
   viewedAt: string | null;
   signedAt: string | null;
   signatureCode: string;
+  institutionSignedAt: string | null;
+  institutionSignedByName: string | null;
+  institutionSignaturePending: boolean;
   template: {
     id: string;
     name: string;
@@ -52,6 +55,9 @@ type ContractInstanceDetails = {
   viewedAt: string | null;
   signedAt: string | null;
   signatureCode: string;
+  institutionSignedAt: string | null;
+  institutionSignedByName: string | null;
+  institutionSignaturePending: boolean;
   snapshotTemplateTitle: string;
   documentHtml: string;
   student: {
@@ -239,8 +245,8 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
       {{{financeiro_parcelas_tabela_html}}}
     </div>
 
-    <h3 style="margin:16px 0 8px;font-size:13px;">4. Assinaturas</h3>
-    <p style="margin:0 0 24px;">
+    <h3 style="margin:16px 0 8px;font-size:13px;text-align:center;">4. Assinaturas</h3>
+    <p style="margin:0 0 24px;text-align:center;">
       {{contrato_cidade_assinatura}}, {{contrato_data_emissao_extenso}}.
     </p>
 
@@ -256,22 +262,8 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
           </td>
           <td style="width:50%;padding:8px 0 8px 12px;vertical-align:top;">
             <div style="border-top:1px solid #111827;padding-top:6px;">
-              CONTRATADA<br />
+              INSTITUIÇÃO / PROFESSOR RESPONSÁVEL<br />
               {{contratada_nome}}
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:24px 12px 8px 0;vertical-align:top;">
-            <div style="border-top:1px solid #111827;padding-top:6px;">
-              Testemunha 1 - Nome:<br />
-              CPF:
-            </div>
-          </td>
-          <td style="padding:24px 0 8px 12px;vertical-align:top;">
-            <div style="border-top:1px solid #111827;padding-top:6px;">
-              Testemunha 2 - Nome:<br />
-              CPF:
             </div>
           </td>
         </tr>
@@ -459,6 +451,30 @@ function contractStatusTone(status: string): string {
   return 'is-warning';
 }
 
+function hasStudentSignaturePending(status: string): boolean {
+  const normalized = status.trim().toUpperCase();
+  return normalized === 'SENT' || normalized === 'VIEWED' || normalized === 'PIN_VERIFIED';
+}
+
+function hasInstitutionSignaturePending(item: {
+  status: string;
+  institutionSignedAt?: string | null;
+  institutionSignaturePending?: boolean;
+}): boolean {
+  const normalized = item.status.trim().toUpperCase();
+  if (normalized !== 'SIGNED') return false;
+  if (item.institutionSignaturePending === true) return true;
+  return !item.institutionSignedAt;
+}
+
+function hasAnySignaturePending(item: {
+  status: string;
+  institutionSignedAt?: string | null;
+  institutionSignaturePending?: boolean;
+}): boolean {
+  return hasStudentSignaturePending(item.status) || hasInstitutionSignaturePending(item);
+}
+
 function toSafePositiveInteger(value: string, fallback: number): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -473,6 +489,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   const editorIsNewParam = editorParams?.get('novo') === '1';
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [instances, setInstances] = useState<ContractInstanceItem[]>([]);
+  const [allInstances, setAllInstances] = useState<ContractInstanceItem[]>([]);
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
@@ -492,6 +509,9 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   );
   const [deletingInstanceId, setDeletingInstanceId] = useState<string | null>(null);
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
+  const [signingInstitutionInstanceId, setSigningInstitutionInstanceId] = useState<string | null>(
+    null,
+  );
 
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -539,6 +559,18 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     setInstances(Array.isArray(data) ? data : []);
   };
 
+  const loadAllInstancesForSignals = async () => {
+    const data = await apiRequest<ContractInstanceItem[]>(
+      token,
+      '/contracts/instances',
+      undefined,
+      {
+        bypassCache: true,
+      },
+    );
+    setAllInstances(Array.isArray(data) ? data : []);
+  };
+
   const loadOptions = async () => {
     const [studentsData, coursesData, classesData] = await Promise.all([
       apiRequest<StudentOption[]>(token, '/students', undefined, { bypassCache: true }),
@@ -574,7 +606,12 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       if (isEditorMode) {
         await loadTemplates();
       } else {
-        await Promise.all([loadTemplates(), loadInstances(statusFilter), loadOptions()]);
+        await Promise.all([
+          loadTemplates(),
+          loadInstances(statusFilter),
+          loadAllInstancesForSignals(),
+          loadOptions(),
+        ]);
       }
     } catch (loadError) {
       setError(
@@ -629,7 +666,10 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
 
   useEffect(() => {
     if (isEditorMode) return;
-    void loadInstances(instanceStatusFilter);
+    void Promise.all([
+      loadInstances(instanceStatusFilter),
+      loadAllInstancesForSignals(),
+    ]);
   }, [instanceStatusFilter, isEditorMode]);
 
   useEffect(() => {
@@ -764,7 +804,11 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
         }),
       });
 
-      await Promise.all([loadTemplates(), loadInstances(instanceStatusFilter)]);
+      await Promise.all([
+        loadTemplates(),
+        loadInstances(instanceStatusFilter),
+        loadAllInstancesForSignals(),
+      ]);
       setFeedback('Versão do contrato publicada com sucesso.');
     } catch (publishError) {
       setFormError(
@@ -809,7 +853,10 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
         body: JSON.stringify(payload),
       });
 
-      await loadInstances(instanceStatusFilter);
+      await Promise.all([
+        loadInstances(instanceStatusFilter),
+        loadAllInstancesForSignals(),
+      ]);
       setFeedback(
         `Contrato enviado com sucesso. Código de assinatura: ${result.signatureCode}.`,
       );
@@ -927,7 +974,10 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
         setSelectedInstanceDetails(null);
       }
 
-      await loadInstances(instanceStatusFilter);
+      await Promise.all([
+        loadInstances(instanceStatusFilter),
+        loadAllInstancesForSignals(),
+      ]);
       setFeedback('Contrato apagado com sucesso.');
     } catch (deleteError) {
       setError(
@@ -935,6 +985,39 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       );
     } finally {
       setDeletingInstanceId((current) => (current === instance.id ? null : current));
+    }
+  };
+
+  const signInstitutionInstance = async (instance: ContractInstanceItem) => {
+    setSigningInstitutionInstanceId(instance.id);
+    setError('');
+    setFeedback('');
+
+    try {
+      await apiRequest(token, `/contracts/instances/${instance.id}/sign-institution`, {
+        method: 'POST',
+      });
+
+      await Promise.all([
+        loadInstances(instanceStatusFilter),
+        loadAllInstancesForSignals(),
+      ]);
+
+      if (selectedInstanceDetails?.id === instance.id) {
+        await openInstanceDetails(instance.id);
+      }
+
+      setFeedback('Assinatura institucional registrada com sucesso.');
+    } catch (signError) {
+      setError(
+        signError instanceof Error
+          ? signError.message
+          : 'Falha ao registrar assinatura institucional.',
+      );
+    } finally {
+      setSigningInstitutionInstanceId((current) =>
+        current === instance.id ? null : current,
+      );
     }
   };
 
@@ -959,7 +1042,10 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       setSelectedTemplateId((current) => (current === template.id ? null : current));
       await loadTemplates();
       if (!isEditorMode) {
-        await loadInstances(instanceStatusFilter);
+        await Promise.all([
+          loadInstances(instanceStatusFilter),
+          loadAllInstancesForSignals(),
+        ]);
       }
 
       setFeedback('Modelo apagado com sucesso.');
@@ -974,6 +1060,19 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     }
   };
 
+  const pendingSignatureCountByTemplate = useMemo(() => {
+    const counter = new Map<string, number>();
+
+    for (const item of allInstances) {
+      if (!hasAnySignaturePending(item)) continue;
+      const templateId = item.template?.id;
+      if (!templateId) continue;
+      counter.set(templateId, (counter.get(templateId) ?? 0) + 1);
+    }
+
+    return counter;
+  }, [allInstances]);
+
   const instancesCountByStatus = useMemo(() => {
     const counter = {
       total: instances.length,
@@ -981,6 +1080,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       viewed: 0,
       pinVerified: 0,
       signed: 0,
+      signedInstitutionPending: 0,
     };
 
     for (const item of instances) {
@@ -989,6 +1089,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       if (status === 'VIEWED') counter.viewed += 1;
       if (status === 'PIN_VERIFIED') counter.pinVerified += 1;
       if (status === 'SIGNED') counter.signed += 1;
+      if (hasInstitutionSignaturePending(item)) counter.signedInstitutionPending += 1;
     }
 
     return counter;
@@ -1020,10 +1121,16 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
           <article className="native-kpi-card">
             <span>Pendentes</span>
             <strong>
-              {instancesCountByStatus.sent + instancesCountByStatus.viewed + instancesCountByStatus.pinVerified}
+              {instancesCountByStatus.sent +
+                instancesCountByStatus.viewed +
+                instancesCountByStatus.pinVerified +
+                instancesCountByStatus.signedInstitutionPending}
             </strong>
             <small>
               {instancesCountByStatus.sent} enviados • {instancesCountByStatus.viewed} visualizados
+              {instancesCountByStatus.signedInstitutionPending > 0
+                ? ` • ${instancesCountByStatus.signedInstitutionPending} instituição pendente`
+                : ''}
             </small>
           </article>
         </div>
@@ -1060,6 +1167,11 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                       className="native-contract-template-main"
                       onClick={() => pickTemplate(template)}
                     >
+                    {(() => {
+                      const hasPendingSignature =
+                        (pendingSignatureCountByTemplate.get(template.id) ?? 0) > 0;
+                      return (
+                        <>
                     <div>
                       <strong>{template.name}</strong>
                       <small>
@@ -1067,9 +1179,19 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                         {formatDateTime(template.updatedAt)}
                       </small>
                     </div>
-                      <span className={`native-status-chip ${templateStatusTone(template.status)}`}>
-                        {templateStatusLabel(template.status)}
-                      </span>
+                          <div className="native-contract-template-chips">
+                            <span className={`native-status-chip ${templateStatusTone(template.status)}`}>
+                              {templateStatusLabel(template.status)}
+                            </span>
+                            {hasPendingSignature ? (
+                              <span className="native-status-chip is-warning">
+                                Assinatura pendente
+                              </span>
+                            ) : null}
+                          </div>
+                        </>
+                      );
+                    })()}
                     </button>
                     <button
                       type="button"
@@ -1378,7 +1500,15 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                   <option value="archived">Arquivado</option>
                   <option value="canceled">Cancelado</option>
                 </select>
-                <button type="button" onClick={() => void loadInstances(instanceStatusFilter)}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void Promise.all([
+                      loadInstances(instanceStatusFilter),
+                      loadAllInstancesForSignals(),
+                    ])
+                  }
+                >
                   Atualizar
                 </button>
               </div>
@@ -1441,6 +1571,19 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                           >
                             Detalhes
                           </button>
+                          {hasInstitutionSignaturePending(instance) ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void signInstitutionInstance(instance);
+                              }}
+                              disabled={signingInstitutionInstanceId === instance.id}
+                            >
+                              {signingInstitutionInstanceId === instance.id
+                                ? 'Assinando instituição...'
+                                : 'Assinar instituição'}
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             className="danger"
@@ -1493,6 +1636,17 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                   <article>
                     <span>Assinado em</span>
                     <strong>{formatDateTime(selectedInstanceDetails.signedAt)}</strong>
+                  </article>
+                  <article>
+                    <span>Assinatura institucional</span>
+                    <strong>
+                      {selectedInstanceDetails.institutionSignedAt
+                        ? formatDateTime(selectedInstanceDetails.institutionSignedAt)
+                        : 'Pendente'}
+                    </strong>
+                    {selectedInstanceDetails.institutionSignedByName ? (
+                      <small>{selectedInstanceDetails.institutionSignedByName}</small>
+                    ) : null}
                   </article>
                 </div>
 
