@@ -772,6 +772,9 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       }
 
       await loadTemplates();
+      if (isEditorMode) {
+        window.location.href = '/?secao=admin_contratos';
+      }
     } catch (saveError) {
       setFormError(
         saveError instanceof Error
@@ -1529,7 +1532,10 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                 <tbody>
                   {instances.length === 0 ? (
                     <tr>
-                      <td colSpan={6}>Nenhum envio encontrado.</td>
+                      <td colSpan={6}>
+                        Nenhum envio encontrado. O botão "Assinar instituição" aparece quando o
+                        contrato estiver assinado pelo aluno e pendente da instituição.
+                      </td>
                     </tr>
                   ) : (
                     instances.map((instance) => (
