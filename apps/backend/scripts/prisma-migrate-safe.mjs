@@ -10,6 +10,8 @@ const autoResolveEnabled =
 const defaultAllowedMigrations = [
   '20260329110000_email_verification',
   '20260403120000_student_profile_enrollment_fields',
+  '20260406153000_course_payment_options',
+  '20260406170000_enrollment_payment_option_snapshot',
 ];
 
 const allowedMigrations = (
