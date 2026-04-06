@@ -560,6 +560,7 @@ export default function App() {
   const normalizedPathname =
     (window.location.pathname || '/').replace(/\/+$/, '') || '/';
   const isContractEditorPath = normalizedPathname === '/editar-contrato';
+  const secaoSolicitadaPorUrl = queryParams.get('secao')?.trim() || '';
   const isEmbedded = queryParams.get('embed') === '1';
   const appMode = queryParams.get('app');
   const isStudentPortalMode = appMode === 'student';
@@ -655,9 +656,12 @@ export default function App() {
   useEffect(() => {
     if (!autenticado || secoes.length === 0) return;
     if (!secoes.some((item) => item.id === secaoAtiva)) {
-      setSecaoAtiva(secoes[0].id);
+      const secaoValidaDaUrl = secoes.some((item) => item.id === secaoSolicitadaPorUrl)
+        ? secaoSolicitadaPorUrl
+        : '';
+      setSecaoAtiva(secaoValidaDaUrl || secoes[0].id);
     }
-  }, [autenticado, secoes, secaoAtiva]);
+  }, [autenticado, secoes, secaoAtiva, secaoSolicitadaPorUrl]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', temaEscuro);
@@ -1477,6 +1481,16 @@ export default function App() {
 
   if (usuario?.role === 'user') {
     return <StudentAreaNative token={token} user={usuario} onLogout={sair} />;
+  }
+
+  if (isContractEditorPath) {
+    return (
+      <div className="native-standalone-shell">
+        <div className="native-standalone-content">
+          <ContractsNative token={token} mode="editor" />
+        </div>
+      </div>
+    );
   }
 
   const impersonando = Boolean(impersonationMeta && usuario?.role !== 'superadmin');

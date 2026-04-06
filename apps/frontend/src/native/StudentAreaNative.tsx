@@ -483,6 +483,65 @@ function normalizeChargeStatus(status: string | null | undefined) {
   return status;
 }
 
+function isChargeOverdue(charge: Pick<StudentCharge, 'status' | 'dueDate'> | null | undefined) {
+  if (!charge) return false;
+  const normalizedStatus = String(charge.status || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+  if (
+    normalizedStatus.includes('OVERDUE') ||
+    normalizedStatus.includes('ATRAS') ||
+    normalizedStatus.includes('VENCID')
+  ) {
+    return true;
+  }
+  if (
+    normalizedStatus.includes('PAID') ||
+    normalizedStatus.includes('PAGO') ||
+    normalizedStatus.includes('CANCEL')
+  ) {
+    return false;
+  }
+  if (!normalizedStatus.includes('PENDING') && !normalizedStatus.includes('PENDEN')) return false;
+  const due = toDate(charge.dueDate);
+  if (!due) return false;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return due.getTime() < startOfToday.getTime();
+}
+
+function isChargeDueSoon(
+  charge: Pick<StudentCharge, 'status' | 'dueDate'> | null | undefined,
+  daysAhead = 3,
+) {
+  if (!charge || isChargeOverdue(charge)) return false;
+  const normalizedStatus = String(charge.status || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+  if (
+    normalizedStatus.includes('PAID') ||
+    normalizedStatus.includes('PAGO') ||
+    normalizedStatus.includes('CANCEL')
+  ) {
+    return false;
+  }
+  if (!normalizedStatus.includes('PENDING') && !normalizedStatus.includes('PENDEN')) return false;
+
+  const due = toDate(charge.dueDate);
+  if (!due) return false;
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  const endWindow = new Date(startOfToday);
+  endWindow.setDate(endWindow.getDate() + daysAhead);
+  return dueDay.getTime() >= startOfToday.getTime() && dueDay.getTime() <= endWindow.getTime();
+}
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -1171,6 +1230,14 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const nextChargeDescription = financeMetrics.nextCharge
     ? `${normalizeChargeStatus(financeMetrics.nextCharge.status)} • ${formatCurrency(financeMetrics.nextCharge.amount)}`
     : 'Nenhuma mensalidade pendente no momento';
+  const hasOverdueCharges = financeMetrics.overdue.length > 0;
+  const nextChargeIsOverdue = isChargeOverdue(financeMetrics.nextCharge);
+  const nextChargeIsWarning = !nextChargeIsOverdue && isChargeDueSoon(financeMetrics.nextCharge);
+  const nextChargeToneClass = nextChargeIsOverdue
+    ? 'is-overdue'
+    : nextChargeIsWarning
+      ? 'is-warning'
+      : '';
   const financeProgress =
     cobrancas.length > 0 ? Math.round((financeMetrics.paid.length / cobrancas.length) * 100) : 0;
   const financeSensitiveClass = showFinanceValues
@@ -1689,18 +1756,24 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 <span className={financeSensitiveClass}>{formatCurrency(financeMetrics.pendingAmount)}</span>
               </p>
             </article>
-            <article className="student-page-card">
+            <article className={`student-page-card ${hasOverdueCharges ? 'is-overdue' : ''}`}>
               <h4>Mensalidades vencidas</h4>
               <strong className="student-page-big">{financeMetrics.overdue.length}</strong>
               <p>
                 Total vencido:{' '}
-                <span className={financeSensitiveClass}>{formatCurrency(financeMetrics.overdueAmount)}</span>
+                <span className={`${financeSensitiveClass} ${hasOverdueCharges ? 'is-overdue' : ''}`}>
+                  {formatCurrency(financeMetrics.overdueAmount)}
+                </span>
               </p>
             </article>
-            <article className="student-page-card">
+            <article className={`student-page-card ${nextChargeToneClass}`}>
               <h4>Próxima mensalidade</h4>
-              <strong className="student-page-big">{nextChargeLabel}</strong>
-              <p className={financeSensitiveClass}>{nextChargeDescription}</p>
+              <strong className={`student-page-big ${nextChargeToneClass}`}>
+                {nextChargeLabel}
+              </strong>
+              <p className={`${financeSensitiveClass} ${nextChargeToneClass}`}>
+                {nextChargeDescription}
+              </p>
             </article>
           </div>
           <article className="student-page-card">
@@ -1709,17 +1782,24 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               <p className="student-template-empty">Nenhuma cobrança pendente no mês atual ou em atraso.</p>
             ) : (
               <div className="student-page-list">
-                {financeMetrics.visible.map((charge) => (
-                  <article key={charge.id} className="student-page-list-item">
+                {financeMetrics.visible.map((charge) => {
+                  const isOverdue = isChargeOverdue(charge);
+                  return (
+                    <article key={charge.id} className={`student-page-list-item ${isOverdue ? 'is-overdue' : ''}`}>
                     <div>
-                      <strong className={financeSensitiveClass}>{formatCurrency(charge.amount)}</strong>
+                      <strong className={`${financeSensitiveClass} ${isOverdue ? 'is-overdue' : ''}`}>
+                        {formatCurrency(charge.amount)}
+                      </strong>
                       <small>
                         {charge.className} • Vencimento {formatDate(charge.dueDate)}
                       </small>
                     </div>
-                    <span>{normalizeChargeStatus(charge.status)}</span>
-                  </article>
-                ))}
+                    <span className={isOverdue ? 'student-charge-status is-overdue' : 'student-charge-status'}>
+                      {normalizeChargeStatus(charge.status)}
+                    </span>
+                    </article>
+                  );
+                })}
               </div>
             )}
           </article>
@@ -2117,13 +2197,18 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
                 {showFinance ? (
                 <div className={`student-template-side-stack ${isPanelView ? '' : 'is-full-span'}`}>
-                  <article id="st-student-finance" className="student-template-next-due-card">
+                  <article
+                    id="st-student-finance"
+                    className={`student-template-next-due-card ${nextChargeToneClass}`}
+                  >
                     <div>
                       <StudentIcon name="payments" />
                       <small>Próxima mensalidade</small>
                     </div>
                     <strong>{nextChargeLabel}</strong>
-                    <p className={financeSensitiveClass}>{nextChargeDescription}</p>
+                    <p className={`${financeSensitiveClass} ${nextChargeToneClass}`}>
+                      {nextChargeDescription}
+                    </p>
                   </article>
 
                   <article className="student-template-credit-card">

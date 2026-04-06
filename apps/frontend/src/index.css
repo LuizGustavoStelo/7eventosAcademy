@@ -654,6 +654,15 @@ table button:disabled {
   background: #f7f8fa;
 }
 
+.native-standalone-shell {
+  min-height: 100vh;
+  background: #f7f8fa;
+}
+
+.native-standalone-content {
+  min-height: 100vh;
+}
+
 .native-page {
   padding: 1.9rem 1.75rem;
   display: grid;
@@ -6141,6 +6150,16 @@ table button {
   transition: filter 140ms ease;
 }
 
+.student-finance-sensitive.is-overdue {
+  color: #b91c1c;
+  font-weight: 800;
+}
+
+.student-finance-sensitive.is-warning {
+  color: #b45309;
+  font-weight: 800;
+}
+
 .student-finance-sensitive.is-hidden {
   filter: blur(6px);
   user-select: none;
@@ -6317,6 +6336,15 @@ table button {
   color: #fff;
 }
 
+.student-template-next-due-card.is-overdue {
+  background: linear-gradient(135deg, #b91c1c, #dc2626 56%, #ef4444);
+}
+
+.student-template-next-due-card.is-warning {
+  background: linear-gradient(135deg, #fde68a, #fbbf24 56%, #f59e0b);
+  color: #5b3300;
+}
+
 .student-template-next-due-card > div {
   display: flex;
   align-items: center;
@@ -6353,6 +6381,20 @@ table button {
   margin: 0.24rem 0 0;
   color: #d5f2ee;
   font-size: 0.86rem;
+}
+
+.student-template-next-due-card.is-overdue p {
+  color: #fee2e2;
+  font-weight: 700;
+}
+
+.student-template-next-due-card.is-warning small {
+  color: #7c4300;
+}
+
+.student-template-next-due-card.is-warning p {
+  color: #7c4300;
+  font-weight: 700;
 }
 
 .student-template-credit-card {
@@ -7113,6 +7155,28 @@ table button {
   letter-spacing: -0.02em;
 }
 
+.student-page-big.is-overdue {
+  color: #b91c1c;
+}
+
+.student-page-card.is-overdue {
+  background: #fff5f5;
+  border-color: #fecaca;
+}
+
+.student-page-card.is-overdue h4 {
+  color: #991b1b;
+}
+
+.student-page-card.is-warning {
+  background: #fff8e1;
+  border-color: #fcd34d;
+}
+
+.student-page-card.is-warning h4 {
+  color: #92400e;
+}
+
 .student-page-list {
   margin-top: 0.8rem;
   display: grid;
@@ -7128,6 +7192,15 @@ table button {
   border: 1px solid #e3eaf0;
   border-radius: 0.7rem;
   padding: 0.65rem 0.72rem;
+}
+
+.student-page-list-item.is-overdue {
+  background: #fff7f7;
+  border-color: #f7c7c7;
+}
+
+.student-page-big.is-warning {
+  color: #b45309;
 }
 
 .student-page-list-item strong {
@@ -7161,6 +7234,17 @@ table button {
 .student-page-list-item > span {
   color: #5f748f;
   background: #e2eaf3;
+}
+
+.student-charge-status {
+  color: #5f748f;
+  background: #e2eaf3;
+}
+
+.student-charge-status.is-overdue {
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
 }
 
 .student-page-list-item > a,

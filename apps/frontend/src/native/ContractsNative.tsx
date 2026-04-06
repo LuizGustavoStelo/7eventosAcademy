@@ -1043,7 +1043,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                     type="button"
                     className="ghost"
                     onClick={() => {
-                      window.location.href = '/';
+                      window.location.href = '/?secao=admin_contratos';
                     }}
                   >
                     Voltar
