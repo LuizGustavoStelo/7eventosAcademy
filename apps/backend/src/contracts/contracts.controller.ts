@@ -76,6 +76,16 @@ export class ContractsController {
   }
 
   @Roles('admin', 'superadmin')
+  @RequirePermissions('contracts.templates.write')
+  @Delete('templates/:templateId')
+  async deleteTemplate(
+    @Param('templateId') templateId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.contractsService.deleteTemplate(templateId, request.user);
+  }
+
+  @Roles('admin', 'superadmin')
   @RequirePermissions('contracts.read')
   @Get('instances')
   async listInstances(

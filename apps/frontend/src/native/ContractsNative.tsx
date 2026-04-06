@@ -468,6 +468,9 @@ function toSafePositiveInteger(value: string, fallback: number): number {
 
 export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   const isEditorMode = mode === 'editor';
+  const editorParams = isEditorMode ? new URLSearchParams(window.location.search) : null;
+  const editorTemplateIdParam = editorParams?.get('templateId')?.trim() || '';
+  const editorIsNewParam = editorParams?.get('novo') === '1';
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [instances, setInstances] = useState<ContractInstanceItem[]>([]);
   const [students, setStudents] = useState<StudentOption[]>([]);
@@ -488,6 +491,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     null,
   );
   const [deletingInstanceId, setDeletingInstanceId] = useState<string | null>(null);
+  const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
 
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -502,6 +506,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     () => templates.find((item) => item.id === selectedTemplateId) ?? null,
     [templates, selectedTemplateId],
   );
+  const isEditingTemplate = isEditorMode && !editorIsNewParam && Boolean(editorTemplateIdParam || selectedTemplateId);
 
   const sendableTemplates = useMemo(
     () =>
@@ -606,10 +611,11 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
 
   useEffect(() => {
     if (!selectedTemplateId) return;
+    if (templates.length === 0) return;
 
     const currentTemplate = templates.find((item) => item.id === selectedTemplateId);
     if (!currentTemplate) {
-      setSelectedTemplateId(null);
+      setFormError('Modelo selecionado não foi encontrado.');
       return;
     }
 
@@ -932,6 +938,42 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     }
   };
 
+  const deleteTemplate = async (template: ContractTemplate) => {
+    const shouldDelete = window.confirm(
+      `Deseja realmente apagar o modelo "${template.name}"? Esta ação também remove contratos enviados por este modelo.`,
+    );
+    if (!shouldDelete) return;
+
+    setDeletingTemplateId(template.id);
+    setError('');
+    setFeedback('');
+
+    try {
+      await apiRequest<{
+        success: boolean;
+        deletedInstancesCount: number;
+      }>(token, `/contracts/templates/${template.id}`, {
+        method: 'DELETE',
+      });
+
+      setSelectedTemplateId((current) => (current === template.id ? null : current));
+      await loadTemplates();
+      if (!isEditorMode) {
+        await loadInstances(instanceStatusFilter);
+      }
+
+      setFeedback('Modelo apagado com sucesso.');
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : 'Falha ao apagar modelo.',
+      );
+    } finally {
+      setDeletingTemplateId((current) => (current === template.id ? null : current));
+    }
+  };
+
   const instancesCountByStatus = useMemo(() => {
     const counter = {
       total: instances.length,
@@ -1007,14 +1049,17 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                 <p className="native-info">Nenhum modelo cadastrado.</p>
               ) : (
                 templates.map((template) => (
-                  <button
+                  <article
                     key={template.id}
-                    type="button"
                     className={`native-contract-template-item ${
                       selectedTemplateId === template.id ? 'is-active' : ''
                     }`}
-                    onClick={() => pickTemplate(template)}
                   >
+                    <button
+                      type="button"
+                      className="native-contract-template-main"
+                      onClick={() => pickTemplate(template)}
+                    >
                     <div>
                       <strong>{template.name}</strong>
                       <small>
@@ -1022,10 +1067,24 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                         {formatDateTime(template.updatedAt)}
                       </small>
                     </div>
-                    <span className={`native-status-chip ${templateStatusTone(template.status)}`}>
-                      {templateStatusLabel(template.status)}
-                    </span>
-                  </button>
+                      <span className={`native-status-chip ${templateStatusTone(template.status)}`}>
+                        {templateStatusLabel(template.status)}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="native-contract-template-delete"
+                      aria-label={`Apagar modelo ${template.name}`}
+                      onClick={() => {
+                        void deleteTemplate(template);
+                      }}
+                      disabled={deletingTemplateId === template.id}
+                    >
+                      <span className="material-symbols-outlined">
+                        {deletingTemplateId === template.id ? 'hourglass_top' : 'delete'}
+                      </span>
+                    </button>
+                  </article>
                 ))
               )}
             </div>
@@ -1037,7 +1096,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
           {isEditorMode ? (
             <article className="native-panel">
               <header className="native-panel-header">
-                <h3>{selectedTemplate ? 'Editar modelo' : 'Novo modelo de contrato'}</h3>
+                <h3>{isEditingTemplate ? 'Editar modelo' : 'Novo modelo de contrato'}</h3>
                 <div className="native-modal-actions">
                   <button
                     type="button"
@@ -1120,12 +1179,12 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                 {formError ? <p className="native-error native-contract-span-all">{formError}</p> : null}
 
                 <div className="native-modal-actions">
-                  {selectedTemplate ? (
+                  {isEditingTemplate ? (
                     <button
                       type="button"
                       className="ghost"
                       onClick={() => void publishTemplate()}
-                      disabled={templatePublishing}
+                      disabled={templatePublishing || !selectedTemplateId}
                     >
                       {templatePublishing ? 'Publicando...' : 'Publicar versão'}
                     </button>
@@ -1133,7 +1192,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                   <button type="submit" disabled={templateSaving}>
                     {templateSaving
                       ? 'Salvando...'
-                      : selectedTemplate
+                      : isEditingTemplate
                         ? 'Salvar rascunho'
                         : 'Criar modelo'}
                   </button>

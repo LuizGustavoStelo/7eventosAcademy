@@ -257,6 +257,57 @@ export class ContractsService {
     };
   }
 
+  async deleteTemplate(templateId: string, actor: ContractActor) {
+    const institutionId = this.requireActiveInstitutionId(actor);
+
+    if (!this.isContractDeletionEnabled()) {
+      throw new BadRequestException(
+        'A exclusão de contratos está desativada nesta instituição.',
+      );
+    }
+
+    const existing = await this.prisma.contractTemplate.findFirst({
+      where: {
+        id: templateId,
+        institutionId,
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Modelo de contrato não encontrado.');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const deletedInstances = await tx.contractInstance.deleteMany({
+        where: {
+          institutionId,
+          templateId: existing.id,
+        },
+      });
+
+      await tx.contractTemplate.delete({
+        where: { id: existing.id },
+      });
+
+      return {
+        deletedInstancesCount: deletedInstances.count,
+      };
+    });
+
+    return {
+      success: true,
+      deletedId: existing.id,
+      deletedName: existing.name,
+      deletedStatus: existing.status,
+      ...result,
+    };
+  }
+
   async listInstances(
     actor: ContractActor,
     filters?: {
