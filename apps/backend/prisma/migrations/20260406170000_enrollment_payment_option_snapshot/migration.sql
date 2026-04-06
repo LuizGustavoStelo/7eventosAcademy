@@ -1,4 +1,4 @@
-﻿ALTER TABLE "enrollments"
+ALTER TABLE "enrollments"
     ADD COLUMN "selected_payment_option_id" TEXT,
     ADD COLUMN "selected_payment_option" JSONB;
 

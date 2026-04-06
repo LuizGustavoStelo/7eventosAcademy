@@ -35,7 +35,7 @@ services:
       SECRETS_MASTER_KEY_FILE: /run/secrets/academy_master_key
       UPLOADS_DIR: /var/www/7eventosAcademy/uploads
       PRISMA_AUTO_RESOLVE_FAILED_MIGRATIONS: ${PRISMA_AUTO_RESOLVE_FAILED_MIGRATIONS:-true}
-      PRISMA_AUTO_RESOLVE_ALLOWLIST: ${PRISMA_AUTO_RESOLVE_ALLOWLIST:-20260329110000_email_verification}
+      PRISMA_AUTO_RESOLVE_ALLOWLIST: ${PRISMA_AUTO_RESOLVE_ALLOWLIST:-20260329110000_email_verification,20260403120000_student_profile_enrollment_fields,20260406153000_course_payment_options,20260406170000_enrollment_payment_option_snapshot}
     depends_on:
       db:
         condition: service_healthy
