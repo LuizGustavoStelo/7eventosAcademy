@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { API_BASE_URL } from './api';
 import { toPtBrApiMessage } from '../errorMessages';
@@ -17,6 +17,16 @@ type CourseCatalogItem = {
   paymentModel?: string | null;
   installmentMonths?: number | null;
   installmentValue?: number | null;
+  paymentOptions?: Array<{
+    method?: string | null;
+    type?: string | null;
+    totalAmount?: number | null;
+    installmentCount?: number | null;
+    installmentAmount?: number | null;
+    isPromotional?: boolean | null;
+    promotionalSlots?: number | null;
+    active?: boolean | null;
+  }> | null;
   modality?: string | null;
   status?: string | null;
   bannerUrl?: string | null;
@@ -52,18 +62,18 @@ type PasswordStrength = {
 };
 
 const steps = [
-  { title: 'Identificação', description: 'Dados pessoais e documentação' },
-  { title: 'Formação', description: 'Filiação e graduação' },
+  { title: 'IdentificaÃ§Ã£o', description: 'Dados pessoais e documentaÃ§Ã£o' },
+  { title: 'FormaÃ§Ã£o', description: 'FiliaÃ§Ã£o e graduaÃ§Ã£o' },
   { title: 'Profissional', description: 'Empresa, cargo e acesso' },
-  { title: 'Matrícula', description: 'Endereço e curso no IES' },
+  { title: 'MatrÃ­cula', description: 'EndereÃ§o e curso no IES' },
 ];
 
 const maritalStatusOptions = [
   { value: 'solteiro', label: 'Solteiro(a)' },
   { value: 'casado', label: 'Casado(a)' },
   { value: 'divorciado', label: 'Divorciado(a)' },
-  { value: 'viuvo', label: 'Viúvo(a)' },
-  { value: 'uniao_estavel', label: 'União estável' },
+  { value: 'viuvo', label: 'ViÃºvo(a)' },
+  { value: 'uniao_estavel', label: 'UniÃ£o estÃ¡vel' },
 ];
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
@@ -84,13 +94,13 @@ function normalizeTextInput(value: string) {
 }
 
 function normalizeNameInput(value: string) {
-  return normalizeTextInput(value).replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s]/g, '');
+  return normalizeTextInput(value).replace(/[^\p{L}\s]/gu, '');
 }
 
 function isValidPersonName(value: string) {
   const normalized = value.trim();
   if (normalized.length < 3) return false;
-  return /^[A-Za-zÀ-ÖØ-öø-ÿ]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]+)+$/.test(normalized);
+  return /^[\p{L}]+(?:\s+[\p{L}]+)+$/u.test(normalized);
 }
 
 function formatCpf(value: string) {
@@ -223,19 +233,50 @@ function passwordStrength(password: string): PasswordStrength {
   if (/[^A-Za-z0-9]/.test(password)) score += 1;
 
   if (score >= 5) return { label: 'Forte', toneClass: 'is-strong', score };
-  if (score >= 3) return { label: 'Média', toneClass: 'is-medium', score };
+  if (score >= 3) return { label: 'MÃ©dia', toneClass: 'is-medium', score };
   return { label: 'Fraca', toneClass: 'is-weak', score };
 }
 
 function modalityLabel(value?: string | null) {
   const normalized = String(value || '').toUpperCase();
   if (normalized === 'PRESENTIAL' || normalized === 'PRESENCIAL') return 'Presencial';
-  if (normalized === 'HYBRID') return 'Híbrido';
+  if (normalized === 'HYBRID') return 'HÃ­brido';
   if (normalized === 'EAD') return 'EAD';
-  return 'Não informado';
+  return 'NÃ£o informado';
 }
 
 function installmentLabel(course: CourseCatalogItem) {
+  const paymentOptions = Array.isArray(course.paymentOptions)
+    ? course.paymentOptions.filter((option) => option?.active !== false)
+    : [];
+  if (paymentOptions.length > 0) {
+    const firstOption = paymentOptions[0];
+    const method = String(firstOption.method || '').toUpperCase();
+    const methodLabel =
+      method === 'BANK_SLIP'
+        ? 'Boleto'
+        : method === 'CREDIT_CARD'
+          ? 'Cartão'
+          : 'Pix';
+    const type = String(firstOption.type || '').toUpperCase();
+    const promoSuffix = firstOption.isPromotional
+      ? firstOption.promotionalSlots
+        ? ' (promo ' + String(firstOption.promotionalSlots) + ' primeiros)'
+        : ' (promoção)'
+      : '';
+    if (type === 'INSTALLMENTS') {
+      const count = Number(firstOption.installmentCount || 0) || 1;
+      const installmentAmount =
+        Number(firstOption.installmentAmount || 0) ||
+        (Number(firstOption.totalAmount || 0) > 0
+          ? Number(firstOption.totalAmount || 0) / count
+          : 0);
+      return methodLabel + ' ' + count + 'x de ' + currencyFormatter.format(installmentAmount) + promoSuffix;
+    }
+
+    return methodLabel + ' à vista ' + currencyFormatter.format(Number(firstOption.totalAmount || 0)) + promoSuffix;
+  }
+
   const paymentModel = String(course.paymentModel || '').toUpperCase();
   if (paymentModel !== 'INSTALLMENTS') {
     return 'Pagamento à vista';
@@ -244,7 +285,7 @@ function installmentLabel(course: CourseCatalogItem) {
   const months = Number(course.installmentMonths || 0);
   const installmentValue = Number(course.installmentValue || 0);
   if (months > 0 && installmentValue > 0) {
-    return `${months}x de ${currencyFormatter.format(installmentValue)}`;
+    return months + 'x de ' + currencyFormatter.format(installmentValue);
   }
 
   return 'Pagamento parcelado';
@@ -264,17 +305,17 @@ async function requestWithRetry(input: string, init?: RequestInit) {
     return response;
   }
 
-  throw new Error('Limite de requisições atingido temporariamente.');
+  throw new Error('Limite de requisiÃ§Ãµes atingido temporariamente.');
 }
 
 async function readError(response: Response) {
   try {
     const payload = (await response.json()) as { message?: string | string[] };
-    return toPtBrApiMessage(payload.message, 'Não foi possível concluir o cadastro.');
+    return toPtBrApiMessage(payload.message, 'NÃ£o foi possÃ­vel concluir o cadastro.');
   } catch {
     // ignore
   }
-  return 'Não foi possível concluir o cadastro.';
+  return 'NÃ£o foi possÃ­vel concluir o cadastro.';
 }
 export function StudentRegistrationNative({ embedded }: StudentRegistrationNativeProps) {
   const [loading, setLoading] = useState(false);
@@ -333,7 +374,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       setCoursesError(
         coursesLoadError instanceof Error
           ? coursesLoadError.message
-          : 'Não foi possível carregar os cursos.',
+          : 'NÃ£o foi possÃ­vel carregar os cursos.',
       );
     } finally {
       setCoursesLoading(false);
@@ -354,12 +395,12 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const validateStepOne = () => {
     if (!name.trim() || name.trim().length < 3) return 'Informe seu nome completo.';
     if (!isValidPersonName(name)) return 'O nome deve conter nome e sobrenome, usando apenas letras.';
-    if (!isValidPhone(phone)) return 'Informe um telefone válido com DDD.';
-    if (!emailRegex.test(email.trim())) return 'Informe um e-mail válido.';
-    if (!isValidCpf(documentCpf)) return 'Informe um CPF válido.';
-    if (!isValidRg(documentRg)) return 'Informe um RG válido.';
-    if (!issuingAuthority.trim()) return 'Informe o órgão expedidor do RG.';
-    if (!isValidBirthDate(birthDate)) return 'Informe uma data de nascimento válida no formato DD/MM/AAAA.';
+    if (!isValidPhone(phone)) return 'Informe um telefone vÃ¡lido com DDD.';
+    if (!emailRegex.test(email.trim())) return 'Informe um e-mail vÃ¡lido.';
+    if (!isValidCpf(documentCpf)) return 'Informe um CPF vÃ¡lido.';
+    if (!isValidRg(documentRg)) return 'Informe um RG vÃ¡lido.';
+    if (!issuingAuthority.trim()) return 'Informe o Ã³rgÃ£o expedidor do RG.';
+    if (!isValidBirthDate(birthDate)) return 'Informe uma data de nascimento vÃ¡lida no formato DD/MM/AAAA.';
     if (!birthCity.trim()) return 'Informe a cidade em que nasceu.';
     if (!maritalStatus) return 'Selecione o estado civil.';
     return '';
@@ -367,9 +408,9 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
   const validateStepTwo = () => {
     if (!fatherName.trim() || !isValidPersonName(fatherName)) return 'Informe o nome completo do pai.';
-    if (!motherName.trim() || !isValidPersonName(motherName)) return 'Informe o nome completo da mãe.';
-    if (!graduation.trim()) return 'Informe sua graduação.';
-    if (!isValidGraduationConclusionYear(graduationConclusionYear)) return 'Informe um ano de conclusão da graduação válido.';
+    if (!motherName.trim() || !isValidPersonName(motherName)) return 'Informe o nome completo da mÃ£e.';
+    if (!graduation.trim()) return 'Informe sua graduaÃ§Ã£o.';
+    if (!isValidGraduationConclusionYear(graduationConclusionYear)) return 'Informe um ano de conclusÃ£o da graduaÃ§Ã£o vÃ¡lido.';
     return '';
   };
 
@@ -377,15 +418,15 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     if (!companyName.trim()) return 'Informe a empresa onde trabalha.';
     if (!jobTitle.trim()) return 'Informe o cargo.';
     if (password.length < 8) return 'A senha deve ter pelo menos 8 caracteres.';
-    if (strength.score < 3) return 'Use uma senha pelo menos média (misture letras, números e símbolos).';
+    if (strength.score < 3) return 'Use uma senha pelo menos mÃ©dia (misture letras, nÃºmeros e sÃ­mbolos).';
     if (!confirmPassword) return 'Confirme sua senha para continuar.';
-    if (password !== confirmPassword) return 'A confirmação de senha não confere.';
+    if (password !== confirmPassword) return 'A confirmaÃ§Ã£o de senha nÃ£o confere.';
     return '';
   };
 
   const validateStepFour = () => {
-    if (!isValidZipCode(zipCode)) return 'Informe um CEP válido com 8 dígitos.';
-    if (!address.trim()) return 'Informe o endereço completo.';
+    if (!isValidZipCode(zipCode)) return 'Informe um CEP vÃ¡lido com 8 dÃ­gitos.';
+    if (!address.trim()) return 'Informe o endereÃ§o completo.';
     if (coursesLoading) return 'Aguarde o carregamento dos cursos.';
     if (!selectedCourseId) return 'Selecione um curso para concluir o cadastro.';
     return '';
@@ -448,7 +489,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
     const allValidations = [validateStepOne(), validateStepTwo(), validateStepThree(), validateStepFour()].filter(Boolean);
     if (allValidations.length > 0) {
-      setError(allValidations[0] || 'Revise os campos obrigatórios.');
+      setError(allValidations[0] || 'Revise os campos obrigatÃ³rios.');
       return;
     }
 
@@ -487,7 +528,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       setPendingVerificationEmail(payload.email);
       setVerificationCode('');
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Não foi possível concluir o cadastro.');
+      setError(submitError instanceof Error ? submitError.message : 'NÃ£o foi possÃ­vel concluir o cadastro.');
     } finally {
       setLoading(false);
     }
@@ -499,7 +540,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
     const code = verificationCode.trim();
     if (code.length !== 6) {
-      setCodeError('Digite o código de 6 dígitos enviado para o seu e-mail.');
+      setCodeError('Digite o cÃ³digo de 6 dÃ­gitos enviado para o seu e-mail.');
       return;
     }
 
@@ -518,7 +559,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       setSuccess('Cadastro realizado com sucesso. Seu e-mail foi confirmado.');
       resetForm();
     } catch (confirmError) {
-      setCodeError(confirmError instanceof Error ? confirmError.message : 'Não foi possível confirmar o código.');
+      setCodeError(confirmError instanceof Error ? confirmError.message : 'NÃ£o foi possÃ­vel confirmar o cÃ³digo.');
     } finally {
       setCodeLoading(false);
     }
@@ -527,8 +568,8 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     <section className={`native-student-register ${embedded ? 'is-embedded' : ''}`}>
       <article className="native-student-register-card">
         <header>
-          <h1>Formulário de matrícula</h1>
-          <p>Preencha cada etapa com atenção para concluir seu cadastro de aluno.</p>
+          <h1>FormulÃ¡rio de matrÃ­cula</h1>
+          <p>Preencha cada etapa com atenÃ§Ã£o para concluir seu cadastro de aluno.</p>
         </header>
 
         {error ? <p className="native-error">{error}</p> : null}
@@ -628,7 +669,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               </label>
 
               <label>
-                Órgão expedidor *
+                Ã“rgÃ£o expedidor *
                 <input
                   type="text"
                   value={issuingAuthority}
@@ -694,7 +735,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               </label>
 
               <label>
-                Nome da mãe *
+                Nome da mÃ£e *
                 <input
                   type="text"
                   value={motherName}
@@ -705,18 +746,18 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               </label>
 
               <label>
-                Graduação *
+                GraduaÃ§Ã£o *
                 <input
                   type="text"
                   value={graduation}
                   onChange={(event) => setGraduation(normalizeTextInput(event.target.value))}
                   disabled={loading}
-                  placeholder="Ex.: Administração"
+                  placeholder="Ex.: AdministraÃ§Ã£o"
                 />
               </label>
 
               <label>
-                Ano de conclusão da graduação *
+                Ano de conclusÃ£o da graduaÃ§Ã£o *
                 <input
                   type="text"
                   value={graduationConclusionYear}
@@ -762,7 +803,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                 />
                 {password ? (
                   <small className={`native-student-password-strength ${strength.toneClass}`}>
-                    Força da senha: {strength.label}
+                    ForÃ§a da senha: {strength.label}
                   </small>
                 ) : null}
               </label>
@@ -795,20 +836,20 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               </label>
 
               <label className="full">
-                Endereço *
+                EndereÃ§o *
                 <input
                   type="text"
                   value={address}
                   onChange={(event) => setAddress(normalizeTextInput(event.target.value))}
                   disabled={loading}
-                  placeholder="Rua, número, bairro e complemento"
+                  placeholder="Rua, nÃºmero, bairro e complemento"
                 />
               </label>
 
               <section className="native-student-register-courses full" aria-label="Escolha do curso">
                 <header className="native-student-register-courses-header">
                   <h3>Curso no IES</h3>
-                  <p>Selecione o curso para finalizar sua matrícula.</p>
+                  <p>Selecione o curso para finalizar sua matrÃ­cula.</p>
                 </header>
 
                 {coursesLoading ? <p className="native-info">Carregando cursos...</p> : null}
@@ -824,7 +865,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
                 {!coursesLoading && !coursesError && courses.length === 0 ? (
                   <div className="native-public-course-empty">
-                    <p>Nenhum curso disponível no momento.</p>
+                    <p>Nenhum curso disponÃ­vel no momento.</p>
                   </div>
                 ) : null}
 
@@ -852,19 +893,19 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                               <h4>{course.name}</h4>
                               <span>{modalityLabel(course.modality)}</span>
                             </header>
-                            <p>{course.description || 'Curso acadêmico profissional.'}</p>
+                            <p>{course.description || 'Curso acadÃªmico profissional.'}</p>
                             <dl>
                               <div>
-                                <dt>Carga horária</dt>
-                                <dd>{course.workloadHours ? `${course.workloadHours}h` : 'Não informada'}</dd>
+                                <dt>Carga horÃ¡ria</dt>
+                                <dd>{course.workloadHours ? `${course.workloadHours}h` : 'NÃ£o informada'}</dd>
                               </div>
                               <div>
                                 <dt>Categoria</dt>
-                                <dd>{course.category || 'Não informada'}</dd>
+                                <dd>{course.category || 'NÃ£o informada'}</dd>
                               </div>
                               <div>
                                 <dt>Professor</dt>
-                                <dd>{course.coordinator || 'Não informado'}</dd>
+                                <dd>{course.coordinator || 'NÃ£o informado'}</dd>
                               </div>
                               <div>
                                 <dt>Pagamento</dt>
@@ -895,7 +936,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                 type="submit"
                 disabled={loading || coursesLoading || codeLoading || Boolean(pendingVerificationEmail) || Boolean(success)}
               >
-                {loading ? 'Concluindo cadastro...' : 'Finalizar matrícula e criar acesso'}
+                {loading ? 'Concluindo cadastro...' : 'Finalizar matrÃ­cula e criar acesso'}
               </button>
             ) : (
               <button type="button" onClick={() => void goToNextStep()} disabled={loading}>
@@ -911,10 +952,10 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
           <div className="native-student-register-modal" role="dialog" aria-modal="true" aria-labelledby="student-register-confirm-title">
             <h3 id="student-register-confirm-title">Confirme seu e-mail</h3>
             <p>
-              Digite o código de 6 dígitos enviado para <strong>{pendingVerificationEmail}</strong>.
+              Digite o cÃ³digo de 6 dÃ­gitos enviado para <strong>{pendingVerificationEmail}</strong>.
             </p>
             <label>
-              Código de confirmação
+              CÃ³digo de confirmaÃ§Ã£o
               <input
                 type="text"
                 value={verificationCode}
@@ -926,7 +967,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
             </label>
             {codeError ? <p className="native-error">{codeError}</p> : null}
             <button type="button" onClick={() => void confirmVerificationCode()} disabled={codeLoading}>
-              {codeLoading ? 'Confirmando código...' : 'Confirmar código'}
+              {codeLoading ? 'Confirmando cÃ³digo...' : 'Confirmar cÃ³digo'}
             </button>
           </div>
         </div>
@@ -935,7 +976,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       {success ? (
         <div className="native-student-register-modal-backdrop" role="presentation">
           <div className="native-student-register-modal" role="dialog" aria-modal="true" aria-labelledby="student-register-success-title">
-            <h3 id="student-register-success-title">Cadastro concluído</h3>
+            <h3 id="student-register-success-title">Cadastro concluÃ­do</h3>
             <p>{success}</p>
             <a className="native-student-register-login-link" href={buildPortalLink()}>
               Ir para login
@@ -946,3 +987,4 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     </section>
   );
 }
+

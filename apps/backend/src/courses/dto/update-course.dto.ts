@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsEnum,
   IsInt,
   IsISO8601,
@@ -7,9 +8,11 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import {
   CourseModalityDto,
+  CoursePaymentOptionDto,
   CoursePaymentModelDto,
   CourseStatusDto,
 } from './create-course.dto';
@@ -76,4 +79,10 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsISO8601()
   installmentStartDate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CoursePaymentOptionDto)
+  paymentOptions?: CoursePaymentOptionDto[];
 }

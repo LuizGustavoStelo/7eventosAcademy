@@ -3288,6 +3288,99 @@ table button:disabled {
   min-height: 90px;
 }
 
+.native-payment-options-panel {
+  grid-column: 1 / -1;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  padding: 0.72rem;
+  background: #f8fafc;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.native-payment-options-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.native-payment-options-head > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.native-payment-options-head strong {
+  color: #0f172a;
+  font-size: 0.92rem;
+}
+
+.native-payment-options-head small {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.native-payment-options-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.native-payment-options-actions .ghost,
+.native-payment-option-card-head .ghost {
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: #fff;
+  color: #334155;
+  border-radius: 9px;
+  padding: 0.36rem 0.62rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.native-payment-options-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.native-payment-option-card {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.62rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.native-payment-option-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.native-payment-option-card-head strong {
+  color: #0f172a;
+  font-size: 0.86rem;
+}
+
+.native-payment-option-grid {
+  display: grid;
+  gap: 0.62rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.native-payment-option-field-full {
+  grid-column: 1 / -1;
+}
+
+.native-payment-preview-line {
+  color: #0f172a;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .native-banner-picker {
   grid-column: 1 / -1;
 }
@@ -4927,6 +5020,19 @@ table button {
   }
 
   .native-course-form {
+    grid-template-columns: 1fr;
+  }
+
+  .native-payment-options-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .native-payment-options-actions {
+    width: 100%;
+  }
+
+  .native-payment-option-grid {
     grid-template-columns: 1fr;
   }
 

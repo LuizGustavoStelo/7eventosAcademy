@@ -10,6 +10,9 @@ import {
 import { PrismaService } from '../database/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
+  CoursePaymentOptionDto,
+  CoursePaymentOptionMethodDto,
+  CoursePaymentOptionTypeDto,
   CoursePaymentModelDto,
   CreateCourseDto,
 } from './dto/create-course.dto';
@@ -18,6 +21,20 @@ import { JwtPayload } from '../auth/types/app-role.type';
 
 const COURSE_BANNER_KIND = 'COURSE_BANNER';
 type CourseActor = Pick<JwtPayload, 'sub' | 'role' | 'activeInstitutionId'>;
+type NormalizedCoursePaymentOption = {
+  id: string;
+  title: string;
+  method: CoursePaymentOptionMethodDto;
+  type: CoursePaymentOptionTypeDto;
+  totalAmount: number;
+  installmentCount: number | null;
+  installmentAmount: number | null;
+  dueDay: number | null;
+  note: string | null;
+  isPromotional: boolean;
+  promotionalSlots: number | null;
+  active: boolean;
+};
 
 @Injectable()
 export class CoursesService {
@@ -38,6 +55,21 @@ export class CoursesService {
       installmentValue: dto.installmentValue,
       installmentStartDate: dto.installmentStartDate,
     });
+    const normalizedPaymentOptions = this.normalizePaymentOptions(
+      dto.paymentOptions,
+    );
+    const fallbackPaymentOptions = this.buildLegacyPaymentOptions({
+      price: dto.price,
+      paymentModel: paymentData.paymentModel,
+      installmentMonths: paymentData.installmentMonths ?? undefined,
+      installmentValue: paymentData.installmentValue
+        ? Number(paymentData.installmentValue)
+        : undefined,
+    });
+    const paymentOptionsToPersist =
+      normalizedPaymentOptions.length > 0
+        ? normalizedPaymentOptions
+        : fallbackPaymentOptions;
 
     const course = await this.prisma.course.create({
       data: {
@@ -50,6 +82,7 @@ export class CoursesService {
         coordinator: dto.coordinator?.trim(),
         price: this.toDecimal(dto.price),
         ...paymentData,
+        paymentOptions: paymentOptionsToPersist as Prisma.InputJsonValue,
         modality: dto.modality,
         status: dto.status,
       },
@@ -138,6 +171,10 @@ export class CoursesService {
       installmentValue,
       installmentStartDate,
     });
+    const paymentOptions =
+      dto.paymentOptions === undefined
+        ? undefined
+        : this.normalizePaymentOptions(dto.paymentOptions);
 
     const course = await this.prisma.course.update({
       where: { id },
@@ -149,6 +186,10 @@ export class CoursesService {
         coordinator: dto.coordinator?.trim(),
         price: dto.price === undefined ? undefined : this.toDecimal(dto.price),
         ...paymentData,
+        paymentOptions:
+          paymentOptions === undefined
+            ? undefined
+            : (paymentOptions as Prisma.InputJsonValue),
         modality: dto.modality,
         status: dto.status,
       },
@@ -327,6 +368,7 @@ export class CoursesService {
       installmentStartDate: course.installmentStartDate
         ? course.installmentStartDate.toISOString()
         : null,
+      paymentOptions: this.resolvePaymentOptionsForRead(course),
       bannerAssetId: banner?.assetId ?? null,
       bannerUrl: banner?.url ?? null,
     };
@@ -381,5 +423,259 @@ export class CoursesService {
         ? new Date(input.installmentStartDate)
         : null,
     };
+  }
+
+  private normalizePaymentOptions(
+    options?: CoursePaymentOptionDto[] | null,
+  ): NormalizedCoursePaymentOption[] {
+    if (!Array.isArray(options)) return [];
+
+    return options.map((option, index) => {
+      const type =
+        option.type === CoursePaymentOptionTypeDto.INSTALLMENTS
+          ? CoursePaymentOptionTypeDto.INSTALLMENTS
+          : CoursePaymentOptionTypeDto.CASH;
+      const totalAmount = this.normalizeMoneyValue(option.totalAmount);
+      const installmentCount =
+        type === CoursePaymentOptionTypeDto.INSTALLMENTS
+          ? Math.max(1, Math.trunc(Number(option.installmentCount ?? 1)))
+          : null;
+      const installmentAmount =
+        type === CoursePaymentOptionTypeDto.INSTALLMENTS
+          ? option.installmentAmount === undefined
+            ? this.normalizeMoneyValue(totalAmount / Math.max(1, installmentCount || 1))
+            : this.normalizeMoneyValue(option.installmentAmount)
+          : null;
+      const dueDay =
+        option.dueDay === undefined || option.dueDay === null
+          ? null
+          : Math.min(31, Math.max(1, Math.trunc(Number(option.dueDay))));
+      const isPromotional = Boolean(option.isPromotional);
+      const promotionalSlots = isPromotional
+        ? Math.max(1, Math.trunc(Number(option.promotionalSlots ?? 20)))
+        : null;
+
+      return {
+        id: option.id?.trim() || `payment-option-${index + 1}`,
+        title:
+          option.title?.trim() ||
+          this.buildDefaultPaymentOptionTitle({
+            method: option.method,
+            type,
+            installmentCount,
+          }),
+        method: option.method,
+        type,
+        totalAmount,
+        installmentCount,
+        installmentAmount,
+        dueDay,
+        note: option.note?.trim() || null,
+        isPromotional,
+        promotionalSlots,
+        active: option.active !== false,
+      };
+    });
+  }
+
+  private resolvePaymentOptionsForRead(
+    course: Prisma.CourseGetPayload<Record<string, never>>,
+  ): NormalizedCoursePaymentOption[] {
+    const parsed = this.parseStoredPaymentOptions(course.paymentOptions);
+    if (parsed.length > 0) {
+      return parsed;
+    }
+
+    return this.buildLegacyPaymentOptions({
+      price: course.price ? Number(course.price) : undefined,
+      paymentModel: course.paymentModel,
+      installmentMonths: course.installmentMonths ?? undefined,
+      installmentValue: course.installmentValue
+        ? Number(course.installmentValue)
+        : undefined,
+    });
+  }
+
+  private parseStoredPaymentOptions(
+    raw: Prisma.JsonValue | null | undefined,
+  ): NormalizedCoursePaymentOption[] {
+    if (!Array.isArray(raw)) return [];
+
+    return raw
+      .map((item, index) => this.parseStoredPaymentOptionItem(item, index))
+      .filter((item): item is NormalizedCoursePaymentOption => item !== null);
+  }
+
+  private parseStoredPaymentOptionItem(
+    item: Prisma.JsonValue,
+    index: number,
+  ): NormalizedCoursePaymentOption | null {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return null;
+    }
+
+    const objectItem = item as Record<string, unknown>;
+    const method = this.normalizeOptionMethod(objectItem.method);
+    const type = this.normalizeOptionType(objectItem.type);
+    const totalAmount = this.normalizeMoneyValue(objectItem.totalAmount);
+    const installmentCount =
+      type === CoursePaymentOptionTypeDto.INSTALLMENTS
+        ? Math.max(
+            1,
+            Math.trunc(
+              this.toFiniteNumber(objectItem.installmentCount) ?? 1,
+            ),
+          )
+        : null;
+    const installmentAmount =
+      type === CoursePaymentOptionTypeDto.INSTALLMENTS
+        ? this.normalizeMoneyValue(
+            this.toFiniteNumber(objectItem.installmentAmount) ??
+              totalAmount / Math.max(1, installmentCount || 1),
+          )
+        : null;
+    const dueDayRaw = this.toFiniteNumber(objectItem.dueDay);
+    const dueDay =
+      dueDayRaw === undefined
+        ? null
+        : Math.min(31, Math.max(1, Math.trunc(dueDayRaw)));
+    const isPromotional = Boolean(objectItem.isPromotional);
+    const promotionalSlots =
+      isPromotional && this.toFiniteNumber(objectItem.promotionalSlots)
+        ? Math.max(
+            1,
+            Math.trunc(this.toFiniteNumber(objectItem.promotionalSlots) || 1),
+          )
+        : null;
+
+    return {
+      id:
+        String(objectItem.id || '').trim() ||
+        `payment-option-${index + 1}`,
+      title:
+        String(objectItem.title || '').trim() ||
+        this.buildDefaultPaymentOptionTitle({
+          method,
+          type,
+          installmentCount,
+        }),
+      method,
+      type,
+      totalAmount,
+      installmentCount,
+      installmentAmount,
+      dueDay,
+      note: String(objectItem.note || '').trim() || null,
+      isPromotional,
+      promotionalSlots,
+      active: objectItem.active !== false,
+    };
+  }
+
+  private normalizeOptionMethod(value: unknown): CoursePaymentOptionMethodDto {
+    const normalized = String(value || '').toUpperCase();
+    if (normalized === CoursePaymentOptionMethodDto.BANK_SLIP) {
+      return CoursePaymentOptionMethodDto.BANK_SLIP;
+    }
+    if (normalized === CoursePaymentOptionMethodDto.CREDIT_CARD) {
+      return CoursePaymentOptionMethodDto.CREDIT_CARD;
+    }
+    return CoursePaymentOptionMethodDto.PIX;
+  }
+
+  private normalizeOptionType(value: unknown): CoursePaymentOptionTypeDto {
+    const normalized = String(value || '').toUpperCase();
+    if (normalized === CoursePaymentOptionTypeDto.INSTALLMENTS) {
+      return CoursePaymentOptionTypeDto.INSTALLMENTS;
+    }
+    return CoursePaymentOptionTypeDto.CASH;
+  }
+
+  private buildDefaultPaymentOptionTitle(input: {
+    method?: CoursePaymentOptionMethodDto;
+    type: CoursePaymentOptionTypeDto;
+    installmentCount: number | null;
+  }) {
+    const methodLabel =
+      input.method === CoursePaymentOptionMethodDto.BANK_SLIP
+        ? 'Boleto'
+        : input.method === CoursePaymentOptionMethodDto.CREDIT_CARD
+          ? 'Cartão de crédito'
+          : 'Pix';
+    if (input.type === CoursePaymentOptionTypeDto.CASH) {
+      return `À vista (${methodLabel})`;
+    }
+
+    return `${input.installmentCount || 1}x (${methodLabel})`;
+  }
+
+  private buildLegacyPaymentOptions(input: {
+    price?: number;
+    paymentModel?: CoursePaymentModelDto | CoursePaymentModel;
+    installmentMonths?: number;
+    installmentValue?: number;
+  }): NormalizedCoursePaymentOption[] {
+    const paymentModel = String(input.paymentModel || CoursePaymentModelDto.CASH).toUpperCase();
+    const totalAmount = this.normalizeMoneyValue(input.price ?? 0);
+
+    if (paymentModel === CoursePaymentModelDto.INSTALLMENTS) {
+      const installmentCount = Math.max(1, Math.trunc(Number(input.installmentMonths || 1)));
+      const installmentAmountRaw =
+        input.installmentValue === undefined
+          ? totalAmount / installmentCount
+          : Number(input.installmentValue);
+      const installmentAmount = this.normalizeMoneyValue(installmentAmountRaw);
+      const installmentTotal =
+        totalAmount > 0
+          ? totalAmount
+          : this.normalizeMoneyValue(installmentAmount * installmentCount);
+
+      return [
+        {
+          id: 'legacy-installments',
+          title: `${installmentCount}x (Boleto)`,
+          method: CoursePaymentOptionMethodDto.BANK_SLIP,
+          type: CoursePaymentOptionTypeDto.INSTALLMENTS,
+          totalAmount: installmentTotal,
+          installmentCount,
+          installmentAmount,
+          dueDay: null,
+          note: null,
+          isPromotional: false,
+          promotionalSlots: null,
+          active: true,
+        },
+      ];
+    }
+
+    return [
+      {
+        id: 'legacy-cash',
+        title: 'À vista (Pix)',
+        method: CoursePaymentOptionMethodDto.PIX,
+        type: CoursePaymentOptionTypeDto.CASH,
+        totalAmount,
+        installmentCount: null,
+        installmentAmount: null,
+        dueDay: null,
+        note: null,
+        isPromotional: false,
+        promotionalSlots: null,
+        active: true,
+      },
+    ];
+  }
+
+  private normalizeMoneyValue(value: unknown): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    const normalized = Math.max(0, numeric);
+    return Number(normalized.toFixed(2));
+  }
+
+  private toFiniteNumber(value: unknown): number | undefined {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return undefined;
+    return numeric;
   }
 }

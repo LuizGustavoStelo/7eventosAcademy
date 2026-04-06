@@ -1,12 +1,16 @@
 import { Type } from 'class-transformer';
 import {
+  IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsISO8601,
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 export enum CourseStatusDto {
@@ -24,6 +28,77 @@ export enum CourseModalityDto {
 export enum CoursePaymentModelDto {
   CASH = 'CASH',
   INSTALLMENTS = 'INSTALLMENTS',
+}
+
+export enum CoursePaymentOptionMethodDto {
+  PIX = 'PIX',
+  BANK_SLIP = 'BANK_SLIP',
+  CREDIT_CARD = 'CREDIT_CARD',
+}
+
+export enum CoursePaymentOptionTypeDto {
+  CASH = 'CASH',
+  INSTALLMENTS = 'INSTALLMENTS',
+}
+
+export class CoursePaymentOptionDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsEnum(CoursePaymentOptionMethodDto)
+  method!: CoursePaymentOptionMethodDto;
+
+  @IsEnum(CoursePaymentOptionTypeDto)
+  type!: CoursePaymentOptionTypeDto;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  totalAmount!: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  installmentCount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  installmentAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  dueDay?: number;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  isPromotional?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  promotionalSlots?: number;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  active?: boolean;
 }
 
 export class CreateCourseDto {
@@ -87,4 +162,10 @@ export class CreateCourseDto {
   @IsOptional()
   @IsISO8601()
   installmentStartDate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CoursePaymentOptionDto)
+  paymentOptions?: CoursePaymentOptionDto[];
 }

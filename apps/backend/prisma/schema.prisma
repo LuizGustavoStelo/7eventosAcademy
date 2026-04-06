@@ -290,6 +290,7 @@ model Course {
   installmentMonths Int?               @map("installment_months")
   installmentValue  Decimal?           @map("installment_value") @db.Decimal(12, 2)
   installmentStartDate DateTime?       @map("installment_start_date")
+  paymentOptions    Json?              @map("payment_options")
   modality          CourseModality     @default(PRESENTIAL)
   status            CourseStatus       @default(ACTIVE)
   createdAt         DateTime           @default(now()) @map("created_at")
@@ -417,6 +418,8 @@ model Enrollment {
   classId        String           @map("class_id") @db.Uuid
   studentId      String           @map("student_id") @db.Uuid
   institutionId  String           @map("institution_id") @db.Uuid
+  selectedPaymentOptionId String? @map("selected_payment_option_id")
+  selectedPaymentOption Json?     @map("selected_payment_option")
   status         EnrollmentStatus @default(ACTIVE)
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
@@ -428,6 +431,7 @@ model Enrollment {
 
   @@unique([classId, studentId])
   @@index([institutionId], map: "enrollments_institution_idx")
+  @@index([selectedPaymentOptionId], map: "enrollments_selected_payment_option_idx")
   @@map("enrollments")
 }
 
