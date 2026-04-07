@@ -25,6 +25,7 @@ type EnrollmentPaymentOption = {
   installmentCount: number | null;
   installmentAmount: number | null;
   dueDay: number | null;
+  installmentStartDate: string | null;
   note: string | null;
   isPromotional: boolean;
   promotionalSlots: number | null;
@@ -393,6 +394,12 @@ export class EnrollmentsService {
         now.getDate(),
       );
       const base = new Date(input.classStartDate);
+      if (input.selectedPaymentOption.installmentStartDate) {
+        const scheduled = new Date(input.selectedPaymentOption.installmentStartDate);
+        if (!Number.isNaN(scheduled.getTime())) {
+          base.setTime(scheduled.getTime());
+        }
+      }
       const result: Array<{
         dueDate: Date;
         amount: number;
@@ -546,7 +553,6 @@ export class EnrollmentsService {
       where: {
         institutionId: input.institutionId,
         status: 'ACTIVE',
-        selectedPaymentOptionId: input.option.id,
         selectedPaymentOption: {
           path: ['promotionalApplied'],
           equals: true,
@@ -709,6 +715,14 @@ export class EnrollmentsService {
       dueDayRaw === undefined
         ? null
         : Math.min(31, Math.max(1, Math.trunc(dueDayRaw)));
+    const installmentStartDateRaw = String(objectItem.installmentStartDate || '').trim();
+    const installmentStartDate =
+      type === 'INSTALLMENTS' && installmentStartDateRaw
+        ? (() => {
+            const parsed = new Date(installmentStartDateRaw);
+            return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+          })()
+        : null;
     const isPromotional = Boolean(objectItem.isPromotional);
     const promotionalSlots = isPromotional
       ? Math.max(
@@ -808,6 +822,7 @@ export class EnrollmentsService {
       installmentCount,
       installmentAmount,
       dueDay,
+      installmentStartDate,
       note: String(objectItem.note || '').trim() || null,
       isPromotional: hasPromotionalValue,
       promotionalSlots: hasPromotionalValue ? promotionalSlots : null,
@@ -880,6 +895,7 @@ export class EnrollmentsService {
         installmentCount,
         installmentAmount: this.toMoneyValue(installmentAmount),
         dueDay: null,
+        installmentStartDate: null,
         note: null,
         isPromotional: false,
         promotionalSlots: null,
@@ -911,6 +927,7 @@ export class EnrollmentsService {
       installmentCount: null,
       installmentAmount: null,
       dueDay: null,
+      installmentStartDate: null,
       note: null,
       isPromotional: false,
       promotionalSlots: null,

@@ -328,6 +328,34 @@ function paymentOptionSummary(option: NonNullable<CourseCatalogItem['paymentOpti
   return `${method} à vista ${currencyFormatter.format(Number(option.totalAmount || 0))}`;
 }
 
+function paymentOptionDiscountSummary(option: NonNullable<CourseCatalogItem['paymentOptions']>[number]) {
+  const type = String(option.type || '').toUpperCase();
+  if (type === 'INSTALLMENTS') {
+    const count = Number(option.installmentCount || 0) || 1;
+    const installmentAmount =
+      Number(option.discountInstallmentAmount || 0) ||
+      (Number(option.discountTotalAmount || 0) > 0 ? Number(option.discountTotalAmount || 0) / count : 0);
+    return installmentAmount > 0 ? currencyFormatter.format(installmentAmount) : '';
+  }
+  const totalAmount = Number(option.discountTotalAmount || 0);
+  return totalAmount > 0 ? currencyFormatter.format(totalAmount) : '';
+}
+
+function paymentOptionPromotionalDiscountSummary(option: NonNullable<CourseCatalogItem['paymentOptions']>[number]) {
+  const type = String(option.type || '').toUpperCase();
+  if (type === 'INSTALLMENTS') {
+    const count = Number(option.installmentCount || 0) || 1;
+    const installmentAmount =
+      Number(option.promotionalDiscountInstallmentAmount || 0) ||
+      (Number(option.promotionalDiscountTotalAmount || 0) > 0
+        ? Number(option.promotionalDiscountTotalAmount || 0) / count
+        : 0);
+    return installmentAmount > 0 ? currencyFormatter.format(installmentAmount) : '';
+  }
+  const totalAmount = Number(option.promotionalDiscountTotalAmount || 0);
+  return totalAmount > 0 ? currencyFormatter.format(totalAmount) : '';
+}
+
 async function requestWithRetry(input: string, init?: RequestInit) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const response = await fetch(input, init);
@@ -420,6 +448,16 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       setSelectedPaymentOptionId(String(selectedCoursePaymentOptions[0]?.id || ''));
     }
   }, [selectedCourseId, selectedCoursePaymentOptions, selectedPaymentOptionId]);
+
+  useEffect(() => {
+    if (
+      currentStep === 3 &&
+      !selectedCourseId &&
+      error === 'Selecione um curso para concluir o cadastro.'
+    ) {
+      setError('');
+    }
+  }, [currentStep, selectedCourseId, error]);
 
   const loadCourses = async () => {
     setCoursesLoading(true);
@@ -946,7 +984,15 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                           key={course.id}
                           type="button"
                           className={`native-public-course-card ${selected ? 'is-selected' : ''}`}
-                          onClick={() => setSelectedCourseId(course.id)}
+                          onClick={() => {
+                            setSelectedCourseId(course.id);
+                            if (
+                              error === 'Selecione um curso para concluir o cadastro.' ||
+                              error === 'Selecione a forma de pagamento para concluir a matrícula.'
+                            ) {
+                              setError('');
+                            }
+                          }}
                           disabled={loading}
                         >
                           {course.bannerUrl ? (
@@ -1015,6 +1061,11 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                                 onClick={(event) => {
                                   event.preventDefault();
                                   setSelectedPaymentOptionId(optionId);
+                                  if (
+                                    error === 'Selecione a forma de pagamento para concluir a matrícula.'
+                                  ) {
+                                    setError('');
+                                  }
                                 }}
                               >
                                 {selected ? 'Selecionada' : 'Selecionar'}
@@ -1034,6 +1085,9 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                               Number(option.discountDeadlineDay || 0) > 0 ? (
                                 <p>
                                   Valor com desconto até dia {option.discountDeadlineDay}
+                                  {paymentOptionDiscountSummary(option)
+                                    ? `: ${paymentOptionDiscountSummary(option)}`
+                                    : ''}
                                   {option.discountRequiresActiveCrf
                                     ? ' (CRF ativo).'
                                     : '.'}
@@ -1044,6 +1098,9 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                                 <p>
                                   Promoção com desconto até dia{' '}
                                   {option.promotionalDiscountDeadlineDay}
+                                  {paymentOptionPromotionalDiscountSummary(option)
+                                    ? `: ${paymentOptionPromotionalDiscountSummary(option)}`
+                                    : ''}
                                   {option.promotionalDiscountRequiresActiveCrf
                                     ? ' (CRF ativo).'
                                     : '.'}
@@ -1125,4 +1182,3 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     </section>
   );
 }
-

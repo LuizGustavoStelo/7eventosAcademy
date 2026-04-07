@@ -91,6 +91,10 @@ export class CoursePaymentOptionDto {
   dueDay?: number;
 
   @IsOptional()
+  @IsISO8601()
+  installmentStartDate?: string;
+
+  @IsOptional()
   @IsString()
   note?: string;
 

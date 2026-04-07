@@ -21,6 +21,7 @@ type CoursePaymentOption = {
   installmentCount?: number | null;
   installmentAmount?: number | null;
   dueDay?: number | null;
+  installmentStartDate?: string | null;
   note?: string | null;
   isPromotional?: boolean | null;
   promotionalSlots?: number | null;
@@ -51,6 +52,8 @@ type CoursePaymentOptionForm = {
   installmentCount: string;
   installmentAmount: string;
   dueDay: string;
+  installmentStartMode: InstallmentStartMode;
+  installmentStartDate: string;
   note: string;
   isPromotional: boolean;
   promotionalSlots: string;
@@ -173,6 +176,8 @@ function createPaymentOptionForm(
     installmentCount: input?.installmentCount || '12',
     installmentAmount: formatMoneyValue(input?.installmentAmount) || '0,00',
     dueDay: input?.dueDay || '',
+    installmentStartMode: input?.installmentStartMode || 'ON_ENROLLMENT',
+    installmentStartDate: input?.installmentStartDate || '',
     note: input?.note || '',
     isPromotional: input?.isPromotional || false,
     promotionalSlots: input?.promotionalSlots || '20',
@@ -226,6 +231,8 @@ function normalizeCoursePaymentOptions(
         installmentCount,
         installmentAmount,
         dueDay: option.dueDay ?? null,
+        installmentStartDate:
+          type === 'INSTALLMENTS' ? (option.installmentStartDate ?? null) : null,
         note: option.note || '',
         isPromotional: Boolean(option.isPromotional),
         promotionalSlots: option.promotionalSlots ?? null,
@@ -717,6 +724,14 @@ function mapCoursePaymentOptionToForm(
     installmentCount: String(installmentCount),
     installmentAmount: formatMoneyValue(installmentAmount),
     dueDay: option.dueDay ? String(option.dueDay) : '',
+    installmentStartMode:
+      option.type === 'INSTALLMENTS' && option.installmentStartDate
+        ? 'SCHEDULED'
+        : 'ON_ENROLLMENT',
+    installmentStartDate:
+      option.type === 'INSTALLMENTS'
+        ? toDateInputValue(option.installmentStartDate)
+        : '',
     note: option.note || '',
     isPromotional: Boolean(option.isPromotional),
     promotionalSlots: option.promotionalSlots
@@ -920,6 +935,28 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     }
   };
 
+  useEffect(() => {
+    if (form.paymentModel !== 'INSTALLMENTS') return;
+    const installmentValue = parseNumberSafe(form.installmentValue) ?? 0;
+    if (hasPositiveNumber(installmentValue)) return;
+    if (
+      form.installmentStartMode === 'ON_ENROLLMENT' &&
+      !form.installmentStartDate
+    ) {
+      return;
+    }
+    setForm((current) => ({
+      ...current,
+      installmentStartMode: 'ON_ENROLLMENT',
+      installmentStartDate: '',
+    }));
+  }, [
+    form.paymentModel,
+    form.installmentValue,
+    form.installmentStartMode,
+    form.installmentStartDate,
+  ]);
+
   const recalculateInstallment = (priceValue: string, monthsValue: string) => {
     if (form.paymentModel !== 'INSTALLMENTS') return;
 
@@ -1035,6 +1072,10 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       if (parsed !== undefined) return parsed;
       return isEditing ? null : undefined;
     };
+    const standardInstallmentValue = parseNumberSafe(form.installmentValue) ?? 0;
+    const canConfigureStandardInstallmentStart =
+      form.paymentModel === 'INSTALLMENTS' &&
+      hasPositiveNumber(standardInstallmentValue);
 
     const payloadBase = {
       name: cleanName,
@@ -1072,6 +1113,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
             installmentMonths: toNullableInt(form.installmentMonths),
             installmentValue: toNullableMoney(form.installmentValue),
             installmentStartDate:
+              canConfigureStandardInstallmentStart &&
               form.installmentStartMode === 'SCHEDULED'
                 ? form.installmentStartDate
                   ? `${form.installmentStartDate}T00:00:00.000Z`
@@ -1089,7 +1131,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
 
     if (
-      form.paymentModel === 'INSTALLMENTS' &&
+      canConfigureStandardInstallmentStart &&
       form.installmentStartMode === 'SCHEDULED' &&
       !form.installmentStartDate
     ) {
@@ -1106,6 +1148,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       installmentCount?: number;
       installmentAmount?: number;
       dueDay?: number;
+      installmentStartDate?: string;
       note?: string;
       isPromotional: boolean;
       promotionalSlots?: number;
@@ -1142,9 +1185,10 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         type: CoursePaymentOptionType;
         totalAmount: number;
         installmentCount?: number;
-        installmentAmount?: number;
-        dueDay?: number;
-        note?: string;
+      installmentAmount?: number;
+      dueDay?: number;
+      installmentStartDate?: string;
+      note?: string;
         isPromotional: boolean;
         promotionalSlots?: number;
         promotionalTotalAmount?: number;
@@ -1184,6 +1228,20 @@ export function CoursesNative({ token }: CoursesNativeProps) {
           parseNumberSafe(option.installmentAmount) ?? totalAmount / installmentCount;
         payloadOption.installmentCount = installmentCount;
         payloadOption.installmentAmount = installmentAmount;
+
+        const canConfigureOptionInstallmentStart = hasPositiveNumber(installmentAmount);
+        if (
+          canConfigureOptionInstallmentStart &&
+          option.installmentStartMode === 'SCHEDULED'
+        ) {
+          if (!option.installmentStartDate) {
+            setFormError(
+              `Informe a data de início das mensalidades na opção ${index + 1}.`,
+            );
+            return;
+          }
+          payloadOption.installmentStartDate = `${option.installmentStartDate}T00:00:00.000Z`;
+        }
       }
 
       if (option.dueDay.trim()) {
@@ -1846,6 +1904,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       Início das mensalidades
                       <select
                         value={form.installmentStartMode}
+                        disabled={!hasPositiveNumber(parseNumberSafe(form.installmentValue) || 0)}
                         onChange={(event) =>
                           updateForm(
                             'installmentStartMode',
@@ -1856,9 +1915,15 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                         <option value="ON_ENROLLMENT">Na matrícula</option>
                         <option value="SCHEDULED">Agendar início</option>
                       </select>
+                      {!hasPositiveNumber(parseNumberSafe(form.installmentValue) || 0) ? (
+                        <small>
+                          Defina um valor de mensalidade maior que zero para programar o início.
+                        </small>
+                      ) : null}
                     </label>
 
-                    {form.installmentStartMode === 'SCHEDULED' ? (
+                    {hasPositiveNumber(parseNumberSafe(form.installmentValue) || 0) &&
+                    form.installmentStartMode === 'SCHEDULED' ? (
                       <label>
                         Data de início das mensalidades
                         <input
@@ -2053,6 +2118,53 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                   placeholder="Ex.: 10"
                                 />
                               </label>
+
+                              <label>
+                                Início das mensalidades (opção)
+                                <select
+                                  value={option.installmentStartMode}
+                                  disabled={
+                                    !hasPositiveNumber(
+                                      parseNumberSafe(option.installmentAmount) || 0,
+                                    )
+                                  }
+                                  onChange={(event) =>
+                                    updatePaymentOption(
+                                      option.id,
+                                      'installmentStartMode',
+                                      event.target.value as InstallmentStartMode,
+                                    )
+                                  }
+                                >
+                                  <option value="ON_ENROLLMENT">Na matrícula</option>
+                                  <option value="SCHEDULED">Agendar início</option>
+                                </select>
+                                {!hasPositiveNumber(
+                                  parseNumberSafe(option.installmentAmount) || 0,
+                                ) ? (
+                                  <small>
+                                    Informe o valor da parcela para liberar o agendamento.
+                                  </small>
+                                ) : null}
+                              </label>
+
+                              {hasPositiveNumber(parseNumberSafe(option.installmentAmount) || 0) &&
+                              option.installmentStartMode === 'SCHEDULED' ? (
+                                <label>
+                                  Data de início da opção parcelada
+                                  <input
+                                    type="date"
+                                    value={option.installmentStartDate}
+                                    onChange={(event) =>
+                                      updatePaymentOption(
+                                        option.id,
+                                        'installmentStartDate',
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </label>
+                              ) : null}
                             </>
                           ) : null}
 

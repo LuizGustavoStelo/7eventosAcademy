@@ -32,6 +32,7 @@ type NormalizedCoursePaymentOption = {
   installmentCount: number | null;
   installmentAmount: number | null;
   dueDay: number | null;
+  installmentStartDate: string | null;
   note: string | null;
   isPromotional: boolean;
   promotionalSlots: number | null;
@@ -484,6 +485,14 @@ export class CoursesService {
         option.dueDay === undefined || option.dueDay === null
           ? null
           : Math.min(31, Math.max(1, Math.trunc(Number(option.dueDay))));
+      const installmentStartDate =
+        type === CoursePaymentOptionTypeDto.INSTALLMENTS &&
+        option.installmentStartDate
+          ? (() => {
+              const parsed = new Date(option.installmentStartDate);
+              return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+            })()
+          : null;
       const isPromotional = Boolean(option.isPromotional);
       const promotionalSlots = isPromotional
         ? Math.max(1, Math.trunc(Number(option.promotionalSlots ?? 20)))
@@ -582,6 +591,7 @@ export class CoursesService {
         installmentCount,
         installmentAmount,
         dueDay,
+        installmentStartDate,
         note: option.note?.trim() || null,
         isPromotional: hasPromotionalValue,
         promotionalSlots: hasPromotionalValue ? promotionalSlots : null,
@@ -695,6 +705,14 @@ export class CoursesService {
       dueDayRaw === undefined
         ? null
         : Math.min(31, Math.max(1, Math.trunc(dueDayRaw)));
+    const installmentStartDateRaw = String(objectItem.installmentStartDate || '').trim();
+    const installmentStartDate =
+      type === CoursePaymentOptionTypeDto.INSTALLMENTS && installmentStartDateRaw
+        ? (() => {
+            const parsed = new Date(installmentStartDateRaw);
+            return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+          })()
+        : null;
     const isPromotional = Boolean(objectItem.isPromotional);
     const promotionalSlots =
       isPromotional && this.toFiniteNumber(objectItem.promotionalSlots)
@@ -808,6 +826,7 @@ export class CoursesService {
       installmentCount,
       installmentAmount,
       dueDay,
+      installmentStartDate,
       note: String(objectItem.note || '').trim() || null,
       isPromotional: hasPromotionalValue,
       promotionalSlots: hasPromotionalValue ? promotionalSlots : null,
@@ -923,6 +942,7 @@ export class CoursesService {
           installmentCount,
           installmentAmount,
           dueDay: null,
+          installmentStartDate: null,
           note: null,
           isPromotional: false,
           promotionalSlots: null,
@@ -956,6 +976,7 @@ export class CoursesService {
         installmentCount: null,
         installmentAmount: null,
         dueDay: null,
+        installmentStartDate: null,
         note: null,
         isPromotional: false,
         promotionalSlots: null,
