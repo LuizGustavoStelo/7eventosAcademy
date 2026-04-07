@@ -35,6 +35,8 @@ type NormalizedCoursePaymentOption = {
   note: string | null;
   isPromotional: boolean;
   promotionalSlots: number | null;
+  promotionalTotalAmount: number | null;
+  promotionalInstallmentAmount: number | null;
   active: boolean;
   discountEnabled: boolean;
   discountType: CoursePaymentDiscountTypeDto | null;
@@ -462,6 +464,26 @@ export class CoursesService {
       const promotionalSlots = isPromotional
         ? Math.max(1, Math.trunc(Number(option.promotionalSlots ?? 20)))
         : null;
+      const promotionalTotalAmount =
+        isPromotional && option.promotionalTotalAmount !== undefined
+          ? this.normalizeMoneyValue(option.promotionalTotalAmount)
+          : isPromotional
+            ? totalAmount
+            : null;
+      const promotionalInstallmentAmount =
+        isPromotional && type === CoursePaymentOptionTypeDto.INSTALLMENTS
+          ? option.promotionalInstallmentAmount === undefined
+            ? this.normalizeMoneyValue(
+                (promotionalTotalAmount ?? totalAmount) /
+                  Math.max(1, installmentCount || 1),
+              )
+            : this.normalizeMoneyValue(option.promotionalInstallmentAmount)
+          : null;
+      const hasPromotionalValue =
+        isPromotional &&
+        (promotionalTotalAmount ?? 0) > 0 &&
+        (type !== CoursePaymentOptionTypeDto.INSTALLMENTS ||
+          (promotionalInstallmentAmount ?? 0) > 0);
       const discountEnabled = Boolean(option.discountEnabled);
       const discountType = discountEnabled
         ? option.discountType === CoursePaymentDiscountTypeDto.PERCENT
@@ -497,8 +519,13 @@ export class CoursesService {
         installmentAmount,
         dueDay,
         note: option.note?.trim() || null,
-        isPromotional,
-        promotionalSlots,
+        isPromotional: hasPromotionalValue,
+        promotionalSlots: hasPromotionalValue ? promotionalSlots : null,
+        promotionalTotalAmount: hasPromotionalValue ? promotionalTotalAmount : null,
+        promotionalInstallmentAmount:
+          hasPromotionalValue && type === CoursePaymentOptionTypeDto.INSTALLMENTS
+            ? promotionalInstallmentAmount
+            : null,
         active: option.active !== false,
         discountEnabled: discountEnabled && (discountValue ?? 0) > 0,
         discountType: (discountValue ?? 0) > 0 ? discountType : null,
@@ -582,6 +609,27 @@ export class CoursesService {
             Math.trunc(this.toFiniteNumber(objectItem.promotionalSlots) || 1),
           )
       : null;
+    const promotionalTotalAmount =
+      isPromotional && this.toFiniteNumber(objectItem.promotionalTotalAmount) !== undefined
+        ? this.normalizeMoneyValue(
+            this.toFiniteNumber(objectItem.promotionalTotalAmount) ?? 0,
+          )
+        : isPromotional
+          ? totalAmount
+          : null;
+    const promotionalInstallmentAmount =
+      isPromotional && type === CoursePaymentOptionTypeDto.INSTALLMENTS
+        ? this.normalizeMoneyValue(
+            this.toFiniteNumber(objectItem.promotionalInstallmentAmount) ??
+              (promotionalTotalAmount ?? totalAmount) /
+                Math.max(1, installmentCount || 1),
+          )
+        : null;
+    const hasPromotionalValue =
+      isPromotional &&
+      (promotionalTotalAmount ?? 0) > 0 &&
+      (type !== CoursePaymentOptionTypeDto.INSTALLMENTS ||
+        (promotionalInstallmentAmount ?? 0) > 0);
     const discountEnabled = Boolean(objectItem.discountEnabled);
     const discountTypeRaw = String(objectItem.discountType || '').toUpperCase();
     const discountType =
@@ -626,8 +674,13 @@ export class CoursesService {
       installmentAmount,
       dueDay,
       note: String(objectItem.note || '').trim() || null,
-      isPromotional,
-      promotionalSlots,
+      isPromotional: hasPromotionalValue,
+      promotionalSlots: hasPromotionalValue ? promotionalSlots : null,
+      promotionalTotalAmount: hasPromotionalValue ? promotionalTotalAmount : null,
+      promotionalInstallmentAmount:
+        hasPromotionalValue && type === CoursePaymentOptionTypeDto.INSTALLMENTS
+          ? promotionalInstallmentAmount
+          : null,
       active: objectItem.active !== false,
       discountEnabled: discountEnabled && (discountValue ?? 0) > 0,
       discountType: (discountValue ?? 0) > 0 ? discountType : null,
@@ -710,6 +763,8 @@ export class CoursesService {
           note: null,
           isPromotional: false,
           promotionalSlots: null,
+          promotionalTotalAmount: null,
+          promotionalInstallmentAmount: null,
           active: true,
           discountEnabled: false,
           discountType: null,
@@ -734,6 +789,8 @@ export class CoursesService {
         note: null,
         isPromotional: false,
         promotionalSlots: null,
+        promotionalTotalAmount: null,
+        promotionalInstallmentAmount: null,
         active: true,
         discountEnabled: false,
         discountType: null,

@@ -106,6 +106,18 @@ export class CoursePaymentOptionDto {
   promotionalSlots?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  promotionalTotalAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  promotionalInstallmentAmount?: number;
+
+  @IsOptional()
   @Type(() => Boolean)
   @IsBoolean()
   active?: boolean;

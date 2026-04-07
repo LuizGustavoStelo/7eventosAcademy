@@ -24,6 +24,8 @@ type CoursePaymentOption = {
   note?: string | null;
   isPromotional?: boolean | null;
   promotionalSlots?: number | null;
+  promotionalTotalAmount?: number | null;
+  promotionalInstallmentAmount?: number | null;
   active?: boolean | null;
   discountEnabled?: boolean | null;
   discountType?: CoursePaymentDiscountType | null;
@@ -45,6 +47,8 @@ type CoursePaymentOptionForm = {
   note: string;
   isPromotional: boolean;
   promotionalSlots: string;
+  promotionalTotalAmount: string;
+  promotionalInstallmentAmount: string;
   active: boolean;
   discountEnabled: boolean;
   discountType: CoursePaymentDiscountType;
@@ -168,6 +172,8 @@ function createPaymentOptionForm(
     note: input?.note || '',
     isPromotional: input?.isPromotional || false,
     promotionalSlots: input?.promotionalSlots || '20',
+    promotionalTotalAmount: input?.promotionalTotalAmount || '',
+    promotionalInstallmentAmount: input?.promotionalInstallmentAmount || '',
     active: input?.active !== false,
     discountEnabled: input?.discountEnabled || false,
     discountType: input?.discountType || 'FIXED',
@@ -210,6 +216,16 @@ function normalizeCoursePaymentOptions(
         note: option.note || '',
         isPromotional: Boolean(option.isPromotional),
         promotionalSlots: option.promotionalSlots ?? null,
+        promotionalTotalAmount:
+          option.isPromotional && Number(option.promotionalTotalAmount || 0) > 0
+            ? Number(option.promotionalTotalAmount || 0)
+            : null,
+        promotionalInstallmentAmount:
+          option.type === 'INSTALLMENTS' &&
+          option.isPromotional &&
+          Number(option.promotionalInstallmentAmount || 0) > 0
+            ? Number(option.promotionalInstallmentAmount || 0)
+            : null,
         active: option.active !== false,
         discountEnabled:
           Boolean(option.discountEnabled) && Number(option.discountValue || 0) > 0,
@@ -253,6 +269,8 @@ function formatPaymentOptionLabel(option: {
   installmentAmount?: number | null;
   isPromotional?: boolean | null;
   promotionalSlots?: number | null;
+  promotionalTotalAmount?: number | null;
+  promotionalInstallmentAmount?: number | null;
   dueDay?: number | null;
   discountEnabled?: boolean | null;
   discountType?: CoursePaymentDiscountType | null;
@@ -267,27 +285,42 @@ function formatPaymentOptionLabel(option: {
   const installmentCount = Number(option.installmentCount || 0);
   const installmentAmount = Number(option.installmentAmount || 0);
   const promotionalSlots = Number(option.promotionalSlots || 0);
+  const promotionalTotalAmount = Number(option.promotionalTotalAmount || 0);
+  const promotionalInstallmentAmount = Number(option.promotionalInstallmentAmount || 0);
   const discountEnabled = Boolean(option.discountEnabled);
   const discountType = option.discountType === 'PERCENT' ? 'PERCENT' : 'FIXED';
   const discountValue = Number(option.discountValue || 0);
   const discountDeadlineDay = Number(option.discountDeadlineDay || 0);
   const discountRequiresActiveCrf = Boolean(option.discountRequiresActiveCrf);
   const discountAppliesTo = option.discountAppliesTo === 'TOTAL' ? 'TOTAL' : 'INSTALLMENT';
-  const promoSuffix =
-    option.isPromotional && promotionalSlots > 0
-      ? ` • Promo (${promotionalSlots} primeiros)`
-      : option.isPromotional
-        ? ' • Promo'
-        : '';
+
+  const promoSuffix = (() => {
+    if (!option.isPromotional) return '';
+    const promoAmount =
+      type === 'INSTALLMENTS'
+        ? promotionalInstallmentAmount > 0
+          ? formatCurrency(promotionalInstallmentAmount)
+          : promotionalTotalAmount > 0
+            ? formatCurrency(promotionalTotalAmount)
+            : ''
+        : promotionalTotalAmount > 0
+          ? formatCurrency(promotionalTotalAmount)
+          : '';
+    const slotsLabel = promotionalSlots > 0 ? String(promotionalSlots) + ' vagas' : 'promo';
+    return promoAmount
+      ? ' ? Promo (' + slotsLabel + '): ' + promoAmount
+      : ' ? Promo (' + slotsLabel + ')';
+  })();
+
   const discountSuffix = (() => {
     if (!discountEnabled || discountValue <= 0) return '';
     const targetAmount =
       type === 'INSTALLMENTS' && discountAppliesTo === 'INSTALLMENT'
-        ? (installmentAmount > 0
-            ? installmentAmount
-            : totalAmount > 0 && installmentCount > 0
-              ? totalAmount / installmentCount
-              : 0)
+        ? installmentAmount > 0
+          ? installmentAmount
+          : totalAmount > 0 && installmentCount > 0
+            ? totalAmount / installmentCount
+            : 0
         : totalAmount;
     if (targetAmount <= 0) return '';
     const discountedAmount = calculateDiscountedValue({
@@ -295,11 +328,11 @@ function formatPaymentOptionLabel(option: {
       discountType,
       discountValue,
     });
-    const parts: string[] = [`até dia ${discountDeadlineDay > 0 ? discountDeadlineDay : '?'}`];
+    const parts = ['at? dia ' + (discountDeadlineDay > 0 ? String(discountDeadlineDay) : '?')];
     if (discountRequiresActiveCrf) {
       parts.push('CRF ativo');
     }
-    return ` • ${formatCurrency(discountedAmount)} (${parts.join(' / ')})`;
+    return ' ? ' + formatCurrency(discountedAmount) + ' (' + parts.join(' / ') + ')';
   })();
 
   if (type === 'INSTALLMENTS') {
@@ -310,12 +343,11 @@ function formatPaymentOptionLabel(option: {
         : totalAmount > 0
           ? totalAmount / safeCount
           : 0;
-    return `${paymentMethodLabel[method]} ${safeCount}x de ${formatCurrency(safeInstallmentAmount)}${promoSuffix}${discountSuffix}`;
+    return paymentMethodLabel[method] + ' ' + String(safeCount) + 'x de ' + formatCurrency(safeInstallmentAmount) + promoSuffix + discountSuffix;
   }
 
-  return `${paymentMethodLabel[method]} à vista ${formatCurrency(totalAmount)}${promoSuffix}${discountSuffix}`;
+  return paymentMethodLabel[method] + ' ? vista ' + formatCurrency(totalAmount) + promoSuffix + discountSuffix;
 }
-
 function buildLegacyPaymentOptionFromCourse(course: Course): CoursePaymentOption {
   const price = Number(course.price || 0);
   const paymentModel = (course.paymentModel as CoursePaymentModel) || 'CASH';
@@ -352,10 +384,13 @@ function buildLegacyPaymentOptionFromCourse(course: Course): CoursePaymentOption
 function buildPdfTemplatePaymentOptions(): CoursePaymentOptionForm[] {
   return [
     createPaymentOptionForm({
-      title: 'À vista (tabela padrão)',
+      title: '? vista (Pix)',
       method: 'PIX',
       type: 'CASH',
-      totalAmount: '11760',
+      totalAmount: '10800',
+      isPromotional: true,
+      promotionalSlots: '20',
+      promotionalTotalAmount: '9996',
     }),
     createPaymentOptionForm({
       title: 'Boleto 12x (venc. dia 10)',
@@ -365,6 +400,10 @@ function buildPdfTemplatePaymentOptions(): CoursePaymentOptionForm[] {
       installmentCount: '12',
       installmentAmount: '1152',
       dueDay: '10',
+      isPromotional: true,
+      promotionalSlots: '20',
+      promotionalTotalAmount: '11760',
+      promotionalInstallmentAmount: '980',
     }),
     createPaymentOptionForm({
       title: 'Boleto 12x (dia 7 com CRF ativo)',
@@ -375,6 +414,10 @@ function buildPdfTemplatePaymentOptions(): CoursePaymentOptionForm[] {
       installmentAmount: '1117',
       dueDay: '7',
       note: 'Valor para pagamento no dia 7 com CRF ativo.',
+      isPromotional: true,
+      promotionalSlots: '20',
+      promotionalTotalAmount: '11400',
+      promotionalInstallmentAmount: '950',
     }),
     createPaymentOptionForm({
       title: 'Boleto 18x (venc. dia 10)',
@@ -384,6 +427,10 @@ function buildPdfTemplatePaymentOptions(): CoursePaymentOptionForm[] {
       installmentCount: '18',
       installmentAmount: '844.91',
       dueDay: '10',
+      isPromotional: true,
+      promotionalSlots: '20',
+      promotionalTotalAmount: '12924',
+      promotionalInstallmentAmount: '718',
     }),
     createPaymentOptionForm({
       title: 'Boleto 18x (dia 7 com CRF ativo)',
@@ -394,78 +441,22 @@ function buildPdfTemplatePaymentOptions(): CoursePaymentOptionForm[] {
       installmentAmount: '819.56',
       dueDay: '7',
       note: 'Valor para pagamento no dia 7 com CRF ativo.',
+      isPromotional: true,
+      promotionalSlots: '20',
+      promotionalTotalAmount: '12546',
+      promotionalInstallmentAmount: '697',
     }),
     createPaymentOptionForm({
-      title: 'Cartão de crédito 12x',
+      title: 'Cart?o de cr?dito 12x',
       method: 'CREDIT_CARD',
       type: 'INSTALLMENTS',
       totalAmount: '12504',
       installmentCount: '12',
       installmentAmount: '1042',
-    }),
-    createPaymentOptionForm({
-      title: 'Promoção (20 primeiros) - À vista',
-      method: 'PIX',
-      type: 'CASH',
-      totalAmount: '9996',
       isPromotional: true,
       promotionalSlots: '20',
-    }),
-    createPaymentOptionForm({
-      title: 'Promoção (20 primeiros) - Boleto 12x dia 10',
-      method: 'BANK_SLIP',
-      type: 'INSTALLMENTS',
-      totalAmount: '11760',
-      installmentCount: '12',
-      installmentAmount: '980',
-      dueDay: '10',
-      isPromotional: true,
-      promotionalSlots: '20',
-    }),
-    createPaymentOptionForm({
-      title: 'Promoção (20 primeiros) - Boleto 12x dia 7 CRF ativo',
-      method: 'BANK_SLIP',
-      type: 'INSTALLMENTS',
-      totalAmount: '11400',
-      installmentCount: '12',
-      installmentAmount: '950',
-      dueDay: '7',
-      isPromotional: true,
-      promotionalSlots: '20',
-      note: 'Valor para pagamento no dia 7 com CRF ativo.',
-    }),
-    createPaymentOptionForm({
-      title: 'Promoção (20 primeiros) - Boleto 18x dia 10',
-      method: 'BANK_SLIP',
-      type: 'INSTALLMENTS',
-      totalAmount: '12924',
-      installmentCount: '18',
-      installmentAmount: '718',
-      dueDay: '10',
-      isPromotional: true,
-      promotionalSlots: '20',
-    }),
-    createPaymentOptionForm({
-      title: 'Promoção (20 primeiros) - Boleto 18x dia 7 CRF ativo',
-      method: 'BANK_SLIP',
-      type: 'INSTALLMENTS',
-      totalAmount: '12546',
-      installmentCount: '18',
-      installmentAmount: '697',
-      dueDay: '7',
-      isPromotional: true,
-      promotionalSlots: '20',
-      note: 'Valor para pagamento no dia 7 com CRF ativo.',
-    }),
-    createPaymentOptionForm({
-      title: 'Promoção (20 primeiros) - Cartão 12x',
-      method: 'CREDIT_CARD',
-      type: 'INSTALLMENTS',
-      totalAmount: '10800',
-      installmentCount: '12',
-      installmentAmount: '900',
-      isPromotional: true,
-      promotionalSlots: '20',
+      promotionalTotalAmount: '10800',
+      promotionalInstallmentAmount: '900',
     }),
   ];
 }
@@ -594,6 +585,16 @@ function mapCoursePaymentOptionToForm(
     promotionalSlots: option.promotionalSlots
       ? String(option.promotionalSlots)
       : '20',
+    promotionalTotalAmount:
+      option.isPromotional && Number(option.promotionalTotalAmount || 0) > 0
+        ? String(option.promotionalTotalAmount)
+        : '',
+    promotionalInstallmentAmount:
+      option.type === 'INSTALLMENTS' &&
+      option.isPromotional &&
+      Number(option.promotionalInstallmentAmount || 0) > 0
+        ? String(option.promotionalInstallmentAmount)
+        : '',
     active: option.active !== false,
     discountEnabled:
       Boolean(option.discountEnabled) && Number(option.discountValue || 0) > 0,
@@ -920,6 +921,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       note?: string;
       isPromotional: boolean;
       promotionalSlots?: number;
+      promotionalTotalAmount?: number;
+      promotionalInstallmentAmount?: number;
       active: boolean;
       discountEnabled?: boolean;
       discountType?: CoursePaymentDiscountType;
@@ -949,6 +952,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         note?: string;
         isPromotional: boolean;
         promotionalSlots?: number;
+        promotionalTotalAmount?: number;
+        promotionalInstallmentAmount?: number;
         active: boolean;
         discountEnabled?: boolean;
         discountType?: CoursePaymentDiscountType;
@@ -995,6 +1000,24 @@ export function CoursesNative({ token }: CoursesNativeProps) {
           return;
         }
         payloadOption.promotionalSlots = promotionalSlots;
+        const promotionalTotalAmount = parseNumberSafe(option.promotionalTotalAmount);
+        if (!promotionalTotalAmount || promotionalTotalAmount <= 0) {
+          setFormError(`Informe o valor total promocional da opção ${index + 1}.`);
+          return;
+        }
+        payloadOption.promotionalTotalAmount = promotionalTotalAmount;
+
+        if (option.type === 'INSTALLMENTS') {
+          const installmentCount = parseIntSafe(option.installmentCount) ?? 1;
+          const promotionalInstallmentAmount =
+            parseNumberSafe(option.promotionalInstallmentAmount) ??
+            promotionalTotalAmount / installmentCount;
+          if (!promotionalInstallmentAmount || promotionalInstallmentAmount <= 0) {
+            setFormError(`Informe o valor da parcela promocional da opção ${index + 1}.`);
+            return;
+          }
+          payloadOption.promotionalInstallmentAmount = promotionalInstallmentAmount;
+        }
       }
 
       if (option.note.trim()) {
@@ -1159,6 +1182,9 @@ export function CoursesNative({ token }: CoursesNativeProps) {
             dueDay: parseIntSafe(option.dueDay) || null,
             isPromotional: option.isPromotional,
             promotionalSlots: parseIntSafe(option.promotionalSlots),
+            promotionalTotalAmount: parseNumberSafe(option.promotionalTotalAmount) || 0,
+            promotionalInstallmentAmount:
+              parseNumberSafe(option.promotionalInstallmentAmount) || 0,
             discountEnabled: option.discountEnabled,
             discountType: option.discountType,
             discountValue: parseNumberSafe(option.discountValue) || 0,
@@ -1350,7 +1376,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       ) : null}
 
       {modalOpen ? (
-        <div className="native-modal-backdrop" onClick={() => setModalOpen(false)}>
+        <div className="native-modal-backdrop">
           <section className="native-modal native-course-modal" onClick={(event) => event.stopPropagation()}>
             <header>
               <h3>{form.id ? 'Editar curso' : 'Novo curso acadêmico'}</h3>
@@ -1740,9 +1766,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               <option value="NO">Não</option>
                             </select>
                           </label>
-
                           <label>
-                            É opção promocional?
+                            Tem valor promocional?
                             <select
                               value={option.isPromotional ? 'YES' : 'NO'}
                               onChange={(event) =>
@@ -1759,22 +1784,60 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                           </label>
 
                           {option.isPromotional ? (
-                            <label>
-                              Limite de vagas promocionais
-                              <input
-                                type="number"
-                                min={1}
-                                step={1}
-                                value={option.promotionalSlots}
-                                onChange={(event) =>
-                                  updatePaymentOption(
-                                    option.id,
-                                    'promotionalSlots',
-                                    event.target.value,
-                                  )
-                                }
-                              />
-                            </label>
+                            <>
+                              <label>
+                                Limite de vagas promocionais
+                                <input
+                                  type="number"
+                                  min={1}
+                                  step={1}
+                                  value={option.promotionalSlots}
+                                  onChange={(event) =>
+                                    updatePaymentOption(
+                                      option.id,
+                                      'promotionalSlots',
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
+
+                              <label>
+                                Valor total promocional (R$)
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  value={option.promotionalTotalAmount}
+                                  onChange={(event) =>
+                                    updatePaymentOption(
+                                      option.id,
+                                      'promotionalTotalAmount',
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
+
+                              {option.type === 'INSTALLMENTS' ? (
+                                <label>
+                                  Valor da parcela promocional (R$)
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={option.promotionalInstallmentAmount}
+                                    onChange={(event) =>
+                                      updatePaymentOption(
+                                        option.id,
+                                        'promotionalInstallmentAmount',
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </label>
+                              ) : null}
+                            </>
                           ) : null}
 
 
@@ -1791,7 +1854,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                 )
                               }
                             >
-                              <option value="NO">N?o</option>
+                              <option value="NO">Não</option>
                               <option value="YES">Sim</option>
                             </select>
                           </label>
@@ -1834,7 +1897,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               </label>
 
                               <label>
-                                Pagando at? dia
+                                Pagando até dia
                                 <input
                                   type="number"
                                   min={1}
@@ -2027,4 +2090,3 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     </section>
   );
 }
-

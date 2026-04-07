@@ -28,6 +28,9 @@ type EnrollmentPaymentOption = {
   note: string | null;
   isPromotional: boolean;
   promotionalSlots: number | null;
+  promotionalTotalAmount: number | null;
+  promotionalInstallmentAmount: number | null;
+  promotionalApplied?: boolean;
   active: boolean;
   discountEnabled: boolean;
   discountType: 'FIXED' | 'PERCENT' | null;
@@ -481,7 +484,7 @@ export class EnrollmentsService {
 
     if (availableOptions.length === 0) {
       throw new BadRequestException(
-        'Este curso não possui opções de pagamento ativas.',
+        'Este curso n?o possui op??es de pagamento ativas.',
       );
     }
 
@@ -490,56 +493,36 @@ export class EnrollmentsService {
         (option) => option.id === input.requestedPaymentOptionId,
       );
       if (!requestedOption) {
-        throw new BadRequestException('Opção de pagamento inválida para este curso.');
+        throw new BadRequestException('Op??o de pagamento inv?lida para este curso.');
       }
 
-      await this.ensurePromotionalOptionAvailability({
+      const promotionalApplied = await this.isPromotionalOptionAvailable({
         tx: input.tx,
         institutionId: input.institutionId,
         courseId: input.courseId,
         option: requestedOption,
       });
-      return requestedOption;
+      return this.resolveOptionWithPromotion(requestedOption, promotionalApplied);
     }
 
-    const promotionalOptions = availableOptions.filter(
-      (option) => option.isPromotional,
-    );
-    promotionalOptions.sort((a, b) => a.totalAmount - b.totalAmount);
-
-    for (const option of promotionalOptions) {
-      const available = await this.isPromotionalOptionAvailable({
+    const resolvedOptions: EnrollmentPaymentOption[] = [];
+    for (const option of availableOptions) {
+      const promotionalApplied = await this.isPromotionalOptionAvailable({
         tx: input.tx,
         institutionId: input.institutionId,
         courseId: input.courseId,
         option,
       });
-      if (available) return option;
+      resolvedOptions.push(this.resolveOptionWithPromotion(option, promotionalApplied));
     }
 
-    const nonPromotionalOption = availableOptions.find(
-      (option) => !option.isPromotional,
-    );
-    if (nonPromotionalOption) return nonPromotionalOption;
+    resolvedOptions.sort((a, b) => {
+      const left = this.resolveOptionTotalForSorting(a);
+      const right = this.resolveOptionTotalForSorting(b);
+      return left - right;
+    });
 
-    throw new BadRequestException(
-      'As opções promocionais deste curso atingiram o limite de inscrições.',
-    );
-  }
-
-  private async ensurePromotionalOptionAvailability(input: {
-    tx: Prisma.TransactionClient;
-    institutionId: string;
-    courseId: string;
-    option: EnrollmentPaymentOption;
-  }) {
-    if (!input.option.isPromotional) return;
-    const available = await this.isPromotionalOptionAvailable(input);
-    if (available) return;
-
-    throw new BadRequestException(
-      'O limite desta opção promocional já foi atingido.',
-    );
+    return resolvedOptions[0];
   }
 
   private async isPromotionalOptionAvailable(input: {
@@ -557,6 +540,10 @@ export class EnrollmentsService {
         institutionId: input.institutionId,
         status: 'ACTIVE',
         selectedPaymentOptionId: input.option.id,
+        selectedPaymentOption: {
+          path: ['promotionalApplied'],
+          equals: true,
+        },
         schoolClass: {
           courseId: input.courseId,
         },
@@ -564,6 +551,56 @@ export class EnrollmentsService {
     });
 
     return used < slots;
+  }
+
+  private resolveOptionWithPromotion(
+    option: EnrollmentPaymentOption,
+    promotionalApplied: boolean,
+  ): EnrollmentPaymentOption {
+    if (!promotionalApplied || !option.isPromotional) {
+      return {
+        ...option,
+        promotionalApplied: false,
+      };
+    }
+
+    if (option.type === 'INSTALLMENTS') {
+      const installmentCount = Math.max(1, Number(option.installmentCount ?? 1));
+      const promotionalInstallmentAmount = this.toMoneyValue(
+        option.promotionalInstallmentAmount ?? option.installmentAmount ?? 0,
+      );
+      const promotionalTotalAmount = this.toMoneyValue(
+        option.promotionalTotalAmount ??
+          promotionalInstallmentAmount * installmentCount,
+      );
+      return {
+        ...option,
+        totalAmount: promotionalTotalAmount,
+        installmentAmount: promotionalInstallmentAmount,
+        promotionalApplied: true,
+      };
+    }
+
+    return {
+      ...option,
+      totalAmount: this.toMoneyValue(
+        option.promotionalTotalAmount ?? option.totalAmount,
+      ),
+      promotionalApplied: true,
+    };
+  }
+
+  private resolveOptionTotalForSorting(option: EnrollmentPaymentOption): number {
+    const total = Number(option.totalAmount ?? 0);
+    if (Number.isFinite(total) && total > 0) return total;
+    if (option.type === 'INSTALLMENTS') {
+      const months = Math.max(1, Number(option.installmentCount ?? 1));
+      const installment = Number(option.installmentAmount ?? 0);
+      if (Number.isFinite(installment) && installment > 0) {
+        return this.toMoneyValue(installment * months);
+      }
+    }
+    return Number.MAX_SAFE_INTEGER;
   }
 
   private normalizeCoursePaymentOptionsForEnrollment(course: {
@@ -631,6 +668,23 @@ export class EnrollmentsService {
           Math.trunc(this.toFiniteNumber(objectItem.promotionalSlots) ?? 20),
         )
       : null;
+    const promotionalTotalAmount =
+      isPromotional && this.toFiniteNumber(objectItem.promotionalTotalAmount) !== undefined
+        ? this.toMoneyValue(this.toFiniteNumber(objectItem.promotionalTotalAmount) ?? 0)
+        : isPromotional
+          ? totalAmount
+          : null;
+    const promotionalInstallmentAmount =
+      isPromotional && type === 'INSTALLMENTS'
+        ? this.toMoneyValue(
+            this.toFiniteNumber(objectItem.promotionalInstallmentAmount) ??
+              (promotionalTotalAmount ?? totalAmount) / Math.max(1, installmentCount || 1),
+          )
+        : null;
+    const hasPromotionalValue =
+      isPromotional &&
+      (promotionalTotalAmount ?? 0) > 0 &&
+      (type !== 'INSTALLMENTS' || (promotionalInstallmentAmount ?? 0) > 0);
     const discountEnabled = Boolean(objectItem.discountEnabled);
     const discountTypeRaw = String(objectItem.discountType || '').toUpperCase();
     const discountType =
@@ -669,8 +723,13 @@ export class EnrollmentsService {
       installmentAmount,
       dueDay,
       note: String(objectItem.note || '').trim() || null,
-      isPromotional,
-      promotionalSlots,
+      isPromotional: hasPromotionalValue,
+      promotionalSlots: hasPromotionalValue ? promotionalSlots : null,
+      promotionalTotalAmount: hasPromotionalValue ? promotionalTotalAmount : null,
+      promotionalInstallmentAmount:
+        hasPromotionalValue && type === 'INSTALLMENTS'
+          ? promotionalInstallmentAmount
+          : null,
       active: objectItem.active !== false,
       discountEnabled: discountEnabled && (discountValue ?? 0) > 0,
       discountType: (discountValue ?? 0) > 0 ? discountType : null,
@@ -710,6 +769,8 @@ export class EnrollmentsService {
         note: null,
         isPromotional: false,
         promotionalSlots: null,
+        promotionalTotalAmount: null,
+        promotionalInstallmentAmount: null,
         active: true,
         discountEnabled: false,
         discountType: null,
@@ -732,6 +793,8 @@ export class EnrollmentsService {
       note: null,
       isPromotional: false,
       promotionalSlots: null,
+      promotionalTotalAmount: null,
+      promotionalInstallmentAmount: null,
       active: true,
       discountEnabled: false,
       discountType: null,
