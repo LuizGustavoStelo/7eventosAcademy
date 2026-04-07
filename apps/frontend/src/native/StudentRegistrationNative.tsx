@@ -78,10 +78,10 @@ type PasswordStrength = {
 };
 
 const steps = [
-  { title: 'Identificação', description: 'Dados pessoais e documentação' },
+  { title: 'Identificação', description: 'Dados pessoais, documentação e endereço' },
   { title: 'Formação', description: 'Filiação e graduação' },
   { title: 'Profissional', description: 'Empresa, cargo e acesso' },
-  { title: 'Matrícula', description: 'Endereço e curso no IES' },
+  { title: 'Matrícula', description: 'Curso no IES' },
 ];
 
 const maritalStatusOptions = [
@@ -466,6 +466,8 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     if (!isValidBirthDate(birthDate)) return 'Informe uma data de nascimento válida no formato DD/MM/AAAA.';
     if (!birthCity.trim()) return 'Informe a cidade em que nasceu.';
     if (!maritalStatus) return 'Selecione o estado civil.';
+    if (!isValidZipCode(zipCode)) return 'Informe um CEP válido com 8 dígitos.';
+    if (!address.trim()) return 'Informe o endereço completo.';
     return '';
   };
 
@@ -488,8 +490,6 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   };
 
   const validateStepFour = () => {
-    if (!isValidZipCode(zipCode)) return 'Informe um CEP válido com 8 dígitos.';
-    if (!address.trim()) return 'Informe o endereço completo.';
     if (coursesLoading) return 'Aguarde o carregamento dos cursos.';
     if (!selectedCourseId) return 'Selecione um curso para concluir o cadastro.';
     if (selectedCoursePaymentOptions.length > 0 && !selectedPaymentOptionId) {
@@ -637,7 +637,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       <article className="native-student-register-card">
         <header>
           <h1>Formulário de matrícula</h1>
-          <p>Preencha cada etapa com aten??o para concluir seu cadastro de aluno.</p>
+          <p>Preencha cada etapa com atenção para concluir seu cadastro de aluno.</p>
         </header>
 
         {error ? <p className="native-error">{error}</p> : null}
@@ -737,7 +737,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               </label>
 
               <label>
-                Ã“rg?o expedidor *
+                Órgão expedidor *
                 <input
                   type="text"
                   value={issuingAuthority}
@@ -786,6 +786,29 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                   ))}
                 </select>
               </label>
+
+              <label>
+                CEP *
+                <input
+                  type="text"
+                  value={zipCode}
+                  onChange={(event) => setZipCode(formatZipCode(event.target.value))}
+                  disabled={loading}
+                  inputMode="numeric"
+                  placeholder="00000-000"
+                />
+              </label>
+
+              <label className="full">
+                Endereço *
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(event) => setAddress(normalizeTextInput(event.target.value))}
+                  disabled={loading}
+                  placeholder="Rua, número, bairro e complemento"
+                />
+              </label>
             </>
           ) : null}
 
@@ -814,7 +837,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               </label>
 
               <label>
-                Gradua??o *
+                Graduação *
                 <input
                   type="text"
                   value={graduation}
@@ -891,29 +914,6 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
           {currentStep === 3 ? (
             <>
-              <label>
-                CEP *
-                <input
-                  type="text"
-                  value={zipCode}
-                  onChange={(event) => setZipCode(formatZipCode(event.target.value))}
-                  disabled={loading}
-                  inputMode="numeric"
-                  placeholder="00000-000"
-                />
-              </label>
-
-              <label className="full">
-                Endereço *
-                <input
-                  type="text"
-                  value={address}
-                  onChange={(event) => setAddress(normalizeTextInput(event.target.value))}
-                  disabled={loading}
-                  placeholder="Rua, número, bairro e complemento"
-                />
-              </label>
-
               <section className="native-student-register-courses full" aria-label="Escolha do curso">
                 <header className="native-student-register-courses-header">
                   <h3>Curso no IES</h3>
@@ -1093,7 +1093,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               Digite o código de 6 dígitos enviado para <strong>{pendingVerificationEmail}</strong>.
             </p>
             <label>
-              C?digo de confirmação
+              Código de confirmação
               <input
                 type="text"
                 value={verificationCode}
