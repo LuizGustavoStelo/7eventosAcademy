@@ -39,11 +39,18 @@ type NormalizedCoursePaymentOption = {
   promotionalInstallmentAmount: number | null;
   active: boolean;
   discountEnabled: boolean;
+  discountTotalAmount: number | null;
+  discountInstallmentAmount: number | null;
   discountType: CoursePaymentDiscountTypeDto | null;
   discountValue: number | null;
   discountDeadlineDay: number | null;
   discountRequiresActiveCrf: boolean;
   discountAppliesTo: CoursePaymentDiscountAppliesToDto | null;
+  promotionalDiscountEnabled: boolean;
+  promotionalDiscountTotalAmount: number | null;
+  promotionalDiscountInstallmentAmount: number | null;
+  promotionalDiscountDeadlineDay: number | null;
+  promotionalDiscountRequiresActiveCrf: boolean;
 };
 
 @Injectable()
@@ -485,6 +492,19 @@ export class CoursesService {
         (type !== CoursePaymentOptionTypeDto.INSTALLMENTS ||
           (promotionalInstallmentAmount ?? 0) > 0);
       const discountEnabled = Boolean(option.discountEnabled);
+      const discountTotalAmount =
+        discountEnabled && option.discountTotalAmount !== undefined
+          ? this.normalizeMoneyValue(option.discountTotalAmount)
+          : null;
+      const discountInstallmentAmount =
+        discountEnabled && type === CoursePaymentOptionTypeDto.INSTALLMENTS
+          ? option.discountInstallmentAmount === undefined
+            ? this.normalizeMoneyValue(
+                (discountTotalAmount ?? totalAmount) /
+                  Math.max(1, installmentCount || 1),
+              )
+            : this.normalizeMoneyValue(option.discountInstallmentAmount)
+          : null;
       const discountType = discountEnabled
         ? option.discountType === CoursePaymentDiscountTypeDto.PERCENT
           ? CoursePaymentDiscountTypeDto.PERCENT
@@ -502,6 +522,33 @@ export class CoursesService {
           ? CoursePaymentDiscountAppliesToDto.TOTAL
           : CoursePaymentDiscountAppliesToDto.INSTALLMENT
         : null;
+      const hasDiscountValue = (discountValue ?? 0) > 0;
+      const hasDiscountAmount = (discountTotalAmount ?? 0) > 0;
+      const hasAnyDiscount = discountEnabled && (hasDiscountAmount || hasDiscountValue);
+      const promotionalDiscountEnabled =
+        isPromotional && Boolean(option.promotionalDiscountEnabled);
+      const promotionalDiscountTotalAmount =
+        promotionalDiscountEnabled &&
+        option.promotionalDiscountTotalAmount !== undefined
+          ? this.normalizeMoneyValue(option.promotionalDiscountTotalAmount)
+          : null;
+      const promotionalDiscountInstallmentAmount =
+        promotionalDiscountEnabled &&
+        type === CoursePaymentOptionTypeDto.INSTALLMENTS
+          ? option.promotionalDiscountInstallmentAmount === undefined
+            ? this.normalizeMoneyValue(
+                (promotionalDiscountTotalAmount ?? promotionalTotalAmount ?? totalAmount) /
+                  Math.max(1, installmentCount || 1),
+              )
+            : this.normalizeMoneyValue(option.promotionalDiscountInstallmentAmount)
+          : null;
+      const promotionalDiscountDeadlineDay =
+        promotionalDiscountEnabled && option.promotionalDiscountDeadlineDay !== undefined
+          ? Math.min(
+              31,
+              Math.max(1, Math.trunc(Number(option.promotionalDiscountDeadlineDay))),
+            )
+          : null;
 
       return {
         id: option.id?.trim() || `payment-option-${index + 1}`,
@@ -527,15 +574,45 @@ export class CoursesService {
             ? promotionalInstallmentAmount
             : null,
         active: option.active !== false,
-        discountEnabled: discountEnabled && (discountValue ?? 0) > 0,
-        discountType: (discountValue ?? 0) > 0 ? discountType : null,
-        discountValue: (discountValue ?? 0) > 0 ? discountValue : null,
-        discountDeadlineDay: (discountValue ?? 0) > 0 ? discountDeadlineDay : null,
+        discountEnabled: hasAnyDiscount,
+        discountTotalAmount:
+          discountEnabled && (discountTotalAmount ?? 0) > 0
+            ? discountTotalAmount
+            : null,
+        discountInstallmentAmount:
+          discountEnabled &&
+          type === CoursePaymentOptionTypeDto.INSTALLMENTS &&
+          (discountInstallmentAmount ?? 0) > 0
+            ? discountInstallmentAmount
+            : null,
+        discountType: hasDiscountValue ? discountType : null,
+        discountValue: hasDiscountValue ? discountValue : null,
+        discountDeadlineDay: hasAnyDiscount ? discountDeadlineDay : null,
         discountRequiresActiveCrf:
-          discountEnabled && (discountValue ?? 0) > 0
+          hasAnyDiscount
             ? Boolean(option.discountRequiresActiveCrf)
             : false,
-        discountAppliesTo: (discountValue ?? 0) > 0 ? discountAppliesTo : null,
+        discountAppliesTo: hasAnyDiscount ? discountAppliesTo : null,
+        promotionalDiscountEnabled:
+          promotionalDiscountEnabled && (promotionalDiscountTotalAmount ?? 0) > 0,
+        promotionalDiscountTotalAmount:
+          promotionalDiscountEnabled && (promotionalDiscountTotalAmount ?? 0) > 0
+            ? promotionalDiscountTotalAmount
+            : null,
+        promotionalDiscountInstallmentAmount:
+          promotionalDiscountEnabled &&
+          type === CoursePaymentOptionTypeDto.INSTALLMENTS &&
+          (promotionalDiscountInstallmentAmount ?? 0) > 0
+            ? promotionalDiscountInstallmentAmount
+            : null,
+        promotionalDiscountDeadlineDay:
+          promotionalDiscountEnabled && (promotionalDiscountTotalAmount ?? 0) > 0
+            ? promotionalDiscountDeadlineDay
+            : null,
+        promotionalDiscountRequiresActiveCrf:
+          promotionalDiscountEnabled && (promotionalDiscountTotalAmount ?? 0) > 0
+            ? Boolean(option.promotionalDiscountRequiresActiveCrf)
+            : false,
       };
     });
   }
@@ -655,6 +732,47 @@ export class CoursesService {
         : discountEnabled
           ? CoursePaymentDiscountAppliesToDto.INSTALLMENT
           : null;
+    const discountTotalAmount =
+      discountEnabled && this.toFiniteNumber(objectItem.discountTotalAmount) !== undefined
+        ? this.normalizeMoneyValue(
+            this.toFiniteNumber(objectItem.discountTotalAmount) ?? 0,
+          )
+        : null;
+    const discountInstallmentAmount =
+      discountEnabled && type === CoursePaymentOptionTypeDto.INSTALLMENTS
+        ? this.normalizeMoneyValue(
+            this.toFiniteNumber(objectItem.discountInstallmentAmount) ??
+              (discountTotalAmount ?? totalAmount) /
+                Math.max(1, installmentCount || 1),
+          )
+        : null;
+    const hasDiscountValue = (discountValue ?? 0) > 0;
+    const hasDiscountAmount = (discountTotalAmount ?? 0) > 0;
+    const hasAnyDiscount = discountEnabled && (hasDiscountAmount || hasDiscountValue);
+    const promotionalDiscountEnabled =
+      isPromotional && Boolean(objectItem.promotionalDiscountEnabled);
+    const promotionalDiscountTotalAmount =
+      promotionalDiscountEnabled &&
+      this.toFiniteNumber(objectItem.promotionalDiscountTotalAmount) !== undefined
+        ? this.normalizeMoneyValue(
+            this.toFiniteNumber(objectItem.promotionalDiscountTotalAmount) ?? 0,
+          )
+        : null;
+    const promotionalDiscountInstallmentAmount =
+      promotionalDiscountEnabled && type === CoursePaymentOptionTypeDto.INSTALLMENTS
+        ? this.normalizeMoneyValue(
+            this.toFiniteNumber(objectItem.promotionalDiscountInstallmentAmount) ??
+              (promotionalDiscountTotalAmount ?? promotionalTotalAmount ?? totalAmount) /
+                Math.max(1, installmentCount || 1),
+          )
+        : null;
+    const promotionalDiscountDeadlineDayRaw = this.toFiniteNumber(
+      objectItem.promotionalDiscountDeadlineDay,
+    );
+    const promotionalDiscountDeadlineDay =
+      promotionalDiscountEnabled && promotionalDiscountDeadlineDayRaw !== undefined
+        ? Math.min(31, Math.max(1, Math.trunc(promotionalDiscountDeadlineDayRaw)))
+        : null;
 
     return {
       id:
@@ -682,13 +800,41 @@ export class CoursesService {
           ? promotionalInstallmentAmount
           : null,
       active: objectItem.active !== false,
-      discountEnabled: discountEnabled && (discountValue ?? 0) > 0,
-      discountType: (discountValue ?? 0) > 0 ? discountType : null,
-      discountValue: (discountValue ?? 0) > 0 ? discountValue : null,
-      discountDeadlineDay: (discountValue ?? 0) > 0 ? discountDeadlineDay : null,
+      discountEnabled: hasAnyDiscount,
+      discountTotalAmount:
+        discountEnabled && (discountTotalAmount ?? 0) > 0 ? discountTotalAmount : null,
+      discountInstallmentAmount:
+        discountEnabled &&
+        type === CoursePaymentOptionTypeDto.INSTALLMENTS &&
+        (discountInstallmentAmount ?? 0) > 0
+          ? discountInstallmentAmount
+          : null,
+      discountType: hasDiscountValue ? discountType : null,
+      discountValue: hasDiscountValue ? discountValue : null,
+      discountDeadlineDay: hasAnyDiscount ? discountDeadlineDay : null,
       discountRequiresActiveCrf:
-        discountEnabled && (discountValue ?? 0) > 0 ? discountRequiresActiveCrf : false,
-      discountAppliesTo: (discountValue ?? 0) > 0 ? discountAppliesTo : null,
+        hasAnyDiscount ? discountRequiresActiveCrf : false,
+      discountAppliesTo: hasAnyDiscount ? discountAppliesTo : null,
+      promotionalDiscountEnabled:
+        promotionalDiscountEnabled && (promotionalDiscountTotalAmount ?? 0) > 0,
+      promotionalDiscountTotalAmount:
+        promotionalDiscountEnabled && (promotionalDiscountTotalAmount ?? 0) > 0
+          ? promotionalDiscountTotalAmount
+          : null,
+      promotionalDiscountInstallmentAmount:
+        promotionalDiscountEnabled &&
+        type === CoursePaymentOptionTypeDto.INSTALLMENTS &&
+        (promotionalDiscountInstallmentAmount ?? 0) > 0
+          ? promotionalDiscountInstallmentAmount
+          : null,
+      promotionalDiscountDeadlineDay:
+        promotionalDiscountEnabled && (promotionalDiscountTotalAmount ?? 0) > 0
+          ? promotionalDiscountDeadlineDay
+          : null,
+      promotionalDiscountRequiresActiveCrf:
+        promotionalDiscountEnabled && (promotionalDiscountTotalAmount ?? 0) > 0
+          ? Boolean(objectItem.promotionalDiscountRequiresActiveCrf)
+          : false,
     };
   }
 
@@ -767,11 +913,18 @@ export class CoursesService {
           promotionalInstallmentAmount: null,
           active: true,
           discountEnabled: false,
+          discountTotalAmount: null,
+          discountInstallmentAmount: null,
           discountType: null,
           discountValue: null,
           discountDeadlineDay: null,
           discountRequiresActiveCrf: false,
           discountAppliesTo: null,
+          promotionalDiscountEnabled: false,
+          promotionalDiscountTotalAmount: null,
+          promotionalDiscountInstallmentAmount: null,
+          promotionalDiscountDeadlineDay: null,
+          promotionalDiscountRequiresActiveCrf: false,
         },
       ];
     }
@@ -793,11 +946,18 @@ export class CoursesService {
         promotionalInstallmentAmount: null,
         active: true,
         discountEnabled: false,
+        discountTotalAmount: null,
+        discountInstallmentAmount: null,
         discountType: null,
         discountValue: null,
         discountDeadlineDay: null,
         discountRequiresActiveCrf: false,
         discountAppliesTo: null,
+        promotionalDiscountEnabled: false,
+        promotionalDiscountTotalAmount: null,
+        promotionalDiscountInstallmentAmount: null,
+        promotionalDiscountDeadlineDay: null,
+        promotionalDiscountRequiresActiveCrf: false,
       },
     ];
   }

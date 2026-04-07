@@ -28,11 +28,18 @@ type CoursePaymentOption = {
   promotionalInstallmentAmount?: number | null;
   active?: boolean | null;
   discountEnabled?: boolean | null;
+  discountTotalAmount?: number | null;
+  discountInstallmentAmount?: number | null;
   discountType?: CoursePaymentDiscountType | null;
   discountValue?: number | null;
   discountDeadlineDay?: number | null;
   discountRequiresActiveCrf?: boolean | null;
   discountAppliesTo?: CoursePaymentDiscountAppliesTo | null;
+  promotionalDiscountEnabled?: boolean | null;
+  promotionalDiscountTotalAmount?: number | null;
+  promotionalDiscountInstallmentAmount?: number | null;
+  promotionalDiscountDeadlineDay?: number | null;
+  promotionalDiscountRequiresActiveCrf?: boolean | null;
 };
 
 type CoursePaymentOptionForm = {
@@ -51,11 +58,18 @@ type CoursePaymentOptionForm = {
   promotionalInstallmentAmount: string;
   active: boolean;
   discountEnabled: boolean;
+  discountTotalAmount: string;
+  discountInstallmentAmount: string;
   discountType: CoursePaymentDiscountType;
   discountValue: string;
   discountDeadlineDay: string;
   discountRequiresActiveCrf: boolean;
   discountAppliesTo: CoursePaymentDiscountAppliesTo;
+  promotionalDiscountEnabled: boolean;
+  promotionalDiscountTotalAmount: string;
+  promotionalDiscountInstallmentAmount: string;
+  promotionalDiscountDeadlineDay: string;
+  promotionalDiscountRequiresActiveCrf: boolean;
 };
 
 type Course = {
@@ -139,16 +153,6 @@ const paymentTypeLabel: Record<CoursePaymentOptionType, string> = {
   INSTALLMENTS: 'Parcelado',
 };
 
-const paymentDiscountTypeLabel: Record<CoursePaymentDiscountType, string> = {
-  FIXED: 'Valor fixo (R$)',
-  PERCENT: 'Percentual (%)',
-};
-
-const paymentDiscountAppliesToLabel: Record<CoursePaymentDiscountAppliesTo, string> = {
-  INSTALLMENT: 'Parcela',
-  TOTAL: 'Valor total',
-};
-
 function createPaymentOptionId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -176,11 +180,20 @@ function createPaymentOptionForm(
     promotionalInstallmentAmount: input?.promotionalInstallmentAmount || '',
     active: input?.active !== false,
     discountEnabled: input?.discountEnabled || false,
+    discountTotalAmount: input?.discountTotalAmount || '',
+    discountInstallmentAmount: input?.discountInstallmentAmount || '',
     discountType: input?.discountType || 'FIXED',
     discountValue: input?.discountValue || '',
     discountDeadlineDay: input?.discountDeadlineDay || '',
     discountRequiresActiveCrf: input?.discountRequiresActiveCrf || false,
     discountAppliesTo: input?.discountAppliesTo || 'INSTALLMENT',
+    promotionalDiscountEnabled: input?.promotionalDiscountEnabled || false,
+    promotionalDiscountTotalAmount: input?.promotionalDiscountTotalAmount || '',
+    promotionalDiscountInstallmentAmount:
+      input?.promotionalDiscountInstallmentAmount || '',
+    promotionalDiscountDeadlineDay: input?.promotionalDiscountDeadlineDay || '',
+    promotionalDiscountRequiresActiveCrf:
+      input?.promotionalDiscountRequiresActiveCrf || false,
   };
 }
 
@@ -228,7 +241,19 @@ function normalizeCoursePaymentOptions(
             : null,
         active: option.active !== false,
         discountEnabled:
-          Boolean(option.discountEnabled) && Number(option.discountValue || 0) > 0,
+          Boolean(option.discountEnabled) &&
+          (Number(option.discountTotalAmount || 0) > 0 ||
+            Number(option.discountValue || 0) > 0),
+        discountTotalAmount:
+          option.discountEnabled && Number(option.discountTotalAmount || 0) > 0
+            ? Number(option.discountTotalAmount || 0)
+            : null,
+        discountInstallmentAmount:
+          option.type === 'INSTALLMENTS' &&
+          option.discountEnabled &&
+          Number(option.discountInstallmentAmount || 0) > 0
+            ? Number(option.discountInstallmentAmount || 0)
+            : null,
         discountType:
           option.discountType === 'PERCENT' ? 'PERCENT' : 'FIXED',
         discountValue:
@@ -239,26 +264,33 @@ function normalizeCoursePaymentOptions(
         discountRequiresActiveCrf: Boolean(option.discountRequiresActiveCrf),
         discountAppliesTo:
           option.discountAppliesTo === 'TOTAL' ? 'TOTAL' : 'INSTALLMENT',
+        promotionalDiscountEnabled:
+          option.isPromotional &&
+          Boolean(option.promotionalDiscountEnabled) &&
+          Number(option.promotionalDiscountTotalAmount || 0) > 0,
+        promotionalDiscountTotalAmount:
+          option.isPromotional &&
+          option.promotionalDiscountEnabled &&
+          Number(option.promotionalDiscountTotalAmount || 0) > 0
+            ? Number(option.promotionalDiscountTotalAmount || 0)
+            : null,
+        promotionalDiscountInstallmentAmount:
+          option.type === 'INSTALLMENTS' &&
+          option.isPromotional &&
+          option.promotionalDiscountEnabled &&
+          Number(option.promotionalDiscountInstallmentAmount || 0) > 0
+            ? Number(option.promotionalDiscountInstallmentAmount || 0)
+            : null,
+        promotionalDiscountDeadlineDay:
+          option.promotionalDiscountEnabled &&
+          option.promotionalDiscountDeadlineDay
+            ? Number(option.promotionalDiscountDeadlineDay)
+            : null,
+        promotionalDiscountRequiresActiveCrf: Boolean(
+          option.promotionalDiscountRequiresActiveCrf,
+        ),
       };
     });
-}
-
-function calculateDiscountedValue(input: {
-  baseAmount: number;
-  discountType?: CoursePaymentDiscountType | null;
-  discountValue?: number | null;
-}) {
-  const baseAmount = Number(input.baseAmount || 0);
-  if (baseAmount <= 0) return 0;
-  const discountValue = Number(input.discountValue || 0);
-  if (discountValue <= 0) return baseAmount;
-
-  if (input.discountType === 'PERCENT') {
-    const boundedPercent = Math.min(100, Math.max(0, discountValue));
-    return Number((baseAmount * (1 - boundedPercent / 100)).toFixed(2));
-  }
-
-  return Number(Math.max(0, baseAmount - discountValue).toFixed(2));
 }
 
 function formatPaymentOptionLabel(option: {
@@ -273,11 +305,18 @@ function formatPaymentOptionLabel(option: {
   promotionalInstallmentAmount?: number | null;
   dueDay?: number | null;
   discountEnabled?: boolean | null;
+  discountTotalAmount?: number | null;
+  discountInstallmentAmount?: number | null;
   discountType?: CoursePaymentDiscountType | null;
   discountValue?: number | null;
   discountDeadlineDay?: number | null;
   discountRequiresActiveCrf?: boolean | null;
   discountAppliesTo?: CoursePaymentDiscountAppliesTo | null;
+  promotionalDiscountEnabled?: boolean | null;
+  promotionalDiscountTotalAmount?: number | null;
+  promotionalDiscountInstallmentAmount?: number | null;
+  promotionalDiscountDeadlineDay?: number | null;
+  promotionalDiscountRequiresActiveCrf?: boolean | null;
 }) {
   const method = (option.method || 'PIX') as CoursePaymentOptionMethod;
   const type = (option.type || 'CASH') as CoursePaymentOptionType;
@@ -288,11 +327,15 @@ function formatPaymentOptionLabel(option: {
   const promotionalTotalAmount = Number(option.promotionalTotalAmount || 0);
   const promotionalInstallmentAmount = Number(option.promotionalInstallmentAmount || 0);
   const discountEnabled = Boolean(option.discountEnabled);
-  const discountType = option.discountType === 'PERCENT' ? 'PERCENT' : 'FIXED';
-  const discountValue = Number(option.discountValue || 0);
+  const discountTotalAmount = Number(option.discountTotalAmount || 0);
+  const discountInstallmentAmount = Number(option.discountInstallmentAmount || 0);
   const discountDeadlineDay = Number(option.discountDeadlineDay || 0);
   const discountRequiresActiveCrf = Boolean(option.discountRequiresActiveCrf);
-  const discountAppliesTo = option.discountAppliesTo === 'TOTAL' ? 'TOTAL' : 'INSTALLMENT';
+  const promotionalDiscountEnabled = Boolean(option.promotionalDiscountEnabled);
+  const promotionalDiscountTotalAmount = Number(option.promotionalDiscountTotalAmount || 0);
+  const promotionalDiscountInstallmentAmount = Number(option.promotionalDiscountInstallmentAmount || 0);
+  const promotionalDiscountDeadlineDay = Number(option.promotionalDiscountDeadlineDay || 0);
+  const promotionalDiscountRequiresActiveCrf = Boolean(option.promotionalDiscountRequiresActiveCrf);
 
   const promoSuffix = (() => {
     if (!option.isPromotional) return '';
@@ -313,23 +356,41 @@ function formatPaymentOptionLabel(option: {
   })();
 
   const discountSuffix = (() => {
-    if (!discountEnabled || discountValue <= 0) return '';
-    const targetAmount =
-      type === 'INSTALLMENTS' && discountAppliesTo === 'INSTALLMENT'
-        ? installmentAmount > 0
-          ? installmentAmount
-          : totalAmount > 0 && installmentCount > 0
-            ? totalAmount / installmentCount
+    if (!discountEnabled) return '';
+    const discountedAmount =
+      type === 'INSTALLMENTS'
+        ? discountInstallmentAmount > 0
+          ? discountInstallmentAmount
+          : discountTotalAmount > 0 && installmentCount > 0
+            ? discountTotalAmount / installmentCount
             : 0
-        : totalAmount;
-    if (targetAmount <= 0) return '';
-    const discountedAmount = calculateDiscountedValue({
-      baseAmount: targetAmount,
-      discountType,
-      discountValue,
-    });
-    const parts = ['at? dia ' + (discountDeadlineDay > 0 ? String(discountDeadlineDay) : '?')];
+        : discountTotalAmount;
+    if (discountedAmount <= 0) return '';
+    const parts = ['até dia ' + (discountDeadlineDay > 0 ? String(discountDeadlineDay) : '?')];
     if (discountRequiresActiveCrf) {
+      parts.push('CRF ativo');
+    }
+    return ' ? ' + formatCurrency(discountedAmount) + ' (' + parts.join(' / ') + ')';
+  })();
+
+  const promotionalDiscountSuffix = (() => {
+    if (!option.isPromotional || !promotionalDiscountEnabled) return '';
+    const discountedAmount =
+      type === 'INSTALLMENTS'
+        ? promotionalDiscountInstallmentAmount > 0
+          ? promotionalDiscountInstallmentAmount
+          : promotionalDiscountTotalAmount > 0 && installmentCount > 0
+            ? promotionalDiscountTotalAmount / installmentCount
+            : 0
+        : promotionalDiscountTotalAmount;
+    if (discountedAmount <= 0) return '';
+    const parts = [
+      'promo até dia ' +
+        (promotionalDiscountDeadlineDay > 0
+          ? String(promotionalDiscountDeadlineDay)
+          : '?'),
+    ];
+    if (promotionalDiscountRequiresActiveCrf) {
       parts.push('CRF ativo');
     }
     return ' ? ' + formatCurrency(discountedAmount) + ' (' + parts.join(' / ') + ')';
@@ -343,10 +404,26 @@ function formatPaymentOptionLabel(option: {
         : totalAmount > 0
           ? totalAmount / safeCount
           : 0;
-    return paymentMethodLabel[method] + ' ' + String(safeCount) + 'x de ' + formatCurrency(safeInstallmentAmount) + promoSuffix + discountSuffix;
+    return (
+      paymentMethodLabel[method] +
+      ' ' +
+      String(safeCount) +
+      'x de ' +
+      formatCurrency(safeInstallmentAmount) +
+      promoSuffix +
+      discountSuffix +
+      promotionalDiscountSuffix
+    );
   }
 
-  return paymentMethodLabel[method] + ' ? vista ' + formatCurrency(totalAmount) + promoSuffix + discountSuffix;
+  return (
+    paymentMethodLabel[method] +
+    ' ? vista ' +
+    formatCurrency(totalAmount) +
+    promoSuffix +
+    discountSuffix +
+    promotionalDiscountSuffix
+  );
 }
 function buildLegacyPaymentOptionFromCourse(course: Course): CoursePaymentOption {
   const price = Number(course.price || 0);
@@ -597,7 +674,19 @@ function mapCoursePaymentOptionToForm(
         : '',
     active: option.active !== false,
     discountEnabled:
-      Boolean(option.discountEnabled) && Number(option.discountValue || 0) > 0,
+      Boolean(option.discountEnabled) &&
+      (Number(option.discountTotalAmount || 0) > 0 ||
+        Number(option.discountValue || 0) > 0),
+    discountTotalAmount:
+      option.discountEnabled && Number(option.discountTotalAmount || 0) > 0
+        ? String(option.discountTotalAmount)
+        : '',
+    discountInstallmentAmount:
+      option.type === 'INSTALLMENTS' &&
+      option.discountEnabled &&
+      Number(option.discountInstallmentAmount || 0) > 0
+        ? String(option.discountInstallmentAmount)
+        : '',
     discountType: option.discountType === 'PERCENT' ? 'PERCENT' : 'FIXED',
     discountValue:
       option.discountEnabled && Number(option.discountValue || 0) > 0
@@ -609,6 +698,30 @@ function mapCoursePaymentOptionToForm(
     discountRequiresActiveCrf: Boolean(option.discountRequiresActiveCrf),
     discountAppliesTo:
       option.discountAppliesTo === 'TOTAL' ? 'TOTAL' : 'INSTALLMENT',
+    promotionalDiscountEnabled:
+      Boolean(option.isPromotional) &&
+      Boolean(option.promotionalDiscountEnabled) &&
+      Number(option.promotionalDiscountTotalAmount || 0) > 0,
+    promotionalDiscountTotalAmount:
+      option.isPromotional &&
+      option.promotionalDiscountEnabled &&
+      Number(option.promotionalDiscountTotalAmount || 0) > 0
+        ? String(option.promotionalDiscountTotalAmount)
+        : '',
+    promotionalDiscountInstallmentAmount:
+      option.type === 'INSTALLMENTS' &&
+      option.isPromotional &&
+      option.promotionalDiscountEnabled &&
+      Number(option.promotionalDiscountInstallmentAmount || 0) > 0
+        ? String(option.promotionalDiscountInstallmentAmount)
+        : '',
+    promotionalDiscountDeadlineDay:
+      option.promotionalDiscountEnabled && option.promotionalDiscountDeadlineDay
+        ? String(option.promotionalDiscountDeadlineDay)
+        : '',
+    promotionalDiscountRequiresActiveCrf: Boolean(
+      option.promotionalDiscountRequiresActiveCrf,
+    ),
   });
 }
 
@@ -925,11 +1038,18 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       promotionalInstallmentAmount?: number;
       active: boolean;
       discountEnabled?: boolean;
+      discountTotalAmount?: number;
+      discountInstallmentAmount?: number;
       discountType?: CoursePaymentDiscountType;
       discountValue?: number;
       discountDeadlineDay?: number;
       discountRequiresActiveCrf?: boolean;
       discountAppliesTo?: CoursePaymentDiscountAppliesTo;
+      promotionalDiscountEnabled?: boolean;
+      promotionalDiscountTotalAmount?: number;
+      promotionalDiscountInstallmentAmount?: number;
+      promotionalDiscountDeadlineDay?: number;
+      promotionalDiscountRequiresActiveCrf?: boolean;
     }> = [];
 
     for (let index = 0; index < form.paymentOptions.length; index += 1) {
@@ -956,11 +1076,18 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         promotionalInstallmentAmount?: number;
         active: boolean;
         discountEnabled?: boolean;
+        discountTotalAmount?: number;
+        discountInstallmentAmount?: number;
         discountType?: CoursePaymentDiscountType;
         discountValue?: number;
         discountDeadlineDay?: number;
         discountRequiresActiveCrf?: boolean;
         discountAppliesTo?: CoursePaymentDiscountAppliesTo;
+        promotionalDiscountEnabled?: boolean;
+        promotionalDiscountTotalAmount?: number;
+        promotionalDiscountInstallmentAmount?: number;
+        promotionalDiscountDeadlineDay?: number;
+        promotionalDiscountRequiresActiveCrf?: boolean;
       } = {
         id: option.id,
         title: option.title.trim() || `Opção ${index + 1}`,
@@ -1025,27 +1152,98 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       }
 
       if (option.discountEnabled) {
-        const discountValue = parseNumberSafe(option.discountValue);
-        if (!discountValue || discountValue <= 0) {
-          setFormError(`Informe o valor do desconto na opção ${index + 1}.`);
+        const discountTotalAmount = parseNumberSafe(option.discountTotalAmount);
+        if (!discountTotalAmount || discountTotalAmount <= 0) {
+          setFormError(`Informe o valor total com desconto na opção ${index + 1}.`);
           return;
         }
-        if (option.discountType === 'PERCENT' && discountValue > 100) {
-          setFormError(`O desconto percentual não pode passar de 100% na opção ${index + 1}.`);
+        if (discountTotalAmount >= totalAmount) {
+          setFormError(`O valor total com desconto deve ser menor que o valor total na opção ${index + 1}.`);
           return;
         }
         const discountDeadlineDay = parseIntSafe(option.discountDeadlineDay);
         if (!discountDeadlineDay || discountDeadlineDay < 1 || discountDeadlineDay > 31) {
-          setFormError(`Informe o dia limite do desconto (1 a 31) na opção ${index + 1}.`);
+          setFormError(`Informe o dia limite do valor com desconto (1 a 31) na opção ${index + 1}.`);
           return;
         }
 
         payloadOption.discountEnabled = true;
-        payloadOption.discountType = option.discountType;
-        payloadOption.discountValue = discountValue;
+        payloadOption.discountTotalAmount = discountTotalAmount;
         payloadOption.discountDeadlineDay = discountDeadlineDay;
         payloadOption.discountRequiresActiveCrf = option.discountRequiresActiveCrf;
-        payloadOption.discountAppliesTo = option.discountAppliesTo;
+        if (option.type === 'INSTALLMENTS') {
+          const installmentCount = parseIntSafe(option.installmentCount) ?? 1;
+          const baseInstallmentAmount =
+            parseNumberSafe(option.installmentAmount) ?? totalAmount / installmentCount;
+          const discountInstallmentAmount =
+            parseNumberSafe(option.discountInstallmentAmount) ??
+            discountTotalAmount / installmentCount;
+          if (!discountInstallmentAmount || discountInstallmentAmount <= 0) {
+            setFormError(`Informe o valor da parcela com desconto na opção ${index + 1}.`);
+            return;
+          }
+          if (discountInstallmentAmount >= baseInstallmentAmount) {
+            setFormError(`O valor da parcela com desconto deve ser menor que a parcela padrão na opção ${index + 1}.`);
+            return;
+          }
+          payloadOption.discountInstallmentAmount = discountInstallmentAmount;
+        }
+      }
+
+      if (option.isPromotional && option.promotionalDiscountEnabled) {
+        const promotionalTotalAmount =
+          parseNumberSafe(option.promotionalTotalAmount) ?? totalAmount;
+        const promotionalDiscountTotalAmount = parseNumberSafe(
+          option.promotionalDiscountTotalAmount,
+        );
+        if (!promotionalDiscountTotalAmount || promotionalDiscountTotalAmount <= 0) {
+          setFormError(`Informe o valor total com desconto promocional da opção ${index + 1}.`);
+          return;
+        }
+        if (promotionalDiscountTotalAmount >= promotionalTotalAmount) {
+          setFormError(`O valor total com desconto promocional deve ser menor que o valor promocional da opção ${index + 1}.`);
+          return;
+        }
+        const promotionalDiscountDeadlineDay = parseIntSafe(
+          option.promotionalDiscountDeadlineDay,
+        );
+        if (
+          !promotionalDiscountDeadlineDay ||
+          promotionalDiscountDeadlineDay < 1 ||
+          promotionalDiscountDeadlineDay > 31
+        ) {
+          setFormError(`Informe o dia limite do valor com desconto promocional (1 a 31) na opção ${index + 1}.`);
+          return;
+        }
+
+        payloadOption.promotionalDiscountEnabled = true;
+        payloadOption.promotionalDiscountTotalAmount = promotionalDiscountTotalAmount;
+        payloadOption.promotionalDiscountDeadlineDay = promotionalDiscountDeadlineDay;
+        payloadOption.promotionalDiscountRequiresActiveCrf =
+          option.promotionalDiscountRequiresActiveCrf;
+
+        if (option.type === 'INSTALLMENTS') {
+          const installmentCount = parseIntSafe(option.installmentCount) ?? 1;
+          const promotionalInstallmentAmount =
+            parseNumberSafe(option.promotionalInstallmentAmount) ??
+            promotionalTotalAmount / installmentCount;
+          const promotionalDiscountInstallmentAmount =
+            parseNumberSafe(option.promotionalDiscountInstallmentAmount) ??
+            promotionalDiscountTotalAmount / installmentCount;
+          if (
+            !promotionalDiscountInstallmentAmount ||
+            promotionalDiscountInstallmentAmount <= 0
+          ) {
+            setFormError(`Informe o valor da parcela com desconto promocional na opção ${index + 1}.`);
+            return;
+          }
+          if (promotionalDiscountInstallmentAmount >= promotionalInstallmentAmount) {
+            setFormError(`O valor da parcela com desconto promocional deve ser menor que a parcela promocional da opção ${index + 1}.`);
+            return;
+          }
+          payloadOption.promotionalDiscountInstallmentAmount =
+            promotionalDiscountInstallmentAmount;
+        }
       }
 
       paymentOptionsPayload.push(payloadOption);
@@ -1186,11 +1384,23 @@ export function CoursesNative({ token }: CoursesNativeProps) {
             promotionalInstallmentAmount:
               parseNumberSafe(option.promotionalInstallmentAmount) || 0,
             discountEnabled: option.discountEnabled,
+            discountTotalAmount: parseNumberSafe(option.discountTotalAmount) || 0,
+            discountInstallmentAmount:
+              parseNumberSafe(option.discountInstallmentAmount) || 0,
             discountType: option.discountType,
             discountValue: parseNumberSafe(option.discountValue) || 0,
             discountDeadlineDay: parseIntSafe(option.discountDeadlineDay) || null,
             discountRequiresActiveCrf: option.discountRequiresActiveCrf,
             discountAppliesTo: option.discountAppliesTo,
+            promotionalDiscountEnabled: option.promotionalDiscountEnabled,
+            promotionalDiscountTotalAmount:
+              parseNumberSafe(option.promotionalDiscountTotalAmount) || 0,
+            promotionalDiscountInstallmentAmount:
+              parseNumberSafe(option.promotionalDiscountInstallmentAmount) || 0,
+            promotionalDiscountDeadlineDay:
+              parseIntSafe(option.promotionalDiscountDeadlineDay) || null,
+            promotionalDiscountRequiresActiveCrf:
+              option.promotionalDiscountRequiresActiveCrf,
           }),
         ),
     [previewDisplayablePaymentOptions],
@@ -1463,7 +1673,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       updateForm('hasEnrollmentFee', event.target.value === 'YES')
                     }
                   >
-                    <option value="NO">N?o</option>
+                    <option value="NO">Não</option>
                     <option value="YES">Sim</option>
                   </select>
                 </label>
@@ -1843,7 +2053,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
 
                           <label>
-                            Tem desconto condicional?
+                            Tem valor com desconto?
                             <select
                               value={option.discountEnabled ? 'YES' : 'NO'}
                               onChange={(event) =>
@@ -1862,39 +2072,40 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                           {option.discountEnabled ? (
                             <>
                               <label>
-                                Tipo de desconto
-                                <select
-                                  value={option.discountType}
-                                  onChange={(event) =>
-                                    updatePaymentOption(
-                                      option.id,
-                                      'discountType',
-                                      event.target.value as CoursePaymentDiscountType,
-                                    )
-                                  }
-                                >
-                                  <option value="FIXED">{paymentDiscountTypeLabel.FIXED}</option>
-                                  <option value="PERCENT">{paymentDiscountTypeLabel.PERCENT}</option>
-                                </select>
-                              </label>
-
-                              <label>
-                                Valor do desconto
+                                Valor total com desconto (R$)
                                 <input
                                   type="number"
                                   min={0}
                                   step="0.01"
-                                  value={option.discountValue}
+                                  value={option.discountTotalAmount}
                                   onChange={(event) =>
                                     updatePaymentOption(
                                       option.id,
-                                      'discountValue',
+                                      'discountTotalAmount',
                                       event.target.value,
                                     )
                                   }
-                                  placeholder={option.discountType === 'PERCENT' ? 'Ex.: 3' : 'Ex.: 35,00'}
                                 />
                               </label>
+
+                              {option.type === 'INSTALLMENTS' ? (
+                                <label>
+                                  Valor da parcela com desconto (R$)
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={option.discountInstallmentAmount}
+                                    onChange={(event) =>
+                                      updatePaymentOption(
+                                        option.id,
+                                        'discountInstallmentAmount',
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </label>
+                              ) : null}
 
                               <label>
                                 Pagando até dia
@@ -1916,27 +2127,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               </label>
 
                               <label>
-                                Desconto aplicado em
-                                <select
-                                  value={option.discountAppliesTo}
-                                  onChange={(event) =>
-                                    updatePaymentOption(
-                                      option.id,
-                                      'discountAppliesTo',
-                                      event.target.value as CoursePaymentDiscountAppliesTo,
-                                    )
-                                  }
-                                >
-                                  <option value="INSTALLMENT">
-                                    {paymentDiscountAppliesToLabel.INSTALLMENT}
-                                  </option>
-                                  <option value="TOTAL">
-                                    {paymentDiscountAppliesToLabel.TOTAL}
-                                  </option>
-                                </select>
-                              </label>
-
-                              <label>
                                 Exige CRF ativo?
                                 <select
                                   value={option.discountRequiresActiveCrf ? 'YES' : 'NO'}
@@ -1948,12 +2138,110 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                     )
                                   }
                                 >
-                                  <option value="NO">N?o</option>
+                                  <option value="NO">Não</option>
                                   <option value="YES">Sim</option>
                                 </select>
                               </label>
                             </>
                           ) : null}
+
+                          {option.isPromotional ? (
+                            <>
+                              <label>
+                                Promoção tem valor com desconto?
+                                <select
+                                  value={option.promotionalDiscountEnabled ? 'YES' : 'NO'}
+                                  onChange={(event) =>
+                                    updatePaymentOption(
+                                      option.id,
+                                      'promotionalDiscountEnabled',
+                                      event.target.value === 'YES',
+                                    )
+                                  }
+                                >
+                                  <option value="NO">Não</option>
+                                  <option value="YES">Sim</option>
+                                </select>
+                              </label>
+
+                              {option.promotionalDiscountEnabled ? (
+                                <>
+                                  <label>
+                                    Valor total promocional com desconto (R$)
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step="0.01"
+                                      value={option.promotionalDiscountTotalAmount}
+                                      onChange={(event) =>
+                                        updatePaymentOption(
+                                          option.id,
+                                          'promotionalDiscountTotalAmount',
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+
+                                  {option.type === 'INSTALLMENTS' ? (
+                                    <label>
+                                      Parcela promocional com desconto (R$)
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        step="0.01"
+                                        value={option.promotionalDiscountInstallmentAmount}
+                                        onChange={(event) =>
+                                          updatePaymentOption(
+                                            option.id,
+                                            'promotionalDiscountInstallmentAmount',
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </label>
+                                  ) : null}
+
+                                  <label>
+                                    Promo pagando até dia
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={31}
+                                      step={1}
+                                      value={option.promotionalDiscountDeadlineDay}
+                                      onChange={(event) =>
+                                        updatePaymentOption(
+                                          option.id,
+                                          'promotionalDiscountDeadlineDay',
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder="Ex.: 7"
+                                    />
+                                  </label>
+
+                                  <label>
+                                    Promo exige CRF ativo?
+                                    <select
+                                      value={option.promotionalDiscountRequiresActiveCrf ? 'YES' : 'NO'}
+                                      onChange={(event) =>
+                                        updatePaymentOption(
+                                          option.id,
+                                          'promotionalDiscountRequiresActiveCrf',
+                                          event.target.value === 'YES',
+                                        )
+                                      }
+                                    >
+                                      <option value="NO">Não</option>
+                                      <option value="YES">Sim</option>
+                                    </select>
+                                  </label>
+                                </>
+                              ) : null}
+                            </>
+                          ) : null}
+
                           <label className="native-payment-option-field-full">
                             Observações / regra
                             <textarea

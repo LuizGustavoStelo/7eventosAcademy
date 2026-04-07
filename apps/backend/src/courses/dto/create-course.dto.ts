@@ -128,6 +128,18 @@ export class CoursePaymentOptionDto {
   discountEnabled?: boolean;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  discountTotalAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  discountInstallmentAmount?: number;
+
+  @IsOptional()
   @IsEnum(CoursePaymentDiscountTypeDto)
   discountType?: CoursePaymentDiscountTypeDto;
 
@@ -152,6 +164,35 @@ export class CoursePaymentOptionDto {
   @IsOptional()
   @IsEnum(CoursePaymentDiscountAppliesToDto)
   discountAppliesTo?: CoursePaymentDiscountAppliesToDto;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  promotionalDiscountEnabled?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  promotionalDiscountTotalAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  promotionalDiscountInstallmentAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  promotionalDiscountDeadlineDay?: number;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  promotionalDiscountRequiresActiveCrf?: boolean;
 }
 
 export class CreateCourseDto {
