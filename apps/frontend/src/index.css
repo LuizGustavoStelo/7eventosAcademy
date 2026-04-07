@@ -8238,6 +8238,12 @@ table button {
   box-shadow: 0 0 0 2px rgba(19, 147, 149, 0.12);
 }
 
+.native-course-payment-item[open] {
+  border-color: rgba(15, 127, 130, 0.5);
+  box-shadow: 0 0 0 2px rgba(19, 147, 149, 0.16);
+  background: #f8fdff;
+}
+
 .native-course-payment-item summary {
   list-style: none;
   cursor: pointer;
@@ -8261,6 +8267,31 @@ table button {
 .native-course-payment-item summary span {
   color: #475569;
   font-size: 0.76rem;
+}
+
+.native-course-payment-summary-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.native-course-payment-expand-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  background: #f8fafc;
+  color: #334155;
+  line-height: 1;
+}
+
+.native-course-payment-expand-icon svg {
+  width: 13px;
+  height: 13px;
+  display: block;
 }
 
 .native-course-payment-item summary button {
@@ -8289,6 +8320,20 @@ table button {
   margin: 0;
   color: #334155;
   font-size: 0.78rem;
+}
+
+.native-course-payment-item-body p.is-highlight {
+  color: #0f766e;
+  font-weight: 800;
+  background: rgba(16, 185, 129, 0.09);
+  border: 1px solid rgba(15, 127, 130, 0.2);
+  border-radius: 8px;
+  padding: 0.32rem 0.45rem;
+}
+
+.native-course-payment-item-body p.is-secondary {
+  color: #64748b;
+  font-size: 0.74rem;
 }
 
 .native-student-register-actions {

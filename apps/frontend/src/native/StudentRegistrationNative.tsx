@@ -77,6 +77,11 @@ type PasswordStrength = {
   score: number;
 };
 
+type PaymentOptionDetailLine = {
+  text: string;
+  tone: 'default' | 'highlight' | 'secondary';
+};
+
 const steps = [
   { title: 'Identificação', description: 'Dados pessoais, documentação e endereço' },
   { title: 'Formação', description: 'Filiação e graduação' },
@@ -315,20 +320,40 @@ function paymentMethodLabel(value?: string | null) {
   return 'Pix';
 }
 
-function paymentOptionSummary(option: NonNullable<CourseCatalogItem['paymentOptions']>[number]) {
+type PaymentOptionItem = NonNullable<CourseCatalogItem['paymentOptions']>[number];
+
+function resolveOptionInstallmentAmount(option: PaymentOptionItem) {
+  const count = Number(option.installmentCount || 0) || 1;
+  if (option.isPromotional && Number(option.promotionalInstallmentAmount || 0) > 0) {
+    return Number(option.promotionalInstallmentAmount || 0);
+  }
+  const installmentAmount = Number(option.installmentAmount || 0);
+  if (installmentAmount > 0) return installmentAmount;
+  const totalAmount = option.isPromotional
+    ? Number(option.promotionalTotalAmount || 0) || Number(option.totalAmount || 0)
+    : Number(option.totalAmount || 0);
+  return totalAmount > 0 ? totalAmount / count : 0;
+}
+
+function resolveOptionTotalAmount(option: PaymentOptionItem) {
+  if (option.isPromotional && Number(option.promotionalTotalAmount || 0) > 0) {
+    return Number(option.promotionalTotalAmount || 0);
+  }
+  return Number(option.totalAmount || 0);
+}
+
+function paymentOptionSummary(option: PaymentOptionItem) {
   const type = String(option.type || '').toUpperCase();
   const method = paymentMethodLabel(option.method);
   if (type === 'INSTALLMENTS') {
     const count = Number(option.installmentCount || 0) || 1;
-    const installmentAmount =
-      Number(option.installmentAmount || 0) ||
-      (Number(option.totalAmount || 0) > 0 ? Number(option.totalAmount || 0) / count : 0);
+    const installmentAmount = resolveOptionInstallmentAmount(option);
     return `${method} ${count}x de ${currencyFormatter.format(installmentAmount)}`;
   }
-  return `${method} à vista ${currencyFormatter.format(Number(option.totalAmount || 0))}`;
+  return `${method} à vista ${currencyFormatter.format(resolveOptionTotalAmount(option))}`;
 }
 
-function paymentOptionDiscountSummary(option: NonNullable<CourseCatalogItem['paymentOptions']>[number]) {
+function paymentOptionDiscountSummary(option: PaymentOptionItem) {
   const type = String(option.type || '').toUpperCase();
   if (type === 'INSTALLMENTS') {
     const count = Number(option.installmentCount || 0) || 1;
@@ -341,7 +366,7 @@ function paymentOptionDiscountSummary(option: NonNullable<CourseCatalogItem['pay
   return totalAmount > 0 ? currencyFormatter.format(totalAmount) : '';
 }
 
-function paymentOptionPromotionalDiscountSummary(option: NonNullable<CourseCatalogItem['paymentOptions']>[number]) {
+function paymentOptionPromotionalDiscountSummary(option: PaymentOptionItem) {
   const type = String(option.type || '').toUpperCase();
   if (type === 'INSTALLMENTS') {
     const count = Number(option.installmentCount || 0) || 1;
@@ -354,6 +379,101 @@ function paymentOptionPromotionalDiscountSummary(option: NonNullable<CourseCatal
   }
   const totalAmount = Number(option.promotionalDiscountTotalAmount || 0);
   return totalAmount > 0 ? currencyFormatter.format(totalAmount) : '';
+}
+
+function paymentOptionDetailLines(option: PaymentOptionItem): PaymentOptionDetailLine[] {
+  const lines: PaymentOptionDetailLine[] = [];
+  const type = String(option.type || '').toUpperCase();
+  const dueDay = Number(option.dueDay || 0);
+  const promotionalSlots = Number(option.promotionalSlots || 0);
+  const hasPromotionalDiscount =
+    Boolean(option.isPromotional) &&
+    Boolean(option.promotionalDiscountEnabled) &&
+    Number(option.promotionalDiscountDeadlineDay || 0) > 0 &&
+    Boolean(paymentOptionPromotionalDiscountSummary(option));
+  const hasStandardDiscount =
+    !option.isPromotional &&
+    Boolean(option.discountEnabled) &&
+    Number(option.discountDeadlineDay || 0) > 0 &&
+    Boolean(paymentOptionDiscountSummary(option));
+
+  if (dueDay > 0) {
+    lines.push({ text: `Vencimento padrão: dia ${dueDay}.`, tone: 'default' });
+  }
+  if (option.isPromotional) {
+    lines.push({
+      text: `Promoção para ${promotionalSlots || 0} primeiros inscritos.`,
+      tone: 'default',
+    });
+  }
+
+  if (type === 'INSTALLMENTS') {
+    const count = Number(option.installmentCount || 0) || 1;
+    const baseInstallment = resolveOptionInstallmentAmount(option);
+
+    if (hasPromotionalDiscount) {
+      const deadline = Number(option.promotionalDiscountDeadlineDay || 0);
+      const discounted = paymentOptionPromotionalDiscountSummary(option);
+      const crf = option.promotionalDiscountRequiresActiveCrf ? ' (CRF ativo)' : '';
+      lines.push({
+        text: `${count}x de ${discounted} pagando até o dia ${deadline}${crf}.`,
+        tone: 'highlight',
+      });
+      lines.push({
+        text: `Após o dia ${deadline}, a parcela fica em ${currencyFormatter.format(baseInstallment)}.`,
+        tone: 'secondary',
+      });
+      return lines;
+    }
+
+    if (hasStandardDiscount) {
+      const deadline = Number(option.discountDeadlineDay || 0);
+      const discounted = paymentOptionDiscountSummary(option);
+      const crf = option.discountRequiresActiveCrf ? ' (CRF ativo)' : '';
+      lines.push({
+        text: `${count}x de ${discounted} pagando até o dia ${deadline}${crf}.`,
+        tone: 'highlight',
+      });
+      lines.push({
+        text: `Após o dia ${deadline}, a parcela fica em ${currencyFormatter.format(baseInstallment)}.`,
+        tone: 'secondary',
+      });
+    }
+
+    return lines;
+  }
+
+  const baseTotal = resolveOptionTotalAmount(option);
+  if (hasPromotionalDiscount) {
+    const deadline = Number(option.promotionalDiscountDeadlineDay || 0);
+    const discounted = paymentOptionPromotionalDiscountSummary(option);
+    const crf = option.promotionalDiscountRequiresActiveCrf ? ' (CRF ativo)' : '';
+    lines.push({
+      text: `${discounted} pagando até o dia ${deadline}${crf}.`,
+      tone: 'highlight',
+    });
+    lines.push({
+      text: `Após o dia ${deadline}, o valor fica em ${currencyFormatter.format(baseTotal)}.`,
+      tone: 'secondary',
+    });
+    return lines;
+  }
+
+  if (hasStandardDiscount) {
+    const deadline = Number(option.discountDeadlineDay || 0);
+    const discounted = paymentOptionDiscountSummary(option);
+    const crf = option.discountRequiresActiveCrf ? ' (CRF ativo)' : '';
+    lines.push({
+      text: `${discounted} pagando até o dia ${deadline}${crf}.`,
+      tone: 'highlight',
+    });
+    lines.push({
+      text: `Após o dia ${deadline}, o valor fica em ${currencyFormatter.format(baseTotal)}.`,
+      tone: 'secondary',
+    });
+  }
+
+  return lines;
 }
 
 async function requestWithRetry(input: string, init?: RequestInit) {
@@ -416,6 +536,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const [address, setAddress] = useState('');
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedPaymentOptionId, setSelectedPaymentOptionId] = useState('');
+  const [expandedPaymentOptions, setExpandedPaymentOptions] = useState<Record<string, boolean>>({});
 
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
@@ -1046,66 +1167,81 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                       {selectedCoursePaymentOptions.map((option) => {
                         const optionId = String(option.id || '');
                         const selected = selectedPaymentOptionId === optionId;
+                        const expanded = Boolean(expandedPaymentOptions[optionId]);
+                        const detailLines = paymentOptionDetailLines(option);
                         return (
                           <details
                             key={optionId || paymentOptionSummary(option)}
                             className={`native-course-payment-item ${selected ? 'is-selected' : ''}`}
+                            onToggle={(event) => {
+                              if (!optionId) return;
+                              const detailsElement = event.currentTarget;
+                              setExpandedPaymentOptions((current) => ({
+                                ...current,
+                                [optionId]: detailsElement.open,
+                              }));
+                            }}
                           >
                             <summary>
                               <div>
                                 <strong>{option.title || paymentOptionSummary(option)}</strong>
                                 <span>{paymentOptionSummary(option)}</span>
                               </div>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  setSelectedPaymentOptionId(optionId);
-                                  if (
-                                    error === 'Selecione a forma de pagamento para concluir a matrícula.'
-                                  ) {
-                                    setError('');
-                                  }
-                                }}
-                              >
-                                {selected ? 'Selecionada' : 'Selecionar'}
-                              </button>
+                              <div className="native-course-payment-summary-actions">
+                                <span className="native-course-payment-expand-icon" aria-hidden="true">
+                                  {expanded ? (
+                                    <svg viewBox="0 0 16 16" fill="none" focusable="false">
+                                      <path
+                                        d="M4 6.5L8 10L12 6.5"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      />
+                                    </svg>
+                                  ) : (
+                                    <svg viewBox="0 0 16 16" fill="none" focusable="false">
+                                      <path
+                                        d="M6.5 4L10 8L6.5 12"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      />
+                                    </svg>
+                                  )}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    setSelectedPaymentOptionId(optionId);
+                                    if (
+                                      error === 'Selecione a forma de pagamento para concluir a matrícula.'
+                                    ) {
+                                      setError('');
+                                    }
+                                  }}
+                                >
+                                  {selected ? 'Selecionada' : 'Selecionar'}
+                                </button>
+                              </div>
                             </summary>
                             <div className="native-course-payment-item-body">
-                              {option.dueDay ? (
-                                <p>Vencimento padrão: dia {option.dueDay}.</p>
-                              ) : null}
-                              {option.isPromotional ? (
-                                <p>
-                                  Promoção para {option.promotionalSlots || 0} primeiros
-                                  inscritos.
+                              {detailLines.map((line, index) => (
+                                <p
+                                  key={`${optionId}-${line.text}-${index}`}
+                                  className={
+                                    line.tone === 'highlight'
+                                      ? 'is-highlight'
+                                      : line.tone === 'secondary'
+                                        ? 'is-secondary'
+                                        : undefined
+                                  }
+                                >
+                                  {line.text}
                                 </p>
-                              ) : null}
-                              {option.discountEnabled &&
-                              Number(option.discountDeadlineDay || 0) > 0 ? (
-                                <p>
-                                  Valor com desconto até dia {option.discountDeadlineDay}
-                                  {paymentOptionDiscountSummary(option)
-                                    ? `: ${paymentOptionDiscountSummary(option)}`
-                                    : ''}
-                                  {option.discountRequiresActiveCrf
-                                    ? ' (CRF ativo).'
-                                    : '.'}
-                                </p>
-                              ) : null}
-                              {option.promotionalDiscountEnabled &&
-                              Number(option.promotionalDiscountDeadlineDay || 0) > 0 ? (
-                                <p>
-                                  Promoção com desconto até dia{' '}
-                                  {option.promotionalDiscountDeadlineDay}
-                                  {paymentOptionPromotionalDiscountSummary(option)
-                                    ? `: ${paymentOptionPromotionalDiscountSummary(option)}`
-                                    : ''}
-                                  {option.promotionalDiscountRequiresActiveCrf
-                                    ? ' (CRF ativo).'
-                                    : '.'}
-                                </p>
-                              ) : null}
+                              ))}
                             </div>
                           </details>
                         );
