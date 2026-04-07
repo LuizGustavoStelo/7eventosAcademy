@@ -148,37 +148,39 @@ export class CoursesService {
     actor: CourseActor,
   ) {
     const current = await this.ensureCourseExists(id, actor);
+    const hasField = (key: keyof UpdateCourseDto) =>
+      Object.prototype.hasOwnProperty.call(dto, key);
 
     const price =
-      dto.price === undefined
+      !hasField('price')
         ? current.price
           ? Number(current.price)
           : undefined
-        : dto.price;
+        : dto.price ?? undefined;
 
     const paymentModel = dto.paymentModel ?? current.paymentModel;
     const installmentMonths =
-      dto.installmentMonths === undefined
+      !hasField('installmentMonths')
         ? (current.installmentMonths ?? undefined)
-        : dto.installmentMonths;
+        : dto.installmentMonths ?? undefined;
     const installmentValue =
-      dto.installmentValue === undefined
+      !hasField('installmentValue')
         ? current.installmentValue
           ? Number(current.installmentValue)
           : undefined
-        : dto.installmentValue;
+        : dto.installmentValue ?? undefined;
     const enrollmentFee =
-      dto.enrollmentFee === undefined
+      !hasField('enrollmentFee')
         ? current.enrollmentFee
           ? Number(current.enrollmentFee)
           : undefined
-        : dto.enrollmentFee;
+        : dto.enrollmentFee ?? undefined;
     const installmentStartDate =
-      dto.installmentStartDate === undefined
+      !hasField('installmentStartDate')
         ? current.installmentStartDate
           ? current.installmentStartDate.toISOString()
           : undefined
-        : dto.installmentStartDate;
+        : dto.installmentStartDate ?? undefined;
 
     const paymentData = this.normalizePayment({
       price,
@@ -198,10 +200,16 @@ export class CoursesService {
       data: {
         name: dto.name?.trim(),
         description: dto.description?.trim(),
-        workloadHours: dto.workloadHours,
+        workloadHours: hasField('workloadHours')
+          ? (dto.workloadHours ?? null)
+          : undefined,
         category: dto.category?.trim(),
         coordinator: dto.coordinator?.trim(),
-        price: dto.price === undefined ? undefined : this.toDecimal(dto.price),
+        price: !hasField('price')
+          ? undefined
+          : dto.price === null
+            ? null
+            : this.toDecimal(dto.price),
         ...paymentData,
         paymentOptions:
           paymentOptions === undefined
@@ -423,19 +431,28 @@ export class CoursesService {
       };
     }
 
-    const months = Math.max(1, Number(input.installmentMonths || 1));
+    const months =
+      input.installmentMonths === undefined
+        ? null
+        : Math.max(1, Number(input.installmentMonths || 1));
     const totalPrice = Number(input.price || 0);
-    const calculatedInstallment = totalPrice > 0 ? totalPrice / months : 0;
+    const calculatedInstallment =
+      months && totalPrice > 0 ? totalPrice / months : 0;
     const installmentValue =
       input.installmentValue === undefined
-        ? calculatedInstallment
+        ? months
+          ? calculatedInstallment
+          : undefined
         : Number(input.installmentValue);
 
     return {
       paymentModel: CoursePaymentModelDto.INSTALLMENTS,
       enrollmentFee,
       installmentMonths: months,
-      installmentValue: this.toDecimal(installmentValue),
+      installmentValue:
+        installmentValue === undefined
+          ? null
+          : this.toDecimal(installmentValue),
       installmentStartDate: input.installmentStartDate
         ? new Date(input.installmentStartDate)
         : null,

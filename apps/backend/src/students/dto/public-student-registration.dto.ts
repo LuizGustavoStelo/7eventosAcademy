@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Max,
   Min,
   MinLength,
@@ -102,4 +103,9 @@ export class PublicStudentRegistrationDto {
   @IsUUID('4', { each: true })
   @Type(() => String)
   courseIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  selectedPaymentOptionId?: string;
 }

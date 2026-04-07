@@ -18,13 +18,28 @@ type CourseCatalogItem = {
   installmentMonths?: number | null;
   installmentValue?: number | null;
   paymentOptions?: Array<{
+    id?: string | null;
+    title?: string | null;
     method?: string | null;
     type?: string | null;
     totalAmount?: number | null;
     installmentCount?: number | null;
     installmentAmount?: number | null;
+    dueDay?: number | null;
     isPromotional?: boolean | null;
     promotionalSlots?: number | null;
+    promotionalTotalAmount?: number | null;
+    promotionalInstallmentAmount?: number | null;
+    discountEnabled?: boolean | null;
+    discountTotalAmount?: number | null;
+    discountInstallmentAmount?: number | null;
+    discountDeadlineDay?: number | null;
+    discountRequiresActiveCrf?: boolean | null;
+    promotionalDiscountEnabled?: boolean | null;
+    promotionalDiscountTotalAmount?: number | null;
+    promotionalDiscountInstallmentAmount?: number | null;
+    promotionalDiscountDeadlineDay?: number | null;
+    promotionalDiscountRequiresActiveCrf?: boolean | null;
     active?: boolean | null;
   }> | null;
   modality?: string | null;
@@ -53,6 +68,7 @@ type RegistrationPayload = {
   jobTitle: string;
   street?: string;
   courseIds?: string[];
+  selectedPaymentOptionId?: string;
 };
 
 type PasswordStrength = {
@@ -245,11 +261,18 @@ function modalityLabel(value?: string | null) {
   return 'Não informado';
 }
 
-function installmentLabel(course: CourseCatalogItem) {
-  const paymentOptions = Array.isArray(course.paymentOptions)
+function getActivePaymentOptions(course: CourseCatalogItem) {
+  return Array.isArray(course.paymentOptions)
     ? course.paymentOptions.filter((option) => option?.active !== false)
     : [];
-  if (paymentOptions.length > 0) {
+}
+
+function installmentLabel(course: CourseCatalogItem) {
+  const paymentOptions = getActivePaymentOptions(course);
+  if (paymentOptions.length > 1) {
+    return `${paymentOptions.length} opções de pagamento disponíveis`;
+  }
+  if (paymentOptions.length === 1) {
     const firstOption = paymentOptions[0];
     const method = String(firstOption.method || '').toUpperCase();
     const methodLabel =
@@ -259,11 +282,6 @@ function installmentLabel(course: CourseCatalogItem) {
           ? 'Cartão'
           : 'Pix';
     const type = String(firstOption.type || '').toUpperCase();
-    const promoSuffix = firstOption.isPromotional
-      ? firstOption.promotionalSlots
-        ? ' (promo ' + String(firstOption.promotionalSlots) + ' primeiros)'
-        : ' (promoção)'
-      : '';
     if (type === 'INSTALLMENTS') {
       const count = Number(firstOption.installmentCount || 0) || 1;
       const installmentAmount =
@@ -271,10 +289,9 @@ function installmentLabel(course: CourseCatalogItem) {
         (Number(firstOption.totalAmount || 0) > 0
           ? Number(firstOption.totalAmount || 0) / count
           : 0);
-      return methodLabel + ' ' + count + 'x de ' + currencyFormatter.format(installmentAmount) + promoSuffix;
+      return `${methodLabel} ${count}x de ${currencyFormatter.format(installmentAmount)}`;
     }
-
-    return methodLabel + ' à vista ' + currencyFormatter.format(Number(firstOption.totalAmount || 0)) + promoSuffix;
+    return `${methodLabel} à vista ${currencyFormatter.format(Number(firstOption.totalAmount || 0))}`;
   }
 
   const paymentModel = String(course.paymentModel || '').toUpperCase();
@@ -289,6 +306,26 @@ function installmentLabel(course: CourseCatalogItem) {
   }
 
   return 'Pagamento parcelado';
+}
+
+function paymentMethodLabel(value?: string | null) {
+  const normalized = String(value || '').toUpperCase();
+  if (normalized === 'BANK_SLIP') return 'Boleto';
+  if (normalized === 'CREDIT_CARD') return 'Cartão de crédito';
+  return 'Pix';
+}
+
+function paymentOptionSummary(option: NonNullable<CourseCatalogItem['paymentOptions']>[number]) {
+  const type = String(option.type || '').toUpperCase();
+  const method = paymentMethodLabel(option.method);
+  if (type === 'INSTALLMENTS') {
+    const count = Number(option.installmentCount || 0) || 1;
+    const installmentAmount =
+      Number(option.installmentAmount || 0) ||
+      (Number(option.totalAmount || 0) > 0 ? Number(option.totalAmount || 0) / count : 0);
+    return `${method} ${count}x de ${currencyFormatter.format(installmentAmount)}`;
+  }
+  return `${method} à vista ${currencyFormatter.format(Number(option.totalAmount || 0))}`;
 }
 
 async function requestWithRetry(input: string, init?: RequestInit) {
@@ -350,6 +387,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const [zipCode, setZipCode] = useState('');
   const [address, setAddress] = useState('');
   const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [selectedPaymentOptionId, setSelectedPaymentOptionId] = useState('');
 
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
@@ -357,6 +395,31 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
   const strength = useMemo(() => passwordStrength(password), [password]);
   const isFinalStep = currentStep === steps.length - 1;
+  const selectedCourse = useMemo(
+    () => courses.find((course) => course.id === selectedCourseId) ?? null,
+    [courses, selectedCourseId],
+  );
+  const selectedCoursePaymentOptions = useMemo(
+    () => (selectedCourse ? getActivePaymentOptions(selectedCourse) : []),
+    [selectedCourse],
+  );
+
+  useEffect(() => {
+    if (!selectedCourseId) {
+      setSelectedPaymentOptionId('');
+      return;
+    }
+    if (selectedCoursePaymentOptions.length === 0) {
+      setSelectedPaymentOptionId('');
+      return;
+    }
+    const hasCurrent = selectedCoursePaymentOptions.some(
+      (option) => String(option.id || '') === selectedPaymentOptionId,
+    );
+    if (!hasCurrent) {
+      setSelectedPaymentOptionId(String(selectedCoursePaymentOptions[0]?.id || ''));
+    }
+  }, [selectedCourseId, selectedCoursePaymentOptions, selectedPaymentOptionId]);
 
   const loadCourses = async () => {
     setCoursesLoading(true);
@@ -429,6 +492,9 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     if (!address.trim()) return 'Informe o endereço completo.';
     if (coursesLoading) return 'Aguarde o carregamento dos cursos.';
     if (!selectedCourseId) return 'Selecione um curso para concluir o cadastro.';
+    if (selectedCoursePaymentOptions.length > 0 && !selectedPaymentOptionId) {
+      return 'Selecione a forma de pagamento para concluir a matrícula.';
+    }
     return '';
   };
 
@@ -478,6 +544,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     setZipCode('');
     setAddress('');
     setSelectedCourseId('');
+    setSelectedPaymentOptionId('');
     setCurrentStep(0);
   };
 
@@ -514,6 +581,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       password,
       street: address.trim(),
       courseIds: selectedCourseId ? [selectedCourseId] : undefined,
+      selectedPaymentOptionId: selectedPaymentOptionId || undefined,
     };
 
     setLoading(true);
@@ -917,6 +985,76 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                       );
                     })}
                   </div>
+                ) : null}
+
+                {selectedCourse && selectedCoursePaymentOptions.length > 0 ? (
+                  <section className="native-course-payment-selector">
+                    <header>
+                      <h4>Forma de pagamento</h4>
+                      <p>
+                        Escolha uma opção para esta matrícula e expanda para ver os
+                        detalhes.
+                      </p>
+                    </header>
+                    <div className="native-course-payment-list">
+                      {selectedCoursePaymentOptions.map((option) => {
+                        const optionId = String(option.id || '');
+                        const selected = selectedPaymentOptionId === optionId;
+                        return (
+                          <details
+                            key={optionId || paymentOptionSummary(option)}
+                            className={`native-course-payment-item ${selected ? 'is-selected' : ''}`}
+                          >
+                            <summary>
+                              <div>
+                                <strong>{option.title || paymentOptionSummary(option)}</strong>
+                                <span>{paymentOptionSummary(option)}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  setSelectedPaymentOptionId(optionId);
+                                }}
+                              >
+                                {selected ? 'Selecionada' : 'Selecionar'}
+                              </button>
+                            </summary>
+                            <div className="native-course-payment-item-body">
+                              {option.dueDay ? (
+                                <p>Vencimento padrão: dia {option.dueDay}.</p>
+                              ) : null}
+                              {option.isPromotional ? (
+                                <p>
+                                  Promoção para {option.promotionalSlots || 0} primeiros
+                                  inscritos.
+                                </p>
+                              ) : null}
+                              {option.discountEnabled &&
+                              Number(option.discountDeadlineDay || 0) > 0 ? (
+                                <p>
+                                  Valor com desconto até dia {option.discountDeadlineDay}
+                                  {option.discountRequiresActiveCrf
+                                    ? ' (CRF ativo).'
+                                    : '.'}
+                                </p>
+                              ) : null}
+                              {option.promotionalDiscountEnabled &&
+                              Number(option.promotionalDiscountDeadlineDay || 0) > 0 ? (
+                                <p>
+                                  Promoção com desconto até dia{' '}
+                                  {option.promotionalDiscountDeadlineDay}
+                                  {option.promotionalDiscountRequiresActiveCrf
+                                    ? ' (CRF ativo).'
+                                    : '.'}
+                                </p>
+                              ) : null}
+                            </div>
+                          </details>
+                        );
+                      })}
+                    </div>
+                  </section>
                 ) : null}
               </section>
             </>

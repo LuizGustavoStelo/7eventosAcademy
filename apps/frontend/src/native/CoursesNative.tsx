@@ -1024,17 +1024,30 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     const cleanName = sanitizeOnlyLetters(form.name).trim();
     const cleanCategory = sanitizeOnlyLetters(form.category).trim();
     const cleanCoordinator = sanitizeOnlyLetters(form.coordinator).trim();
+    const isEditing = Boolean(form.id);
+    const toNullableInt = (value: string) => {
+      const parsed = parseIntSafe(value);
+      if (parsed !== undefined) return parsed;
+      return isEditing ? null : undefined;
+    };
+    const toNullableMoney = (value: string) => {
+      const parsed = parseNumberSafe(value);
+      if (parsed !== undefined) return parsed;
+      return isEditing ? null : undefined;
+    };
 
     const payloadBase = {
       name: cleanName,
       description: form.description.trim() || undefined,
-      workloadHours: parseIntSafe(form.workloadHours),
+      workloadHours: toNullableInt(form.workloadHours),
       category: cleanCategory || undefined,
       coordinator: cleanCoordinator || undefined,
-      price: parseNumberSafe(form.price),
+      price: toNullableMoney(form.price),
       enrollmentFee: form.hasEnrollmentFee
-        ? parseNumberSafe(form.enrollmentFee)
-        : 0,
+        ? toNullableMoney(form.enrollmentFee)
+        : isEditing
+          ? null
+          : undefined,
       modality: form.modality,
       status: form.status,
       paymentModel: form.paymentModel,
@@ -1045,7 +1058,10 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       return;
     }
 
-    if (form.hasEnrollmentFee && payloadBase.enrollmentFee === undefined) {
+    if (
+      form.hasEnrollmentFee &&
+      (payloadBase.enrollmentFee === undefined || payloadBase.enrollmentFee === null)
+    ) {
       setFormError('Informe um valor de matrícula válido.');
       return;
     }
@@ -1053,13 +1069,15 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     const installments =
       form.paymentModel === 'INSTALLMENTS'
         ? {
-            installmentMonths: parseIntSafe(form.installmentMonths),
-            installmentValue: parseNumberSafe(form.installmentValue),
+            installmentMonths: toNullableInt(form.installmentMonths),
+            installmentValue: toNullableMoney(form.installmentValue),
             installmentStartDate:
               form.installmentStartMode === 'SCHEDULED'
                 ? form.installmentStartDate
                   ? `${form.installmentStartDate}T00:00:00.000Z`
-                  : undefined
+                  : isEditing
+                    ? null
+                    : undefined
                 : null,
           }
         : {
@@ -1451,10 +1469,13 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     form.installmentValue,
     form.price,
   ]);
+  const previewShouldShowSummaryOnly =
+    previewDisplayablePaymentOptions.length > 1;
 
   const previewPaymentLines = useMemo(
-    () =>
-      previewDisplayablePaymentOptions
+    () => {
+      if (previewShouldShowSummaryOnly) return [];
+      return previewDisplayablePaymentOptions
         .slice(0, 4)
         .map((option) =>
           formatPaymentOptionLabel({
@@ -1488,8 +1509,9 @@ export function CoursesNative({ token }: CoursesNativeProps) {
             promotionalDiscountRequiresActiveCrf:
               option.promotionalDiscountRequiresActiveCrf,
           }),
-        ),
-    [previewDisplayablePaymentOptions],
+        );
+    },
+    [previewDisplayablePaymentOptions, previewShouldShowSummaryOnly],
   );
 
   const previewEnrollmentFee = useMemo(() => {
@@ -2421,12 +2443,18 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       <span>{modalityLabel[form.modality]}</span>
                       <span>{statusLabel[form.status]}</span>
                       {hasTextValue(previewPayment) ? <span>{previewPayment}</span> : null}
+                      {previewShouldShowSummaryOnly ? (
+                        <span className="native-payment-preview-line">
+                          O aluno verá as condições detalhadas na escolha da forma de pagamento.
+                        </span>
+                      ) : null}
                       {previewPaymentLines.map((line, index) => (
                         <span key={`${line}-${index}`} className="native-payment-preview-line">
                           {line}
                         </span>
                       ))}
-                      {previewDisplayablePaymentOptions.length > previewPaymentLines.length ? (
+                      {!previewShouldShowSummaryOnly &&
+                      previewDisplayablePaymentOptions.length > previewPaymentLines.length ? (
                         <span className="native-payment-preview-line">
                           +{previewDisplayablePaymentOptions.length - previewPaymentLines.length} opção(ões)
                         </span>

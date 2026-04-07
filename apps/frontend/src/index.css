@@ -8200,6 +8200,97 @@ table button {
   cursor: pointer;
 }
 
+.native-course-payment-selector {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.native-course-payment-selector header h4 {
+  margin: 0;
+  color: #1f3a65;
+  font-size: 0.96rem;
+}
+
+.native-course-payment-selector header p {
+  margin: 0.22rem 0 0;
+  color: #5a6f8a;
+  font-size: 0.8rem;
+}
+
+.native-course-payment-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.native-course-payment-item {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.native-course-payment-item.is-selected {
+  border-color: #139395;
+  box-shadow: 0 0 0 2px rgba(19, 147, 149, 0.12);
+}
+
+.native-course-payment-item summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.62rem 0.68rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.native-course-payment-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.native-course-payment-item summary strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.82rem;
+}
+
+.native-course-payment-item summary span {
+  color: #475569;
+  font-size: 0.76rem;
+}
+
+.native-course-payment-item summary button {
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 9px;
+  background: #fff;
+  color: #334155;
+  font-weight: 700;
+  padding: 0.34rem 0.58rem;
+  cursor: pointer;
+}
+
+.native-course-payment-item.is-selected summary button {
+  border-color: #139395;
+  color: #0f7f82;
+}
+
+.native-course-payment-item-body {
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 0.58rem 0.68rem 0.66rem;
+  display: grid;
+  gap: 0.34rem;
+}
+
+.native-course-payment-item-body p {
+  margin: 0;
+  color: #334155;
+  font-size: 0.78rem;
+}
+
 .native-student-register-actions {
   grid-column: 1 / -1;
   display: flex;

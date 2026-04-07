@@ -30,7 +30,7 @@ export class UpdateCourseDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  workloadHours?: number;
+  workloadHours?: number | null;
 
   @IsOptional()
   @IsString()
@@ -44,13 +44,13 @@ export class UpdateCourseDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  price?: number;
+  price?: number | null;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  enrollmentFee?: number;
+  enrollmentFee?: number | null;
 
   @IsOptional()
   @IsEnum(CourseModalityDto)
@@ -68,17 +68,17 @@ export class UpdateCourseDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  installmentMonths?: number;
+  installmentMonths?: number | null;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  installmentValue?: number;
+  installmentValue?: number | null;
 
   @IsOptional()
   @IsISO8601()
-  installmentStartDate?: string;
+  installmentStartDate?: string | null;
 
   @IsOptional()
   @IsArray()

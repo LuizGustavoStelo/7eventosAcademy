@@ -248,6 +248,10 @@ export class StudentsService {
       await this.autoEnrollStudentInEligibleClasses({
         studentId: student.id,
         courseIds: uniqueCourseIds,
+        paymentOptionId:
+          uniqueCourseIds.length === 1
+            ? dto.selectedPaymentOptionId
+            : undefined,
         actor,
       });
     }
@@ -964,6 +968,7 @@ export class StudentsService {
   private async autoEnrollStudentInEligibleClasses(input: {
     studentId: string;
     courseIds: string[];
+    paymentOptionId?: string;
     actor?: StudentActor;
   }) {
     if (input.courseIds.length === 0) return;
@@ -998,6 +1003,7 @@ export class StudentsService {
           {
             classId,
             studentId: input.studentId,
+            paymentOptionId: input.paymentOptionId,
           },
           {
             actorUserId: input.actor?.sub,
