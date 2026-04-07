@@ -627,6 +627,14 @@ function formatMoneyTyping(value: string): string {
   });
 }
 
+function toSafeMoneyNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  if (parsed < 0) return undefined;
+  return Math.round(parsed * 100) / 100;
+}
+
 const courseMoneyFields = new Set<keyof CourseFormState>([
   'price',
   'enrollmentFee',
@@ -1309,6 +1317,32 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     if (!paymentOptionsPayload.some((option) => option.active)) {
       setFormError('Mantenha ao menos uma opção de pagamento marcada como disponível.');
       return;
+    }
+
+    for (let index = 0; index < paymentOptionsPayload.length; index += 1) {
+      const option = paymentOptionsPayload[index];
+      const moneyKeys: Array<keyof typeof option> = [
+        'totalAmount',
+        'installmentAmount',
+        'promotionalTotalAmount',
+        'promotionalInstallmentAmount',
+        'discountTotalAmount',
+        'discountInstallmentAmount',
+        'promotionalDiscountTotalAmount',
+        'promotionalDiscountInstallmentAmount',
+      ];
+
+      for (const key of moneyKeys) {
+        const currentValue = option[key] as unknown;
+        const normalized = toSafeMoneyNumber(currentValue);
+        if (currentValue !== undefined && normalized === undefined) {
+          setFormError(`Valor inválido em ${String(key)} da opção ${index + 1}.`);
+          return;
+        }
+        if (normalized !== undefined) {
+          (option as Record<string, unknown>)[key as string] = normalized;
+        }
+      }
     }
 
     setSaving(true);
