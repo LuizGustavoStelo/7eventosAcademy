@@ -243,6 +243,7 @@ function normalizeCoursePaymentOptions(
         discountEnabled:
           Boolean(option.discountEnabled) &&
           (Number(option.discountTotalAmount || 0) > 0 ||
+            Number(option.discountInstallmentAmount || 0) > 0 ||
             Number(option.discountValue || 0) > 0),
         discountTotalAmount:
           option.discountEnabled && Number(option.discountTotalAmount || 0) > 0
@@ -267,7 +268,8 @@ function normalizeCoursePaymentOptions(
         promotionalDiscountEnabled:
           option.isPromotional &&
           Boolean(option.promotionalDiscountEnabled) &&
-          Number(option.promotionalDiscountTotalAmount || 0) > 0,
+          (Number(option.promotionalDiscountTotalAmount || 0) > 0 ||
+            Number(option.promotionalDiscountInstallmentAmount || 0) > 0),
         promotionalDiscountTotalAmount:
           option.isPromotional &&
           option.promotionalDiscountEnabled &&
@@ -586,8 +588,22 @@ function parseIntSafe(value: string): number | undefined {
   return integer > 0 ? integer : undefined;
 }
 
-function parseNumberSafe(value: string): number | undefined {
-  const parsed = Number(value);
+function parseNumberSafe(value: string | number | null | undefined): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  let str = String(value).trim();
+  
+  if (str.includes(',')) {
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else {
+    const parts = str.split('.');
+    if (parts.length > 2) {
+      str = str.replace(/\./g, '');
+    } else if (parts.length === 2 && parts[1].length === 3) {
+      str = str.replace(/\./g, '');
+    }
+  }
+
+  const parsed = Number(str);
   if (!Number.isFinite(parsed)) return undefined;
   return parsed >= 0 ? parsed : undefined;
 }
@@ -676,6 +692,7 @@ function mapCoursePaymentOptionToForm(
     discountEnabled:
       Boolean(option.discountEnabled) &&
       (Number(option.discountTotalAmount || 0) > 0 ||
+        Number(option.discountInstallmentAmount || 0) > 0 ||
         Number(option.discountValue || 0) > 0),
     discountTotalAmount:
       option.discountEnabled && Number(option.discountTotalAmount || 0) > 0
@@ -701,7 +718,8 @@ function mapCoursePaymentOptionToForm(
     promotionalDiscountEnabled:
       Boolean(option.isPromotional) &&
       Boolean(option.promotionalDiscountEnabled) &&
-      Number(option.promotionalDiscountTotalAmount || 0) > 0,
+      (Number(option.promotionalDiscountTotalAmount || 0) > 0 ||
+        Number(option.promotionalDiscountInstallmentAmount || 0) > 0),
     promotionalDiscountTotalAmount:
       option.isPromotional &&
       option.promotionalDiscountEnabled &&
@@ -975,16 +993,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       return;
     }
 
-    if (!payloadBase.workloadHours) {
-      setFormError('Informe uma carga horária válida.');
-      return;
-    }
-
-    if (payloadBase.price === undefined) {
-      setFormError('Informe um valor total válido.');
-      return;
-    }
-
     if (form.hasEnrollmentFee && payloadBase.enrollmentFee === undefined) {
       setFormError('Informe um valor de matrícula válido.');
       return;
@@ -1152,15 +1160,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       }
 
       if (option.discountEnabled) {
-        const discountTotalAmount = parseNumberSafe(option.discountTotalAmount);
-        if (!discountTotalAmount || discountTotalAmount <= 0) {
-          setFormError(`Informe o valor total com desconto na opção ${index + 1}.`);
-          return;
-        }
-        if (discountTotalAmount >= totalAmount) {
-          setFormError(`O valor total com desconto deve ser menor que o valor total na opção ${index + 1}.`);
-          return;
-        }
         const discountDeadlineDay = parseIntSafe(option.discountDeadlineDay);
         if (!discountDeadlineDay || discountDeadlineDay < 1 || discountDeadlineDay > 31) {
           setFormError(`Informe o dia limite do valor com desconto (1 a 31) na opção ${index + 1}.`);
@@ -1168,16 +1167,13 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         }
 
         payloadOption.discountEnabled = true;
-        payloadOption.discountTotalAmount = discountTotalAmount;
         payloadOption.discountDeadlineDay = discountDeadlineDay;
         payloadOption.discountRequiresActiveCrf = option.discountRequiresActiveCrf;
         if (option.type === 'INSTALLMENTS') {
           const installmentCount = parseIntSafe(option.installmentCount) ?? 1;
           const baseInstallmentAmount =
             parseNumberSafe(option.installmentAmount) ?? totalAmount / installmentCount;
-          const discountInstallmentAmount =
-            parseNumberSafe(option.discountInstallmentAmount) ??
-            discountTotalAmount / installmentCount;
+          const discountInstallmentAmount = parseNumberSafe(option.discountInstallmentAmount);
           if (!discountInstallmentAmount || discountInstallmentAmount <= 0) {
             setFormError(`Informe o valor da parcela com desconto na opção ${index + 1}.`);
             return;
@@ -1186,24 +1182,25 @@ export function CoursesNative({ token }: CoursesNativeProps) {
             setFormError(`O valor da parcela com desconto deve ser menor que a parcela padrão na opção ${index + 1}.`);
             return;
           }
+          payloadOption.discountTotalAmount = discountInstallmentAmount * installmentCount;
           payloadOption.discountInstallmentAmount = discountInstallmentAmount;
+        } else {
+          const discountTotalAmount = parseNumberSafe(option.discountTotalAmount);
+          if (!discountTotalAmount || discountTotalAmount <= 0) {
+            setFormError(`Informe o valor total com desconto na opção ${index + 1}.`);
+            return;
+          }
+          if (discountTotalAmount >= totalAmount) {
+            setFormError(`O valor total com desconto deve ser menor que o valor total na opção ${index + 1}.`);
+            return;
+          }
+          payloadOption.discountTotalAmount = discountTotalAmount;
         }
       }
 
       if (option.isPromotional && option.promotionalDiscountEnabled) {
         const promotionalTotalAmount =
           parseNumberSafe(option.promotionalTotalAmount) ?? totalAmount;
-        const promotionalDiscountTotalAmount = parseNumberSafe(
-          option.promotionalDiscountTotalAmount,
-        );
-        if (!promotionalDiscountTotalAmount || promotionalDiscountTotalAmount <= 0) {
-          setFormError(`Informe o valor total com desconto promocional da opção ${index + 1}.`);
-          return;
-        }
-        if (promotionalDiscountTotalAmount >= promotionalTotalAmount) {
-          setFormError(`O valor total com desconto promocional deve ser menor que o valor promocional da opção ${index + 1}.`);
-          return;
-        }
         const promotionalDiscountDeadlineDay = parseIntSafe(
           option.promotionalDiscountDeadlineDay,
         );
@@ -1217,7 +1214,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         }
 
         payloadOption.promotionalDiscountEnabled = true;
-        payloadOption.promotionalDiscountTotalAmount = promotionalDiscountTotalAmount;
         payloadOption.promotionalDiscountDeadlineDay = promotionalDiscountDeadlineDay;
         payloadOption.promotionalDiscountRequiresActiveCrf =
           option.promotionalDiscountRequiresActiveCrf;
@@ -1227,9 +1223,9 @@ export function CoursesNative({ token }: CoursesNativeProps) {
           const promotionalInstallmentAmount =
             parseNumberSafe(option.promotionalInstallmentAmount) ??
             promotionalTotalAmount / installmentCount;
-          const promotionalDiscountInstallmentAmount =
-            parseNumberSafe(option.promotionalDiscountInstallmentAmount) ??
-            promotionalDiscountTotalAmount / installmentCount;
+          const promotionalDiscountInstallmentAmount = parseNumberSafe(
+            option.promotionalDiscountInstallmentAmount,
+          );
           if (
             !promotionalDiscountInstallmentAmount ||
             promotionalDiscountInstallmentAmount <= 0
@@ -1241,8 +1237,23 @@ export function CoursesNative({ token }: CoursesNativeProps) {
             setFormError(`O valor da parcela com desconto promocional deve ser menor que a parcela promocional da opção ${index + 1}.`);
             return;
           }
+          payloadOption.promotionalDiscountTotalAmount =
+            promotionalDiscountInstallmentAmount * installmentCount;
           payloadOption.promotionalDiscountInstallmentAmount =
             promotionalDiscountInstallmentAmount;
+        } else {
+          const promotionalDiscountTotalAmount = parseNumberSafe(
+            option.promotionalDiscountTotalAmount,
+          );
+          if (!promotionalDiscountTotalAmount || promotionalDiscountTotalAmount <= 0) {
+            setFormError(`Informe o valor total com desconto promocional da opção ${index + 1}.`);
+            return;
+          }
+          if (promotionalDiscountTotalAmount >= promotionalTotalAmount) {
+            setFormError(`O valor total com desconto promocional deve ser menor que o valor promocional da opção ${index + 1}.`);
+            return;
+          }
+          payloadOption.promotionalDiscountTotalAmount = promotionalDiscountTotalAmount;
         }
       }
 
@@ -1646,22 +1657,18 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                     min={1}
                     value={form.workloadHours}
                     onChange={(event) => updateForm('workloadHours', event.target.value)}
-                    required
                   />
                 </label>
 
                 <label>
                   Valor total do curso (R$)
                   <input
-                    type="number"
-                    min={0}
-                    step="0.01"
+                    type="text"
                     value={form.price}
                     onChange={(event) => {
                       updateForm('price', event.target.value);
                       recalculateInstallment(event.target.value, form.installmentMonths);
                     }}
-                    required
                   />
                 </label>
 
@@ -1682,9 +1689,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                   <label>
                     Valor da matrícula (R$)
                     <input
-                      type="number"
-                      min={0}
-                      step="0.01"
+                      type="text"
                       value={form.enrollmentFee}
                       onChange={(event) =>
                         updateForm('enrollmentFee', event.target.value)
@@ -1732,9 +1737,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                     <label>
                       Valor da mensalidade (R$)
                       <input
-                        type="number"
-                        min={0}
-                        step="0.01"
+                        type="text"
                         value={form.installmentValue}
                         onChange={(event) =>
                           updateForm('installmentValue', event.target.value)
@@ -1881,9 +1884,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                           <label>
                             Valor total (R$)
                             <input
-                              type="number"
-                              min={0}
-                              step="0.01"
+                              type="text"
                               value={option.totalAmount}
                               onChange={(event) => {
                                 updatePaymentOption(
@@ -1929,9 +1930,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               <label>
                                 Valor da parcela (R$)
                                 <input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
+                                  type="text"
                                   value={option.installmentAmount}
                                   onChange={(event) =>
                                     updatePaymentOption(
@@ -2015,9 +2014,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               <label>
                                 Valor total promocional (R$)
                                 <input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
+                                  type="text"
                                   value={option.promotionalTotalAmount}
                                   onChange={(event) =>
                                     updatePaymentOption(
@@ -2033,9 +2030,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                 <label>
                                   Valor da parcela promocional (R$)
                                   <input
-                                    type="number"
-                                    min={0}
-                                    step="0.01"
+                                    type="text"
                                     value={option.promotionalInstallmentAmount}
                                     onChange={(event) =>
                                       updatePaymentOption(
@@ -2071,22 +2066,24 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
                           {option.discountEnabled ? (
                             <>
-                              <label>
-                                Valor total normal com desconto (R$)
-                                <input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  value={option.discountTotalAmount}
-                                  onChange={(event) =>
-                                    updatePaymentOption(
-                                      option.id,
-                                      'discountTotalAmount',
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
+                              {option.type !== 'INSTALLMENTS' ? (
+                                <label>
+                                  Valor total normal com desconto (R$)
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={option.discountTotalAmount}
+                                    onChange={(event) =>
+                                      updatePaymentOption(
+                                        option.id,
+                                        'discountTotalAmount',
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </label>
+                              ) : null}
 
                               {option.type === 'INSTALLMENTS' ? (
                                 <label>
@@ -2166,22 +2163,24 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
                               {option.promotionalDiscountEnabled ? (
                                 <>
-                                  <label>
-                                    Valor total promocional com desconto (R$)
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      step="0.01"
-                                      value={option.promotionalDiscountTotalAmount}
-                                      onChange={(event) =>
-                                        updatePaymentOption(
-                                          option.id,
-                                          'promotionalDiscountTotalAmount',
-                                          event.target.value,
-                                        )
-                                      }
-                                    />
-                                  </label>
+                                  {option.type !== 'INSTALLMENTS' ? (
+                                    <label>
+                                      Valor total promocional com desconto (R$)
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        step="0.01"
+                                        value={option.promotionalDiscountTotalAmount}
+                                        onChange={(event) =>
+                                          updatePaymentOption(
+                                            option.id,
+                                            'promotionalDiscountTotalAmount',
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </label>
+                                  ) : null}
 
                                   {option.type === 'INSTALLMENTS' ? (
                                     <label>
