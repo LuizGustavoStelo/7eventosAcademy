@@ -2053,7 +2053,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
 
                           <label>
-                            Tem valor com desconto?
+                            Valor normal tem desconto por pagamento antecipado?
                             <select
                               value={option.discountEnabled ? 'YES' : 'NO'}
                               onChange={(event) =>
@@ -2072,7 +2072,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                           {option.discountEnabled ? (
                             <>
                               <label>
-                                Valor total com desconto (R$)
+                                Valor total normal com desconto (R$)
                                 <input
                                   type="number"
                                   min={0}
@@ -2090,7 +2090,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
                               {option.type === 'INSTALLMENTS' ? (
                                 <label>
-                                  Valor da parcela com desconto (R$)
+                                  Valor da parcela normal com desconto (R$)
                                   <input
                                     type="number"
                                     min={0}
@@ -2108,7 +2108,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               ) : null}
 
                               <label>
-                                Pagando até dia
+                                Pagando até dia (valor normal)
                                 <input
                                   type="number"
                                   min={1}
@@ -2127,7 +2127,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               </label>
 
                               <label>
-                                Exige CRF ativo?
+                                Exige CRF ativo no valor normal?
                                 <select
                                   value={option.discountRequiresActiveCrf ? 'YES' : 'NO'}
                                   onChange={(event) =>
@@ -2148,7 +2148,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                           {option.isPromotional ? (
                             <>
                               <label>
-                                Promoção tem valor com desconto?
+                                Valor promocional tem desconto por pagamento antecipado?
                                 <select
                                   value={option.promotionalDiscountEnabled ? 'YES' : 'NO'}
                                   onChange={(event) =>
@@ -2185,7 +2185,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
                                   {option.type === 'INSTALLMENTS' ? (
                                     <label>
-                                      Parcela promocional com desconto (R$)
+                                      Valor da parcela promocional com desconto (R$)
                                       <input
                                         type="number"
                                         min={0}
@@ -2203,7 +2203,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                   ) : null}
 
                                   <label>
-                                    Promo pagando até dia
+                                    Pagando até dia (valor promocional)
                                     <input
                                       type="number"
                                       min={1}
@@ -2222,7 +2222,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                   </label>
 
                                   <label>
-                                    Promo exige CRF ativo?
+                                    Exige CRF ativo no valor promocional?
                                     <select
                                       value={option.promotionalDiscountRequiresActiveCrf ? 'YES' : 'NO'}
                                       onChange={(event) =>
