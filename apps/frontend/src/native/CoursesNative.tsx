@@ -169,28 +169,28 @@ function createPaymentOptionForm(
     title: input?.title || '',
     method: input?.method || 'PIX',
     type: input?.type || 'CASH',
-    totalAmount: input?.totalAmount || '0',
+    totalAmount: formatMoneyValue(input?.totalAmount) || '0,00',
     installmentCount: input?.installmentCount || '12',
-    installmentAmount: input?.installmentAmount || '0',
+    installmentAmount: formatMoneyValue(input?.installmentAmount) || '0,00',
     dueDay: input?.dueDay || '',
     note: input?.note || '',
     isPromotional: input?.isPromotional || false,
     promotionalSlots: input?.promotionalSlots || '20',
-    promotionalTotalAmount: input?.promotionalTotalAmount || '',
-    promotionalInstallmentAmount: input?.promotionalInstallmentAmount || '',
+    promotionalTotalAmount: formatMoneyValue(input?.promotionalTotalAmount),
+    promotionalInstallmentAmount: formatMoneyValue(input?.promotionalInstallmentAmount),
     active: input?.active !== false,
     discountEnabled: input?.discountEnabled || false,
-    discountTotalAmount: input?.discountTotalAmount || '',
-    discountInstallmentAmount: input?.discountInstallmentAmount || '',
+    discountTotalAmount: formatMoneyValue(input?.discountTotalAmount),
+    discountInstallmentAmount: formatMoneyValue(input?.discountInstallmentAmount),
     discountType: input?.discountType || 'FIXED',
     discountValue: input?.discountValue || '',
     discountDeadlineDay: input?.discountDeadlineDay || '',
     discountRequiresActiveCrf: input?.discountRequiresActiveCrf || false,
     discountAppliesTo: input?.discountAppliesTo || 'INSTALLMENT',
     promotionalDiscountEnabled: input?.promotionalDiscountEnabled || false,
-    promotionalDiscountTotalAmount: input?.promotionalDiscountTotalAmount || '',
+    promotionalDiscountTotalAmount: formatMoneyValue(input?.promotionalDiscountTotalAmount),
     promotionalDiscountInstallmentAmount:
-      input?.promotionalDiscountInstallmentAmount || '',
+      formatMoneyValue(input?.promotionalDiscountInstallmentAmount),
     promotionalDiscountDeadlineDay: input?.promotionalDiscountDeadlineDay || '',
     promotionalDiscountRequiresActiveCrf:
       input?.promotionalDiscountRequiresActiveCrf || false,
@@ -420,7 +420,7 @@ function formatPaymentOptionLabel(option: {
 
   return (
     paymentMethodLabel[method] +
-    ' ? vista ' +
+    ' à vista ' +
     formatCurrency(totalAmount) +
     promoSuffix +
     discountSuffix +
@@ -463,7 +463,7 @@ function buildLegacyPaymentOptionFromCourse(course: Course): CoursePaymentOption
 function buildPdfTemplatePaymentOptions(): CoursePaymentOptionForm[] {
   return [
     createPaymentOptionForm({
-      title: '? vista (Pix)',
+      title: 'à vista (Pix)',
       method: 'PIX',
       type: 'CASH',
       totalAmount: '10800',
@@ -526,7 +526,7 @@ function buildPdfTemplatePaymentOptions(): CoursePaymentOptionForm[] {
       promotionalInstallmentAmount: '697',
     }),
     createPaymentOptionForm({
-      title: 'Cart?o de cr?dito 12x',
+      title: 'Cartão de crédito 12x',
       method: 'CREDIT_CARD',
       type: 'INSTALLMENTS',
       totalAmount: '12504',
@@ -548,14 +548,14 @@ function emptyForm(): CourseFormState {
     workloadHours: '1',
     category: '',
     coordinator: '',
-    price: '0',
+    price: '0,00',
     modality: 'PRESENTIAL',
     status: 'ACTIVE',
     paymentModel: 'CASH',
     hasEnrollmentFee: false,
-    enrollmentFee: '0',
+    enrollmentFee: '0,00',
     installmentMonths: '12',
-    installmentValue: '0',
+    installmentValue: '0,00',
     installmentStartMode: 'ON_ENROLLMENT',
     installmentStartDate: '',
     paymentOptions: [
@@ -607,6 +607,42 @@ function parseNumberSafe(value: string | number | null | undefined): number | un
   if (!Number.isFinite(parsed)) return undefined;
   return parsed >= 0 ? parsed : undefined;
 }
+
+function formatMoneyValue(value: string | number | null | undefined): string {
+  const parsed = parseNumberSafe(value);
+  if (parsed === undefined) return '';
+  return parsed.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatMoneyTyping(value: string): string {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const amount = Number(digits) / 100;
+  return amount.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+const courseMoneyFields = new Set<keyof CourseFormState>([
+  'price',
+  'enrollmentFee',
+  'installmentValue',
+]);
+
+const paymentOptionMoneyFields = new Set<keyof CoursePaymentOptionForm>([
+  'totalAmount',
+  'installmentAmount',
+  'promotionalTotalAmount',
+  'promotionalInstallmentAmount',
+  'discountTotalAmount',
+  'discountInstallmentAmount',
+  'promotionalDiscountTotalAmount',
+  'promotionalDiscountInstallmentAmount',
+]);
 
 function toDateInputValue(value?: string | null): string {
   if (!value) return '';
@@ -669,9 +705,9 @@ function mapCoursePaymentOptionToForm(
     title: option.title || '',
     method: (option.method as CoursePaymentOptionMethod) || 'PIX',
     type,
-    totalAmount: String(totalAmount),
+    totalAmount: formatMoneyValue(totalAmount),
     installmentCount: String(installmentCount),
-    installmentAmount: String(installmentAmount),
+    installmentAmount: formatMoneyValue(installmentAmount),
     dueDay: option.dueDay ? String(option.dueDay) : '',
     note: option.note || '',
     isPromotional: Boolean(option.isPromotional),
@@ -680,13 +716,13 @@ function mapCoursePaymentOptionToForm(
       : '20',
     promotionalTotalAmount:
       option.isPromotional && Number(option.promotionalTotalAmount || 0) > 0
-        ? String(option.promotionalTotalAmount)
+        ? formatMoneyValue(option.promotionalTotalAmount)
         : '',
     promotionalInstallmentAmount:
       option.type === 'INSTALLMENTS' &&
       option.isPromotional &&
       Number(option.promotionalInstallmentAmount || 0) > 0
-        ? String(option.promotionalInstallmentAmount)
+        ? formatMoneyValue(option.promotionalInstallmentAmount)
         : '',
     active: option.active !== false,
     discountEnabled:
@@ -696,13 +732,13 @@ function mapCoursePaymentOptionToForm(
         Number(option.discountValue || 0) > 0),
     discountTotalAmount:
       option.discountEnabled && Number(option.discountTotalAmount || 0) > 0
-        ? String(option.discountTotalAmount)
+        ? formatMoneyValue(option.discountTotalAmount)
         : '',
     discountInstallmentAmount:
       option.type === 'INSTALLMENTS' &&
       option.discountEnabled &&
       Number(option.discountInstallmentAmount || 0) > 0
-        ? String(option.discountInstallmentAmount)
+        ? formatMoneyValue(option.discountInstallmentAmount)
         : '',
     discountType: option.discountType === 'PERCENT' ? 'PERCENT' : 'FIXED',
     discountValue:
@@ -724,14 +760,14 @@ function mapCoursePaymentOptionToForm(
       option.isPromotional &&
       option.promotionalDiscountEnabled &&
       Number(option.promotionalDiscountTotalAmount || 0) > 0
-        ? String(option.promotionalDiscountTotalAmount)
+        ? formatMoneyValue(option.promotionalDiscountTotalAmount)
         : '',
     promotionalDiscountInstallmentAmount:
       option.type === 'INSTALLMENTS' &&
       option.isPromotional &&
       option.promotionalDiscountEnabled &&
       Number(option.promotionalDiscountInstallmentAmount || 0) > 0
-        ? String(option.promotionalDiscountInstallmentAmount)
+        ? formatMoneyValue(option.promotionalDiscountInstallmentAmount)
         : '',
     promotionalDiscountDeadlineDay:
       option.promotionalDiscountEnabled && option.promotionalDiscountDeadlineDay
@@ -815,7 +851,11 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     key: K,
     value: CourseFormState[K],
   ) => {
-    setForm((current) => ({ ...current, [key]: value }));
+    const nextValue =
+      typeof value === 'string' && courseMoneyFields.has(key)
+        ? (formatMoneyTyping(value) as CourseFormState[K])
+        : value;
+    setForm((current) => ({ ...current, [key]: nextValue }));
   };
 
   const openCreateModal = () => {
@@ -844,14 +884,14 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       workloadHours: String(Number(course.workloadHours || 1)),
       category: course.category || '',
       coordinator: course.coordinator || '',
-      price: String(price),
+      price: formatMoneyValue(price),
       modality: (course.modality as CourseModality) || 'PRESENTIAL',
       status: (course.status as CourseStatus) || 'ACTIVE',
       paymentModel: (course.paymentModel as CoursePaymentModel) || 'CASH',
       hasEnrollmentFee: enrollmentFee > 0,
-      enrollmentFee: String(enrollmentFee),
+      enrollmentFee: formatMoneyValue(enrollmentFee),
       installmentMonths: String(Math.max(1, months)),
-      installmentValue: String(installmentValue),
+      installmentValue: formatMoneyValue(installmentValue),
       installmentStartMode: installmentStartDate ? 'SCHEDULED' : 'ON_ENROLLMENT',
       installmentStartDate,
       paymentOptions,
@@ -878,7 +918,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     const price = parseNumberSafe(priceValue) ?? 0;
     const months = parseIntSafe(monthsValue) ?? 1;
     const installment = months > 0 ? price / months : 0;
-    updateForm('installmentValue', installment.toFixed(2));
+    updateForm('installmentValue', formatMoneyValue(installment));
   };
 
   const updatePaymentOption = <K extends keyof CoursePaymentOptionForm>(
@@ -886,10 +926,14 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     key: K,
     value: CoursePaymentOptionForm[K],
   ) => {
+    const nextValue =
+      typeof value === 'string' && paymentOptionMoneyFields.has(key)
+        ? (formatMoneyTyping(value) as CoursePaymentOptionForm[K])
+        : value;
     setForm((current) => ({
       ...current,
       paymentOptions: current.paymentOptions.map((option) =>
-        option.id === optionId ? { ...option, [key]: value } : option,
+        option.id === optionId ? { ...option, [key]: nextValue } : option,
       ),
     }));
   };
@@ -903,7 +947,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     const installmentCount = parseIntSafe(installmentCountValue) ?? 1;
     const installmentAmount =
       installmentCount > 0 ? totalAmount / installmentCount : 0;
-    updatePaymentOption(optionId, 'installmentAmount', installmentAmount.toFixed(2));
+    updatePaymentOption(optionId, 'installmentAmount', formatMoneyValue(installmentAmount));
   };
 
   const addPaymentOption = (type: CoursePaymentOptionType = 'CASH') => {
@@ -942,14 +986,14 @@ export function CoursesNative({ token }: CoursesNativeProps) {
   const applyPdfTemplate = () => {
     setForm((current) => ({
       ...current,
-      price: '11760',
+      price: formatMoneyValue('11760'),
       paymentModel: 'INSTALLMENTS',
       installmentMonths: '12',
-      installmentValue: '1152',
+      installmentValue: formatMoneyValue('1152'),
       installmentStartMode: 'ON_ENROLLMENT',
       installmentStartDate: '',
       hasEnrollmentFee: true,
-      enrollmentFee: '450',
+      enrollmentFee: formatMoneyValue('450'),
       paymentOptions: buildPdfTemplatePaymentOptions(),
     }));
   };
@@ -1016,10 +1060,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
             installmentStartDate: undefined,
           };
 
-    if (form.paymentModel === 'INSTALLMENTS' && !installments.installmentMonths) {
-      setFormError('Informe a duração das mensalidades em meses.');
-      return;
-    }
+
 
     if (
       form.paymentModel === 'INSTALLMENTS' &&
@@ -1721,7 +1762,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                 {form.paymentModel === 'INSTALLMENTS' ? (
                   <>
                     <label>
-                      Dura??o em meses
+                      Duração em meses
                       <input
                         type="number"
                         min={1}
@@ -1746,7 +1787,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                     </label>
 
                     <label>
-                      In?cio das mensalidades
+                      Início das mensalidades
                       <select
                         value={form.installmentStartMode}
                         onChange={(event) =>
@@ -2070,9 +2111,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                 <label>
                                   Valor total normal com desconto (R$)
                                   <input
-                                    type="number"
-                                    min={0}
-                                    step="0.01"
+                                    type="text"
+                                    inputMode="decimal"
                                     value={option.discountTotalAmount}
                                     onChange={(event) =>
                                       updatePaymentOption(
@@ -2089,9 +2129,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                 <label>
                                   Valor da parcela normal com desconto (R$)
                                   <input
-                                    type="number"
-                                    min={0}
-                                    step="0.01"
+                                    type="text"
+                                    inputMode="decimal"
                                     value={option.discountInstallmentAmount}
                                     onChange={(event) =>
                                       updatePaymentOption(
@@ -2167,9 +2206,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                     <label>
                                       Valor total promocional com desconto (R$)
                                       <input
-                                        type="number"
-                                        min={0}
-                                        step="0.01"
+                                        type="text"
+                                        inputMode="decimal"
                                         value={option.promotionalDiscountTotalAmount}
                                         onChange={(event) =>
                                           updatePaymentOption(
@@ -2186,9 +2224,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                     <label>
                                       Valor da parcela promocional com desconto (R$)
                                       <input
-                                        type="number"
-                                        min={0}
-                                        step="0.01"
+                                        type="text"
+                                        inputMode="decimal"
                                         value={option.promotionalDiscountInstallmentAmount}
                                         onChange={(event) =>
                                           updatePaymentOption(
