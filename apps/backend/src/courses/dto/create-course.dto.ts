@@ -41,6 +41,16 @@ export enum CoursePaymentOptionTypeDto {
   INSTALLMENTS = 'INSTALLMENTS',
 }
 
+export enum CoursePaymentDiscountTypeDto {
+  FIXED = 'FIXED',
+  PERCENT = 'PERCENT',
+}
+
+export enum CoursePaymentDiscountAppliesToDto {
+  INSTALLMENT = 'INSTALLMENT',
+  TOTAL = 'TOTAL',
+}
+
 export class CoursePaymentOptionDto {
   @IsOptional()
   @IsString()
@@ -99,6 +109,37 @@ export class CoursePaymentOptionDto {
   @Type(() => Boolean)
   @IsBoolean()
   active?: boolean;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  discountEnabled?: boolean;
+
+  @IsOptional()
+  @IsEnum(CoursePaymentDiscountTypeDto)
+  discountType?: CoursePaymentDiscountTypeDto;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  discountValue?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  discountDeadlineDay?: number;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  discountRequiresActiveCrf?: boolean;
+
+  @IsOptional()
+  @IsEnum(CoursePaymentDiscountAppliesToDto)
+  discountAppliesTo?: CoursePaymentDiscountAppliesToDto;
 }
 
 export class CreateCourseDto {

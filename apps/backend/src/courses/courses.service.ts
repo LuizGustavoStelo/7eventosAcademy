@@ -10,6 +10,8 @@ import {
 import { PrismaService } from '../database/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
+  CoursePaymentDiscountAppliesToDto,
+  CoursePaymentDiscountTypeDto,
   CoursePaymentOptionDto,
   CoursePaymentOptionMethodDto,
   CoursePaymentOptionTypeDto,
@@ -34,6 +36,12 @@ type NormalizedCoursePaymentOption = {
   isPromotional: boolean;
   promotionalSlots: number | null;
   active: boolean;
+  discountEnabled: boolean;
+  discountType: CoursePaymentDiscountTypeDto | null;
+  discountValue: number | null;
+  discountDeadlineDay: number | null;
+  discountRequiresActiveCrf: boolean;
+  discountAppliesTo: CoursePaymentDiscountAppliesToDto | null;
 };
 
 @Injectable()
@@ -454,6 +462,24 @@ export class CoursesService {
       const promotionalSlots = isPromotional
         ? Math.max(1, Math.trunc(Number(option.promotionalSlots ?? 20)))
         : null;
+      const discountEnabled = Boolean(option.discountEnabled);
+      const discountType = discountEnabled
+        ? option.discountType === CoursePaymentDiscountTypeDto.PERCENT
+          ? CoursePaymentDiscountTypeDto.PERCENT
+          : CoursePaymentDiscountTypeDto.FIXED
+        : null;
+      const discountValue = discountEnabled
+        ? this.normalizeMoneyValue(option.discountValue ?? 0)
+        : null;
+      const discountDeadlineDay =
+        discountEnabled && option.discountDeadlineDay !== undefined
+          ? Math.min(31, Math.max(1, Math.trunc(Number(option.discountDeadlineDay))))
+          : null;
+      const discountAppliesTo = discountEnabled
+        ? option.discountAppliesTo === CoursePaymentDiscountAppliesToDto.TOTAL
+          ? CoursePaymentDiscountAppliesToDto.TOTAL
+          : CoursePaymentDiscountAppliesToDto.INSTALLMENT
+        : null;
 
       return {
         id: option.id?.trim() || `payment-option-${index + 1}`,
@@ -474,6 +500,15 @@ export class CoursesService {
         isPromotional,
         promotionalSlots,
         active: option.active !== false,
+        discountEnabled: discountEnabled && (discountValue ?? 0) > 0,
+        discountType: (discountValue ?? 0) > 0 ? discountType : null,
+        discountValue: (discountValue ?? 0) > 0 ? discountValue : null,
+        discountDeadlineDay: (discountValue ?? 0) > 0 ? discountDeadlineDay : null,
+        discountRequiresActiveCrf:
+          discountEnabled && (discountValue ?? 0) > 0
+            ? Boolean(option.discountRequiresActiveCrf)
+            : false,
+        discountAppliesTo: (discountValue ?? 0) > 0 ? discountAppliesTo : null,
       };
     });
   }
@@ -546,7 +581,32 @@ export class CoursesService {
             1,
             Math.trunc(this.toFiniteNumber(objectItem.promotionalSlots) || 1),
           )
+      : null;
+    const discountEnabled = Boolean(objectItem.discountEnabled);
+    const discountTypeRaw = String(objectItem.discountType || '').toUpperCase();
+    const discountType =
+      discountEnabled && discountTypeRaw === CoursePaymentDiscountTypeDto.PERCENT
+        ? CoursePaymentDiscountTypeDto.PERCENT
+        : discountEnabled
+          ? CoursePaymentDiscountTypeDto.FIXED
+          : null;
+    const discountValue = discountEnabled
+      ? this.normalizeMoneyValue(this.toFiniteNumber(objectItem.discountValue) ?? 0)
+      : null;
+    const discountDeadlineDayRaw = this.toFiniteNumber(objectItem.discountDeadlineDay);
+    const discountDeadlineDay =
+      discountEnabled && discountDeadlineDayRaw !== undefined
+        ? Math.min(31, Math.max(1, Math.trunc(discountDeadlineDayRaw)))
         : null;
+    const discountRequiresActiveCrf =
+      discountEnabled && Boolean(objectItem.discountRequiresActiveCrf);
+    const discountAppliesToRaw = String(objectItem.discountAppliesTo || '').toUpperCase();
+    const discountAppliesTo =
+      discountEnabled && discountAppliesToRaw === CoursePaymentDiscountAppliesToDto.TOTAL
+        ? CoursePaymentDiscountAppliesToDto.TOTAL
+        : discountEnabled
+          ? CoursePaymentDiscountAppliesToDto.INSTALLMENT
+          : null;
 
     return {
       id:
@@ -569,6 +629,13 @@ export class CoursesService {
       isPromotional,
       promotionalSlots,
       active: objectItem.active !== false,
+      discountEnabled: discountEnabled && (discountValue ?? 0) > 0,
+      discountType: (discountValue ?? 0) > 0 ? discountType : null,
+      discountValue: (discountValue ?? 0) > 0 ? discountValue : null,
+      discountDeadlineDay: (discountValue ?? 0) > 0 ? discountDeadlineDay : null,
+      discountRequiresActiveCrf:
+        discountEnabled && (discountValue ?? 0) > 0 ? discountRequiresActiveCrf : false,
+      discountAppliesTo: (discountValue ?? 0) > 0 ? discountAppliesTo : null,
     };
   }
 
@@ -644,6 +711,12 @@ export class CoursesService {
           isPromotional: false,
           promotionalSlots: null,
           active: true,
+          discountEnabled: false,
+          discountType: null,
+          discountValue: null,
+          discountDeadlineDay: null,
+          discountRequiresActiveCrf: false,
+          discountAppliesTo: null,
         },
       ];
     }
@@ -662,6 +735,12 @@ export class CoursesService {
         isPromotional: false,
         promotionalSlots: null,
         active: true,
+        discountEnabled: false,
+        discountType: null,
+        discountValue: null,
+        discountDeadlineDay: null,
+        discountRequiresActiveCrf: false,
+        discountAppliesTo: null,
       },
     ];
   }

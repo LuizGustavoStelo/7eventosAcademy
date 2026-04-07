@@ -9,6 +9,8 @@ type CoursePaymentModel = 'CASH' | 'INSTALLMENTS';
 type InstallmentStartMode = 'ON_ENROLLMENT' | 'SCHEDULED';
 type CoursePaymentOptionMethod = 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD';
 type CoursePaymentOptionType = 'CASH' | 'INSTALLMENTS';
+type CoursePaymentDiscountType = 'FIXED' | 'PERCENT';
+type CoursePaymentDiscountAppliesTo = 'INSTALLMENT' | 'TOTAL';
 
 type CoursePaymentOption = {
   id?: string | null;
@@ -23,6 +25,12 @@ type CoursePaymentOption = {
   isPromotional?: boolean | null;
   promotionalSlots?: number | null;
   active?: boolean | null;
+  discountEnabled?: boolean | null;
+  discountType?: CoursePaymentDiscountType | null;
+  discountValue?: number | null;
+  discountDeadlineDay?: number | null;
+  discountRequiresActiveCrf?: boolean | null;
+  discountAppliesTo?: CoursePaymentDiscountAppliesTo | null;
 };
 
 type CoursePaymentOptionForm = {
@@ -38,6 +46,12 @@ type CoursePaymentOptionForm = {
   isPromotional: boolean;
   promotionalSlots: string;
   active: boolean;
+  discountEnabled: boolean;
+  discountType: CoursePaymentDiscountType;
+  discountValue: string;
+  discountDeadlineDay: string;
+  discountRequiresActiveCrf: boolean;
+  discountAppliesTo: CoursePaymentDiscountAppliesTo;
 };
 
 type Course = {
@@ -121,6 +135,16 @@ const paymentTypeLabel: Record<CoursePaymentOptionType, string> = {
   INSTALLMENTS: 'Parcelado',
 };
 
+const paymentDiscountTypeLabel: Record<CoursePaymentDiscountType, string> = {
+  FIXED: 'Valor fixo (R$)',
+  PERCENT: 'Percentual (%)',
+};
+
+const paymentDiscountAppliesToLabel: Record<CoursePaymentDiscountAppliesTo, string> = {
+  INSTALLMENT: 'Parcela',
+  TOTAL: 'Valor total',
+};
+
 function createPaymentOptionId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -145,6 +169,12 @@ function createPaymentOptionForm(
     isPromotional: input?.isPromotional || false,
     promotionalSlots: input?.promotionalSlots || '20',
     active: input?.active !== false,
+    discountEnabled: input?.discountEnabled || false,
+    discountType: input?.discountType || 'FIXED',
+    discountValue: input?.discountValue || '',
+    discountDeadlineDay: input?.discountDeadlineDay || '',
+    discountRequiresActiveCrf: input?.discountRequiresActiveCrf || false,
+    discountAppliesTo: input?.discountAppliesTo || 'INSTALLMENT',
   };
 }
 
@@ -181,8 +211,38 @@ function normalizeCoursePaymentOptions(
         isPromotional: Boolean(option.isPromotional),
         promotionalSlots: option.promotionalSlots ?? null,
         active: option.active !== false,
+        discountEnabled:
+          Boolean(option.discountEnabled) && Number(option.discountValue || 0) > 0,
+        discountType:
+          option.discountType === 'PERCENT' ? 'PERCENT' : 'FIXED',
+        discountValue:
+          option.discountEnabled && Number(option.discountValue || 0) > 0
+            ? Number(option.discountValue || 0)
+            : null,
+        discountDeadlineDay: option.discountDeadlineDay ?? null,
+        discountRequiresActiveCrf: Boolean(option.discountRequiresActiveCrf),
+        discountAppliesTo:
+          option.discountAppliesTo === 'TOTAL' ? 'TOTAL' : 'INSTALLMENT',
       };
     });
+}
+
+function calculateDiscountedValue(input: {
+  baseAmount: number;
+  discountType?: CoursePaymentDiscountType | null;
+  discountValue?: number | null;
+}) {
+  const baseAmount = Number(input.baseAmount || 0);
+  if (baseAmount <= 0) return 0;
+  const discountValue = Number(input.discountValue || 0);
+  if (discountValue <= 0) return baseAmount;
+
+  if (input.discountType === 'PERCENT') {
+    const boundedPercent = Math.min(100, Math.max(0, discountValue));
+    return Number((baseAmount * (1 - boundedPercent / 100)).toFixed(2));
+  }
+
+  return Number(Math.max(0, baseAmount - discountValue).toFixed(2));
 }
 
 function formatPaymentOptionLabel(option: {
@@ -193,6 +253,13 @@ function formatPaymentOptionLabel(option: {
   installmentAmount?: number | null;
   isPromotional?: boolean | null;
   promotionalSlots?: number | null;
+  dueDay?: number | null;
+  discountEnabled?: boolean | null;
+  discountType?: CoursePaymentDiscountType | null;
+  discountValue?: number | null;
+  discountDeadlineDay?: number | null;
+  discountRequiresActiveCrf?: boolean | null;
+  discountAppliesTo?: CoursePaymentDiscountAppliesTo | null;
 }) {
   const method = (option.method || 'PIX') as CoursePaymentOptionMethod;
   const type = (option.type || 'CASH') as CoursePaymentOptionType;
@@ -200,12 +267,40 @@ function formatPaymentOptionLabel(option: {
   const installmentCount = Number(option.installmentCount || 0);
   const installmentAmount = Number(option.installmentAmount || 0);
   const promotionalSlots = Number(option.promotionalSlots || 0);
+  const discountEnabled = Boolean(option.discountEnabled);
+  const discountType = option.discountType === 'PERCENT' ? 'PERCENT' : 'FIXED';
+  const discountValue = Number(option.discountValue || 0);
+  const discountDeadlineDay = Number(option.discountDeadlineDay || 0);
+  const discountRequiresActiveCrf = Boolean(option.discountRequiresActiveCrf);
+  const discountAppliesTo = option.discountAppliesTo === 'TOTAL' ? 'TOTAL' : 'INSTALLMENT';
   const promoSuffix =
     option.isPromotional && promotionalSlots > 0
       ? ` • Promo (${promotionalSlots} primeiros)`
       : option.isPromotional
         ? ' • Promo'
         : '';
+  const discountSuffix = (() => {
+    if (!discountEnabled || discountValue <= 0) return '';
+    const targetAmount =
+      type === 'INSTALLMENTS' && discountAppliesTo === 'INSTALLMENT'
+        ? (installmentAmount > 0
+            ? installmentAmount
+            : totalAmount > 0 && installmentCount > 0
+              ? totalAmount / installmentCount
+              : 0)
+        : totalAmount;
+    if (targetAmount <= 0) return '';
+    const discountedAmount = calculateDiscountedValue({
+      baseAmount: targetAmount,
+      discountType,
+      discountValue,
+    });
+    const parts: string[] = [`até dia ${discountDeadlineDay > 0 ? discountDeadlineDay : '?'}`];
+    if (discountRequiresActiveCrf) {
+      parts.push('CRF ativo');
+    }
+    return ` • ${formatCurrency(discountedAmount)} (${parts.join(' / ')})`;
+  })();
 
   if (type === 'INSTALLMENTS') {
     const safeCount = installmentCount > 0 ? installmentCount : 1;
@@ -215,10 +310,10 @@ function formatPaymentOptionLabel(option: {
         : totalAmount > 0
           ? totalAmount / safeCount
           : 0;
-    return `${paymentMethodLabel[method]} ${safeCount}x de ${formatCurrency(safeInstallmentAmount)}${promoSuffix}`;
+    return `${paymentMethodLabel[method]} ${safeCount}x de ${formatCurrency(safeInstallmentAmount)}${promoSuffix}${discountSuffix}`;
   }
 
-  return `${paymentMethodLabel[method]} à vista ${formatCurrency(totalAmount)}${promoSuffix}`;
+  return `${paymentMethodLabel[method]} à vista ${formatCurrency(totalAmount)}${promoSuffix}${discountSuffix}`;
 }
 
 function buildLegacyPaymentOptionFromCourse(course: Course): CoursePaymentOption {
@@ -443,6 +538,27 @@ function formatDateLabel(value?: string | null): string {
   return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(date);
 }
 
+function hasTextValue(value?: string | null): boolean {
+  return Boolean(String(value || '').trim());
+}
+
+function hasPositiveNumber(value?: number | string | null): boolean {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0;
+}
+
+function isPaymentOptionDisplayable(option: {
+  type?: CoursePaymentOptionType | null;
+  totalAmount?: number | null;
+  installmentAmount?: number | null;
+}): boolean {
+  const type = (option.type || 'CASH') as CoursePaymentOptionType;
+  if (type === 'INSTALLMENTS') {
+    return hasPositiveNumber(option.installmentAmount) || hasPositiveNumber(option.totalAmount);
+  }
+  return hasPositiveNumber(option.totalAmount);
+}
+
 function sanitizeOnlyLetters(value: string): string {
   return value
     .replace(/[^\p{L}\s]/gu, '')
@@ -479,6 +595,19 @@ function mapCoursePaymentOptionToForm(
       ? String(option.promotionalSlots)
       : '20',
     active: option.active !== false,
+    discountEnabled:
+      Boolean(option.discountEnabled) && Number(option.discountValue || 0) > 0,
+    discountType: option.discountType === 'PERCENT' ? 'PERCENT' : 'FIXED',
+    discountValue:
+      option.discountEnabled && Number(option.discountValue || 0) > 0
+        ? String(option.discountValue)
+        : '',
+    discountDeadlineDay: option.discountDeadlineDay
+      ? String(option.discountDeadlineDay)
+      : '',
+    discountRequiresActiveCrf: Boolean(option.discountRequiresActiveCrf),
+    discountAppliesTo:
+      option.discountAppliesTo === 'TOTAL' ? 'TOTAL' : 'INSTALLMENT',
   });
 }
 
@@ -792,6 +921,12 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       isPromotional: boolean;
       promotionalSlots?: number;
       active: boolean;
+      discountEnabled?: boolean;
+      discountType?: CoursePaymentDiscountType;
+      discountValue?: number;
+      discountDeadlineDay?: number;
+      discountRequiresActiveCrf?: boolean;
+      discountAppliesTo?: CoursePaymentDiscountAppliesTo;
     }> = [];
 
     for (let index = 0; index < form.paymentOptions.length; index += 1) {
@@ -815,6 +950,12 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         isPromotional: boolean;
         promotionalSlots?: number;
         active: boolean;
+        discountEnabled?: boolean;
+        discountType?: CoursePaymentDiscountType;
+        discountValue?: number;
+        discountDeadlineDay?: number;
+        discountRequiresActiveCrf?: boolean;
+        discountAppliesTo?: CoursePaymentDiscountAppliesTo;
       } = {
         id: option.id,
         title: option.title.trim() || `Opção ${index + 1}`,
@@ -858,6 +999,30 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
       if (option.note.trim()) {
         payloadOption.note = option.note.trim();
+      }
+
+      if (option.discountEnabled) {
+        const discountValue = parseNumberSafe(option.discountValue);
+        if (!discountValue || discountValue <= 0) {
+          setFormError(`Informe o valor do desconto na opção ${index + 1}.`);
+          return;
+        }
+        if (option.discountType === 'PERCENT' && discountValue > 100) {
+          setFormError(`O desconto percentual não pode passar de 100% na opção ${index + 1}.`);
+          return;
+        }
+        const discountDeadlineDay = parseIntSafe(option.discountDeadlineDay);
+        if (!discountDeadlineDay || discountDeadlineDay < 1 || discountDeadlineDay > 31) {
+          setFormError(`Informe o dia limite do desconto (1 a 31) na opção ${index + 1}.`);
+          return;
+        }
+
+        payloadOption.discountEnabled = true;
+        payloadOption.discountType = option.discountType;
+        payloadOption.discountValue = discountValue;
+        payloadOption.discountDeadlineDay = discountDeadlineDay;
+        payloadOption.discountRequiresActiveCrf = option.discountRequiresActiveCrf;
+        payloadOption.discountAppliesTo = option.discountAppliesTo;
       }
 
       paymentOptionsPayload.push(payloadOption);
@@ -949,25 +1114,40 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     () => form.paymentOptions.filter((option) => option.active),
     [form.paymentOptions],
   );
+  const previewDisplayablePaymentOptions = useMemo(
+    () =>
+      previewActivePaymentOptions.filter((option) =>
+        isPaymentOptionDisplayable({
+          type: option.type,
+          totalAmount: parseNumberSafe(option.totalAmount) || 0,
+          installmentAmount: parseNumberSafe(option.installmentAmount) || 0,
+        }),
+      ),
+    [previewActivePaymentOptions],
+  );
 
   const previewPayment = useMemo(() => {
-    if (previewActivePaymentOptions.length > 0) {
-      return `${previewActivePaymentOptions.length} opção(ões) de pagamento`;
+    if (previewDisplayablePaymentOptions.length > 0) {
+      return `${previewDisplayablePaymentOptions.length} opção(ões) de pagamento`;
     }
-    if (form.paymentModel !== 'INSTALLMENTS') return paymentLabel.CASH;
+    if (form.paymentModel !== 'INSTALLMENTS') {
+      return hasPositiveNumber(parseNumberSafe(form.price)) ? paymentLabel.CASH : '';
+    }
     const months = parseIntSafe(form.installmentMonths) || 1;
     const installment = parseNumberSafe(form.installmentValue) || 0;
+    if (!hasPositiveNumber(installment)) return '';
     return `${months}x de ${formatCurrency(installment)}`;
   }, [
-    previewActivePaymentOptions,
+    previewDisplayablePaymentOptions,
     form.paymentModel,
     form.installmentMonths,
     form.installmentValue,
+    form.price,
   ]);
 
   const previewPaymentLines = useMemo(
     () =>
-      previewActivePaymentOptions
+      previewDisplayablePaymentOptions
         .slice(0, 4)
         .map((option) =>
           formatPaymentOptionLabel({
@@ -976,25 +1156,36 @@ export function CoursesNative({ token }: CoursesNativeProps) {
             totalAmount: parseNumberSafe(option.totalAmount) || 0,
             installmentCount: parseIntSafe(option.installmentCount) || 0,
             installmentAmount: parseNumberSafe(option.installmentAmount) || 0,
+            dueDay: parseIntSafe(option.dueDay) || null,
             isPromotional: option.isPromotional,
             promotionalSlots: parseIntSafe(option.promotionalSlots),
+            discountEnabled: option.discountEnabled,
+            discountType: option.discountType,
+            discountValue: parseNumberSafe(option.discountValue) || 0,
+            discountDeadlineDay: parseIntSafe(option.discountDeadlineDay) || null,
+            discountRequiresActiveCrf: option.discountRequiresActiveCrf,
+            discountAppliesTo: option.discountAppliesTo,
           }),
         ),
-    [previewActivePaymentOptions],
+    [previewDisplayablePaymentOptions],
   );
 
   const previewEnrollmentFee = useMemo(() => {
-    if (!form.hasEnrollmentFee) return 'Sem matrícula';
-    return formatCurrency(parseNumberSafe(form.enrollmentFee) || 0);
+    const enrollmentFee = parseNumberSafe(form.enrollmentFee) || 0;
+    if (!form.hasEnrollmentFee || !hasPositiveNumber(enrollmentFee)) return '';
+    return formatCurrency(enrollmentFee);
   }, [form.hasEnrollmentFee, form.enrollmentFee]);
 
   const previewInstallmentStart = useMemo(() => {
-    if (form.paymentModel !== 'INSTALLMENTS') return '-';
+    const installmentValue = parseNumberSafe(form.installmentValue) || 0;
+    if (form.paymentModel !== 'INSTALLMENTS' || !hasPositiveNumber(installmentValue))
+      return '';
     if (form.installmentStartMode !== 'SCHEDULED') return 'Na matrícula';
-    if (!form.installmentStartDate) return 'Data não definida';
+    if (!form.installmentStartDate) return '';
     return formatDateLabel(form.installmentStartDate);
   }, [
     form.paymentModel,
+    form.installmentValue,
     form.installmentStartMode,
     form.installmentStartDate,
   ]);
@@ -1044,29 +1235,38 @@ export function CoursesNative({ token }: CoursesNativeProps) {
               const activePaymentOptions = availablePaymentOptions.filter(
                 (option) => option.active !== false,
               );
+              const displayablePaymentOptions = activePaymentOptions.filter((option) =>
+                isPaymentOptionDisplayable(option),
+              );
               const paymentSummary =
-                activePaymentOptions.length > 0
-                  ? activePaymentOptions
+                displayablePaymentOptions.length > 0
+                  ? displayablePaymentOptions
                       .slice(0, 2)
                       .map((option) => formatPaymentOptionLabel(option))
                       .join(' • ')
-                  : paymentModel === 'INSTALLMENTS'
+                  : paymentModel === 'INSTALLMENTS' && hasPositiveNumber(course.installmentValue)
                     ? `${course.installmentMonths || 1}x de ${formatCurrency(
                         Number(course.installmentValue || 0),
                       )}`
-                    : 'À vista';
+                    : '';
               const paymentSummaryExtra =
-                activePaymentOptions.length > 2
-                  ? ` +${activePaymentOptions.length - 2} opções`
+                displayablePaymentOptions.length > 2
+                  ? ` +${displayablePaymentOptions.length - 2} opções`
                   : '';
-              const enrollmentFeeSummary =
-                Number(course.enrollmentFee || 0) > 0
-                  ? formatCurrency(Number(course.enrollmentFee || 0))
-                  : 'Sem matrícula';
+              const enrollmentFeeSummary = hasPositiveNumber(course.enrollmentFee)
+                ? formatCurrency(Number(course.enrollmentFee || 0))
+                : '';
               const installmentStartSummary =
-                paymentModel === 'INSTALLMENTS'
+                paymentModel === 'INSTALLMENTS' && hasTextValue(course.installmentStartDate)
                   ? formatDateLabel(course.installmentStartDate)
-                  : '-';
+                  : '';
+              const showDescription = hasTextValue(course.description);
+              const showCategory = hasTextValue(course.category);
+              const showWorkload = hasPositiveNumber(course.workloadHours);
+              const showPrice = hasPositiveNumber(course.price);
+              const showPayment = hasTextValue(paymentSummary);
+              const showEnrollmentFee = hasTextValue(enrollmentFeeSummary);
+              const showInstallmentStart = hasTextValue(installmentStartSummary);
 
               return (
                 <article key={course.id} className="native-course-card">
@@ -1082,33 +1282,45 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       </span>
                     </div>
 
-                    <p>{course.description || 'Sem descrição cadastrada.'}</p>
+                    {showDescription ? <p>{course.description}</p> : null}
 
                     <div className="native-course-meta">
-                      <small>
-                        Categoria: <strong>{course.category || '-'}</strong>
-                      </small>
+                      {showCategory ? (
+                        <small>
+                          Categoria: <strong>{course.category}</strong>
+                        </small>
+                      ) : null}
                       <small>
                         Modalidade: <strong>{modalityLabel[modality]}</strong>
                       </small>
-                      <small>
-                        Carga horária:{' '}
-                        <strong>{Number(course.workloadHours || 0)}h</strong>
-                      </small>
-                      <small>
-                        Valor total:{' '}
-                        <strong>{formatCurrency(Number(course.price || 0))}</strong>
-                      </small>
-                      <small className="full">
-                        Pagamento: <strong>{paymentSummary}{paymentSummaryExtra}</strong>
-                      </small>
-                      <small className="full">
-                        Matrícula: <strong>{enrollmentFeeSummary}</strong>
-                      </small>
-                      <small className="full">
-                        In?cio mensalidades:{' '}
-                        <strong>{installmentStartSummary}</strong>
-                      </small>
+                      {showWorkload ? (
+                        <small>
+                          Carga horária:{' '}
+                          <strong>{Number(course.workloadHours || 0)}h</strong>
+                        </small>
+                      ) : null}
+                      {showPrice ? (
+                        <small>
+                          Valor total:{' '}
+                          <strong>{formatCurrency(Number(course.price || 0))}</strong>
+                        </small>
+                      ) : null}
+                      {showPayment ? (
+                        <small className="full">
+                          Pagamento: <strong>{paymentSummary}{paymentSummaryExtra}</strong>
+                        </small>
+                      ) : null}
+                      {showEnrollmentFee ? (
+                        <small className="full">
+                          Matrícula: <strong>{enrollmentFeeSummary}</strong>
+                        </small>
+                      ) : null}
+                      {showInstallmentStart ? (
+                        <small className="full">
+                          Início mensalidades:{' '}
+                          <strong>{installmentStartSummary}</strong>
+                        </small>
+                      ) : null}
                       <small className="full">
                         Alunos matriculados:{' '}
                         <strong>{Number(course.enrolledStudentsCount ?? 0)}</strong>
@@ -1565,6 +1777,120 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                             </label>
                           ) : null}
 
+
+
+                          <label>
+                            Tem desconto condicional?
+                            <select
+                              value={option.discountEnabled ? 'YES' : 'NO'}
+                              onChange={(event) =>
+                                updatePaymentOption(
+                                  option.id,
+                                  'discountEnabled',
+                                  event.target.value === 'YES',
+                                )
+                              }
+                            >
+                              <option value="NO">N?o</option>
+                              <option value="YES">Sim</option>
+                            </select>
+                          </label>
+
+                          {option.discountEnabled ? (
+                            <>
+                              <label>
+                                Tipo de desconto
+                                <select
+                                  value={option.discountType}
+                                  onChange={(event) =>
+                                    updatePaymentOption(
+                                      option.id,
+                                      'discountType',
+                                      event.target.value as CoursePaymentDiscountType,
+                                    )
+                                  }
+                                >
+                                  <option value="FIXED">{paymentDiscountTypeLabel.FIXED}</option>
+                                  <option value="PERCENT">{paymentDiscountTypeLabel.PERCENT}</option>
+                                </select>
+                              </label>
+
+                              <label>
+                                Valor do desconto
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  value={option.discountValue}
+                                  onChange={(event) =>
+                                    updatePaymentOption(
+                                      option.id,
+                                      'discountValue',
+                                      event.target.value,
+                                    )
+                                  }
+                                  placeholder={option.discountType === 'PERCENT' ? 'Ex.: 3' : 'Ex.: 35,00'}
+                                />
+                              </label>
+
+                              <label>
+                                Pagando at? dia
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={31}
+                                  step={1}
+                                  value={option.discountDeadlineDay}
+                                  onChange={(event) =>
+                                    updatePaymentOption(
+                                      option.id,
+                                      'discountDeadlineDay',
+                                      event.target.value,
+                                    )
+                                  }
+                                  placeholder="Ex.: 7"
+                                />
+                              </label>
+
+                              <label>
+                                Desconto aplicado em
+                                <select
+                                  value={option.discountAppliesTo}
+                                  onChange={(event) =>
+                                    updatePaymentOption(
+                                      option.id,
+                                      'discountAppliesTo',
+                                      event.target.value as CoursePaymentDiscountAppliesTo,
+                                    )
+                                  }
+                                >
+                                  <option value="INSTALLMENT">
+                                    {paymentDiscountAppliesToLabel.INSTALLMENT}
+                                  </option>
+                                  <option value="TOTAL">
+                                    {paymentDiscountAppliesToLabel.TOTAL}
+                                  </option>
+                                </select>
+                              </label>
+
+                              <label>
+                                Exige CRF ativo?
+                                <select
+                                  value={option.discountRequiresActiveCrf ? 'YES' : 'NO'}
+                                  onChange={(event) =>
+                                    updatePaymentOption(
+                                      option.id,
+                                      'discountRequiresActiveCrf',
+                                      event.target.value === 'YES',
+                                    )
+                                  }
+                                >
+                                  <option value="NO">N?o</option>
+                                  <option value="YES">Sim</option>
+                                </select>
+                              </label>
+                            </>
+                          ) : null}
                           <label className="native-payment-option-field-full">
                             Observações / regra
                             <textarea
@@ -1661,27 +1987,35 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                     alt="Prévia do banner do curso"
                   />
                   <div>
-                    <strong>{form.name || 'Curso'}</strong>
-                    <small>{form.category || 'Categoria'}</small>
-                    <p>{form.description || 'Descrição do curso.'}</p>
+                    {hasTextValue(form.name) ? <strong>{form.name}</strong> : null}
+                    {hasTextValue(form.category) ? <small>{form.category}</small> : null}
+                    {hasTextValue(form.description) ? <p>{form.description}</p> : null}
                     <div className="native-course-preview-meta">
-                      <span>{parseIntSafe(form.workloadHours) || 0}h</span>
-                      <span>{formatCurrency(parseNumberSafe(form.price) || 0)}</span>
+                      {hasPositiveNumber(parseIntSafe(form.workloadHours)) ? (
+                        <span>{parseIntSafe(form.workloadHours)}h</span>
+                      ) : null}
+                      {hasPositiveNumber(parseNumberSafe(form.price)) ? (
+                        <span>{formatCurrency(parseNumberSafe(form.price) || 0)}</span>
+                      ) : null}
                       <span>{modalityLabel[form.modality]}</span>
                       <span>{statusLabel[form.status]}</span>
-                      <span>{previewPayment}</span>
+                      {hasTextValue(previewPayment) ? <span>{previewPayment}</span> : null}
                       {previewPaymentLines.map((line, index) => (
                         <span key={`${line}-${index}`} className="native-payment-preview-line">
                           {line}
                         </span>
                       ))}
-                      {previewActivePaymentOptions.length > previewPaymentLines.length ? (
+                      {previewDisplayablePaymentOptions.length > previewPaymentLines.length ? (
                         <span className="native-payment-preview-line">
-                          +{previewActivePaymentOptions.length - previewPaymentLines.length} opção(ões)
+                          +{previewDisplayablePaymentOptions.length - previewPaymentLines.length} opção(ões)
                         </span>
                       ) : null}
-                      <span>Matrícula: {previewEnrollmentFee}</span>
-                      <span>In?cio mensalidades: {previewInstallmentStart}</span>
+                      {hasTextValue(previewEnrollmentFee) ? (
+                        <span>Matrícula: {previewEnrollmentFee}</span>
+                      ) : null}
+                      {hasTextValue(previewInstallmentStart) ? (
+                        <span>Início mensalidades: {previewInstallmentStart}</span>
+                      ) : null}
                     </div>
                   </div>
                 </article>
