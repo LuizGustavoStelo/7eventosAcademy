@@ -1,5 +1,45 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+
+type StudentBrandingPalette = {
+  primaryColor: string;
+  primaryStrongColor: string;
+  secondaryColor: string;
+  secondaryStrongColor: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  surfaceSoftColor: string;
+  borderColor: string;
+  textColor: string;
+  mutedColor: string;
+};
+
+const DEFAULT_STUDENT_LOGO_URL = '/Logo-IPESK.png';
+const DEFAULT_STUDENT_PALETTE: StudentBrandingPalette = {
+  primaryColor: '#139395',
+  primaryStrongColor: '#0f7f81',
+  secondaryColor: '#283e6e',
+  secondaryStrongColor: '#1f3158',
+  backgroundColor: '#eff3f4',
+  surfaceColor: '#ffffff',
+  surfaceSoftColor: '#f6f8f9',
+  borderColor: '#d9e2e7',
+  textColor: '#243650',
+  mutedColor: '#5f7087',
+};
+const STUDENT_PALETTE_KEYS: Array<keyof StudentBrandingPalette> = [
+  'primaryColor',
+  'primaryStrongColor',
+  'secondaryColor',
+  'secondaryStrongColor',
+  'backgroundColor',
+  'surfaceColor',
+  'surfaceSoftColor',
+  'borderColor',
+  'textColor',
+  'mutedColor',
+];
 
 @Injectable()
 export class MisService {
@@ -12,6 +52,33 @@ export class MisService {
         id: true,
         name: true,
         email: true,
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            brandingLogoUrl: true,
+            brandingPalette: true,
+            updatedAt: true,
+          },
+        },
+        enrollments: {
+          where: { status: 'ACTIVE' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            institution: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                brandingLogoUrl: true,
+                brandingPalette: true,
+                updatedAt: true,
+              },
+            },
+          },
+        },
         studentProfile: {
           select: {
             documentCpf: true,
@@ -28,7 +95,23 @@ export class MisService {
       throw new NotFoundException('Usuário não encontrado.');
     }
 
-    return user;
+    const institution = user.enrollments[0]?.institution ?? user.institution ?? null;
+    const branding = this.resolveStudentBranding(institution);
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      studentProfile: user.studentProfile,
+      institution: institution
+        ? {
+            id: institution.id,
+            name: institution.name,
+            slug: institution.slug,
+          }
+        : null,
+      branding,
+    };
   }
 
   async getAlunoMatriculas(userId: string) {
@@ -335,7 +418,57 @@ export class MisService {
     }));
   }
 
+  private resolveStudentBranding(
+    institution:
+      | {
+          brandingLogoUrl: string | null;
+          brandingPalette: Prisma.JsonValue | null;
+        }
+      | null
+      | undefined,
+  ) {
+    const palette = this.resolveStudentPalette(institution?.brandingPalette);
+    const logoUrl =
+      institution?.brandingLogoUrl?.trim() || DEFAULT_STUDENT_LOGO_URL;
+    const isCustomLogo =
+      Boolean(institution?.brandingLogoUrl) &&
+      institution?.brandingLogoUrl !== DEFAULT_STUDENT_LOGO_URL;
+    const isCustomPalette = STUDENT_PALETTE_KEYS.some(
+      (key) =>
+        palette[key].toLowerCase() !== DEFAULT_STUDENT_PALETTE[key].toLowerCase(),
+    );
+
+    return {
+      logoUrl,
+      palette,
+      isCustom: isCustomLogo || isCustomPalette,
+    };
+  }
+
+  private resolveStudentPalette(rawPalette?: Prisma.JsonValue | null) {
+    const palette = { ...DEFAULT_STUDENT_PALETTE };
+    if (!rawPalette || typeof rawPalette !== 'object' || Array.isArray(rawPalette)) {
+      return palette;
+    }
+
+    const rawMap = rawPalette as Record<string, unknown>;
+    for (const key of STUDENT_PALETTE_KEYS) {
+      const value = rawMap[key];
+      if (typeof value !== 'string') {
+        continue;
+      }
+
+      const normalized = value.trim().toLowerCase();
+      if (/^#([0-9a-f]{6})$/i.test(normalized)) {
+        palette[key] = normalized;
+      }
+    }
+
+    return palette;
+  }
+
   private uniqueClassIds(classIds: string[]) {
     return Array.from(new Set(classIds));
   }
 }
+

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { JwtPayload } from '../auth/types/app-role.type';
 import { PrismaService } from '../database/prisma.service';
 import { CreateChargeDto } from './dto/create-charge.dto';
@@ -148,7 +148,12 @@ export class FinanceService {
         where: { role: 'USER' },
       }),
       this.prisma.enrollment.count({
-        where: { status: 'ACTIVE' },
+        where: {
+          status: 'ACTIVE',
+          student: {
+            role: UserRole.USER,
+          },
+        },
       }),
       this.prisma.schoolClass.count(),
       this.prisma.schoolClass.count({
@@ -168,7 +173,6 @@ export class FinanceService {
       this.prisma.schoolClass.aggregate({
         _sum: {
           totalSeats: true,
-          occupiedSeats: true,
         },
       }),
       this.prisma.monthlyCharge.count({
@@ -263,7 +267,7 @@ export class FinanceService {
     ]);
 
     const totalSeats = Number(seatTotals._sum.totalSeats ?? 0);
-    const occupiedSeats = Number(seatTotals._sum.occupiedSeats ?? 0);
+    const occupiedSeats = Number(activeEnrollments ?? 0);
     const occupancyRate =
       totalSeats > 0 ? Number(((occupiedSeats / totalSeats) * 100).toFixed(1)) : 0;
 

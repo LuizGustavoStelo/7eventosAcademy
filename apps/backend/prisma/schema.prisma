@@ -170,6 +170,8 @@ model Institution {
   name         String
   slug         String               @unique
   status       InstitutionStatus    @default(ACTIVE)
+  brandingLogoUrl String?           @map("branding_logo_url")
+  brandingPalette Json?             @map("branding_palette")
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
   members      InstitutionMember[]

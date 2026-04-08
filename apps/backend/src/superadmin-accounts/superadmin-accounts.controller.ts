@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Put, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CreateImpersonationSessionDto } from './dto/create-impersonation-session.dto';
+import { UpsertAccountBrandingDto } from './dto/upsert-account-branding.dto';
 import { UpsertAccountFinancialConfigDto } from './dto/upsert-account-financial-config.dto';
 import { SuperadminAccountsService } from './superadmin-accounts.service';
 
@@ -34,6 +35,22 @@ export class SuperadminAccountsController {
     @Body() dto: UpsertAccountFinancialConfigDto,
   ) {
     return this.superadminAccountsService.upsertAccountFinancialConfig(
+      userId,
+      dto,
+    );
+  }
+
+  @Get(':userId/branding')
+  async getAccountBrandingConfig(@Param('userId') userId: string) {
+    return this.superadminAccountsService.getAccountBrandingConfig(userId);
+  }
+
+  @Put(':userId/branding')
+  async upsertAccountBrandingConfig(
+    @Param('userId') userId: string,
+    @Body() dto: UpsertAccountBrandingDto,
+  ) {
+    return this.superadminAccountsService.upsertAccountBrandingConfig(
       userId,
       dto,
     );

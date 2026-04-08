@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ChangeEvent } from 'react';
+import type { CSSProperties, ChangeEvent } from 'react';
 import { apiRequest } from './api';
 import { StudentContractsNative } from './StudentContractsNative';
 
@@ -11,11 +11,38 @@ type StudentProfile = {
   state: string | null;
 };
 
+type StudentInstitution = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
+type StudentBrandingPalette = {
+  primaryColor: string;
+  primaryStrongColor: string;
+  secondaryColor: string;
+  secondaryStrongColor: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  surfaceSoftColor: string;
+  borderColor: string;
+  textColor: string;
+  mutedColor: string;
+};
+
+type StudentBranding = {
+  logoUrl: string;
+  palette: StudentBrandingPalette;
+  isCustom: boolean;
+};
+
 type StudentMe = {
   id: string;
   name: string;
   email: string;
   studentProfile: StudentProfile | null;
+  institution?: StudentInstitution | null;
+  branding?: StudentBranding | null;
 };
 
 type StudentEnrollment = {
@@ -138,6 +165,19 @@ type StudentAreaNativeProps = {
 
 const STUDENT_CACHE_TTL_MS = 25_000;
 const REFRESH_MS = 120_000;
+const DEFAULT_STUDENT_BRANDING_LOGO_URL = '/Logo-IPESK.png';
+const DEFAULT_STUDENT_BRANDING_PALETTE: StudentBrandingPalette = {
+  primaryColor: '#139395',
+  primaryStrongColor: '#0f7f81',
+  secondaryColor: '#283e6e',
+  secondaryStrongColor: '#1f3158',
+  backgroundColor: '#eff3f4',
+  surfaceColor: '#ffffff',
+  surfaceSoftColor: '#f6f8f9',
+  borderColor: '#d9e2e7',
+  textColor: '#243650',
+  mutedColor: '#5f7087',
+};
 
 const SECTION_IDS = [
   'st-student-panel',
@@ -379,6 +419,78 @@ function normalizeSearchTerm(value: string) {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase();
+}
+
+function normalizeHexColor(value: string, fallback: string): string {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!/^#([0-9a-f]{6})$/i.test(normalized)) return fallback;
+  return normalized;
+}
+
+function resolveStudentBranding(me?: StudentMe | null): StudentBranding {
+  const palette = me?.branding?.palette;
+  return {
+    logoUrl: me?.branding?.logoUrl || DEFAULT_STUDENT_BRANDING_LOGO_URL,
+    palette: {
+      primaryColor: normalizeHexColor(
+        palette?.primaryColor || '',
+        DEFAULT_STUDENT_BRANDING_PALETTE.primaryColor,
+      ),
+      primaryStrongColor: normalizeHexColor(
+        palette?.primaryStrongColor || '',
+        DEFAULT_STUDENT_BRANDING_PALETTE.primaryStrongColor,
+      ),
+      secondaryColor: normalizeHexColor(
+        palette?.secondaryColor || '',
+        DEFAULT_STUDENT_BRANDING_PALETTE.secondaryColor,
+      ),
+      secondaryStrongColor: normalizeHexColor(
+        palette?.secondaryStrongColor || '',
+        DEFAULT_STUDENT_BRANDING_PALETTE.secondaryStrongColor,
+      ),
+      backgroundColor: normalizeHexColor(
+        palette?.backgroundColor || '',
+        DEFAULT_STUDENT_BRANDING_PALETTE.backgroundColor,
+      ),
+      surfaceColor: normalizeHexColor(
+        palette?.surfaceColor || '',
+        DEFAULT_STUDENT_BRANDING_PALETTE.surfaceColor,
+      ),
+      surfaceSoftColor: normalizeHexColor(
+        palette?.surfaceSoftColor || '',
+        DEFAULT_STUDENT_BRANDING_PALETTE.surfaceSoftColor,
+      ),
+      borderColor: normalizeHexColor(
+        palette?.borderColor || '',
+        DEFAULT_STUDENT_BRANDING_PALETTE.borderColor,
+      ),
+      textColor: normalizeHexColor(
+        palette?.textColor || '',
+        DEFAULT_STUDENT_BRANDING_PALETTE.textColor,
+      ),
+      mutedColor: normalizeHexColor(
+        palette?.mutedColor || '',
+        DEFAULT_STUDENT_BRANDING_PALETTE.mutedColor,
+      ),
+    },
+    isCustom: Boolean(me?.branding?.isCustom),
+  };
+}
+
+function buildStudentBrandingStyle(branding: StudentBranding): CSSProperties {
+  return {
+    '--st-primary': branding.palette.primaryColor,
+    '--st-primary-strong': branding.palette.primaryStrongColor,
+    '--st-secondary': branding.palette.secondaryColor,
+    '--st-bg': branding.palette.backgroundColor,
+    '--st-surface': branding.palette.surfaceColor,
+    '--st-surface-soft': branding.palette.surfaceSoftColor,
+    '--st-surface-muted': branding.palette.borderColor,
+    '--st-text': branding.palette.textColor,
+    '--st-text-strong': branding.palette.secondaryStrongColor,
+    '--st-border': branding.palette.borderColor,
+    '--st-muted': branding.palette.mutedColor,
+  } as CSSProperties;
 }
 
 function formatDate(dateLike: string | null | undefined) {
@@ -1119,6 +1231,12 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   }, []);
 
   const me = dashboard?.me;
+  const activeBranding = useMemo(() => resolveStudentBranding(me), [me]);
+  const studentTemplateStyle = useMemo(
+    () => buildStudentBrandingStyle(activeBranding),
+    [activeBranding],
+  );
+  const brandingLogoAlt = me?.institution?.name || 'Instituição';
   const matriculas = dashboard?.matriculas ?? [];
   const materiais = dashboard?.materiais ?? [];
   const avisos = dashboard?.avisos ?? [];
@@ -2071,11 +2189,14 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const showBootOverlay = loading || !fontsReady;
 
   return (
-    <section className={`student-template-shell ${showBootOverlay ? 'is-booting' : ''}`}>
+    <section
+      className={`student-template-shell ${showBootOverlay ? 'is-booting' : ''}`}
+      style={studentTemplateStyle}
+    >
       {showBootOverlay ? (
         <div className="student-template-boot" role="status" aria-live="polite">
           <div className="student-template-boot-card">
-            <img src="/Logo-IPESK.png" alt="IPESK" />
+            <img src={activeBranding.logoUrl} alt={brandingLogoAlt} />
             <strong>Carregando ambiente do aluno</strong>
             <p>Preparando layout e dados com estabilidade visual...</p>
             <span className="student-template-boot-spinner" aria-hidden="true" />
@@ -2085,7 +2206,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
       <aside className="student-template-sidebar" aria-label="Navegação principal do aluno">
         <div className="student-template-brand">
-          <img src="/Logo-IPESK.png" alt="IPESK" />
+          <img src={activeBranding.logoUrl} alt={brandingLogoAlt} />
         </div>
 
         <nav className="student-template-menu">

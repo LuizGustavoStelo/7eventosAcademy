@@ -7,10 +7,11 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../database/prisma.service';
 import { SecretsService } from '../security/secrets/secrets.service';
+import { UpsertAccountBrandingDto } from './dto/upsert-account-branding.dto';
 import {
   FinancialProvider,
   UpsertAccountFinancialConfigDto,
@@ -51,6 +52,26 @@ type FinancialSettings = {
   generic?: GenericSettings;
 };
 
+type InstitutionBrandingPalette = {
+  primaryColor: string;
+  primaryStrongColor: string;
+  secondaryColor: string;
+  secondaryStrongColor: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  surfaceSoftColor: string;
+  borderColor: string;
+  textColor: string;
+  mutedColor: string;
+};
+
+type InstitutionBrandingConfig = {
+  logoUrl: string;
+  palette: InstitutionBrandingPalette;
+  isCustom: boolean;
+  updatedAt: Date | null;
+};
+
 const DEFAULT_SICOOB_TOKEN_URL =
   'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
 const DEFAULT_SICOOB_BASE_URLS: SicoobBaseUrls = {
@@ -74,6 +95,31 @@ const DEFAULT_SICOOB_SCOPES = [
   'boletos_inclusao',
   'boletos_consulta',
   'boletos_alteracao',
+];
+const DEFAULT_STUDENT_BRANDING_LOGO_URL = '/Logo-IPESK.png';
+const DEFAULT_STUDENT_BRANDING_PALETTE: InstitutionBrandingPalette = {
+  primaryColor: '#139395',
+  primaryStrongColor: '#0f7f81',
+  secondaryColor: '#283e6e',
+  secondaryStrongColor: '#1f3158',
+  backgroundColor: '#eff3f4',
+  surfaceColor: '#ffffff',
+  surfaceSoftColor: '#f6f8f9',
+  borderColor: '#d9e2e7',
+  textColor: '#243650',
+  mutedColor: '#5f7087',
+};
+const BRANDING_COLOR_FIELDS: Array<keyof InstitutionBrandingPalette> = [
+  'primaryColor',
+  'primaryStrongColor',
+  'secondaryColor',
+  'secondaryStrongColor',
+  'backgroundColor',
+  'surfaceColor',
+  'surfaceSoftColor',
+  'borderColor',
+  'textColor',
+  'mutedColor',
 ];
 
 @Injectable()
@@ -134,12 +180,30 @@ export class SuperadminAccountsService {
               updatedAt: true,
             },
           },
+          institutionMembers: {
+            where: { status: 'ACTIVE' },
+            orderBy: { createdAt: 'asc' },
+            take: 1,
+            select: {
+              institution: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  brandingLogoUrl: true,
+                  brandingPalette: true,
+                  updatedAt: true,
+                },
+              },
+            },
+          },
         },
       }),
     ]);
 
     const accountRows = accounts.map((account) => {
       const config = account.financialConfig;
+      const institution = account.institutionMembers[0]?.institution ?? null;
       return {
         id: account.id,
         name: account.name,
@@ -147,6 +211,14 @@ export class SuperadminAccountsService {
         role: account.role.toLowerCase(),
         createdAt: account.createdAt,
         updatedAt: account.updatedAt,
+        institution: institution
+          ? {
+              id: institution.id,
+              name: institution.name,
+              slug: institution.slug,
+            }
+          : null,
+        branding: this.resolveInstitutionBranding(institution),
         finance: {
           provider: (config?.provider ?? 'manual').toLowerCase(),
           environment: (config?.environment ?? 'sandbox').toLowerCase(),
@@ -312,6 +384,124 @@ export class SuperadminAccountsService {
     };
   }
 
+  async getAccountBrandingConfig(userId: string) {
+    const account = await this.findAdminAccountWithInstitution(userId);
+    const branding = this.resolveInstitutionBranding(account.institution);
+
+    return {
+      user: {
+        id: account.id,
+        name: account.name,
+        email: account.email,
+        role: account.role.toLowerCase(),
+      },
+      institution: {
+        id: account.institution.id,
+        name: account.institution.name,
+        slug: account.institution.slug,
+      },
+      branding,
+    };
+  }
+
+  async upsertAccountBrandingConfig(
+    userId: string,
+    dto: UpsertAccountBrandingDto,
+  ) {
+    const account = await this.findAdminAccountWithInstitution(userId);
+
+    if (dto.resetToDefault) {
+      const savedInstitution = await this.prisma.institution.update({
+        where: { id: account.institution.id },
+        data: {
+          brandingLogoUrl: null,
+          brandingPalette: Prisma.DbNull,
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          brandingLogoUrl: true,
+          brandingPalette: true,
+          updatedAt: true,
+        },
+      });
+
+      return {
+        success: true,
+        institution: {
+          id: savedInstitution.id,
+          name: savedInstitution.name,
+          slug: savedInstitution.slug,
+        },
+        branding: this.resolveInstitutionBranding(savedInstitution),
+      };
+    }
+
+    const nextPalette = this.resolveBrandingPalette(
+      account.institution.brandingPalette,
+    );
+    const paletteFieldMap: Array<
+      [keyof InstitutionBrandingPalette, string | undefined, string]
+    > = [
+      ['primaryColor', dto.primaryColor, 'cor primária'],
+      ['primaryStrongColor', dto.primaryStrongColor, 'cor primária forte'],
+      ['secondaryColor', dto.secondaryColor, 'cor secundária'],
+      ['secondaryStrongColor', dto.secondaryStrongColor, 'cor secundária forte'],
+      ['backgroundColor', dto.backgroundColor, 'cor de fundo'],
+      ['surfaceColor', dto.surfaceColor, 'cor de superfície'],
+      ['surfaceSoftColor', dto.surfaceSoftColor, 'cor de superfície suave'],
+      ['borderColor', dto.borderColor, 'cor de borda'],
+      ['textColor', dto.textColor, 'cor de texto'],
+      ['mutedColor', dto.mutedColor, 'cor de texto auxiliar'],
+    ];
+
+    for (const [field, value, label] of paletteFieldMap) {
+      if (value === undefined) {
+        continue;
+      }
+      nextPalette[field] = this.normalizeHexColor(value, label);
+    }
+
+    const currentLogoUrl = account.institution.brandingLogoUrl;
+    let nextLogoUrl = currentLogoUrl;
+    if (dto.logoUrl !== undefined) {
+      nextLogoUrl = this.normalizeLogoUrl(dto.logoUrl);
+    }
+
+    const shouldPersistPalette = !this.isDefaultBrandingPalette(nextPalette);
+    const shouldPersistLogo =
+      Boolean(nextLogoUrl) && nextLogoUrl !== DEFAULT_STUDENT_BRANDING_LOGO_URL;
+
+    const savedInstitution = await this.prisma.institution.update({
+      where: { id: account.institution.id },
+      data: {
+        brandingLogoUrl: shouldPersistLogo ? nextLogoUrl : null,
+        brandingPalette: shouldPersistPalette
+          ? (nextPalette as Prisma.InputJsonValue)
+          : Prisma.DbNull,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        brandingLogoUrl: true,
+        brandingPalette: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      success: true,
+      institution: {
+        id: savedInstitution.id,
+        name: savedInstitution.name,
+        slug: savedInstitution.slug,
+      },
+      branding: this.resolveInstitutionBranding(savedInstitution),
+    };
+  }
+
   async createImpersonationSession(
     superadminUserId: string,
     targetUserId: string,
@@ -323,6 +513,141 @@ export class SuperadminAccountsService {
       reason: dto.reason,
       durationMinutes: dto.durationMinutes,
     });
+  }
+
+  private async findAdminAccountWithInstitution(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        institutionMembers: {
+          where: { status: 'ACTIVE' },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+          select: {
+            institution: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                brandingLogoUrl: true,
+                brandingPalette: true,
+                updatedAt: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user || user.role !== UserRole.ADMIN) {
+      throw new NotFoundException('Conta admin/professor não encontrada.');
+    }
+
+    const institution = user.institutionMembers[0]?.institution ?? null;
+    if (!institution) {
+      throw new NotFoundException(
+        'Instituição ativa não encontrada para esta conta.',
+      );
+    }
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      institution,
+    };
+  }
+
+  private resolveInstitutionBranding(
+    institution:
+      | {
+          brandingLogoUrl: string | null;
+          brandingPalette: Prisma.JsonValue | null;
+          updatedAt: Date;
+        }
+      | null
+      | undefined,
+  ): InstitutionBrandingConfig {
+    const palette = this.resolveBrandingPalette(institution?.brandingPalette);
+    const logoUrl =
+      institution?.brandingLogoUrl?.trim() || DEFAULT_STUDENT_BRANDING_LOGO_URL;
+    const hasCustomPalette = !this.isDefaultBrandingPalette(palette);
+    const hasCustomLogo =
+      Boolean(institution?.brandingLogoUrl) &&
+      institution?.brandingLogoUrl !== DEFAULT_STUDENT_BRANDING_LOGO_URL;
+
+    return {
+      logoUrl,
+      palette,
+      isCustom: hasCustomPalette || hasCustomLogo,
+      updatedAt: institution?.updatedAt ?? null,
+    };
+  }
+
+  private resolveBrandingPalette(
+    rawPalette?: Prisma.JsonValue | null,
+  ): InstitutionBrandingPalette {
+    const palette = { ...DEFAULT_STUDENT_BRANDING_PALETTE };
+    if (!rawPalette || typeof rawPalette !== 'object' || Array.isArray(rawPalette)) {
+      return palette;
+    }
+
+    const rawMap = rawPalette as Record<string, unknown>;
+    for (const field of BRANDING_COLOR_FIELDS) {
+      const value = rawMap[field];
+      if (typeof value !== 'string') {
+        continue;
+      }
+
+      const normalized = value.trim().toLowerCase();
+      if (this.isHexColor(normalized)) {
+        palette[field] = normalized;
+      }
+    }
+
+    return palette;
+  }
+
+  private isDefaultBrandingPalette(palette: InstitutionBrandingPalette) {
+    return BRANDING_COLOR_FIELDS.every(
+      (field) =>
+        palette[field].toLowerCase() ===
+        DEFAULT_STUDENT_BRANDING_PALETTE[field].toLowerCase(),
+    );
+  }
+
+  private normalizeLogoUrl(value: string): string | null {
+    const normalized = value.trim();
+    if (!normalized) {
+      return null;
+    }
+
+    if (normalized.length > 2048) {
+      throw new BadRequestException(
+        'URL do logo muito longa. Use no máximo 2048 caracteres.',
+      );
+    }
+
+    return normalized;
+  }
+
+  private normalizeHexColor(value: string, label: string): string {
+    const normalized = value.trim().toLowerCase();
+    if (!this.isHexColor(normalized)) {
+      throw new BadRequestException(
+        `A ${label} deve estar no formato HEX, por exemplo: #139395.`,
+      );
+    }
+    return normalized;
+  }
+
+  private isHexColor(value: string) {
+    return /^#([0-9a-fA-F]{6})$/.test(value);
   }
 
   private buildSettings(

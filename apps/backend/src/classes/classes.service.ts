@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { StudentCourseStatus } from '@prisma/client';
+import { StudentCourseStatus, UserRole } from '@prisma/client';
 import { JwtPayload } from '../auth/types/app-role.type';
 import { PrismaService } from '../database/prisma.service';
 import { EnrollmentsService } from '../enrollments/enrollments.service';
@@ -83,7 +83,7 @@ export class ClassesService {
   }
 
   async findAll(actor: ClassActor) {
-    return this.prisma.schoolClass.findMany({
+    const classes = await this.prisma.schoolClass.findMany({
       where: this.buildClassWhere(actor),
       include: {
         course: true,
@@ -92,6 +92,38 @@ export class ClassesService {
         },
       },
       orderBy: { createdAt: 'desc' },
+    });
+
+    if (classes.length === 0) {
+      return classes;
+    }
+
+    const activeByClassId = await this.prisma.enrollment.groupBy({
+      by: ['classId'],
+      where: {
+        classId: { in: classes.map((item) => item.id) },
+        status: 'ACTIVE',
+        student: {
+          role: UserRole.USER,
+        },
+      },
+      _count: { _all: true },
+    });
+
+    const activeCountMap = new Map(
+      activeByClassId.map((item) => [item.classId, item._count._all]),
+    );
+
+    return classes.map((item) => {
+      const activeCount = activeCountMap.get(item.id) ?? 0;
+      return {
+        ...item,
+        occupiedSeats: activeCount,
+        _count: {
+          ...item._count,
+          enrollments: activeCount,
+        },
+      };
     });
   }
 

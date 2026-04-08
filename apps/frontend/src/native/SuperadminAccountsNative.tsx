@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
+import type { CSSProperties, ChangeEvent, FormEvent } from 'react';
 import { apiRequest, formatCurrency } from './api';
 
 type FinanceProvider = 'manual' | 'sicoob' | 'asaas' | 'stripe';
@@ -11,6 +11,17 @@ type DashboardAccount = {
   email: string;
   createdAt: string;
   updatedAt: string;
+  institution: {
+    id: string;
+    name: string;
+    slug: string;
+  } | null;
+  branding: {
+    logoUrl: string;
+    palette: BrandingPalette;
+    isCustom: boolean;
+    updatedAt: string | null;
+  };
   finance: {
     provider: string;
     environment: string;
@@ -39,6 +50,19 @@ type SicoobBaseUrls = {
   spbTransferencias: string;
 };
 
+type BrandingPalette = {
+  primaryColor: string;
+  primaryStrongColor: string;
+  secondaryColor: string;
+  secondaryStrongColor: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  surfaceSoftColor: string;
+  borderColor: string;
+  textColor: string;
+  mutedColor: string;
+};
+
 type AccountFinancialResponse = {
   user: {
     id: string;
@@ -63,6 +87,26 @@ type AccountFinancialResponse = {
       certificateConfigured: boolean;
       privateKeyConfigured: boolean;
     };
+  };
+};
+
+type AccountBrandingResponse = {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+  institution: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  branding: {
+    logoUrl: string;
+    palette: BrandingPalette;
+    isCustom: boolean;
+    updatedAt: string | null;
   };
 };
 
@@ -111,6 +155,27 @@ type FinancialFormState = {
   sicoobCertificatePfxFileName: string;
 };
 
+type BrandingFormState = {
+  logoUrl: string;
+  primaryColor: string;
+  primaryStrongColor: string;
+  secondaryColor: string;
+  secondaryStrongColor: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  surfaceSoftColor: string;
+  borderColor: string;
+  textColor: string;
+  mutedColor: string;
+};
+
+type BrandingMetaState = {
+  institutionName: string;
+  institutionSlug: string;
+  isCustom: boolean;
+  updatedAt: string | null;
+};
+
 type ConfigFlags = {
   certificateConfigured: boolean;
   privateKeyConfigured: boolean;
@@ -123,6 +188,34 @@ type SuperadminAccountsNativeProps = {
 const DEFAULT_STUDENT_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="18" fill="#eef2f6"/><circle cx="48" cy="36" r="14" fill="#8ca0b8"/><path d="M22 79c4-13 14-21 26-21s22 8 26 21" fill="#8ca0b8"/></svg>',
 )}`;
+const DEFAULT_STUDENT_BRANDING_LOGO_URL = '/Logo-IPESK.png';
+const DEFAULT_STUDENT_BRANDING_PALETTE: BrandingPalette = {
+  primaryColor: '#139395',
+  primaryStrongColor: '#0f7f81',
+  secondaryColor: '#283e6e',
+  secondaryStrongColor: '#1f3158',
+  backgroundColor: '#eff3f4',
+  surfaceColor: '#ffffff',
+  surfaceSoftColor: '#f6f8f9',
+  borderColor: '#d9e2e7',
+  textColor: '#243650',
+  mutedColor: '#5f7087',
+};
+const BRANDING_COLOR_FIELDS: Array<{
+  key: keyof BrandingPalette;
+  label: string;
+}> = [
+  { key: 'primaryColor', label: 'Primária' },
+  { key: 'primaryStrongColor', label: 'Primária forte' },
+  { key: 'secondaryColor', label: 'Secundária' },
+  { key: 'secondaryStrongColor', label: 'Secundária forte' },
+  { key: 'backgroundColor', label: 'Fundo' },
+  { key: 'surfaceColor', label: 'Superfície' },
+  { key: 'surfaceSoftColor', label: 'Superfície suave' },
+  { key: 'borderColor', label: 'Borda' },
+  { key: 'textColor', label: 'Texto' },
+  { key: 'mutedColor', label: 'Texto auxiliar' },
+];
 
 function defaultForm(): FinancialFormState {
   return {
@@ -150,6 +243,13 @@ function defaultForm(): FinancialFormState {
     sicoobCertificatePfxBase64: '',
     sicoobCertificatePfxPassphrase: '',
     sicoobCertificatePfxFileName: '',
+  };
+}
+
+function defaultBrandingForm(): BrandingFormState {
+  return {
+    logoUrl: DEFAULT_STUDENT_BRANDING_LOGO_URL,
+    ...DEFAULT_STUDENT_BRANDING_PALETTE,
   };
 }
 
@@ -203,6 +303,78 @@ function resolveAvatar(avatarUrl?: string | null): string {
   return cleaned;
 }
 
+function normalizeHexColor(value: string, fallback: string): string {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!/^#([0-9a-f]{6})$/i.test(normalized)) {
+    return fallback;
+  }
+  return normalized;
+}
+
+function toBrandingForm(
+  branding?: AccountBrandingResponse['branding'],
+): BrandingFormState {
+  const palette = branding?.palette ?? DEFAULT_STUDENT_BRANDING_PALETTE;
+  return {
+    logoUrl: branding?.logoUrl || DEFAULT_STUDENT_BRANDING_LOGO_URL,
+    primaryColor: normalizeHexColor(
+      palette.primaryColor,
+      DEFAULT_STUDENT_BRANDING_PALETTE.primaryColor,
+    ),
+    primaryStrongColor: normalizeHexColor(
+      palette.primaryStrongColor,
+      DEFAULT_STUDENT_BRANDING_PALETTE.primaryStrongColor,
+    ),
+    secondaryColor: normalizeHexColor(
+      palette.secondaryColor,
+      DEFAULT_STUDENT_BRANDING_PALETTE.secondaryColor,
+    ),
+    secondaryStrongColor: normalizeHexColor(
+      palette.secondaryStrongColor,
+      DEFAULT_STUDENT_BRANDING_PALETTE.secondaryStrongColor,
+    ),
+    backgroundColor: normalizeHexColor(
+      palette.backgroundColor,
+      DEFAULT_STUDENT_BRANDING_PALETTE.backgroundColor,
+    ),
+    surfaceColor: normalizeHexColor(
+      palette.surfaceColor,
+      DEFAULT_STUDENT_BRANDING_PALETTE.surfaceColor,
+    ),
+    surfaceSoftColor: normalizeHexColor(
+      palette.surfaceSoftColor,
+      DEFAULT_STUDENT_BRANDING_PALETTE.surfaceSoftColor,
+    ),
+    borderColor: normalizeHexColor(
+      palette.borderColor,
+      DEFAULT_STUDENT_BRANDING_PALETTE.borderColor,
+    ),
+    textColor: normalizeHexColor(
+      palette.textColor,
+      DEFAULT_STUDENT_BRANDING_PALETTE.textColor,
+    ),
+    mutedColor: normalizeHexColor(
+      palette.mutedColor,
+      DEFAULT_STUDENT_BRANDING_PALETTE.mutedColor,
+    ),
+  };
+}
+
+function buildBrandingPreviewStyle(form: BrandingFormState): CSSProperties {
+  return {
+    '--preview-primary': form.primaryColor,
+    '--preview-primary-strong': form.primaryStrongColor,
+    '--preview-secondary': form.secondaryColor,
+    '--preview-secondary-strong': form.secondaryStrongColor,
+    '--preview-bg': form.backgroundColor,
+    '--preview-surface': form.surfaceColor,
+    '--preview-surface-soft': form.surfaceSoftColor,
+    '--preview-border': form.borderColor,
+    '--preview-text': form.textColor,
+    '--preview-muted': form.mutedColor,
+  } as CSSProperties;
+}
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   const chunkSize = 0x8000;
@@ -219,10 +391,13 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProps) {
   const [loading, setLoading] = useState(true);
   const [loadingConfig, setLoadingConfig] = useState(false);
+  const [loadingBranding, setLoadingBranding] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingBranding, setSavingBranding] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
   const [formError, setFormError] = useState('');
+  const [brandingError, setBrandingError] = useState('');
   const [search, setSearch] = useState('');
   const [studentsSearch, setStudentsSearch] = useState('');
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -233,6 +408,10 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
   );
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [form, setForm] = useState<FinancialFormState>(() => defaultForm());
+  const [brandingForm, setBrandingForm] = useState<BrandingFormState>(() =>
+    defaultBrandingForm(),
+  );
+  const [brandingMeta, setBrandingMeta] = useState<BrandingMetaState | null>(null);
   const [configFlags, setConfigFlags] = useState<ConfigFlags>({
     certificateConfigured: false,
     privateKeyConfigured: false,
@@ -327,6 +506,35 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
     }
   };
 
+  const loadBrandingConfig = async (accountId: string) => {
+    if (!accountId) return;
+    setLoadingBranding(true);
+    setBrandingError('');
+
+    try {
+      const data = await apiRequest<AccountBrandingResponse>(
+        token,
+        `/superadmin/accounts/${accountId}/branding`,
+      );
+
+      setBrandingForm(toBrandingForm(data.branding));
+      setBrandingMeta({
+        institutionName: data.institution.name,
+        institutionSlug: data.institution.slug,
+        isCustom: Boolean(data.branding.isCustom),
+        updatedAt: data.branding.updatedAt,
+      });
+    } catch (loadError) {
+      setBrandingError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Falha ao carregar identidade visual.',
+      );
+    } finally {
+      setLoadingBranding(false);
+    }
+  };
+
   const loadStudents = async (showLoading = true) => {
     if (showLoading) setStudentsLoading(true);
     try {
@@ -351,6 +559,7 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
   useEffect(() => {
     if (!selectedAccountId) return;
     void loadFinancialConfig(selectedAccountId);
+    void loadBrandingConfig(selectedAccountId);
   }, [selectedAccountId, token]);
 
   const accounts = dashboard?.accounts ?? [];
@@ -359,7 +568,7 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
     const query = search.trim().toLowerCase();
     if (!query) return accounts;
     return accounts.filter((item) => {
-      const target = `${item.name} ${item.email}`.toLowerCase();
+      const target = `${item.name} ${item.email} ${item.institution?.name ?? ''}`.toLowerCase();
       return target.includes(query);
     });
   }, [accounts, search]);
@@ -368,6 +577,16 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
     () => accounts.find((item) => item.id === selectedAccountId) ?? null,
     [accounts, selectedAccountId],
   );
+
+  const brandingPreviewStyle = useMemo(
+    () => buildBrandingPreviewStyle(brandingForm),
+    [brandingForm],
+  );
+
+  const brandingPreviewLogo = useMemo(() => {
+    const value = brandingForm.logoUrl.trim();
+    return value || DEFAULT_STUDENT_BRANDING_LOGO_URL;
+  }, [brandingForm.logoUrl]);
 
   const filteredStudents = useMemo(() => {
     const query = normalizeSearch(studentsSearch);
@@ -488,6 +707,115 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
     }
   };
 
+  const submitBranding = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedAccountId) {
+      setBrandingError('Selecione uma conta para salvar a identidade visual.');
+      return;
+    }
+
+    setSavingBranding(true);
+    setBrandingError('');
+    setFeedback('');
+    setError('');
+
+    try {
+      const payload = {
+        logoUrl: brandingForm.logoUrl.trim(),
+        primaryColor: normalizeHexColor(
+          brandingForm.primaryColor,
+          DEFAULT_STUDENT_BRANDING_PALETTE.primaryColor,
+        ),
+        primaryStrongColor: normalizeHexColor(
+          brandingForm.primaryStrongColor,
+          DEFAULT_STUDENT_BRANDING_PALETTE.primaryStrongColor,
+        ),
+        secondaryColor: normalizeHexColor(
+          brandingForm.secondaryColor,
+          DEFAULT_STUDENT_BRANDING_PALETTE.secondaryColor,
+        ),
+        secondaryStrongColor: normalizeHexColor(
+          brandingForm.secondaryStrongColor,
+          DEFAULT_STUDENT_BRANDING_PALETTE.secondaryStrongColor,
+        ),
+        backgroundColor: normalizeHexColor(
+          brandingForm.backgroundColor,
+          DEFAULT_STUDENT_BRANDING_PALETTE.backgroundColor,
+        ),
+        surfaceColor: normalizeHexColor(
+          brandingForm.surfaceColor,
+          DEFAULT_STUDENT_BRANDING_PALETTE.surfaceColor,
+        ),
+        surfaceSoftColor: normalizeHexColor(
+          brandingForm.surfaceSoftColor,
+          DEFAULT_STUDENT_BRANDING_PALETTE.surfaceSoftColor,
+        ),
+        borderColor: normalizeHexColor(
+          brandingForm.borderColor,
+          DEFAULT_STUDENT_BRANDING_PALETTE.borderColor,
+        ),
+        textColor: normalizeHexColor(
+          brandingForm.textColor,
+          DEFAULT_STUDENT_BRANDING_PALETTE.textColor,
+        ),
+        mutedColor: normalizeHexColor(
+          brandingForm.mutedColor,
+          DEFAULT_STUDENT_BRANDING_PALETTE.mutedColor,
+        ),
+      };
+
+      await apiRequest(token, `/superadmin/accounts/${selectedAccountId}/branding`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      setFeedback('Identidade visual da instituição salva com sucesso.');
+      await loadDashboard(false);
+      await loadBrandingConfig(selectedAccountId);
+    } catch (submitError) {
+      setBrandingError(
+        submitError instanceof Error
+          ? submitError.message
+          : 'Falha ao salvar identidade visual.',
+      );
+    } finally {
+      setSavingBranding(false);
+    }
+  };
+
+  const resetBrandingToDefault = async () => {
+    if (!selectedAccountId) {
+      setBrandingError('Selecione uma conta para restaurar a identidade visual.');
+      return;
+    }
+
+    setSavingBranding(true);
+    setBrandingError('');
+    setFeedback('');
+    setError('');
+
+    try {
+      await apiRequest(token, `/superadmin/accounts/${selectedAccountId}/branding`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resetToDefault: true }),
+      });
+
+      setFeedback('Identidade visual restaurada para o padrão da Área do Aluno.');
+      await loadDashboard(false);
+      await loadBrandingConfig(selectedAccountId);
+    } catch (resetError) {
+      setBrandingError(
+        resetError instanceof Error
+          ? resetError.message
+          : 'Falha ao restaurar identidade visual.',
+      );
+    } finally {
+      setSavingBranding(false);
+    }
+  };
+
   const removeStudent = async (student: PlatformStudent) => {
     const confirmed = window.confirm(
       `Deseja realmente excluir o aluno "${student.name}"? Esta ação não pode ser desfeita.`,
@@ -521,8 +849,8 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
       <header className="native-page-header">
         <h2>Gestão de contas</h2>
         <p>
-          Configure provedor financeiro por conta admin/professor com criptografia
-          no backend e sem recarregar página.
+          Configure financeiro e identidade visual por instituição, com fallback
+          automático para o padrão da Área do Aluno.
         </p>
       </header>
 
@@ -583,6 +911,8 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                 <thead>
                   <tr>
                     <th>Conta</th>
+                    <th>Instituição</th>
+                    <th>Branding</th>
                     <th>Financeiro</th>
                     <th>API</th>
                     <th>Atualização</th>
@@ -591,7 +921,7 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                 <tbody>
                   {filteredAccounts.length === 0 ? (
                     <tr>
-                      <td colSpan={4}>Nenhuma conta encontrada.</td>
+                      <td colSpan={6}>Nenhuma conta encontrada.</td>
                     </tr>
                   ) : (
                     filteredAccounts.map((account) => (
@@ -608,6 +938,20 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                           <strong>{account.name}</strong>
                           <br />
                           <small>{account.email}</small>
+                        </td>
+                        <td>
+                          <strong>{account.institution?.name ?? 'Sem instituição'}</strong>
+                          <br />
+                          <small>{account.institution?.slug ?? '-'}</small>
+                        </td>
+                        <td>
+                          <span
+                            className={`native-status-chip ${
+                              account.branding?.isCustom ? 'is-success' : 'is-muted'
+                            }`}
+                          >
+                            {account.branding?.isCustom ? 'Personalizado' : 'Padrão aluno'}
+                          </span>
                         </td>
                         <td>
                           <span className={`native-status-chip ${financeStateTone(account)}`}>
@@ -628,7 +972,7 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
 
           <aside className="native-panel native-super-finance-panel">
             <header className="native-panel-header">
-              <h3>Financeiro da conta</h3>
+              <h3>Financeiro e branding</h3>
             </header>
 
             {selectedAccount ? (
@@ -636,6 +980,12 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                 <div className="native-super-selected-account">
                   <strong>{selectedAccount.name}</strong>
                   <small>{selectedAccount.email}</small>
+                  <small>
+                    Instituição:{' '}
+                    {brandingMeta?.institutionName ||
+                      selectedAccount.institution?.name ||
+                      'Sem instituição'}
+                  </small>
                 </div>
 
                 <form className="native-form-grid native-super-finance-form" onSubmit={submit}>
@@ -1005,10 +1355,127 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                     </button>
                   </div>
                 </form>
+
+                <div className="native-super-divider" />
+
+                <form className="native-form-grid native-super-branding-form" onSubmit={submitBranding}>
+                  <header className="native-super-branding-head">
+                    <h4>Identidade visual da instituição</h4>
+                    <small>
+                      {brandingMeta?.isCustom ? 'Personalizada' : 'Padrão da Área do Aluno'}
+                      {brandingMeta?.updatedAt ? ` • Atualizada em ${formatDate(brandingMeta.updatedAt)}` : ''}
+                    </small>
+                  </header>
+
+                  <p className="native-super-note">
+                    Personalize logo e paleta por instituição. Se não houver personalização,
+                    o sistema usa automaticamente o padrão da Área do Aluno.
+                  </p>
+
+                  <label>
+                    URL do logo
+                    <input
+                      type="url"
+                      value={brandingForm.logoUrl}
+                      onChange={(event) =>
+                        setBrandingForm((current) => ({
+                          ...current,
+                          logoUrl: event.target.value,
+                        }))
+                      }
+                      placeholder="/Logo-IPESK.png"
+                    />
+                  </label>
+
+                  <div className="native-super-branding-colors">
+                    {BRANDING_COLOR_FIELDS.map((field) => (
+                      <label key={field.key} className="native-super-branding-color-field">
+                        {field.label}
+                        <div className="native-super-branding-color-inputs">
+                          <input
+                            type="color"
+                            value={brandingForm[field.key]}
+                            onChange={(event) =>
+                              setBrandingForm((current) => ({
+                                ...current,
+                                [field.key]: event.target.value,
+                              }))
+                            }
+                          />
+                          <input
+                            value={brandingForm[field.key]}
+                            onChange={(event) =>
+                              setBrandingForm((current) => ({
+                                ...current,
+                                [field.key]: event.target.value,
+                              }))
+                            }
+                            placeholder="#000000"
+                          />
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="native-super-branding-preview" style={brandingPreviewStyle}>
+                    <div className="native-super-branding-preview-top">
+                      <img
+                        src={brandingPreviewLogo}
+                        alt={brandingMeta?.institutionName || selectedAccount.name}
+                      />
+                      <div>
+                        <strong>{brandingMeta?.institutionName || selectedAccount.name}</strong>
+                        <small>{brandingMeta?.institutionSlug || selectedAccount.id.slice(0, 8)}</small>
+                      </div>
+                    </div>
+                    <div className="native-super-branding-preview-cards">
+                      <article>
+                        <span>Primária</span>
+                        <strong>{brandingForm.primaryColor}</strong>
+                      </article>
+                      <article>
+                        <span>Secundária</span>
+                        <strong>{brandingForm.secondaryColor}</strong>
+                      </article>
+                    </div>
+                  </div>
+
+                  {loadingBranding ? (
+                    <p className="native-info">Carregando identidade visual...</p>
+                  ) : null}
+                  {brandingError ? <p className="native-error">{brandingError}</p> : null}
+
+                  <div className="native-modal-actions">
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => {
+                        if (!selectedAccountId) return;
+                        void loadBrandingConfig(selectedAccountId);
+                      }}
+                      disabled={savingBranding}
+                    >
+                      Recarregar identidade
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => {
+                        void resetBrandingToDefault();
+                      }}
+                      disabled={savingBranding}
+                    >
+                      Restaurar padrão
+                    </button>
+                    <button type="submit" disabled={savingBranding || loadingBranding}>
+                      {savingBranding ? 'Salvando...' : 'Salvar identidade'}
+                    </button>
+                  </div>
+                </form>
               </>
             ) : (
               <p className="native-info">
-                Selecione uma conta na lista para editar o financeiro.
+                Selecione uma conta na lista para editar o financeiro e a identidade visual.
               </p>
             )}
           </aside>
