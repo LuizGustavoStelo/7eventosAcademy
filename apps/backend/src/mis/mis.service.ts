@@ -1380,18 +1380,14 @@ export class MisService {
       );
       const consultaUrl = new URL(`${input.config.cobrancaBancariaBaseUrl}/boletos`);
       consultaUrl.searchParams.set(
-        'numeroCliente',
+        'numeroContrato',
         String(numeroContratoCliente),
       );
       consultaUrl.searchParams.set(
-        'codigoModalidade',
+        'modalidade',
         String(input.config.boletoModalidade),
       );
       consultaUrl.searchParams.set('nossoNumero', String(input.nossoNumero));
-      consultaUrl.searchParams.set(
-        'numeroContratoCobranca',
-        String(numeroContratoCliente),
-      );
 
       try {
         const queried = await this.sicoobJsonRequest<unknown>({
@@ -1412,19 +1408,15 @@ export class MisService {
         `${input.config.cobrancaBancariaBaseUrl}/boletos/segunda-via`,
       );
       segundaViaUrl.searchParams.set(
-        'numeroCliente',
+        'numeroContrato',
         String(numeroContratoCliente),
       );
       segundaViaUrl.searchParams.set(
-        'codigoModalidade',
+        'modalidade',
         String(input.config.boletoModalidade),
       );
       segundaViaUrl.searchParams.set('nossoNumero', String(input.nossoNumero));
       segundaViaUrl.searchParams.set('gerarPdf', 'false');
-      segundaViaUrl.searchParams.set(
-        'numeroContratoCobranca',
-        String(numeroContratoCliente),
-      );
 
       const segundaVia = await this.sicoobJsonRequest<unknown>({
         url: segundaViaUrl.toString(),
@@ -2375,7 +2367,6 @@ export class MisService {
       },
       gerarPdf: false,
       codigoCadastrarPIX: 1,
-      numeroContratoCobranca: numeroContratoClienteAsNumber ?? numeroContratoCliente,
     };
     if (existingNossoNumero) {
       boletoPayload.nossoNumero = Number(existingNossoNumero);
@@ -2413,8 +2404,6 @@ export class MisService {
       }
       delete boletoPayload.nossoNumero;
       boletoPayload.numeroCliente =
-        numeroContratoClienteAsNumber ?? numeroContratoCliente;
-      boletoPayload.numeroContratoCobranca =
         numeroContratoClienteAsNumber ?? numeroContratoCliente;
       this.logger.warn(
         `[sicoob-boleto] retry without nossoNumero charge=${input.charge.id} cliente=${numeroContratoCliente}`,
@@ -2459,19 +2448,15 @@ export class MisService {
         `${input.config.cobrancaBancariaBaseUrl}/boletos/segunda-via`,
       );
       segundaViaUrl.searchParams.set(
-        'numeroCliente',
+        'numeroContrato',
         String(numeroContratoCliente),
       );
       segundaViaUrl.searchParams.set(
-        'codigoModalidade',
+        'modalidade',
         String(input.config.boletoModalidade),
       );
       segundaViaUrl.searchParams.set('nossoNumero', String(parsedNossoNumero));
       segundaViaUrl.searchParams.set('gerarPdf', 'false');
-      segundaViaUrl.searchParams.set(
-        'numeroContratoCobranca',
-        String(numeroContratoCliente),
-      );
 
       try {
         const segundaVia = await this.sicoobJsonRequest<Record<string, unknown>>({
@@ -2647,9 +2632,8 @@ export class MisService {
     numeroContratoCliente: string,
   ): string {
     const url = new URL(`${config.cobrancaBancariaBaseUrl}/boletos`);
-    url.searchParams.set('numeroCliente', numeroContratoCliente);
-    url.searchParams.set('numeroContratoCobranca', numeroContratoCliente);
-    url.searchParams.set('codigoModalidade', String(config.boletoModalidade));
+    url.searchParams.set('numeroContrato', numeroContratoCliente);
+    url.searchParams.set('modalidade', String(config.boletoModalidade));
     return url.toString();
   }
 
