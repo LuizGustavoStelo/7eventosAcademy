@@ -799,14 +799,14 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       if (selectedTemplateId) {
         await apiRequest<ContractTemplate>(token, `/contracts/templates/${selectedTemplateId}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/son' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
         setFeedback('Rascunho do modelo atualizado com sucesso.');
       } else {
         const created = await apiRequest<{ id: string }>(token, '/contracts/templates', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/son' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
         setSelectedTemplateId(created.id);
@@ -844,7 +844,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     try {
       await apiRequest(token, `/contracts/templates/${selectedTemplateId}/publish`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/son' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: templateForm.draftTitle.trim(),
           htmlContent: templateForm.draftHtmlContent.trim(),
@@ -887,7 +887,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     try {
       await apiRequest(token, `/contracts/templates/${selectedTemplateId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/son' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           autoSendEnabled,
           autoSendAllCourses,
@@ -936,7 +936,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
         signatureCode: string;
       }>(token, '/contracts/instances/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/son' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
