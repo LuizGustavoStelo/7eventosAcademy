@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { request as httpsRequest } from 'node:https';
 import { Prisma } from '@prisma/client';
 import { JwtPayload } from '../auth/types/app-role.type';
 import { PrismaService } from '../database/prisma.service';
@@ -26,8 +28,47 @@ type GenericSettings = {
   apiKey?: string;
 };
 
+type SicoobBaseUrls = {
+  cobrancaBancaria?: string;
+  cobrancaBancariaPagamentos?: string;
+  pixPagamentos?: string;
+  pixRecebimentos?: string;
+  spbTransferencias?: string;
+};
+
+type SicoobSettings = {
+  clientId?: string;
+  tokenUrl?: string;
+  baseUrls?: SicoobBaseUrls;
+  sandboxBaseUrls?: SicoobBaseUrls;
+  webhookUrl?: string;
+  numeroCliente?: string;
+  scopes?: string[];
+  certificatePem?: string;
+  privateKeyPem?: string;
+  pixKey?: string;
+  boletoModalidade?: number;
+  boletoNumeroContaCorrente?: number;
+  boletoNumeroContratoCobranca?: number;
+};
+
 type FinancialSettings = {
+  sicoob?: SicoobSettings;
   generic?: GenericSettings;
+};
+
+type ResolvedSicoobConfig = {
+  clientId: string;
+  tokenUrl: string;
+  numeroCliente: number;
+  certPem: string;
+  keyPem: string;
+  pixKey: string | null;
+  boletoModalidade: number;
+  boletoNumeroContaCorrente: number;
+  boletoNumeroContratoCobranca: number | null;
+  cobrancaBancariaBaseUrl: string;
+  pixRecebimentosBaseUrl: string;
 };
 
 type StudentChargePaymentResponse = {
@@ -103,6 +144,8 @@ type StudentChargePaymentContext = {
         street: string | null;
         streetNumber: string | null;
         neighborhood: string | null;
+        city: string | null;
+        state: string | null;
         complement: string | null;
       } | null;
     };
@@ -110,6 +153,25 @@ type StudentChargePaymentContext = {
 };
 
 const DEFAULT_STUDENT_LOGO_URL = '/Logo-IPESK.png';
+const DEFAULT_SICOOB_TOKEN_URL =
+  'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
+const DEFAULT_SICOOB_BASE_URLS: Required<SicoobBaseUrls> = {
+  cobrancaBancaria: 'https://api.sicoob.com.br/cobranca-bancaria/v3',
+  cobrancaBancariaPagamentos: 'https://api.sicoob.com.br/pagamentos/v3',
+  pixPagamentos: 'https://api.sicoob.com.br/pix-pagamentos/v2',
+  pixRecebimentos: 'https://api.sicoob.com.br/pix/api/v2',
+  spbTransferencias: 'https://api.sicoob.com.br/spb/v2',
+};
+const DEFAULT_SICOOB_SANDBOX_BASE_URLS: Required<SicoobBaseUrls> = {
+  cobrancaBancaria:
+    'https://sandbox.sicoob.com.br/sicoob/sandbox/cobranca-bancaria/v3',
+  cobrancaBancariaPagamentos:
+    'https://sandbox.sicoob.com.br/sicoob/sandbox/cobranca-bancaria-pagamentos/v3',
+  pixPagamentos:
+    'https://sandbox.sicoob.com.br/sicoob/sandbox/pix-pagamentos/v2',
+  pixRecebimentos: 'https://sandbox.sicoob.com.br/sicoob/sandbox/pix/api/v2',
+  spbTransferencias: 'https://sandbox.sicoob.com.br/sicoob/sandbox/spb/v2',
+};
 const DEFAULT_STUDENT_PALETTE: StudentBrandingPalette = {
   primaryColor: '#139395',
   primaryStrongColor: '#0f7f81',
@@ -287,12 +349,13 @@ export class MisService {
     }
 
     if (provider === 'sicoob') {
-      return this.buildManualPaymentResponse(
-        charge.id,
+      return this.createSicoobPayment({
+        charge,
         method,
-        'Pagamento online para Sicoob ainda não está habilitado nesta tela. Use o fluxo financeiro manual.',
         provider,
-      );
+        environment: config.environment,
+        settings,
+      });
     }
 
     const apiKey = settings.generic?.apiKey?.trim() || '';
@@ -339,7 +402,7 @@ export class MisService {
     headers: Record<string, unknown>,
   ): Promise<WebhookProcessingResult> {
     const provider = this.normalizeFinancialProvider(providerRaw);
-    if (provider === 'manual' || provider === 'sicoob') {
+    if (provider === 'manual') {
       return {
         success: true,
         ignored: true,
@@ -355,6 +418,10 @@ export class MisService {
       if (!providedSecret || providedSecret !== configuredSecret) {
         throw new BadRequestException('Webhook não autorizado.');
       }
+    }
+
+    if (provider === 'sicoob') {
+      return this.handleSicoobWebhook(payload);
     }
 
     if (provider === 'asaas') {
@@ -874,6 +941,548 @@ export class MisService {
     };
   }
 
+  private async handleSicoobWebhook(
+    payload: unknown,
+  ): Promise<WebhookProcessingResult> {
+    const references = this.extractSicoobWebhookReferences(payload);
+    if (
+      references.externalChargeIds.length === 0 &&
+      references.chargeIds.length === 0
+    ) {
+      return {
+        success: true,
+        ignored: true,
+        message: 'Evento Sicoob sem identificador de cobrança.',
+      };
+    }
+
+    let charge: Awaited<ReturnType<MisService['findChargeById']>> = null;
+    let matchedReference = '';
+
+    for (const externalId of references.externalChargeIds) {
+      const found = await this.findChargeByExternalChargeId(externalId);
+      if (found) {
+        charge = found;
+        matchedReference = externalId;
+        break;
+      }
+    }
+
+    if (!charge) {
+      for (const chargeId of references.chargeIds) {
+        const found = await this.findChargeById(chargeId);
+        if (found) {
+          charge = found;
+          matchedReference = chargeId;
+          break;
+        }
+      }
+    }
+
+    if (!charge) {
+      return {
+        success: true,
+        ignored: true,
+        message: 'Nenhuma cobrança local vinculada ao webhook Sicoob.',
+      };
+    }
+
+    const ownerAdminId =
+      charge.ownerAdminId || charge.enrollment.schoolClass.course.ownerAdminId;
+    if (!ownerAdminId) {
+      return {
+        success: true,
+        ignored: true,
+        message: 'Cobrança sem conta administradora vinculada.',
+      };
+    }
+
+    const gatewayConfig = await this.prisma.accountFinancialConfig.findUnique({
+      where: { userId: ownerAdminId },
+      select: {
+        provider: true,
+        environment: true,
+        isActive: true,
+        encryptedSettings: true,
+      },
+    });
+
+    if (!gatewayConfig?.isActive) {
+      return {
+        success: true,
+        ignored: true,
+        message: 'Gateway financeiro inativo para a conta desta cobrança.',
+      };
+    }
+
+    if (this.normalizeFinancialProvider(gatewayConfig.provider) !== 'sicoob') {
+      return {
+        success: true,
+        ignored: true,
+        message: 'Conta não está configurada com provedor Sicoob.',
+      };
+    }
+
+    const settings = this.decryptFinancialSettings(gatewayConfig.encryptedSettings);
+    const sicoobConfig = this.resolveSicoobConfig(
+      settings,
+      gatewayConfig.environment,
+    );
+    if (!sicoobConfig) {
+      return {
+        success: true,
+        ignored: true,
+        message: 'Configuração Sicoob incompleta para reconciliação automática.',
+      };
+    }
+
+    const resolution = await this.resolveSicoobWebhookStatus({
+      charge,
+      payload,
+      config: sicoobConfig,
+    });
+    if (!resolution) {
+      return {
+        success: true,
+        ignored: true,
+        message: 'Status Sicoob sem ação mapeada para automação.',
+      };
+    }
+
+    const externalReference =
+      resolution.externalReference ||
+      this.extractSicoobExternalId(charge.externalChargeId, 'sicoob-pix:') ||
+      this.extractSicoobExternalId(charge.externalChargeId, 'sicoob-boleto:') ||
+      matchedReference ||
+      charge.id;
+
+    await this.applyGatewayChargeResolution({
+      chargeId: charge.id,
+      currentChargeStatus: charge.status,
+      provider: 'sicoob',
+      externalReference,
+      amount: Number(charge.amount),
+      chargeStatus: resolution.chargeStatus,
+      transactionStatus: resolution.transactionStatus,
+      paidAt: resolution.paidAt,
+    });
+
+    return {
+      success: true,
+      message: `Webhook Sicoob processado para cobrança ${charge.id}.`,
+    };
+  }
+
+  private extractSicoobWebhookReferences(payload: unknown): {
+    externalChargeIds: string[];
+    chargeIds: string[];
+  } {
+    const externalChargeIds = new Set<string>();
+    const chargeIds = new Set<string>();
+
+    const txid = this.extractFirstValueAsString(payload, [
+      'txid',
+      'txId',
+      'pixTxid',
+      'idTransacao',
+      'idCobrancaPix',
+    ]);
+    if (txid) {
+      externalChargeIds.add(`sicoob-pix:${txid}`);
+    }
+
+    const nossoNumeroRaw = this.extractFirstValueAsString(payload, [
+      'nossoNumero',
+      'nosso_numero',
+      'numeroNossoNumero',
+      'numeroTitulo',
+      'numeroTituloCliente',
+    ]);
+    const nossoNumeroDigits = String(nossoNumeroRaw || '').replace(/\D/g, '');
+    if (nossoNumeroDigits) {
+      externalChargeIds.add(`sicoob-boleto:${nossoNumeroDigits}`);
+    } else if (nossoNumeroRaw) {
+      externalChargeIds.add(`sicoob-boleto:${nossoNumeroRaw}`);
+    }
+
+    const externalReferenceRaw = this.extractFirstValueAsString(payload, [
+      'externalChargeId',
+      'externalReference',
+      'referenciaExterna',
+      'chargeReference',
+      'chargeId',
+      'monthlyChargeId',
+    ]);
+    if (externalReferenceRaw) {
+      const normalizedReference = externalReferenceRaw.trim();
+      if (
+        normalizedReference.toLowerCase().startsWith('sicoob-pix:') ||
+        normalizedReference.toLowerCase().startsWith('sicoob-boleto:')
+      ) {
+        externalChargeIds.add(normalizedReference);
+      }
+
+      if (/^[0-9a-f-]{36}$/i.test(normalizedReference)) {
+        chargeIds.add(normalizedReference);
+      }
+    }
+
+    return {
+      externalChargeIds: Array.from(externalChargeIds),
+      chargeIds: Array.from(chargeIds),
+    };
+  }
+
+  private async resolveSicoobWebhookStatus(input: {
+    charge: Awaited<ReturnType<MisService['findChargeById']>>;
+    payload: unknown;
+    config: ResolvedSicoobConfig;
+  }): Promise<{
+    chargeStatus: 'pending' | 'paid' | 'overdue' | 'canceled';
+    transactionStatus: 'pending' | 'success' | 'failed' | 'refunded' | null;
+    paidAt: Date | null;
+    externalReference: string;
+  } | null> {
+    const externalChargeId = String(input.charge?.externalChargeId || '').trim();
+    const pixTxid = this.extractSicoobExternalId(externalChargeId, 'sicoob-pix:');
+    const boletoNossoNumero = this.extractSicoobExternalId(
+      externalChargeId,
+      'sicoob-boleto:',
+    );
+
+    let providerPayload: unknown = null;
+    let externalReference = '';
+
+    if (pixTxid) {
+      externalReference = pixTxid;
+      providerPayload = await this.tryGetSicoobPixCharge({
+        config: input.config,
+        txid: pixTxid,
+      });
+    } else if (boletoNossoNumero) {
+      externalReference = boletoNossoNumero;
+      providerPayload = await this.tryGetSicoobBoletoCharge({
+        config: input.config,
+        nossoNumero: boletoNossoNumero,
+      });
+    }
+
+    const providerStatus = this.extractSicoobStatus(providerPayload);
+    const payloadStatus = this.extractSicoobStatus(input.payload);
+    const resolution = this.mapSicoobStatusToResolution(
+      providerStatus || payloadStatus,
+      input.payload,
+    );
+    if (!resolution) {
+      return null;
+    }
+
+    const paidAt = this.extractSicoobPaidAt(providerPayload, input.payload);
+    return {
+      chargeStatus: resolution.chargeStatus,
+      transactionStatus: resolution.transactionStatus,
+      paidAt,
+      externalReference,
+    };
+  }
+
+  private async tryGetSicoobPixCharge(input: {
+    config: ResolvedSicoobConfig;
+    txid: string;
+  }): Promise<Record<string, unknown> | null> {
+    if (!input.txid.trim()) return null;
+
+    try {
+      const accessToken = await this.requestSicoobAccessToken({
+        config: input.config,
+        scope: 'cob.read pix.read',
+      });
+      return await this.sicoobJsonRequest<Record<string, unknown>>({
+        url: `${input.config.pixRecebimentosBaseUrl}/cob/${encodeURIComponent(input.txid)}`,
+        method: 'GET',
+        config: input.config,
+        accessToken,
+        scope: 'cob.read pix.read',
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  private async tryGetSicoobBoletoCharge(input: {
+    config: ResolvedSicoobConfig;
+    nossoNumero: string;
+  }): Promise<Record<string, unknown> | null> {
+    if (!input.nossoNumero.trim()) return null;
+
+    try {
+      const accessToken = await this.requestSicoobAccessToken({
+        config: input.config,
+        scope: 'boletos_consulta',
+      });
+
+      const consultaUrl = new URL(`${input.config.cobrancaBancariaBaseUrl}/boletos`);
+      consultaUrl.searchParams.set(
+        'numeroCliente',
+        String(input.config.numeroCliente),
+      );
+      consultaUrl.searchParams.set(
+        'codigoModalidade',
+        String(input.config.boletoModalidade),
+      );
+      consultaUrl.searchParams.set('nossoNumero', String(input.nossoNumero));
+      if (input.config.boletoNumeroContratoCobranca) {
+        consultaUrl.searchParams.set(
+          'numeroContratoCobranca',
+          String(input.config.boletoNumeroContratoCobranca),
+        );
+      }
+
+      try {
+        const queried = await this.sicoobJsonRequest<unknown>({
+          url: consultaUrl.toString(),
+          method: 'GET',
+          config: input.config,
+          accessToken,
+          scope: 'boletos_consulta',
+          appendClientIdHeader: true,
+        });
+        const parsedQuery = this.extractObjectPayload(queried);
+        if (parsedQuery) return parsedQuery;
+      } catch {
+        // Fallback para segunda via quando a consulta principal não estiver disponível.
+      }
+
+      const segundaViaUrl = new URL(
+        `${input.config.cobrancaBancariaBaseUrl}/boletos/segunda-via`,
+      );
+      segundaViaUrl.searchParams.set(
+        'numeroCliente',
+        String(input.config.numeroCliente),
+      );
+      segundaViaUrl.searchParams.set(
+        'codigoModalidade',
+        String(input.config.boletoModalidade),
+      );
+      segundaViaUrl.searchParams.set('nossoNumero', String(input.nossoNumero));
+      segundaViaUrl.searchParams.set('gerarPdf', 'false');
+      if (input.config.boletoNumeroContratoCobranca) {
+        segundaViaUrl.searchParams.set(
+          'numeroContratoCobranca',
+          String(input.config.boletoNumeroContratoCobranca),
+        );
+      }
+
+      const segundaVia = await this.sicoobJsonRequest<unknown>({
+        url: segundaViaUrl.toString(),
+        method: 'GET',
+        config: input.config,
+        accessToken,
+        scope: 'boletos_consulta',
+        appendClientIdHeader: true,
+      });
+
+      return this.extractObjectPayload(segundaVia);
+    } catch {
+      return null;
+    }
+  }
+
+  private extractObjectPayload(payload: unknown): Record<string, unknown> | null {
+    if (!payload) return null;
+
+    if (Array.isArray(payload)) {
+      const firstObject = payload.find(
+        (item) => item && typeof item === 'object' && !Array.isArray(item),
+      );
+      return firstObject ? (firstObject as Record<string, unknown>) : null;
+    }
+
+    if (typeof payload !== 'object') return null;
+    const directObject = payload as Record<string, unknown>;
+
+    const prioritizedKeys = ['data', 'resultado', 'result', 'boleto'];
+    for (const key of prioritizedKeys) {
+      const value = directObject[key];
+      if (!value) continue;
+      if (Array.isArray(value)) {
+        const firstObject = value.find(
+          (item) => item && typeof item === 'object' && !Array.isArray(item),
+        );
+        if (firstObject) return firstObject as Record<string, unknown>;
+        continue;
+      }
+      if (typeof value === 'object') {
+        return value as Record<string, unknown>;
+      }
+    }
+
+    const arrayKeys = ['boletos', 'items', 'content', 'lista'];
+    for (const key of arrayKeys) {
+      const value = directObject[key];
+      if (!Array.isArray(value)) continue;
+      const firstObject = value.find(
+        (item) => item && typeof item === 'object' && !Array.isArray(item),
+      );
+      if (firstObject) return firstObject as Record<string, unknown>;
+    }
+
+    return directObject;
+  }
+
+  private extractSicoobStatus(payload: unknown): string {
+    return (
+      this.extractFirstValueAsString(payload, [
+        'status',
+        'situacao',
+        'situacaoTitulo',
+        'situacaoCobranca',
+        'statusTitulo',
+        'statusCobranca',
+        'statusPagamento',
+        'estado',
+      ]) || ''
+    );
+  }
+
+  private mapSicoobStatusToResolution(
+    status: string,
+    payload: unknown,
+  ): {
+    chargeStatus: 'pending' | 'paid' | 'overdue' | 'canceled';
+    transactionStatus: 'pending' | 'success' | 'failed' | 'refunded' | null;
+  } | null {
+    const normalizedStatus = this.normalizeStatusToken(status);
+    const normalizedEvent = this.normalizeStatusToken(
+      this.extractFirstValueAsString(payload, [
+        'evento',
+        'event',
+        'tipoEvento',
+        'tipo',
+      ]) || '',
+    );
+    const token = normalizedStatus || normalizedEvent;
+    if (!token) return null;
+
+    if (
+      token.includes('CONCLUID') ||
+      token.includes('LIQUIDAD') ||
+      token.includes('PAGO') ||
+      token.includes('RECEBID')
+    ) {
+      return {
+        chargeStatus: 'paid',
+        transactionStatus: 'success',
+      };
+    }
+
+    if (token.includes('DEVOLVID') || token.includes('ESTORN')) {
+      return {
+        chargeStatus: 'canceled',
+        transactionStatus: 'refunded',
+      };
+    }
+
+    if (
+      token.includes('CANCEL') ||
+      token.includes('REMOVID') ||
+      token.includes('BAIXAD') ||
+      token.includes('REJEIT')
+    ) {
+      return {
+        chargeStatus: 'canceled',
+        transactionStatus: 'failed',
+      };
+    }
+
+    if (
+      token.includes('VENCID') ||
+      token.includes('ATRAS') ||
+      token.includes('INADIMPL')
+    ) {
+      return {
+        chargeStatus: 'overdue',
+        transactionStatus: 'failed',
+      };
+    }
+
+    if (
+      token.includes('ATIVA') ||
+      token.includes('ABERTO') ||
+      token.includes('PENDEN') ||
+      token.includes('REGISTR') ||
+      token.includes('CRIAD') ||
+      token.includes('GERAD')
+    ) {
+      return {
+        chargeStatus: 'pending',
+        transactionStatus: 'pending',
+      };
+    }
+
+    return null;
+  }
+
+  private normalizeStatusToken(value: string): string {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toUpperCase();
+  }
+
+  private extractSicoobPaidAt(
+    providerPayload: unknown,
+    eventPayload: unknown,
+  ): Date | null {
+    const keys = [
+      'dataPagamento',
+      'dataLiquidacao',
+      'dataHoraPagamento',
+      'dataHoraLiquidacao',
+      'horario',
+      'horarioPagamento',
+      'horarioLiquidacao',
+      'liquidadoEm',
+      'paidAt',
+    ];
+
+    const providerValue = this.extractFirstValueAsString(providerPayload, keys);
+    const parsedProviderDate = this.parseProviderDate(providerValue);
+    if (parsedProviderDate) return parsedProviderDate;
+
+    const eventValue = this.extractFirstValueAsString(eventPayload, keys);
+    return this.parseProviderDate(eventValue);
+  }
+
+  private parseProviderDate(value: string | null | undefined): Date | null {
+    const normalized = String(value || '').trim();
+    if (!normalized) return null;
+
+    const dateTimePtBr = normalized.match(
+      /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/,
+    );
+    if (dateTimePtBr) {
+      const [, dd, mm, yyyy, hh = '00', min = '00', ss = '00'] = dateTimePtBr;
+      const parsed = new Date(
+        Number(yyyy),
+        Number(mm) - 1,
+        Number(dd),
+        Number(hh),
+        Number(min),
+        Number(ss),
+      );
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed;
+  }
+
   private async applyGatewayChargeResolution(input: {
     chargeId: string;
     currentChargeStatus: string;
@@ -1174,7 +1783,9 @@ export class MisService {
   private extractWebhookSecret(headers: Record<string, unknown>): string {
     const byHeader =
       this.readHeader(headers, 'x-webhook-token') ||
-      this.readHeader(headers, 'asaas-access-token');
+      this.readHeader(headers, 'asaas-access-token') ||
+      this.readHeader(headers, 'x-sicoob-token') ||
+      this.readHeader(headers, 'x-api-key');
     if (byHeader) return byHeader;
 
     const authorization = this.readHeader(headers, 'authorization');
@@ -1254,6 +1865,8 @@ export class MisService {
                     street: true,
                     streetNumber: true,
                     neighborhood: true,
+                    city: true,
+                    state: true,
                     complement: true,
                   },
                 },
@@ -1305,6 +1918,8 @@ export class MisService {
                     street: true,
                     streetNumber: true,
                     neighborhood: true,
+                    city: true,
+                    state: true,
                     complement: true,
                   },
                 },
@@ -1361,6 +1976,8 @@ export class MisService {
                     street: true,
                     streetNumber: true,
                     neighborhood: true,
+                    city: true,
+                    state: true,
                     complement: true,
                   },
                 },
@@ -1370,6 +1987,781 @@ export class MisService {
         },
       },
     });
+  }
+
+  private async createSicoobPayment(input: {
+    charge: StudentChargePaymentContext;
+    method: EnrollmentPaymentMethod;
+    provider: FinancialProvider;
+    environment: string;
+    settings: FinancialSettings;
+  }): Promise<StudentChargePaymentResponse> {
+    const config = this.resolveSicoobConfig(input.settings, input.environment);
+    if (!config) {
+      return this.buildManualPaymentResponse(
+        input.charge.id,
+        input.method,
+        'Configuração do Sicoob incompleta. Revise certificado, chave e dados da conta no financeiro.',
+        input.provider,
+      );
+    }
+
+    if (input.method === 'CREDIT_CARD') {
+      return this.buildManualPaymentResponse(
+        input.charge.id,
+        input.method,
+        'Cartão de crédito não está disponível via Sicoob neste fluxo. Use Pix, boleto ou cobrança manual.',
+        input.provider,
+      );
+    }
+
+    if (input.method === 'PIX') {
+      if (!config.pixKey) {
+        return this.buildManualPaymentResponse(
+          input.charge.id,
+          input.method,
+          'Para Pix no Sicoob, configure a chave Pix da conta no financeiro.',
+          input.provider,
+        );
+      }
+      return this.createSicoobPixPayment({
+        charge: input.charge,
+        provider: input.provider,
+        config,
+      });
+    }
+
+    return this.createSicoobBankSlipPayment({
+      charge: input.charge,
+      provider: input.provider,
+      config,
+    });
+  }
+
+  private async createSicoobPixPayment(input: {
+    charge: StudentChargePaymentContext;
+    provider: FinancialProvider;
+    config: ResolvedSicoobConfig;
+  }): Promise<StudentChargePaymentResponse> {
+    const existingTxid = this.extractSicoobExternalId(
+      input.charge.externalChargeId,
+      'sicoob-pix:',
+    );
+    const txid = existingTxid || this.buildSicoobTxid(input.charge.id);
+    const scope = 'cob.write cob.read pix.write pix.read';
+    const accessToken = await this.requestSicoobAccessToken({
+      config: input.config,
+      scope,
+    });
+
+    const profile = input.charge.enrollment.student.studentProfile;
+    const cpfCnpj = this.onlyDigits(profile?.documentCpf);
+    const devedor: Record<string, string> = {};
+    if (cpfCnpj.length === 11) devedor.cpf = cpfCnpj;
+    if (cpfCnpj.length === 14) devedor.cnpj = cpfCnpj;
+    const studentName = String(input.charge.enrollment.student.name || '').trim();
+    if (studentName) {
+      devedor.nome = studentName.slice(0, 200);
+    }
+
+    const pixPayload: Record<string, unknown> = {
+      calendario: { expiracao: 86_400 },
+      valor: {
+        original: this.formatAmountForGateway(Number(input.charge.amount)),
+      },
+      chave: input.config.pixKey,
+      solicitacaoPagador: `${input.charge.enrollment.schoolClass.course.name} - ${input.charge.enrollment.schoolClass.name}`.slice(
+        0,
+        140,
+      ),
+    };
+    if (Object.keys(devedor).length > 0) {
+      pixPayload.devedor = devedor;
+    }
+
+    await this.sicoobJsonRequest<Record<string, unknown>>({
+      url: `${input.config.pixRecebimentosBaseUrl}/cob/${encodeURIComponent(txid)}`,
+      method: 'PUT',
+      config: input.config,
+      accessToken,
+      scope,
+      body: pixPayload,
+    });
+
+    const qrCodeResponse = await this.sicoobJsonRequest<Record<string, unknown>>({
+      url: `${input.config.pixRecebimentosBaseUrl}/cob/${encodeURIComponent(txid)}/qrcode`,
+      method: 'GET',
+      config: input.config,
+      accessToken,
+      scope: 'cob.read pix.read',
+    });
+
+    const externalChargeId = `sicoob-pix:${txid}`;
+    if (externalChargeId !== input.charge.externalChargeId) {
+      await this.prisma.monthlyCharge.update({
+        where: { id: input.charge.id },
+        data: { externalChargeId },
+      });
+    }
+
+    await this.ensurePendingTransactionRecord({
+      chargeId: input.charge.id,
+      provider: input.provider,
+      amount: Number(input.charge.amount),
+      externalTransactionId: externalChargeId,
+    });
+
+    const pixCopyPaste = this.extractFirstValueAsString(qrCodeResponse, [
+      'qrcode',
+      'qrCode',
+      'payload',
+      'emv',
+    ]);
+    const pixQrCodeImage = this.extractFirstValueAsString(qrCodeResponse, [
+      'imagemQrcode',
+      'imagemQrCode',
+      'imagemQrcodeBase64',
+      'qrcodeBase64',
+      'encodedImage',
+      'image',
+    ]);
+
+    return {
+      chargeId: input.charge.id,
+      provider: input.provider,
+      method: 'PIX',
+      checkoutUrl: null,
+      invoiceUrl: null,
+      bankSlipUrl: null,
+      pixCopyPaste,
+      pixQrCodeImage,
+      message: pixCopyPaste
+        ? 'Cobrança Pix gerada com sucesso.'
+        : 'Cobrança Pix criada. Consulte os detalhes no financeiro para finalizar o pagamento.',
+    };
+  }
+
+  private async createSicoobBankSlipPayment(input: {
+    charge: StudentChargePaymentContext;
+    provider: FinancialProvider;
+    config: ResolvedSicoobConfig;
+  }): Promise<StudentChargePaymentResponse> {
+    const profile = input.charge.enrollment.student.studentProfile;
+    const cpfCnpj = this.onlyDigits(profile?.documentCpf);
+    if (!cpfCnpj || (cpfCnpj.length !== 11 && cpfCnpj.length !== 14)) {
+      return this.buildManualPaymentResponse(
+        input.charge.id,
+        'BANK_SLIP',
+        'Para emitir boleto no Sicoob, o aluno precisa ter CPF/CNPJ válido no cadastro.',
+        input.provider,
+      );
+    }
+
+    if (!profile?.street || !profile.neighborhood || !profile.city || !profile.state) {
+      return this.buildManualPaymentResponse(
+        input.charge.id,
+        'BANK_SLIP',
+        'Para emitir boleto no Sicoob, complete endereço (rua, bairro, cidade e UF) no cadastro do aluno.',
+        input.provider,
+      );
+    }
+
+    const existingNossoNumero = this.extractSicoobExternalId(
+      input.charge.externalChargeId,
+      'sicoob-boleto:',
+    );
+    const nossoNumero = existingNossoNumero || this.buildSicoobNossoNumero(input.charge.id);
+    const accessToken = await this.requestSicoobAccessToken({
+      config: input.config,
+      scope: 'boletos_inclusao boletos_consulta boletos_alteracao',
+    });
+
+    const today = this.toYyyyMmDd(new Date());
+    const dueDate = this.toYyyyMmDd(input.charge.dueDate);
+    const studentName = String(input.charge.enrollment.student.name || '').trim();
+    const email = String(input.charge.enrollment.student.email || '').trim().toLowerCase();
+
+    const boletoPayload: Record<string, unknown> = {
+      numeroCliente: input.config.numeroCliente,
+      codigoModalidade: input.config.boletoModalidade,
+      numeroContaCorrente: input.config.boletoNumeroContaCorrente,
+      codigoEspecieDocumento: 'DM',
+      dataEmissao: today,
+      nossoNumero: Number(nossoNumero),
+      seuNumero: input.charge.id.slice(0, 20),
+      identificacaoBoletoEmpresa: input.charge.id.slice(0, 20),
+      identificacaoEmissaoBoleto: 1,
+      identificacaoDistribuicaoBoleto: 1,
+      valor: Number(input.charge.amount),
+      dataVencimento: dueDate,
+      dataLimitePagamento: dueDate,
+      tipoDesconto: 0,
+      tipoMulta: 0,
+      tipoJurosMora: 0,
+      numeroParcela: 1,
+      aceite: false,
+      codigoNegativacao: 0,
+      numeroDiasNegativacao: 0,
+      codigoProtesto: 0,
+      numeroDiasProtesto: 0,
+      pagador: {
+        numeroCpfCnpj: cpfCnpj,
+        nome: studentName.slice(0, 100),
+        endereco: String(profile.street || '').slice(0, 120),
+        bairro: String(profile.neighborhood || '').slice(0, 60),
+        cidade: String(profile.city || '').slice(0, 60),
+        cep: this.onlyDigits(profile.zipCode).slice(0, 8),
+        uf: String(profile.state || '').slice(0, 2).toUpperCase(),
+        email: email || undefined,
+      },
+      gerarPdf: false,
+      codigoCadastrarPIX: 1,
+      numeroContratoCobranca:
+        input.config.boletoNumeroContratoCobranca ?? input.config.numeroCliente,
+    };
+
+    const emitted = await this.sicoobJsonRequest<Record<string, unknown>>({
+      url: `${input.config.cobrancaBancariaBaseUrl}/boletos`,
+      method: 'POST',
+      config: input.config,
+      accessToken,
+      scope: 'boletos_inclusao',
+      body: boletoPayload,
+      appendClientIdHeader: true,
+    });
+
+    const parsedNossoNumero =
+      this.extractFirstValueAsString(emitted, ['nossoNumero']) || nossoNumero;
+    let bankSlipUrl = this.extractFirstValueAsString(emitted, [
+      'urlPdfBoleto',
+      'urlBoleto',
+      'linkBoleto',
+      'boletoUrl',
+      'url',
+    ]);
+    const linhaDigitavel = this.extractFirstValueAsString(emitted, [
+      'linhaDigitavel',
+      'linha',
+    ]);
+
+    if (!bankSlipUrl) {
+      const segundaViaUrl = new URL(
+        `${input.config.cobrancaBancariaBaseUrl}/boletos/segunda-via`,
+      );
+      segundaViaUrl.searchParams.set(
+        'numeroCliente',
+        String(input.config.numeroCliente),
+      );
+      segundaViaUrl.searchParams.set(
+        'codigoModalidade',
+        String(input.config.boletoModalidade),
+      );
+      segundaViaUrl.searchParams.set('nossoNumero', String(parsedNossoNumero));
+      segundaViaUrl.searchParams.set('gerarPdf', 'false');
+      if (input.config.boletoNumeroContratoCobranca) {
+        segundaViaUrl.searchParams.set(
+          'numeroContratoCobranca',
+          String(input.config.boletoNumeroContratoCobranca),
+        );
+      }
+
+      const segundaVia = await this.sicoobJsonRequest<Record<string, unknown>>({
+        url: segundaViaUrl.toString(),
+        method: 'GET',
+        config: input.config,
+        accessToken,
+        scope: 'boletos_consulta',
+        appendClientIdHeader: true,
+      });
+
+      bankSlipUrl = this.extractFirstValueAsString(segundaVia, [
+        'urlPdfBoleto',
+        'urlBoleto',
+        'linkBoleto',
+        'boletoUrl',
+        'url',
+      ]);
+    }
+
+    const externalChargeId = `sicoob-boleto:${parsedNossoNumero}`;
+    if (externalChargeId !== input.charge.externalChargeId) {
+      await this.prisma.monthlyCharge.update({
+        where: { id: input.charge.id },
+        data: { externalChargeId },
+      });
+    }
+
+    await this.ensurePendingTransactionRecord({
+      chargeId: input.charge.id,
+      provider: input.provider,
+      amount: Number(input.charge.amount),
+      externalTransactionId: externalChargeId,
+    });
+
+    return {
+      chargeId: input.charge.id,
+      provider: input.provider,
+      method: 'BANK_SLIP',
+      checkoutUrl: bankSlipUrl,
+      invoiceUrl: bankSlipUrl,
+      bankSlipUrl,
+      pixCopyPaste: null,
+      pixQrCodeImage: null,
+      message: bankSlipUrl
+        ? 'Boleto gerado com sucesso.'
+        : linhaDigitavel
+          ? `Boleto emitido. Linha digitável: ${linhaDigitavel}`
+          : 'Boleto emitido com sucesso.',
+    };
+  }
+
+  private resolveSicoobConfig(
+    settings: FinancialSettings,
+    environment: string | null | undefined,
+  ): ResolvedSicoobConfig | null {
+    const sicoob = settings.sicoob;
+    if (!sicoob) {
+      return null;
+    }
+
+    const isProduction =
+      String(environment || '')
+        .trim()
+        .toLowerCase() === 'production';
+    const defaultBaseUrls = isProduction
+      ? DEFAULT_SICOOB_BASE_URLS
+      : DEFAULT_SICOOB_SANDBOX_BASE_URLS;
+    const selectedBaseUrls = this.resolveSicoobBaseUrls(
+      isProduction ? sicoob.baseUrls : sicoob.sandboxBaseUrls,
+      defaultBaseUrls,
+    );
+
+    const clientId = String(sicoob.clientId || '').trim();
+    const tokenUrl = this.normalizeBaseUrl(
+      String(sicoob.tokenUrl || DEFAULT_SICOOB_TOKEN_URL).trim(),
+    );
+    const numeroCliente = this.parsePositiveInteger(
+      sicoob.numeroCliente,
+      null,
+    );
+    const certPem = this.normalizePem(sicoob.certificatePem);
+    const keyPem = this.normalizePem(sicoob.privateKeyPem);
+
+    if (!clientId || !tokenUrl || !numeroCliente || !certPem || !keyPem) {
+      return null;
+    }
+
+    const pixKey =
+      String(sicoob.pixKey || '').trim() ||
+      String(process.env.SICOOB_PIX_KEY || '').trim() ||
+      null;
+    const boletoModalidade =
+      this.parsePositiveInteger(
+        sicoob.boletoModalidade,
+        this.parsePositiveInteger(process.env.SICOOB_BOLETO_MODALIDADE, 1),
+      ) ?? 1;
+    const boletoNumeroContaCorrente =
+      this.parsePositiveInteger(
+        sicoob.boletoNumeroContaCorrente,
+        this.parsePositiveInteger(
+          process.env.SICOOB_BOLETO_NUMERO_CONTA_CORRENTE,
+          numeroCliente,
+        ),
+      ) ?? numeroCliente;
+    const boletoNumeroContratoCobranca = this.parsePositiveInteger(
+      sicoob.boletoNumeroContratoCobranca,
+      this.parsePositiveInteger(
+        process.env.SICOOB_BOLETO_NUMERO_CONTRATO_COBRANCA,
+        null,
+      ),
+    );
+
+    return {
+      clientId,
+      tokenUrl,
+      numeroCliente,
+      certPem,
+      keyPem,
+      pixKey,
+      boletoModalidade,
+      boletoNumeroContaCorrente,
+      boletoNumeroContratoCobranca,
+      cobrancaBancariaBaseUrl: selectedBaseUrls.cobrancaBancaria,
+      pixRecebimentosBaseUrl: selectedBaseUrls.pixRecebimentos,
+    };
+  }
+
+  private resolveSicoobBaseUrls(
+    baseUrls: SicoobBaseUrls | undefined,
+    defaults: Required<SicoobBaseUrls>,
+  ): Required<SicoobBaseUrls> {
+    return {
+      cobrancaBancaria: this.normalizeBaseUrl(
+        baseUrls?.cobrancaBancaria || defaults.cobrancaBancaria,
+      ),
+      cobrancaBancariaPagamentos: this.normalizeBaseUrl(
+        baseUrls?.cobrancaBancariaPagamentos ||
+          defaults.cobrancaBancariaPagamentos,
+      ),
+      pixPagamentos: this.normalizeBaseUrl(
+        baseUrls?.pixPagamentos || defaults.pixPagamentos,
+      ),
+      pixRecebimentos: this.normalizeBaseUrl(
+        baseUrls?.pixRecebimentos || defaults.pixRecebimentos,
+      ),
+      spbTransferencias: this.normalizeBaseUrl(
+        baseUrls?.spbTransferencias || defaults.spbTransferencias,
+      ),
+    };
+  }
+
+  private normalizeBaseUrl(value: string | null | undefined): string {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return '';
+    return trimmed.replace(/\/+$/, '');
+  }
+
+  private normalizePem(value: string | null | undefined): string {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return '';
+    return trimmed.replace(/\\n/g, '\n');
+  }
+
+  private parsePositiveInteger(
+    value: unknown,
+    fallback: number | null,
+  ): number | null {
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+      return value;
+    }
+
+    const raw = String(value ?? '').trim();
+    if (!raw) return fallback;
+
+    const digitsOnly = raw.replace(/\D/g, '');
+    const candidate = digitsOnly || raw;
+    const parsed = Number(candidate);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return fallback;
+    }
+
+    return parsed;
+  }
+
+  private extractSicoobExternalId(
+    externalChargeId: string | null | undefined,
+    prefix: string,
+  ): string | null {
+    const normalized = String(externalChargeId || '').trim();
+    if (!normalized) return null;
+
+    const lowerNormalized = normalized.toLowerCase();
+    const lowerPrefix = prefix.toLowerCase();
+    if (!lowerNormalized.startsWith(lowerPrefix)) return null;
+
+    const value = normalized.slice(prefix.length).trim();
+    return value || null;
+  }
+
+  private buildSicoobTxid(seed: string): string {
+    const base = String(seed || '').replace(/[^a-zA-Z0-9]/g, '');
+    const suffix = randomUUID().replace(/-/g, '');
+    const merged = `${base}${suffix}`;
+    if (merged.length >= 26) {
+      return merged.slice(0, 35);
+    }
+    return merged.padEnd(26, '0').slice(0, 35);
+  }
+
+  private buildSicoobNossoNumero(seed: string): string {
+    const digits = String(seed || '').replace(/\D/g, '');
+    const entropy = `${Date.now()}${randomUUID().replace(/\D/g, '')}`;
+    const merged = `${digits}${entropy}`.replace(/\D/g, '');
+    const result = merged.slice(-10);
+    return result.padStart(10, '0');
+  }
+
+  private formatAmountForGateway(value: number): string {
+    const amount = Number.isFinite(value) ? value : 0;
+    return Math.max(0, amount).toFixed(2);
+  }
+
+  private async requestSicoobAccessToken(input: {
+    config: ResolvedSicoobConfig;
+    scope?: string;
+  }): Promise<string> {
+    const scope = String(input.scope || '').trim();
+    const body = new URLSearchParams();
+    body.set('grant_type', 'client_credentials');
+    body.set('client_id', input.config.clientId);
+    if (scope) {
+      body.set('scope', scope);
+    }
+
+    const response = await this.sicoobRawRequest({
+      url: input.config.tokenUrl,
+      method: 'POST',
+      config: input.config,
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    });
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw new BadRequestException(
+        this.extractSicoobGatewayErrorMessage(
+          response.payload,
+          'Falha ao autenticar no Sicoob.',
+        ),
+      );
+    }
+
+    const accessToken = this.extractFirstValueAsString(response.payload, [
+      'access_token',
+    ]);
+    if (!accessToken) {
+      throw new BadRequestException(
+        'Sicoob não retornou token de acesso. Revise o Client ID, escopos e certificado.',
+      );
+    }
+
+    return accessToken;
+  }
+
+  private async sicoobJsonRequest<T>(input: {
+    url: string;
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+    config: ResolvedSicoobConfig;
+    accessToken: string;
+    scope?: string;
+    body?: unknown;
+    appendClientIdHeader?: boolean;
+  }): Promise<T> {
+    const includeClientIdHeader = input.appendClientIdHeader ?? true;
+    const headers: Record<string, string> = {
+      accept: 'application/json',
+      authorization: `Bearer ${input.accessToken}`,
+    };
+    if (includeClientIdHeader) {
+      headers.client_id = input.config.clientId;
+    }
+    if (input.body !== undefined) {
+      headers['content-type'] = 'application/json';
+    }
+
+    const response = await this.sicoobRawRequest({
+      url: input.url,
+      method: input.method,
+      config: input.config,
+      headers,
+      body:
+        input.body === undefined ? undefined : JSON.stringify(input.body),
+    });
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw new BadRequestException(
+        this.extractSicoobGatewayErrorMessage(
+          response.payload,
+          'Falha ao comunicar com a API do Sicoob.',
+        ),
+      );
+    }
+
+    return (response.payload ?? {}) as T;
+  }
+
+  private async sicoobRawRequest(input: {
+    url: string;
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+    config: ResolvedSicoobConfig;
+    headers?: Record<string, string>;
+    body?: string;
+  }): Promise<{
+    statusCode: number;
+    payload: unknown;
+  }> {
+    const parsedUrl = new URL(input.url);
+    const bodyBuffer = input.body ? Buffer.from(input.body, 'utf8') : null;
+    const headers: Record<string, string | number> = {
+      ...input.headers,
+    };
+    if (bodyBuffer) {
+      headers['content-length'] = bodyBuffer.length;
+    }
+
+    const result = await new Promise<{
+      statusCode: number;
+      bodyText: string;
+    }>((resolve, reject) => {
+      const request = httpsRequest(
+        {
+          protocol: parsedUrl.protocol,
+          hostname: parsedUrl.hostname,
+          port: parsedUrl.port || undefined,
+          path: `${parsedUrl.pathname}${parsedUrl.search}`,
+          method: input.method,
+          headers,
+          cert: input.config.certPem,
+          key: input.config.keyPem,
+          timeout: 30_000,
+        },
+        (response) => {
+          const chunks: Buffer[] = [];
+          response.on('data', (chunk) => {
+            if (Buffer.isBuffer(chunk)) {
+              chunks.push(chunk);
+              return;
+            }
+            chunks.push(Buffer.from(chunk));
+          });
+          response.on('end', () => {
+            resolve({
+              statusCode: response.statusCode ?? 0,
+              bodyText: Buffer.concat(chunks).toString('utf8'),
+            });
+          });
+        },
+      );
+
+      request.on('timeout', () => {
+        request.destroy(new Error('Tempo esgotado ao comunicar com o Sicoob.'));
+      });
+      request.on('error', (error) => {
+        reject(error);
+      });
+
+      if (bodyBuffer) {
+        request.write(bodyBuffer);
+      }
+      request.end();
+    }).catch((error: unknown) => {
+      throw new BadRequestException(
+        error instanceof Error
+          ? error.message
+          : 'Falha de rede ao comunicar com o Sicoob.',
+      );
+    });
+
+    let payload: unknown = null;
+    try {
+      payload = result.bodyText ? (JSON.parse(result.bodyText) as unknown) : null;
+    } catch {
+      payload = result.bodyText || null;
+    }
+
+    return {
+      statusCode: result.statusCode,
+      payload,
+    };
+  }
+
+  private extractFirstValueAsString(
+    payload: unknown,
+    keys: string[],
+  ): string | null {
+    if (!payload || !keys.length) return null;
+
+    const normalizedKeys = keys.map((key) => key.toLowerCase());
+    const queue: unknown[] = [payload];
+    const visited = new Set<unknown>();
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current || typeof current !== 'object') {
+        continue;
+      }
+      if (visited.has(current)) {
+        continue;
+      }
+      visited.add(current);
+
+      if (Array.isArray(current)) {
+        for (const item of current) {
+          queue.push(item);
+        }
+        continue;
+      }
+
+      const objectValue = current as Record<string, unknown>;
+      for (const [field, value] of Object.entries(objectValue)) {
+        if (normalizedKeys.includes(field.toLowerCase())) {
+          const stringValue = this.normalizeUnknownToString(value);
+          if (stringValue) {
+            return stringValue;
+          }
+        }
+        if (value && typeof value === 'object') {
+          queue.push(value);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private normalizeUnknownToString(value: unknown): string | null {
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+      return normalized || null;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+    if (typeof value === 'boolean') {
+      return value ? 'true' : 'false';
+    }
+    return null;
+  }
+
+  private extractSicoobGatewayErrorMessage(
+    payload: unknown,
+    fallback: string,
+  ): string {
+    const genericMessage = this.extractGatewayErrorMessage(payload, '').trim();
+    if (genericMessage) {
+      return genericMessage;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      return fallback;
+    }
+
+    const objectPayload = payload as Record<string, unknown>;
+    const directMessage = this.extractFirstValueAsString(objectPayload, [
+      'mensagem',
+      'message',
+      'detail',
+      'detalhe',
+      'error_description',
+      'erro',
+      'error',
+    ]);
+    if (directMessage) {
+      return directMessage;
+    }
+
+    const collectionFields = ['erros', 'errors', 'messages'];
+    for (const field of collectionFields) {
+      const candidate = objectPayload[field];
+      if (!Array.isArray(candidate)) continue;
+      for (const item of candidate) {
+        if (!item || typeof item !== 'object') continue;
+        const value = this.extractFirstValueAsString(item, [
+          'mensagem',
+          'message',
+          'detail',
+          'descricao',
+          'description',
+        ]);
+        if (value) {
+          return value;
+        }
+      }
+    }
+
+    return fallback;
   }
 
   private async createAsaasPayment(input: {

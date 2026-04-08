@@ -88,6 +88,22 @@ export class UpsertAccountFinancialConfigDto {
   sicoobNumeroCliente?: string;
 
   @IsOptional()
+  @IsString()
+  sicoobPixKey?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobBoletoModalidade?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobBoletoNumeroContaCorrente?: string;
+
+  @IsOptional()
+  @IsString()
+  sicoobBoletoNumeroContratoCobranca?: string;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   sicoobScopes?: string[];

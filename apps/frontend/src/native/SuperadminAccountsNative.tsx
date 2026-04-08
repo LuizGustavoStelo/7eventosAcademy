@@ -83,6 +83,10 @@ type AccountFinancialResponse = {
       sandboxBaseUrls: SicoobBaseUrls;
       webhookUrl: string;
       numeroCliente: string;
+      pixKey?: string;
+      boletoModalidade?: number | null;
+      boletoNumeroContaCorrente?: number | null;
+      boletoNumeroContratoCobranca?: number | null;
       scopes: string[];
       certificateConfigured: boolean;
       privateKeyConfigured: boolean;
@@ -147,6 +151,10 @@ type FinancialFormState = {
   sicoobSandboxBaseUrlPixRecebimentos: string;
   sicoobSandboxBaseUrlSpbTransferencias: string;
   sicoobWebhookUrl: string;
+  sicoobPixKey: string;
+  sicoobBoletoModalidade: string;
+  sicoobBoletoNumeroContaCorrente: string;
+  sicoobBoletoNumeroContratoCobranca: string;
   sicoobScopes: string;
   sicoobCertificatePem: string;
   sicoobPrivateKeyPem: string;
@@ -237,6 +245,10 @@ function defaultForm(): FinancialFormState {
     sicoobSandboxBaseUrlPixRecebimentos: '',
     sicoobSandboxBaseUrlSpbTransferencias: '',
     sicoobWebhookUrl: '',
+    sicoobPixKey: '',
+    sicoobBoletoModalidade: '',
+    sicoobBoletoNumeroContaCorrente: '',
+    sicoobBoletoNumeroContratoCobranca: '',
     sicoobScopes: '',
     sicoobCertificatePem: '',
     sicoobPrivateKeyPem: '',
@@ -482,6 +494,19 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
         sicoobSandboxBaseUrlSpbTransferencias:
           data.finance.sicoob.sandboxBaseUrls?.spbTransferencias ?? '',
         sicoobWebhookUrl: data.finance.sicoob.webhookUrl ?? '',
+        sicoobPixKey: data.finance.sicoob.pixKey ?? '',
+        sicoobBoletoModalidade:
+          data.finance.sicoob.boletoModalidade != null
+            ? String(data.finance.sicoob.boletoModalidade)
+            : '',
+        sicoobBoletoNumeroContaCorrente:
+          data.finance.sicoob.boletoNumeroContaCorrente != null
+            ? String(data.finance.sicoob.boletoNumeroContaCorrente)
+            : '',
+        sicoobBoletoNumeroContratoCobranca:
+          data.finance.sicoob.boletoNumeroContratoCobranca != null
+            ? String(data.finance.sicoob.boletoNumeroContratoCobranca)
+            : '',
         sicoobScopes: Array.isArray(data.finance.sicoob.scopes)
           ? data.finance.sicoob.scopes.join(', ')
           : '',
@@ -711,6 +736,13 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
         payload.sicoobSandboxBaseUrlSpbTransferencias =
           form.sicoobSandboxBaseUrlSpbTransferencias.trim();
         payload.sicoobWebhookUrl = form.sicoobWebhookUrl.trim() || undefined;
+        payload.sicoobPixKey = form.sicoobPixKey.trim() || undefined;
+        payload.sicoobBoletoModalidade =
+          form.sicoobBoletoModalidade.trim() || undefined;
+        payload.sicoobBoletoNumeroContaCorrente =
+          form.sicoobBoletoNumeroContaCorrente.trim() || undefined;
+        payload.sicoobBoletoNumeroContratoCobranca =
+          form.sicoobBoletoNumeroContratoCobranca.trim() || undefined;
         payload.sicoobScopes = form.sicoobScopes
           .split(/[\n,;]+/)
           .map((item) => item.trim())
@@ -1133,6 +1165,62 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                               sicoobNumeroCliente: event.target.value,
                             }))
                           }
+                        />
+                      </label>
+
+                      <label>
+                        Chave Pix (recebimentos)
+                        <input
+                          value={form.sicoobPixKey}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobPixKey: event.target.value,
+                            }))
+                          }
+                          placeholder="CPF, e-mail, telefone ou chave aleatória"
+                        />
+                      </label>
+
+                      <label>
+                        Modalidade de boleto (código)
+                        <input
+                          value={form.sicoobBoletoModalidade}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobBoletoModalidade: event.target.value,
+                            }))
+                          }
+                          placeholder="Ex.: 1"
+                        />
+                      </label>
+
+                      <label>
+                        Conta corrente para boleto
+                        <input
+                          value={form.sicoobBoletoNumeroContaCorrente}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobBoletoNumeroContaCorrente: event.target.value,
+                            }))
+                          }
+                          placeholder="Número da conta sem dígito, se aplicável"
+                        />
+                      </label>
+
+                      <label>
+                        Contrato de cobrança (opcional)
+                        <input
+                          value={form.sicoobBoletoNumeroContratoCobranca}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              sicoobBoletoNumeroContratoCobranca: event.target.value,
+                            }))
+                          }
+                          placeholder="Se o Sicoob exigir contrato específico"
                         />
                       </label>
 

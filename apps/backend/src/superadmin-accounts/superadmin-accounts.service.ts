@@ -30,6 +30,10 @@ type SicoobSettings = {
   sandboxBaseUrl?: string;
   webhookUrl: string;
   numeroCliente: string;
+  pixKey?: string;
+  boletoModalidade?: number;
+  boletoNumeroContaCorrente?: number;
+  boletoNumeroContratoCobranca?: number;
   scopes: string[];
   certificatePem: string;
   privateKeyPem: string;
@@ -297,6 +301,12 @@ export class SuperadminAccountsService {
           sandboxBaseUrls,
           webhookUrl: sicoob?.webhookUrl ?? '',
           numeroCliente: sicoob?.numeroCliente ?? '',
+          pixKey: sicoob?.pixKey ?? '',
+          boletoModalidade: sicoob?.boletoModalidade ?? null,
+          boletoNumeroContaCorrente:
+            sicoob?.boletoNumeroContaCorrente ?? null,
+          boletoNumeroContratoCobranca:
+            sicoob?.boletoNumeroContratoCobranca ?? null,
           scopes: sicoob?.scopes ?? DEFAULT_SICOOB_SCOPES,
           certificateConfigured: Boolean(sicoob?.certificatePem),
           privateKeyConfigured: Boolean(sicoob?.privateKeyPem),
@@ -739,6 +749,20 @@ export class SuperadminAccountsService {
           dto.sicoobNumeroCliente?.trim() ||
           currentSicoob?.numeroCliente?.trim() ||
           '',
+        pixKey:
+          dto.sicoobPixKey?.trim() || currentSicoob?.pixKey?.trim() || '',
+        boletoModalidade: this.parseOptionalPositiveInteger(
+          dto.sicoobBoletoModalidade,
+          currentSicoob?.boletoModalidade,
+        ),
+        boletoNumeroContaCorrente: this.parseOptionalPositiveInteger(
+          dto.sicoobBoletoNumeroContaCorrente,
+          currentSicoob?.boletoNumeroContaCorrente,
+        ),
+        boletoNumeroContratoCobranca: this.parseOptionalPositiveInteger(
+          dto.sicoobBoletoNumeroContratoCobranca,
+          currentSicoob?.boletoNumeroContratoCobranca,
+        ),
         scopes: this.normalizeScopes(
           dto.sicoobScopes ??
             currentSicoob?.scopes ??
@@ -929,6 +953,26 @@ export class SuperadminAccountsService {
       );
     }
     return match[0].trim();
+  }
+
+  private parseOptionalPositiveInteger(
+    value: string | number | null | undefined,
+    fallback?: number,
+  ): number | undefined {
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+      return value;
+    }
+
+    const raw = String(value ?? '').trim();
+    if (!raw) return fallback;
+
+    const digits = raw.replace(/\D/g, '');
+    const parsed = Number(digits || raw);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return fallback;
+    }
+
+    return parsed;
   }
 
   private normalizeProvider(provider: string): FinancialProvider {
