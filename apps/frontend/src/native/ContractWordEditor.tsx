@@ -104,7 +104,7 @@ const decodeMeta = (v: string) => {
 const defaultSettings = (): Settings => ({
   backgroundImageData: '',
   backgroundOpacity: 0.22,
-  backgroundSize: 'cover',
+  backgroundSize: 'contain',
   pagePadding: { ...PAD_DEFAULT },
 });
 
@@ -351,6 +351,39 @@ function plainTextToHtml(text = '') {
   return paragraphs.map((paragraph) => `<p>${escape(paragraph)}</p>`).join('');
 }
 
+const isLegacyPageContainer = (element: HTMLElement) => {
+  const normalizedStyle = String(element.getAttribute('style') || '')
+    .toLowerCase()
+    .replace(/\s+/g, '');
+  return (
+    normalizedStyle.includes('max-width:794px') &&
+    normalizedStyle.includes('min-height:1123px')
+  );
+};
+
+function normalizeLegacyPageHtml(pageHtml: string) {
+  const parser = new window.DOMParser();
+  const doc = parser.parseFromString(
+    `<div id="legacy-page-root">${String(pageHtml || '')}</div>`,
+    'text/html',
+  );
+  const root = doc.getElementById('legacy-page-root');
+  if (!root) return String(pageHtml || '');
+
+  const legacyContainers = Array.from(
+    root.querySelectorAll<HTMLElement>('div[style]'),
+  ).filter((element) => isLegacyPageContainer(element));
+
+  legacyContainers.forEach((container) => {
+    const parent = container.parentNode;
+    if (!parent) return;
+    while (container.firstChild) parent.insertBefore(container.firstChild, container);
+    parent.removeChild(container);
+  });
+
+  return root.innerHTML;
+}
+
 function parseValue(value: string) {
   const settings = defaultSettings();
   const parser = new window.DOMParser();
@@ -375,7 +408,9 @@ function parseValue(value: string) {
   const wrapper = root.querySelector<HTMLElement>('[data-contract-document-wrapper="true"]');
   const source = wrapper ? String(wrapper.innerHTML || '') : String(root.innerHTML || '');
   const normalized = source.replace(PAGE_BREAK_REGEX, '<!--CONTRACT_PAGE_BREAK-->');
-  const pages = normalized.split('<!--CONTRACT_PAGE_BREAK-->');
+  const pages = normalized
+    .split('<!--CONTRACT_PAGE_BREAK-->')
+    .map((pageHtml) => normalizeLegacyPageHtml(pageHtml));
   while (pages.length > 1 && !hasMeaningfulHtml(pages[pages.length - 1])) pages.pop();
   return { pages: pages.length > 0 ? pages : [''], settings };
 }
@@ -435,7 +470,7 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
 
   const [backgroundImageData, setBackgroundImageData] = useState('');
   const [backgroundOpacity, setBackgroundOpacity] = useState(0.22);
-  const [backgroundSize, setBackgroundSize] = useState<'cover' | 'contain'>('cover');
+  const [backgroundSize, setBackgroundSize] = useState<'cover' | 'contain'>('contain');
   const [pagePadding, setPagePadding] = useState<Padding>({ ...PAD_DEFAULT });
 
   const [selectedImage, setSelectedImage] = useState<HTMLImageElement | null>(null);
@@ -1014,6 +1049,7 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
       }
       setBackgroundImageData(compressed);
       setBackgroundOpacity(1);
+      setBackgroundSize('contain');
     } catch {
       window.alert(
         'Não foi possível processar o arquivo de fundo. No DOCX, use um timbrado com imagem incorporada.',
