@@ -2376,7 +2376,6 @@ export class MisService {
       gerarPdf: false,
       codigoCadastrarPIX: 1,
       numeroContratoCobranca: numeroContratoClienteAsNumber ?? numeroContratoCliente,
-      numeroContrato: numeroContratoClienteAsNumber ?? numeroContratoCliente,
     };
     if (existingNossoNumero) {
       boletoPayload.nossoNumero = Number(existingNossoNumero);
@@ -2416,8 +2415,6 @@ export class MisService {
       boletoPayload.numeroCliente =
         numeroContratoClienteAsNumber ?? numeroContratoCliente;
       boletoPayload.numeroContratoCobranca =
-        numeroContratoClienteAsNumber ?? numeroContratoCliente;
-      boletoPayload.numeroContrato =
         numeroContratoClienteAsNumber ?? numeroContratoCliente;
       this.logger.warn(
         `[sicoob-boleto] retry without nossoNumero charge=${input.charge.id} cliente=${numeroContratoCliente}`,
