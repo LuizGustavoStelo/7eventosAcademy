@@ -506,7 +506,9 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
     const p = pagePadding;
     const style: CSSProperties = {
       width: `${A4_W}px`,
+      height: `${A4_H}px`,
       minHeight: `${A4_H}px`,
+      maxHeight: `${A4_H}px`,
       boxSizing: 'border-box',
       paddingTop: `${(p.top * MM_TO_PX).toFixed(2)}px`,
       paddingRight: `${(p.right * MM_TO_PX).toFixed(2)}px`,
