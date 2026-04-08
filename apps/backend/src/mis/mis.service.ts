@@ -2170,7 +2170,6 @@ export class MisService {
       input.charge.externalChargeId,
       'sicoob-boleto:',
     );
-    const nossoNumero = existingNossoNumero || this.buildSicoobNossoNumero(input.charge.id);
     const accessToken = await this.requestSicoobAccessToken({
       config: input.config,
       scope: 'boletos_inclusao boletos_consulta boletos_alteracao',
@@ -2187,7 +2186,6 @@ export class MisService {
       numeroContaCorrente: input.config.boletoNumeroContaCorrente,
       codigoEspecieDocumento: 'DM',
       dataEmissao: today,
-      nossoNumero: Number(nossoNumero),
       seuNumero: input.charge.id.slice(0, 20),
       identificacaoBoletoEmpresa: input.charge.id.slice(0, 20),
       identificacaoEmissaoBoleto: 1,
@@ -2219,6 +2217,9 @@ export class MisService {
       numeroContratoCobranca:
         input.config.boletoNumeroContratoCobranca ?? input.config.numeroCliente,
     };
+    if (existingNossoNumero) {
+      boletoPayload.nossoNumero = Number(existingNossoNumero);
+    }
 
     const emitted = await this.sicoobJsonRequest<Record<string, unknown>>({
       url: `${input.config.cobrancaBancariaBaseUrl}/boletos`,
@@ -2231,7 +2232,12 @@ export class MisService {
     });
 
     const parsedNossoNumero =
-      this.extractFirstValueAsString(emitted, ['nossoNumero']) || nossoNumero;
+      this.extractFirstValueAsString(emitted, [
+        'nossoNumero',
+        'nosso_numero',
+        'numeroNossoNumero',
+        'numeroTitulo',
+      ]) || existingNossoNumero;
     let bankSlipUrl = this.extractFirstValueAsString(emitted, [
       'urlPdfBoleto',
       'urlBoleto',
@@ -2244,7 +2250,7 @@ export class MisService {
       'linha',
     ]);
 
-    if (!bankSlipUrl) {
+    if (!bankSlipUrl && parsedNossoNumero) {
       const segundaViaUrl = new URL(
         `${input.config.cobrancaBancariaBaseUrl}/boletos/segunda-via`,
       );
@@ -2283,8 +2289,10 @@ export class MisService {
       ]);
     }
 
-    const externalChargeId = `sicoob-boleto:${parsedNossoNumero}`;
-    if (externalChargeId !== input.charge.externalChargeId) {
+    const externalChargeId = parsedNossoNumero
+      ? `sicoob-boleto:${parsedNossoNumero}`
+      : null;
+    if (externalChargeId && externalChargeId !== input.charge.externalChargeId) {
       await this.prisma.monthlyCharge.update({
         where: { id: input.charge.id },
         data: { externalChargeId },
