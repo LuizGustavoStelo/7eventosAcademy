@@ -1013,6 +1013,7 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
         return;
       }
       setBackgroundImageData(compressed);
+      setBackgroundOpacity(1);
     } catch {
       window.alert(
         'Não foi possível processar o arquivo de fundo. No DOCX, use um timbrado com imagem incorporada.',
