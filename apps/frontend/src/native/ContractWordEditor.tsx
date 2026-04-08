@@ -48,6 +48,7 @@ const PAGE_BREAK = '<div data-contract-page-break="true" style="page-break-after
 const PAGE_BREAK_REGEX = /<div[^>]*(data-contract-page-break\s*=\s*["']true["'][^>]*|page-break-after\s*:\s*always[^>]*)><\/div>/gi;
 const A4_W = 794;
 const A4_H = 1123;
+const MAX_EDITOR_PAGES = 120;
 const MM_TO_PX = 3.7795275591;
 const PAD_MIN = 5;
 const PAD_MAX = 40;
@@ -529,6 +530,7 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
   const pendingPageAppendFromRef = useRef<number | null>(null);
   const pendingPaginationFromRef = useRef<number | null>(null);
   const paginationRafRef = useRef<number | null>(null);
+  const appendPagePendingRef = useRef(false);
   const lastEmittedRef = useRef(String(value || ''));
   const resizeStateRef = useRef<{
     handle: ResizeHandle;
@@ -703,7 +705,16 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
   }, [emitChange, selectedImage, updateOverlay]);
 
   const runPagination = useCallback((startIndex = 0) => {
-    const pages = pageRefs.current.slice(0, pageCount).filter(Boolean) as HTMLDivElement[];
+    const mountedPages = pageRefs.current.slice(0, pageCount);
+    const allPagesMounted =
+      mountedPages.length === pageCount && mountedPages.every((node) => Boolean(node));
+    if (!allPagesMounted) return;
+
+    if (appendPagePendingRef.current) {
+      appendPagePendingRef.current = false;
+    }
+
+    const pages = mountedPages as HTMLDivElement[];
     if (pages.length === 0) {
       updateEmpty();
       refreshPreviews();
@@ -755,6 +766,17 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
     }
 
     if (appendNew) {
+      if (pageCount >= MAX_EDITOR_PAGES) {
+        console.warn(
+          '[ContractWordEditor] Limite de páginas atingido durante paginação automática.',
+          { pageCount, startIndex, appendFrom },
+        );
+        updateEmpty();
+        refreshPreviews();
+        emitChange();
+        return;
+      }
+      appendPagePendingRef.current = true;
       pendingPageAppendFromRef.current = appendFrom ?? Math.max(0, pageCount - 1);
       setPageCount((current) => current + 1);
       refreshPreviews();
@@ -808,7 +830,8 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
   const loadFromValue = useCallback((rawValue: string) => {
     const parsed = parseValue(rawValue);
     pendingLoadedPagesRef.current = parsed.pages;
-    setPageCount(Math.max(1, parsed.pages.length));
+    setPageCount(Math.max(1, Math.min(MAX_EDITOR_PAGES, parsed.pages.length)));
+    appendPagePendingRef.current = false;
     setActivePageIndex(0);
     setIsEditorEmpty(!hasMeaningfulHtml(parsed.pages.join('')));
     setBackgroundImageData(parsed.settings.backgroundImageData);
