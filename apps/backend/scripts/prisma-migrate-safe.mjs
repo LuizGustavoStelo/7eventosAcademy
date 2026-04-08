@@ -12,6 +12,7 @@ const defaultAllowedMigrations = [
   '20260403120000_student_profile_enrollment_fields',
   '20260406153000_course_payment_options',
   '20260406170000_enrollment_payment_option_snapshot',
+  '20260408223000_password_reset_code_flow',
 ];
 
 const allowedMigrations = (

@@ -78,6 +78,7 @@ export class EnrollmentsService {
             ownerAdminId: true,
             paymentModel: true,
             price: true,
+            enrollmentFee: true,
             paymentOptions: true,
             installmentMonths: true,
             installmentValue: true,
@@ -207,6 +208,28 @@ export class EnrollmentsService {
           },
         });
 
+        const onboardingCharges = this.buildEnrollmentChargesForPreContractFlow({
+          enrollmentCreatedAt: createdEnrollment.createdAt,
+          classStartDate: schoolClass.startDate,
+          enrollmentFee: Number(schoolClass.course.enrollmentFee ?? 0),
+          paymentModel: schoolClass.course.paymentModel,
+          installmentMonths: schoolClass.course.installmentMonths,
+          installmentValue: schoolClass.course.installmentValue,
+          selectedPaymentOption,
+        });
+
+        if (onboardingCharges.length > 0) {
+          await tx.monthlyCharge.createMany({
+            data: onboardingCharges.map((charge) => ({
+              enrollmentId: createdEnrollment.id,
+              ownerAdminId: schoolClass.course.ownerAdminId,
+              dueDate: charge.dueDate,
+              amount: charge.amount,
+              status: charge.status,
+            })),
+          });
+        }
+
         return createdEnrollment;
       },
       {
@@ -214,17 +237,22 @@ export class EnrollmentsService {
       },
     );
 
-    try {
-      await this.contractsService.sendAutomaticContractsForEnrollment({
-        institutionId: enrollment.institutionId,
-        enrollmentId: enrollment.id,
-        studentId: enrollment.studentId,
-        courseId: enrollment.schoolClass?.course?.id ?? null,
-        classId: enrollment.classId,
-        createdByUserId: enrollment.schoolClass.course.ownerAdminId,
-      });
-    } catch {
-      // O envio automático de contrato não deve bloquear a criação da matrícula.
+    const enrollmentFeeAmount = Number(
+      enrollment.schoolClass?.course?.enrollmentFee ?? 0,
+    );
+    if (!Number.isFinite(enrollmentFeeAmount) || enrollmentFeeAmount <= 0) {
+      try {
+        await this.contractsService.sendAutomaticContractsForEnrollment({
+          institutionId: enrollment.institutionId,
+          enrollmentId: enrollment.id,
+          studentId: enrollment.studentId,
+          courseId: enrollment.schoolClass?.course?.id ?? null,
+          classId: enrollment.classId,
+          createdByUserId: enrollment.schoolClass.course.ownerAdminId,
+        });
+      } catch {
+        // O envio automático de contrato não deve bloquear a criação da matrícula.
+      }
     }
 
     return enrollment;
@@ -459,6 +487,38 @@ export class EnrollmentsService {
     }
 
     return result;
+  }
+
+  private buildEnrollmentChargesForPreContractFlow(input: {
+    enrollmentCreatedAt: Date;
+    classStartDate: Date;
+    enrollmentFee: number;
+    paymentModel: string;
+    installmentMonths: number | null;
+    installmentValue: { toNumber: () => number } | null;
+    selectedPaymentOption?: EnrollmentPaymentOption;
+  }) {
+    const charges = this.buildInstallmentCharges({
+      classStartDate: input.classStartDate,
+      paymentModel: input.paymentModel,
+      installmentMonths: input.installmentMonths,
+      installmentValue: input.installmentValue,
+      selectedPaymentOption: input.selectedPaymentOption,
+    });
+
+    const enrollmentFee = this.toMoneyValue(input.enrollmentFee);
+    if (enrollmentFee <= 0) {
+      return charges;
+    }
+
+    return [
+      {
+        dueDate: new Date(input.enrollmentCreatedAt),
+        amount: enrollmentFee,
+        status: 'PENDING' as const,
+      },
+      ...charges,
+    ];
   }
 
   private buildChargeDueDate(baseDate: Date, monthOffset: number, dueDay?: number) {

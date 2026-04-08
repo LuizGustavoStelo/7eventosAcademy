@@ -58,6 +58,15 @@ type ResendVerificationCodeResponse = {
   message: string;
   expiresAt?: string;
 };
+type RequestPasswordResetCodeResponse = {
+  sent: boolean;
+  message: string;
+  expiresAt?: string;
+};
+type VerifyPasswordResetCodeResponse = {
+  verified: boolean;
+  message: string;
+};
 type ApiErrorResponse = {
   message?: string | string[];
   code?: string;
@@ -67,6 +76,10 @@ type ApiErrorResponse = {
 type EmailVerificationPendingState = {
   email: string;
   message: string;
+};
+type PasswordResetFlowState = {
+  email: string;
+  code: string;
 };
 type NavSection = {
   id: string;
@@ -93,6 +106,11 @@ type TopbarContractInstance = {
   status: string;
   institutionSignedAt?: string | null;
   institutionSignaturePending?: boolean;
+};
+
+type PasswordStrength = {
+  label: string;
+  toneClass: string;
 };
 
 const SESSION_TOKEN_KEY = 'academy-auth-token';
@@ -510,6 +528,23 @@ function maskEmail(value: string | null | undefined) {
   return `${visibleStart}${hidden}${visibleEnd}@${domainPart}`;
 }
 
+function passwordStrength(password: string): PasswordStrength {
+  if (!password) {
+    return { label: 'Fraca', toneClass: 'is-weak' };
+  }
+
+  let score = 0;
+  if (password.length >= 8) score += 2;
+  if (password.length >= 12) score += 1;
+  if (/[A-Za-z]/.test(password)) score += 1;
+  if (/\d/.test(password)) score += 1;
+  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
+
+  if (score >= 5) return { label: 'Forte', toneClass: 'is-strong' };
+  if (score >= 3) return { label: 'Média', toneClass: 'is-medium' };
+  return { label: 'Fraca', toneClass: 'is-weak' };
+}
+
 function PublicPortalBlocked({ message }: { message: string }) {
   return (
     <div className="auth-shell embedded">
@@ -547,7 +582,16 @@ export default function App() {
   const [codigoConfirmacao, setCodigoConfirmacao] = useState('');
   const [confirmacaoEmailPendente, setConfirmacaoEmailPendente] =
     useState<EmailVerificationPendingState | null>(null);
+  const [modalRecuperacaoAberto, setModalRecuperacaoAberto] = useState(false);
+  const [emailRecuperacao, setEmailRecuperacao] = useState('');
+  const [codigoRecuperacao, setCodigoRecuperacao] = useState('');
+  const [codigoRecuperacaoEnviado, setCodigoRecuperacaoEnviado] = useState(false);
+  const [passwordResetFlow, setPasswordResetFlow] =
+    useState<PasswordResetFlowState | null>(null);
   const [carregando, setCarregando] = useState(false);
+  const senhaForca = useMemo(() => passwordStrength(senha), [senha]);
+  const senhaTemLetras = /[A-Za-z]/.test(senha);
+  const senhaTemNumeros = /\d/.test(senha);
 
   const [token, setToken] = useState(() => {
     try { return window.localStorage.getItem(SESSION_TOKEN_KEY) ?? ''; } catch { return ''; }
@@ -784,6 +828,27 @@ export default function App() {
     setConfirmacaoSenha('');
     setErro('');
     setAviso(mensagem);
+    setPasswordResetFlow(null);
+    setModalRecuperacaoAberto(false);
+    setCodigoRecuperacao('');
+    setCodigoRecuperacaoEnviado(false);
+  };
+
+  const limparFluxoRecuperacaoSenha = () => {
+    setPasswordResetFlow(null);
+    setModalRecuperacaoAberto(false);
+    setCodigoRecuperacao('');
+    setCodigoRecuperacaoEnviado(false);
+    setEmailRecuperacao('');
+  };
+
+  const abrirModalRecuperacaoSenha = () => {
+    setErro('');
+    setAviso('');
+    setEmailRecuperacao(email.trim().toLowerCase());
+    setCodigoRecuperacao('');
+    setCodigoRecuperacaoEnviado(false);
+    setModalRecuperacaoAberto(true);
   };
 
   const limparImpersonacao = () => {
@@ -1015,11 +1080,13 @@ export default function App() {
     setAviso('');
     setCodigoConfirmacao('');
     setConfirmacaoEmailPendente(null);
+    limparFluxoRecuperacaoSenha();
   };
 
   const limparFluxoConfirmacaoEmail = () => {
     setConfirmacaoEmailPendente(null);
     setCodigoConfirmacao('');
+    setPasswordResetFlow(null);
   };
 
   const entrar = async (event: FormEvent<HTMLFormElement>) => {
@@ -1072,6 +1139,7 @@ export default function App() {
 
       persistirSessao(payload as AuthResponse);
       limparFluxoConfirmacaoEmail();
+      limparFluxoRecuperacaoSenha();
     } catch {
       setErro('Não foi possível conectar com o backend.');
     } finally {
@@ -1120,6 +1188,7 @@ export default function App() {
       const registerData = payload as RegisterResponse;
       setModoCadastro(false);
       setEmail(registerData.email);
+      limparFluxoRecuperacaoSenha();
       abrirFluxoConfirmacaoEmail(
         registerData.email,
         registerData.message || 'Enviamos um código de confirmação para o seu e-mail.',
@@ -1236,6 +1305,183 @@ export default function App() {
     }
   };
 
+  const solicitarCodigoRecuperacaoSenha = async () => {
+    setErro('');
+    setAviso('');
+
+    const emailNormalizado = emailRecuperacao.trim().toLowerCase();
+    if (!emailNormalizado) {
+      setErro('Informe seu e-mail para recuperar a senha.');
+      return;
+    }
+
+    setCarregando(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/request-password-reset-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailNormalizado }),
+      });
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as RequestPasswordResetCodeResponse | ApiErrorResponse | null;
+
+      if (!response.ok) {
+        setErro(
+          obterMensagemApi(
+            payload as ApiErrorResponse | null,
+            'Não foi possível enviar o código de recuperação.',
+          ),
+        );
+        return;
+      }
+
+      const mensagem =
+        payload && 'message' in payload
+          ? String(payload.message)
+          : 'Se o e-mail existir, o código foi enviado.';
+
+      if (payload && 'sent' in payload && payload.sent === false) {
+        setErro(mensagem);
+        return;
+      }
+
+      setEmailRecuperacao(emailNormalizado);
+      setCodigoRecuperacaoEnviado(true);
+      setAviso(mensagem);
+    } catch {
+      setErro('Não foi possível conectar com o backend.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const validarCodigoRecuperacaoSenha = async () => {
+    setErro('');
+    setAviso('');
+
+    const emailNormalizado = emailRecuperacao.trim().toLowerCase();
+    const codigoNormalizado = codigoRecuperacao.replace(/\D+/g, '').slice(0, 6);
+
+    if (!emailNormalizado) {
+      setErro('Informe o e-mail da conta.');
+      return;
+    }
+
+    if (codigoNormalizado.length !== 6) {
+      setErro('Digite o código de 6 dígitos enviado para seu e-mail.');
+      return;
+    }
+
+    setCarregando(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/verify-password-reset-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emailNormalizado,
+          code: codigoNormalizado,
+        }),
+      });
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as VerifyPasswordResetCodeResponse | ApiErrorResponse | null;
+
+      if (!response.ok) {
+        setErro(
+          obterMensagemApi(
+            payload as ApiErrorResponse | null,
+            'Não foi possível validar o código de recuperação.',
+          ),
+        );
+        return;
+      }
+
+      setPasswordResetFlow({
+        email: emailNormalizado,
+        code: codigoNormalizado,
+      });
+      setEmail(emailNormalizado);
+      setSenha('');
+      setConfirmacaoSenha('');
+      setModalRecuperacaoAberto(false);
+      setAviso('Código validado. Agora defina sua nova senha.');
+    } catch {
+      setErro('Não foi possível conectar com o backend.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const redefinirSenhaComCodigo = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErro('');
+    setAviso('');
+
+    if (!passwordResetFlow) {
+      setErro('Nenhum fluxo de recuperação ativo.');
+      return;
+    }
+
+    if (!senha || !confirmacaoSenha) {
+      setErro('Preencha a nova senha e a confirmação.');
+      return;
+    }
+
+    if (senha !== confirmacaoSenha) {
+      setErro('A confirmação de senha não confere.');
+      return;
+    }
+
+    if (senha.length < 8 || !senhaTemLetras || !senhaTemNumeros) {
+      setErro('A senha deve ter no mínimo 8 caracteres e conter letras e números.');
+      return;
+    }
+
+    setCarregando(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/reset-password-with-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: passwordResetFlow.email,
+          code: passwordResetFlow.code,
+          password: senha,
+        }),
+      });
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as AuthResponse | ApiErrorResponse | null;
+
+      if (!response.ok) {
+        setErro(
+          obterMensagemApi(
+            payload as ApiErrorResponse | null,
+            'Não foi possível redefinir a senha.',
+          ),
+        );
+        return;
+      }
+
+      if (!payload || !('accessToken' in payload)) {
+        setErro('Resposta inválida do servidor.');
+        return;
+      }
+
+      persistirSessao(payload as AuthResponse);
+      limparFluxoRecuperacaoSenha();
+      limparFluxoConfirmacaoEmail();
+      setModoCadastro(false);
+    } catch {
+      setErro('Não foi possível conectar com o backend.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
   const uploadAvatar = async (file: File) => {
     if (!token) return;
 
@@ -1284,16 +1530,22 @@ export default function App() {
 
     const modoCadastroAtivo = isStudentPortalMode ? false : modoCadastro;
     const modoConfirmacaoEmailAtivo = Boolean(confirmacaoEmailPendente);
+    const modoRedefinirSenhaAtivo = Boolean(passwordResetFlow);
     const tituloAutenticacao = modoConfirmacaoEmailAtivo
       ? 'Confirmar e-mail'
-      : modoCadastroAtivo
-        ? 'Criar conta'
-        : 'Entrar';
+      : modoRedefinirSenhaAtivo
+        ? 'Criar nova senha'
+        : modoCadastroAtivo
+          ? 'Criar conta'
+          : 'Entrar';
     const subtituloAutenticacao = modoConfirmacaoEmailAtivo
       ? 'Digite o código de 6 dígitos enviado para o seu e-mail.'
       : modoCadastroAtivo
         ? 'Cadastre-se para acessar o painel da instituição.'
         : 'Acesse com suas credenciais para continuar.';
+    const subtituloAutenticacaoExibicao = modoRedefinirSenhaAtivo
+      ? 'Defina uma nova senha para entrar direto na area do aluno.'
+      : subtituloAutenticacao;
 
     return (
       <div
@@ -1328,12 +1580,17 @@ export default function App() {
             <div className="auth-tabs">
               <button
                 type="button"
-                className={!modoCadastroAtivo && !modoConfirmacaoEmailAtivo ? 'active' : ''}
+                className={
+                  !modoCadastroAtivo && !modoConfirmacaoEmailAtivo && !modoRedefinirSenhaAtivo
+                    ? 'active'
+                    : ''
+                }
                 onClick={() => {
                   setErro('');
                   setAviso('');
                   setModoCadastro(false);
                   limparFluxoConfirmacaoEmail();
+                  limparFluxoRecuperacaoSenha();
                 }}
                 disabled={carregando}
               >
@@ -1347,6 +1604,7 @@ export default function App() {
                   setAviso('');
                   setModoCadastro(true);
                   limparFluxoConfirmacaoEmail();
+                  limparFluxoRecuperacaoSenha();
                 }}
                 disabled={carregando}
               >
@@ -1357,7 +1615,7 @@ export default function App() {
 
           <h2>{tituloAutenticacao}</h2>
           {!isStudentPortalMode ? (
-            <p className="auth-card-subtitle">{subtituloAutenticacao}</p>
+            <p className="auth-card-subtitle">{subtituloAutenticacaoExibicao}</p>
           ) : null}
 
           <form
@@ -1365,6 +1623,8 @@ export default function App() {
             onSubmit={
               modoConfirmacaoEmailAtivo
                 ? confirmarCodigoEmail
+                : modoRedefinirSenhaAtivo
+                  ? redefinirSenhaComCodigo
                 : modoCadastroAtivo
                   ? cadastrar
                   : entrar
@@ -1408,7 +1668,41 @@ export default function App() {
               </>
             ) : null}
 
-            {modoConfirmacaoEmailAtivo ? null : (
+            {modoConfirmacaoEmailAtivo ? null : modoRedefinirSenhaAtivo ? (
+              <>
+                <label htmlFor="emailReset">E-mail</label>
+                <input
+                  id="emailReset"
+                  type="email"
+                  value={passwordResetFlow?.email ?? email}
+                  readOnly
+                  disabled
+                />
+
+                <label htmlFor="senha">Nova senha</label>
+                <input
+                  id="senha"
+                  type="password"
+                  value={senha}
+                  onChange={(event) => setSenha(event.target.value)}
+                  disabled={carregando}
+                />
+
+                <div className={`auth-password-meta ${senhaForca.toneClass}`}>
+                  <small>Forca da senha: {senhaForca.label}</small>
+                  <small>Minimo 8 caracteres com letras e numeros.</small>
+                </div>
+
+                <label htmlFor="confirmacaoSenha">Confirmar nova senha</label>
+                <input
+                  id="confirmacaoSenha"
+                  type="password"
+                  value={confirmacaoSenha}
+                  onChange={(event) => setConfirmacaoSenha(event.target.value)}
+                  disabled={carregando}
+                />
+              </>
+            ) : (
               <>
                 <label htmlFor="email">E-mail</label>
                 <input
@@ -1430,7 +1724,7 @@ export default function App() {
               </>
             )}
 
-            {modoConfirmacaoEmailAtivo || !modoCadastroAtivo ? null : (
+            {modoConfirmacaoEmailAtivo || !modoCadastroAtivo || modoRedefinirSenhaAtivo ? null : (
               <>
                 <label htmlFor="confirmacaoSenha">Confirmar senha</label>
                 <input
@@ -1451,10 +1745,23 @@ export default function App() {
                 ? 'Processando...'
                 : modoConfirmacaoEmailAtivo
                   ? 'Confirmar e-mail'
+                  : modoRedefinirSenhaAtivo
+                    ? 'Alterar senha e entrar'
                   : modoCadastroAtivo
                     ? 'Cadastrar e continuar'
                     : 'Entrar na plataforma'}
             </button>
+
+            {!modoCadastroAtivo && !modoConfirmacaoEmailAtivo && !modoRedefinirSenhaAtivo && isStudentPortalMode ? (
+              <button
+                type="button"
+                className="auth-link-btn"
+                onClick={abrirModalRecuperacaoSenha}
+                disabled={carregando}
+              >
+                Esqueci a senha
+              </button>
+            ) : null}
 
             {modoConfirmacaoEmailAtivo ? (
               <div className="auth-verify-actions">
@@ -1480,8 +1787,112 @@ export default function App() {
                 </button>
               </div>
             ) : null}
+
+            {modoRedefinirSenhaAtivo ? (
+              <button
+                type="button"
+                className="auth-secondary-btn"
+                onClick={() => {
+                  setErro('');
+                  setAviso('');
+                  setSenha('');
+                  setConfirmacaoSenha('');
+                  limparFluxoRecuperacaoSenha();
+                }}
+                disabled={carregando}
+              >
+                Voltar ao login
+              </button>
+            ) : null}
           </form>
         </section>
+
+        {modalRecuperacaoAberto ? (
+          <div
+            className="auth-modal-backdrop"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget && !carregando) {
+                setModalRecuperacaoAberto(false);
+              }
+            }}
+          >
+            <div className="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-forgot-title">
+              <header>
+                <h3 id="auth-forgot-title">Recuperar senha</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!carregando) setModalRecuperacaoAberto(false);
+                  }}
+                  disabled={carregando}
+                  aria-label="Fechar"
+                >
+                  ×
+                </button>
+              </header>
+
+              <div className="auth-modal-body">
+                <label htmlFor="emailRecuperacao">E-mail</label>
+                <input
+                  id="emailRecuperacao"
+                  type="email"
+                  value={emailRecuperacao}
+                  onChange={(event) => setEmailRecuperacao(event.target.value)}
+                  disabled={carregando || codigoRecuperacaoEnviado}
+                />
+
+                {codigoRecuperacaoEnviado ? (
+                  <>
+                    <label htmlFor="codigoRecuperacao">Codigo</label>
+                    <input
+                      id="codigoRecuperacao"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={codigoRecuperacao}
+                      onChange={(event) =>
+                        setCodigoRecuperacao(event.target.value.replace(/\D+/g, '').slice(0, 6))
+                      }
+                      disabled={carregando}
+                    />
+                  </>
+                ) : null}
+              </div>
+
+              <div className="auth-modal-actions">
+                {!codigoRecuperacaoEnviado ? (
+                  <button
+                    type="button"
+                    onClick={solicitarCodigoRecuperacaoSenha}
+                    disabled={carregando}
+                  >
+                    Enviar codigo
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={solicitarCodigoRecuperacaoSenha}
+                      disabled={carregando}
+                    >
+                      Reenviar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={validarCodigoRecuperacaoSenha}
+                      disabled={carregando}
+                    >
+                      Validar codigo
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {!isEmbedded && !isStudentPortalMode && (
           <section className="auth-panel auth-panel-aftercard">

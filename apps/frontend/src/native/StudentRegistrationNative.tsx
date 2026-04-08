@@ -67,8 +67,18 @@ type RegistrationPayload = {
   companyName: string;
   jobTitle: string;
   street?: string;
+  streetNumber?: string;
   courseIds?: string[];
   selectedPaymentOptionId?: string;
+};
+
+type ViaCepResponse = {
+  erro?: boolean;
+  logradouro?: string;
+  complemento?: string;
+  bairro?: string;
+  localidade?: string;
+  uf?: string;
 };
 
 type PasswordStrength = {
@@ -251,11 +261,11 @@ function passwordStrength(password: string): PasswordStrength {
   }
 
   let score = 0;
-  if (password.length >= 8) score += 1;
+  if (password.length >= 8) score += 2;
   if (password.length >= 12) score += 1;
-  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
+  if (/[A-Za-z]/.test(password)) score += 1;
   if (/\d/.test(password)) score += 1;
-  if (/[^A-Za-z0-9]/.test(password)) score += 1;
+  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
 
   if (score >= 5) return { label: 'Forte', toneClass: 'is-strong', score };
   if (score >= 3) return { label: 'Média', toneClass: 'is-medium', score };
@@ -538,6 +548,9 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
   const [zipCode, setZipCode] = useState('');
   const [address, setAddress] = useState('');
+  const [streetNumber, setStreetNumber] = useState('');
+  const [zipLookupLoading, setZipLookupLoading] = useState(false);
+  const [zipLookupError, setZipLookupError] = useState('');
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedPaymentOptionId, setSelectedPaymentOptionId] = useState('');
   const [expandedPaymentOptions, setExpandedPaymentOptions] = useState<Record<string, boolean>>({});
@@ -573,6 +586,58 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       setSelectedPaymentOptionId(String(selectedCoursePaymentOptions[0]?.id || ''));
     }
   }, [selectedCourseId, selectedCoursePaymentOptions, selectedPaymentOptionId]);
+
+  useEffect(() => {
+    const zipDigits = onlyDigits(zipCode);
+    if (zipDigits.length !== 8) {
+      setZipLookupLoading(false);
+      setZipLookupError('');
+      return;
+    }
+
+    const controller = new AbortController();
+    const loadAddressByZip = async () => {
+      setZipLookupLoading(true);
+      setZipLookupError('');
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${zipDigits}/json/`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error('Falha ao consultar CEP.');
+        }
+        const data = (await response.json()) as ViaCepResponse;
+        if (data.erro) {
+          setZipLookupError('CEP não encontrado. Preencha o endereço manualmente.');
+          return;
+        }
+        const parts = [
+          String(data.logradouro || '').trim(),
+          String(data.bairro || '').trim(),
+          String(data.localidade || '').trim(),
+        ].filter(Boolean);
+        const uf = String(data.uf || '').trim();
+        const fullAddress = uf ? `${parts.join(', ')} - ${uf}` : parts.join(', ');
+        if (fullAddress) {
+          setAddress(fullAddress);
+        }
+      } catch (lookupError) {
+        if (controller.signal.aborted) return;
+        setZipLookupError(
+          lookupError instanceof Error
+            ? lookupError.message
+            : 'Não foi possível consultar o CEP.',
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setZipLookupLoading(false);
+        }
+      }
+    };
+
+    void loadAddressByZip();
+    return () => controller.abort();
+  }, [zipCode]);
 
   useEffect(() => {
     if (
@@ -615,6 +680,19 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     return STUDENT_PORTAL_LOGIN_URL;
   };
 
+  const redirectToPortal = () => {
+    const portalLink = buildPortalLink();
+    try {
+      if (embedded && window.top) {
+        window.top.location.href = portalLink;
+        return;
+      }
+    } catch {
+      // fallback para navegação local quando não houver acesso ao top
+    }
+    window.location.href = portalLink;
+  };
+
   const validateStepOne = () => {
     if (!name.trim() || name.trim().length < 3) return 'Informe seu nome completo.';
     if (!isValidPersonName(name)) return 'O nome deve conter nome e sobrenome, usando apenas letras.';
@@ -628,6 +706,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     if (!maritalStatus) return 'Selecione o estado civil.';
     if (!isValidZipCode(zipCode)) return 'Informe um CEP válido com 8 dígitos.';
     if (!address.trim()) return 'Informe o endereço completo.';
+    if (!streetNumber.trim()) return 'Informe o número da residência.';
     return '';
   };
 
@@ -643,7 +722,9 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     if (!companyName.trim()) return 'Informe a empresa onde trabalha.';
     if (!jobTitle.trim()) return 'Informe o cargo.';
     if (password.length < 8) return 'A senha deve ter pelo menos 8 caracteres.';
-    if (strength.score < 3) return 'Use uma senha pelo menos média (misture letras, números e símbolos).';
+    if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      return 'A senha deve conter pelo menos letras e números.';
+    }
     if (!confirmPassword) return 'Confirme sua senha para continuar.';
     if (password !== confirmPassword) return 'A confirmação de senha não confere.';
     return '';
@@ -703,6 +784,9 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     setConfirmPassword('');
     setZipCode('');
     setAddress('');
+    setStreetNumber('');
+    setZipLookupLoading(false);
+    setZipLookupError('');
     setSelectedCourseId('');
     setSelectedPaymentOptionId('');
     setCurrentStep(0);
@@ -730,7 +814,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       birthDate: birthDateToIso(birthDate),
       birthCity: birthCity.trim(),
       maritalStatus,
-      address: address.trim(),
+      address: `${address.trim()}, ${streetNumber.trim()}`,
       zipCode: onlyDigits(zipCode),
       fatherName: fatherName.trim().replace(/\s{2,}/g, ' '),
       motherName: motherName.trim().replace(/\s{2,}/g, ' '),
@@ -740,6 +824,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       jobTitle: jobTitle.trim(),
       password,
       street: address.trim(),
+      streetNumber: streetNumber.trim(),
       courseIds: selectedCourseId ? [selectedCourseId] : undefined,
       selectedPaymentOptionId: selectedPaymentOptionId || undefined,
     };
@@ -796,10 +881,10 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   useEffect(() => {
     if (!success) return undefined;
     const redirectTimer = window.setTimeout(() => {
-      window.location.href = buildPortalLink();
+      redirectToPortal();
     }, 1400);
     return () => window.clearTimeout(redirectTimer);
-  }, [success]);
+  }, [success, embedded]);
 
   return (
     <section className={`native-student-register ${embedded ? 'is-embedded' : ''}`}>
@@ -966,6 +1051,8 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                   inputMode="numeric"
                   placeholder="00000-000"
                 />
+                {zipLookupLoading ? <small>Consultando CEP...</small> : null}
+                {zipLookupError ? <small className="native-error">{zipLookupError}</small> : null}
               </label>
 
               <label className="full">
@@ -975,7 +1062,20 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                   value={address}
                   onChange={(event) => setAddress(normalizeTextInput(event.target.value))}
                   disabled={loading}
-                  placeholder="Rua, número, bairro e complemento"
+                  placeholder="Rua, bairro, cidade - UF"
+                />
+              </label>
+
+              <label>
+                Número *
+                <input
+                  type="text"
+                  value={streetNumber}
+                  onChange={(event) =>
+                    setStreetNumber(event.target.value.replace(/[^\dA-Za-z/-]/g, ''))
+                  }
+                  disabled={loading}
+                  placeholder="Ex.: 123"
                 />
               </label>
             </>
@@ -1062,9 +1162,12 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                   autoComplete="new-password"
                 />
                 {password ? (
-                  <small className={`native-student-password-strength ${strength.toneClass}`}>
-                    Força da senha: {strength.label}
-                  </small>
+                  <div className={`native-student-password-strength ${strength.toneClass}`}>
+                    <small>Força da senha: {strength.label}</small>
+                    <small className="native-student-password-requirements">
+                      Mínimo 8 caracteres, com letras e números.
+                    </small>
+                  </div>
                 ) : null}
               </label>
 
@@ -1319,7 +1422,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
           <div className="native-student-register-modal" role="dialog" aria-modal="true" aria-labelledby="student-register-success-title">
             <h3 id="student-register-success-title">Cadastro concluído</h3>
             <p>{success}</p>
-            <a className="native-student-register-login-link" href={buildPortalLink()}>
+            <a className="native-student-register-login-link" href={buildPortalLink()} target="_top" rel="noreferrer">
               Ir para login
             </a>
           </div>

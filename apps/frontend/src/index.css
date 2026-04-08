@@ -426,6 +426,147 @@ table button:disabled {
   box-shadow: none;
 }
 
+.auth-form .auth-link-btn {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: #0f7f82;
+  font-weight: 700;
+  padding: 0.2rem 0;
+  justify-self: start;
+}
+
+.auth-form .auth-link-btn:hover:not(:disabled) {
+  transform: none;
+  filter: none;
+  box-shadow: none;
+  text-decoration: underline;
+}
+
+.auth-password-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-top: -0.2rem;
+}
+
+.auth-password-meta small {
+  font-size: 0.79rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.auth-password-meta.is-weak small:first-child {
+  color: #b42318;
+}
+
+.auth-password-meta.is-medium small:first-child {
+  color: #b54708;
+}
+
+.auth-password-meta.is-strong small:first-child {
+  color: #027a48;
+}
+
+.auth-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(15, 23, 42, 0.56);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.auth-modal {
+  width: min(440px, 100%);
+  border-radius: 1rem;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.auth-modal > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.auth-modal > header h3 {
+  margin: 0;
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+
+.auth-modal > header button {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: #fff;
+  border-radius: 999px;
+  width: 2rem;
+  height: 2rem;
+  cursor: pointer;
+  color: #334155;
+  font-size: 1.1rem;
+}
+
+.auth-modal-body {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.auth-modal-body label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.auth-modal-body input {
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  border-radius: 0.72rem;
+  background: rgba(255, 255, 255, 0.98);
+  padding: 0.76rem 0.82rem;
+  font-size: 0.95rem;
+  color: #1f2937;
+}
+
+.auth-modal-body input:focus {
+  outline: none;
+  border-color: rgba(242, 92, 5, 0.75);
+  box-shadow: 0 0 0 4px rgba(242, 92, 5, 0.14);
+}
+
+.auth-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.auth-modal-actions button {
+  border: 0;
+  border-radius: 0.72rem;
+  padding: 0.72rem 0.96rem;
+  background: linear-gradient(120deg, #f25c05, #f97316 56%, #fb923c);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-modal-actions button.ghost {
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  background: #fff;
+  color: #334155;
+}
+
 @media (max-width: 560px) {
   .auth-verify-actions {
     grid-template-columns: 1fr;
@@ -8263,9 +8404,22 @@ table button {
 
 .native-student-password-strength {
   margin-top: 0.2rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.native-student-password-strength small:first-child {
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.01em;
+}
+
+.native-student-password-requirements {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 600;
 }
 
 .native-student-password-strength.is-weak {

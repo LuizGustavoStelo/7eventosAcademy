@@ -13,11 +13,14 @@ import type { FastifyRequest } from 'fastify';
 import { Public } from './decorators/public.decorator';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { RequestPasswordResetCodeDto } from './dto/request-password-reset-code.dto';
+import { ResetPasswordWithCodeDto } from './dto/reset-password-with-code.dto';
 import { ResendVerificationCodeDto } from './dto/resend-verification-code.dto';
 import { RegisterDto } from './dto/register.dto';
 import { SwitchInstitutionDto } from './dto/switch-institution.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
+import { VerifyPasswordResetCodeDto } from './dto/verify-password-reset-code.dto';
 import { JwtPayload } from './types/app-role.type';
 
 type AuthenticatedRequest = FastifyRequest & {
@@ -69,6 +72,24 @@ export class AuthController {
   @Post('resend-verification-code')
   async resendVerificationCode(@Body() dto: ResendVerificationCodeDto) {
     return this.authService.resendVerificationCode(dto);
+  }
+
+  @Public()
+  @Post('request-password-reset-code')
+  async requestPasswordResetCode(@Body() dto: RequestPasswordResetCodeDto) {
+    return this.authService.requestPasswordResetCode(dto);
+  }
+
+  @Public()
+  @Post('reset-password-with-code')
+  async resetPasswordWithCode(@Body() dto: ResetPasswordWithCodeDto) {
+    return this.authService.resetPasswordWithCode(dto);
+  }
+
+  @Public()
+  @Post('verify-password-reset-code')
+  async verifyPasswordResetCode(@Body() dto: VerifyPasswordResetCodeDto) {
+    return this.authService.verifyPasswordResetCode(dto);
   }
 
   @Get('me')

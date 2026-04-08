@@ -16,10 +16,13 @@ import { MailService } from '../mail/mail.service';
 import { type AccountVerificationAudience } from '../mail/templates/account-verification-email.template';
 import { UploadsService } from '../uploads/uploads.service';
 import { LoginDto } from './dto/login.dto';
+import { RequestPasswordResetCodeDto } from './dto/request-password-reset-code.dto';
+import { ResetPasswordWithCodeDto } from './dto/reset-password-with-code.dto';
 import { ResendVerificationCodeDto } from './dto/resend-verification-code.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
+import { VerifyPasswordResetCodeDto } from './dto/verify-password-reset-code.dto';
 
 type AppRole = 'user' | 'admin' | 'superadmin';
 
@@ -309,6 +312,9 @@ const ACCESS_TOKEN_TTL_SECONDS = 86_400;
 const EMAIL_VERIFICATION_CODE_LENGTH = 6;
 const DEFAULT_VERIFICATION_TTL_MINUTES = 15;
 const DEFAULT_VERIFICATION_COOLDOWN_SECONDS = 60;
+const PASSWORD_RESET_CODE_LENGTH = 6;
+const DEFAULT_PASSWORD_RESET_TTL_MINUTES = 15;
+const DEFAULT_PASSWORD_RESET_COOLDOWN_SECONDS = 60;
 const PENDING_ADMIN_REGISTRATION_PREFIX = 'pending-admin-registration:';
 
 @Injectable()
@@ -764,6 +770,180 @@ export class AuthService {
       message: 'Enviamos um novo código de confirmação para o seu e-mail.',
       expiresAt: dispatch.expiresAt.toISOString(),
     };
+  }
+
+  async requestPasswordResetCode(dto: RequestPasswordResetCodeDto) {
+    const email = dto.email.trim().toLowerCase();
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        emailConfirmedAt: true,
+        passwordResetCodeSentAt: true,
+      },
+    });
+
+    if (!user?.emailConfirmedAt) {
+      return {
+        sent: true,
+        message:
+          'Se este e-mail existir na plataforma, um código de recuperação foi enviado.',
+      };
+    }
+
+    const now = Date.now();
+    const cooldownMs = this.getPasswordResetCooldownSeconds() * 1000;
+    const lastSentAt = user.passwordResetCodeSentAt?.getTime() ?? 0;
+
+    if (lastSentAt && now - lastSentAt < cooldownMs) {
+      const waitSeconds = Math.max(1, Math.ceil((cooldownMs - (now - lastSentAt)) / 1000));
+      return {
+        sent: false,
+        message: `Aguarde ${waitSeconds} segundo(s) antes de solicitar outro código.`,
+      };
+    }
+
+    const code = this.generatePasswordResetCode();
+    const codeHash = await hash(code, 10);
+    const expiresAt = new Date(now + this.getPasswordResetTtlMinutes() * 60 * 1000);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetCodeHash: codeHash,
+        passwordResetCodeExpiresAt: expiresAt,
+        passwordResetCodeSentAt: new Date(),
+      },
+    });
+
+    try {
+      await this.mailService.sendPasswordResetCodeEmail({
+        to: user.email,
+        recipientName: user.name,
+        resetCode: code,
+        expiresInMinutes: this.getPasswordResetTtlMinutes(),
+      });
+    } catch (error) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetCodeSentAt: null,
+        },
+      });
+      throw error;
+    }
+
+    return {
+      sent: true,
+      message: 'Enviamos um código de recuperação para o seu e-mail.',
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  async verifyPasswordResetCode(dto: VerifyPasswordResetCodeDto) {
+    const email = dto.email.trim().toLowerCase();
+    const code = dto.code.trim();
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        emailConfirmedAt: true,
+        passwordResetCodeHash: true,
+        passwordResetCodeExpiresAt: true,
+      },
+    });
+
+    if (!user || !user.emailConfirmedAt) {
+      throw new BadRequestException('Código inválido ou expirado.');
+    }
+
+    if (!user.passwordResetCodeHash || !user.passwordResetCodeExpiresAt) {
+      throw new BadRequestException(
+        'Nenhum código ativo foi encontrado para este e-mail. Solicite um novo código.',
+      );
+    }
+
+    if (user.passwordResetCodeExpiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Código inválido ou expirado.');
+    }
+
+    const validCode = await compare(code, user.passwordResetCodeHash);
+    if (!validCode) {
+      throw new BadRequestException('Código inválido ou expirado.');
+    }
+
+    return {
+      verified: true,
+      message: 'Código validado com sucesso.',
+    };
+  }
+
+  async resetPasswordWithCode(dto: ResetPasswordWithCodeDto): Promise<AuthPayload> {
+    const email = dto.email.trim().toLowerCase();
+    const code = dto.code.trim();
+    const password = dto.password;
+
+    if (!this.isValidPasswordForStudentPortal(password)) {
+      throw new BadRequestException(
+        'A senha deve ter pelo menos 8 caracteres e conter letras e números.',
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        emailConfirmedAt: true,
+        passwordResetCodeHash: true,
+        passwordResetCodeExpiresAt: true,
+      },
+    });
+
+    if (!user || !user.emailConfirmedAt) {
+      throw new BadRequestException('Código inválido ou expirado.');
+    }
+
+    if (!user.passwordResetCodeHash || !user.passwordResetCodeExpiresAt) {
+      throw new BadRequestException(
+        'Nenhum código ativo foi encontrado para este e-mail. Solicite um novo código.',
+      );
+    }
+
+    if (user.passwordResetCodeExpiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Código inválido ou expirado.');
+    }
+
+    const validCode = await compare(code, user.passwordResetCodeHash);
+    if (!validCode) {
+      throw new BadRequestException('Código inválido ou expirado.');
+    }
+
+    const nextPasswordHash = await hash(password, 12);
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: nextPasswordHash,
+        passwordResetCodeHash: null,
+        passwordResetCodeExpiresAt: null,
+        passwordResetCodeSentAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+    });
+
+    return this.buildAuthPayload(updatedUser);
   }
 
   async sendEmailVerificationCodeByUserId(
@@ -1448,9 +1628,22 @@ export class AuthService {
     return 'professor';
   }
 
+  private isValidPasswordForStudentPortal(password: string): boolean {
+    const normalized = String(password ?? '');
+    if (normalized.length < 8) return false;
+    return /[A-Za-z]/.test(normalized) && /\d/.test(normalized);
+  }
+
   private generateEmailVerificationCode(): string {
     return String(randomInt(0, 1_000_000)).padStart(
       EMAIL_VERIFICATION_CODE_LENGTH,
+      '0',
+    );
+  }
+
+  private generatePasswordResetCode(): string {
+    return String(randomInt(0, 1_000_000)).padStart(
+      PASSWORD_RESET_CODE_LENGTH,
       '0',
     );
   }
@@ -1476,6 +1669,32 @@ export class AuthService {
 
     if (!Number.isFinite(rawValue) || rawValue <= 0) {
       return DEFAULT_VERIFICATION_COOLDOWN_SECONDS;
+    }
+
+    return Math.floor(rawValue);
+  }
+
+  private getPasswordResetTtlMinutes(): number {
+    const rawValue = Number(
+      this.configService.get<string>('PASSWORD_RESET_TTL_MINUTES') ??
+        DEFAULT_PASSWORD_RESET_TTL_MINUTES,
+    );
+
+    if (!Number.isFinite(rawValue) || rawValue <= 0) {
+      return DEFAULT_PASSWORD_RESET_TTL_MINUTES;
+    }
+
+    return Math.floor(rawValue);
+  }
+
+  private getPasswordResetCooldownSeconds(): number {
+    const rawValue = Number(
+      this.configService.get<string>('PASSWORD_RESET_COOLDOWN_SECONDS') ??
+        DEFAULT_PASSWORD_RESET_COOLDOWN_SECONDS,
+    );
+
+    if (!Number.isFinite(rawValue) || rawValue <= 0) {
+      return DEFAULT_PASSWORD_RESET_COOLDOWN_SECONDS;
     }
 
     return Math.floor(rawValue);

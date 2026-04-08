@@ -48,6 +48,35 @@ type AutoSendContractInput = {
   publicOrigin?: string | null;
 };
 
+type ContractInstallmentLine = {
+  number: number;
+  dueDateLabel: string;
+  amountValue: number;
+  amountLabel: string;
+  statusLabel: string;
+  discountLabel?: string | null;
+  detailsLabel?: string | null;
+};
+
+type ContractSelectedPaymentOption = {
+  id: string | null;
+  title: string | null;
+  method: string | null;
+  type: 'CASH' | 'INSTALLMENTS';
+  totalAmount: number;
+  installmentCount: number | null;
+  installmentAmount: number;
+  dueDay: number | null;
+  installmentStartDate: string | null;
+  note: string | null;
+  discountEnabled: boolean;
+  discountTotalAmount: number | null;
+  discountInstallmentAmount: number | null;
+  discountDeadlineDay: number | null;
+  discountRequiresActiveCrf: boolean;
+  discountAppliesTo: 'INSTALLMENT' | 'TOTAL' | null;
+};
+
 const DEFAULT_SIGNING_TOKEN_HOURS = 72;
 const MAX_SIGNING_TOKEN_HOURS = 168;
 const DEFAULT_PIN_TTL_MINUTES = 10;
@@ -615,6 +644,8 @@ export class ContractsService {
     let courseEnrollmentFee = 0;
     let courseInstallmentMonths = 0;
     let courseInstallmentValue = 0;
+    let enrollmentClassStartDate: Date | null = null;
+    let enrollmentSelectedPaymentOption: Prisma.JsonValue | null = null;
     if (dto.courseId) {
       const course = await this.prisma.course.findFirst({
         where: { id: dto.courseId, institutionId },
@@ -659,10 +690,12 @@ export class ContractsService {
         },
         select: {
           id: true,
+          selectedPaymentOption: true,
           schoolClass: {
             select: {
               id: true,
               name: true,
+              startDate: true,
               course: {
                 select: {
                   id: true,
@@ -686,6 +719,8 @@ export class ContractsService {
       if (!className) {
         className = enrollment.schoolClass?.name || className;
       }
+      enrollmentClassStartDate = enrollment.schoolClass?.startDate ?? null;
+      enrollmentSelectedPaymentOption = enrollment.selectedPaymentOption ?? null;
       if (!courseName) {
         courseName = enrollment.schoolClass?.course?.name || courseName;
       }
@@ -715,9 +750,16 @@ export class ContractsService {
     }
 
     const now = new Date();
+    const selectedPaymentOption = this.parseInstallmentOptionFromJson(
+      enrollmentSelectedPaymentOption,
+    );
     const installments = await this.resolveInstallmentsForContract(
       institutionId,
       dto.enrollmentId ?? null,
+      {
+        classStartDate: enrollmentClassStartDate,
+        selectedPaymentOption,
+      },
     );
     const installmentsTableHtml =
       installments.length > 0
@@ -728,7 +770,13 @@ export class ContractsService {
         ? installments
             .map(
               (item) =>
-                `Parcela ${item.number} - vencimento ${item.dueDateLabel} - ${item.amountLabel}`,
+                `Parcela ${item.number} - vencimento ${item.dueDateLabel} - ${item.amountLabel}${
+                  item.detailsLabel
+                    ? ` - ${item.detailsLabel}`
+                    : item.discountLabel
+                      ? ` - antecipado: ${item.discountLabel}`
+                      : ''
+                }`,
             )
             .join('\n')
         : '';
@@ -738,18 +786,88 @@ export class ContractsService {
     );
     const installmentsAverage =
       installments.length > 0 ? installmentsSum / installments.length : 0;
-    const financialTotal = courseTotalPrice > 0 ? courseTotalPrice : installmentsSum;
-    const paymentMethodLabel = this.paymentModelLabelPtBr(
-      coursePaymentModel,
-      installments.length,
+    const selectedOptionInstallmentCount = Number(
+      selectedPaymentOption?.installmentCount ?? 0,
     );
-    const formsAndValuesSummary = [
+    const selectedOptionInstallmentAmount = Number(
+      selectedPaymentOption?.installmentAmount ?? 0,
+    );
+    const selectedOptionTotalAmount = Number(selectedPaymentOption?.totalAmount ?? 0);
+    const selectedOptionDiscountTotalAmount = Number(
+      selectedPaymentOption?.discountTotalAmount ?? 0,
+    );
+    const selectedOptionDiscountInstallmentAmount = Number(
+      selectedPaymentOption?.discountInstallmentAmount ?? 0,
+    );
+    const selectedOptionDiscountDeadlineDay = Number(
+      selectedPaymentOption?.discountDeadlineDay ?? 0,
+    );
+    const financialTotal =
+      selectedOptionTotalAmount > 0
+        ? selectedOptionTotalAmount
+        : installmentsSum > 0
+          ? installmentsSum
+          : courseTotalPrice > 0
+            ? courseTotalPrice
+            : 0;
+    const paymentMethodLabel =
+      selectedPaymentOption?.title?.trim() ||
+      this.paymentModelLabelPtBr(coursePaymentModel, installments.length);
+    const installmentCountForSummary =
+      installments.length ||
+      selectedOptionInstallmentCount ||
+      courseInstallmentMonths ||
+      (selectedPaymentOption?.type === 'CASH' ? 1 : 0);
+    const installmentValueForSummary = (() => {
+      if (selectedOptionInstallmentAmount > 0) return selectedOptionInstallmentAmount;
+      if (courseInstallmentValue > 0) return courseInstallmentValue;
+      if (installmentsAverage > 0) return installmentsAverage;
+      if (financialTotal > 0 && installmentCountForSummary > 0) {
+        return this.toMoneyValue(financialTotal / installmentCountForSummary);
+      }
+      return 0;
+    })();
+
+    const formsAndValuesSummaryLines = [
       `Forma de pagamento: ${paymentMethodLabel}`,
       `Valor total: ${this.formatCurrencyPtBr(financialTotal)}`,
       `Taxa de matrícula: ${this.formatCurrencyPtBr(courseEnrollmentFee)}`,
-      `Quantidade de parcelas: ${installments.length || courseInstallmentMonths || 0}`,
-      `Valor da parcela: ${this.formatCurrencyPtBr(courseInstallmentValue || installmentsAverage)}`,
-    ].join(' | ');
+      `Quantidade de parcelas: ${installmentCountForSummary}`,
+      `Valor da parcela: ${this.formatCurrencyPtBr(installmentValueForSummary)}`,
+    ];
+
+    if (selectedPaymentOption?.discountEnabled && selectedOptionDiscountTotalAmount > 0) {
+      formsAndValuesSummaryLines.push(
+        `Valor total com desconto${
+          selectedOptionDiscountDeadlineDay > 0
+            ? ` até dia ${selectedOptionDiscountDeadlineDay}`
+            : ''
+        }: ${this.formatCurrencyPtBr(selectedOptionDiscountTotalAmount)}`,
+      );
+    }
+
+    if (
+      selectedPaymentOption?.discountEnabled &&
+      selectedOptionDiscountInstallmentAmount > 0
+    ) {
+      formsAndValuesSummaryLines.push(
+        `Parcela com desconto${
+          selectedOptionDiscountDeadlineDay > 0
+            ? ` até dia ${selectedOptionDiscountDeadlineDay}`
+            : ''
+        }: ${this.formatCurrencyPtBr(selectedOptionDiscountInstallmentAmount)}`,
+      );
+    }
+
+    if (selectedPaymentOption?.discountRequiresActiveCrf) {
+      formsAndValuesSummaryLines.push('Desconto condicionado a CRF ativo.');
+    }
+
+    if (selectedPaymentOption?.note) {
+      formsAndValuesSummaryLines.push(`Observação: ${selectedPaymentOption.note}`);
+    }
+
+    const formsAndValuesSummary = formsAndValuesSummaryLines.join(' | ');
 
     const signatureCode = await this.generateUniqueSignatureCode();
     const unsignedHtmlSnapshot = this.renderTemplate(
@@ -779,8 +897,7 @@ export class ContractsService {
         course_name: courseName,
         class_name: className,
         enrollment_id: dto.enrollmentId || '',
-        financial_installments_count:
-          installments.length > 0 ? String(installments.length) : '0',
+        financial_installments_count: String(installmentCountForSummary),
         financial_installments_text: installmentsText,
         financial_installments_table_html: installmentsTableHtml,
         financial_installments_rows_html: installmentsTableHtml,
@@ -815,19 +932,14 @@ export class ContractsService {
         curso_nome: courseName,
         turma_nome: className,
         matricula_id: dto.enrollmentId || '',
-        financeiro_parcelas_total:
-          installments.length > 0 ? String(installments.length) : '0',
+        financeiro_parcelas_total: String(installmentCountForSummary),
         financeiro_parcelas_texto: installmentsText,
         financeiro_parcelas_tabela_html: installmentsTableHtml,
         financeiro_forma_pagamento: paymentMethodLabel,
         financeiro_valor_total: this.formatCurrencyPtBr(financialTotal),
         financeiro_taxa_matricula: this.formatCurrencyPtBr(courseEnrollmentFee),
-        financeiro_quantidade_parcelas: String(
-          installments.length || courseInstallmentMonths || 0,
-        ),
-        financeiro_valor_parcela: this.formatCurrencyPtBr(
-          courseInstallmentValue || installmentsAverage,
-        ),
+        financeiro_quantidade_parcelas: String(installmentCountForSummary),
+        financeiro_valor_parcela: this.formatCurrencyPtBr(installmentValueForSummary),
         financeiro_formas_valores_resumo: formsAndValuesSummary,
         contrato_cidade_assinatura: this.resolveContractCity(),
         contrato_data_emissao: this.formatDatePtBr(now),
@@ -1941,28 +2053,90 @@ export class ContractsService {
     return result;
   }
 
-  private parseInstallmentOptionFromJson(raw: Prisma.JsonValue | null) {
+  private parseInstallmentOptionFromJson(
+    raw: Prisma.JsonValue | null,
+  ): ContractSelectedPaymentOption | null {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     const source = raw as Record<string, unknown>;
     const normalizedType = String(source.type || '').toUpperCase();
     if (normalizedType !== 'INSTALLMENTS' && normalizedType !== 'CASH') return null;
 
+    const id = String(source.id || '').trim() || null;
+    const title = String(source.title || '').trim() || null;
+    const method = String(source.method || '').trim().toUpperCase() || null;
+    const totalAmount = this.toMoneyValue(source.totalAmount);
     const installmentCount = this.toPositiveInt(source.installmentCount);
-    const installmentAmount = this.toMoneyValue(source.installmentAmount);
-    const dueDay = this.toPositiveInt(source.dueDay);
+    const installmentAmountFromSource = this.toMoneyValue(source.installmentAmount);
+    const installmentAmount =
+      installmentAmountFromSource > 0
+        ? installmentAmountFromSource
+        : normalizedType === 'INSTALLMENTS' &&
+            totalAmount > 0 &&
+            Number(installmentCount ?? 0) > 0
+          ? this.toMoneyValue(totalAmount / Math.max(1, Number(installmentCount ?? 1)))
+          : totalAmount;
+    const dueDayRaw = this.toPositiveInt(source.dueDay);
+    const dueDay =
+      dueDayRaw && dueDayRaw > 0 ? Math.min(31, Math.max(1, dueDayRaw)) : null;
     const installmentStartDate = (() => {
       const value = String(source.installmentStartDate || '').trim();
       if (!value) return null;
       const parsed = new Date(value);
       return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
     })();
+    const note = String(source.note || '').trim() || null;
+    const discountEnabled = Boolean(source.discountEnabled);
+    const discountTotalAmountRaw = this.toMoneyValue(source.discountTotalAmount);
+    const discountTotalAmount =
+      discountEnabled && discountTotalAmountRaw > 0 ? discountTotalAmountRaw : null;
+    const discountInstallmentAmountRaw = this.toMoneyValue(
+      source.discountInstallmentAmount,
+    );
+    const discountInstallmentAmountDerived =
+      discountEnabled &&
+      normalizedType === 'INSTALLMENTS' &&
+      discountTotalAmount &&
+      Number(installmentCount ?? 0) > 0
+        ? this.toMoneyValue(
+            discountTotalAmount / Math.max(1, Number(installmentCount ?? 1)),
+          )
+        : null;
+    const discountInstallmentAmount =
+      discountEnabled && discountInstallmentAmountRaw > 0
+        ? discountInstallmentAmountRaw
+        : discountInstallmentAmountDerived;
+    const discountDeadlineDayRaw = this.toPositiveInt(source.discountDeadlineDay);
+    const discountDeadlineDay =
+      discountEnabled && discountDeadlineDayRaw
+        ? Math.min(31, Math.max(1, discountDeadlineDayRaw))
+        : null;
+    const discountRequiresActiveCrf =
+      discountEnabled && Boolean(source.discountRequiresActiveCrf);
+    const discountAppliesToRaw = String(source.discountAppliesTo || '')
+      .trim()
+      .toUpperCase();
+    const discountAppliesTo =
+      discountAppliesToRaw === 'INSTALLMENT' || discountAppliesToRaw === 'TOTAL'
+        ? (discountAppliesToRaw as 'INSTALLMENT' | 'TOTAL')
+        : null;
 
     return {
+      id,
+      title,
+      method,
       type: normalizedType as 'INSTALLMENTS' | 'CASH',
+      totalAmount,
       installmentCount,
       installmentAmount,
       dueDay,
       installmentStartDate,
+      note,
+      discountEnabled,
+      discountTotalAmount,
+      discountInstallmentAmount,
+      discountDeadlineDay,
+      discountRequiresActiveCrf,
+      discountAppliesTo,
     };
   }
 
@@ -2198,39 +2372,110 @@ export class ContractsService {
   private async resolveInstallmentsForContract(
     institutionId: string,
     enrollmentId?: string | null,
-  ): Promise<
-    Array<{
-      number: number;
-      dueDateLabel: string;
-      amountValue: number;
-      amountLabel: string;
-      statusLabel: string;
-    }>
-  > {
-    if (!enrollmentId) return [];
+    fallback?: {
+      classStartDate?: Date | null;
+      selectedPaymentOption?: ContractSelectedPaymentOption | null;
+    },
+  ): Promise<ContractInstallmentLine[]> {
+    const charges = enrollmentId
+      ? await this.prisma.monthlyCharge.findMany({
+          where: {
+            enrollmentId,
+            enrollment: {
+              institutionId,
+            },
+          },
+          orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
+          select: {
+            dueDate: true,
+            amount: true,
+            status: true,
+          },
+        })
+      : [];
 
-    const charges = await this.prisma.monthlyCharge.findMany({
-      where: {
-        enrollmentId,
-        enrollment: {
-          institutionId,
-        },
-      },
-      orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
-      select: {
-        dueDate: true,
-        amount: true,
-        status: true,
-      },
+    if (charges.length > 0) {
+      return charges.map((charge, index) => ({
+        number: index + 1,
+        dueDateLabel: this.formatDatePtBr(charge.dueDate),
+        amountValue: Number(charge.amount ?? 0),
+        amountLabel: this.formatCurrencyPtBr(Number(charge.amount)),
+        statusLabel: this.chargeStatusLabel(charge.status),
+      }));
+    }
+
+    const selectedOption = fallback?.selectedPaymentOption;
+    if (!selectedOption || selectedOption.type !== 'INSTALLMENTS') {
+      return [];
+    }
+
+    const months = Number(selectedOption.installmentCount ?? 0);
+    if (!Number.isFinite(months) || months <= 0) {
+      return [];
+    }
+
+    const regularInstallmentAmount = Number(selectedOption.installmentAmount ?? 0);
+    if (!Number.isFinite(regularInstallmentAmount) || regularInstallmentAmount <= 0) {
+      return [];
+    }
+
+    const discountDeadlineDay = Number(selectedOption.discountDeadlineDay ?? 0);
+    const hasDeadline = Number.isFinite(discountDeadlineDay) && discountDeadlineDay > 0;
+    const discountInstallmentAmount = selectedOption.discountEnabled
+      ? Number(
+          selectedOption.discountInstallmentAmount ??
+            (Number(selectedOption.discountTotalAmount ?? 0) > 0
+              ? this.toMoneyValue(
+                  Number(selectedOption.discountTotalAmount ?? 0) / Math.max(1, months),
+                )
+              : 0),
+        )
+      : 0;
+    const hasDiscountInstallment =
+      Number.isFinite(discountInstallmentAmount) && discountInstallmentAmount > 0;
+    const crfLabel = selectedOption.discountRequiresActiveCrf ? ' (CRF ativo)' : '';
+
+    const baseDate =
+      (selectedOption.installmentStartDate &&
+      !Number.isNaN(new Date(selectedOption.installmentStartDate).getTime())
+        ? new Date(selectedOption.installmentStartDate)
+        : null) ||
+      (fallback?.classStartDate ? new Date(fallback.classStartDate) : null) ||
+      new Date();
+
+    return Array.from({ length: months }).map((_, index) => {
+      const dueDate = this.buildChargeDueDate(
+        baseDate,
+        index,
+        selectedOption.dueDay ?? undefined,
+      );
+      const amountValue = this.toMoneyValue(regularInstallmentAmount);
+      const discountValue = hasDiscountInstallment
+        ? this.toMoneyValue(discountInstallmentAmount)
+        : 0;
+      const discountLabel = hasDiscountInstallment
+        ? `${this.formatCurrencyPtBr(discountValue)}${
+            hasDeadline ? ` até dia ${discountDeadlineDay}` : ''
+          }${crfLabel}`
+        : null;
+      const detailsLabel = hasDiscountInstallment
+        ? `${hasDeadline ? `Até dia ${discountDeadlineDay}` : 'Pagamento antecipado'}: ${this.formatCurrencyPtBr(
+            discountValue,
+          )}. ${
+            hasDeadline ? `Após dia ${discountDeadlineDay}` : 'Valor regular'
+          }: ${this.formatCurrencyPtBr(amountValue)}${crfLabel}.`
+        : null;
+
+      return {
+        number: index + 1,
+        dueDateLabel: this.formatDatePtBr(dueDate),
+        amountValue,
+        amountLabel: this.formatCurrencyPtBr(amountValue),
+        statusLabel: 'Prevista',
+        discountLabel,
+        detailsLabel,
+      };
     });
-
-    return charges.map((charge, index) => ({
-      number: index + 1,
-      dueDateLabel: this.formatDatePtBr(charge.dueDate),
-      amountValue: Number(charge.amount ?? 0),
-      amountLabel: this.formatCurrencyPtBr(Number(charge.amount)),
-      statusLabel: this.chargeStatusLabel(charge.status),
-    }));
   }
 
   private chargeStatusLabel(status: string): string {
@@ -2250,25 +2495,27 @@ export class ContractsService {
       return 'Parcelado';
     }
     if (normalized === 'CASH') {
-      return 'ì vista';
+      return 'À vista';
     }
     return installmentsCount > 1 ? 'Parcelado' : 'À vista';
   }
 
   private buildInstallmentsTableHtml(
-    installments: Array<{
-      number: number;
-      dueDateLabel: string;
-      amountValue: number;
-      amountLabel: string;
-      statusLabel: string;
-    }>,
+    installments: ContractInstallmentLine[],
   ): string {
     if (!installments.length) return '';
+    const hasDiscount = installments.some((item) => Boolean(item.discountLabel));
+    const hasDetails = installments.some((item) => Boolean(item.detailsLabel));
     const rows = installments
       .map(
         (item) =>
-          `<tr><td>${this.escapeHtml(String(item.number))}</td><td>${this.escapeHtml(item.dueDateLabel)}</td><td>${this.escapeHtml(item.amountLabel)}</td><td>${this.escapeHtml(item.statusLabel)}</td></tr>`,
+          `<tr><td>${this.escapeHtml(String(item.number))}</td><td>${this.escapeHtml(item.dueDateLabel)}</td><td>${this.escapeHtml(item.amountLabel)}</td>${
+            hasDiscount
+              ? `<td>${this.escapeHtml(item.discountLabel || '-')}</td>`
+              : ''
+          }<td>${this.escapeHtml(item.statusLabel)}</td>${
+            hasDetails ? `<td>${this.escapeHtml(item.detailsLabel || '-')}</td>` : ''
+          }</tr>`,
       )
       .join('');
 
@@ -2278,7 +2525,17 @@ export class ContractsService {
           <th style="text-align:left;border:1px solid #d1d5db;padding:6px;">Parcela</th>
           <th style="text-align:left;border:1px solid #d1d5db;padding:6px;">Vencimento</th>
           <th style="text-align:left;border:1px solid #d1d5db;padding:6px;">Valor</th>
+          ${
+            hasDiscount
+              ? '<th style="text-align:left;border:1px solid #d1d5db;padding:6px;">Valor antecipado</th>'
+              : ''
+          }
           <th style="text-align:left;border:1px solid #d1d5db;padding:6px;">Status</th>
+          ${
+            hasDetails
+              ? '<th style="text-align:left;border:1px solid #d1d5db;padding:6px;">Observações</th>'
+              : ''
+          }
         </tr>
       </thead>
       <tbody>${rows}</tbody>

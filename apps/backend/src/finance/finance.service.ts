@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
 import { JwtPayload } from '../auth/types/app-role.type';
+import { ContractsService } from '../contracts/contracts.service';
 import { PrismaService } from '../database/prisma.service';
 import { CreateChargeDto } from './dto/create-charge.dto';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -25,7 +26,10 @@ export class FinanceService {
     Promise<Record<string, unknown>>
   >();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly contractsService: ContractsService,
+  ) {}
 
   async getOverview(user: JwtPayload) {
     await this.syncExpiredPendingCharges(user);
@@ -458,6 +462,12 @@ export class FinanceService {
       },
     });
 
+    if (updatedCharge.status === 'PAID') {
+      await this.tryReleaseAutomaticContractsAfterEnrollmentFeePayment(
+        updatedCharge.id,
+      );
+    }
+
     this.invalidateDashboardSummaryCache();
 
     return {
@@ -545,12 +555,95 @@ export class FinanceService {
       return createdTransaction;
     });
 
+    if (status === 'success') {
+      await this.tryReleaseAutomaticContractsAfterEnrollmentFeePayment(
+        dto.monthlyChargeId,
+      );
+    }
+
     this.invalidateDashboardSummaryCache();
 
     return {
       ...transaction,
       amount: Number(transaction.amount),
     };
+  }
+
+  private async tryReleaseAutomaticContractsAfterEnrollmentFeePayment(
+    chargeId: string,
+  ) {
+    try {
+      const charge = await this.prisma.monthlyCharge.findUnique({
+        where: { id: chargeId },
+        select: {
+          id: true,
+          enrollmentId: true,
+          status: true,
+          enrollment: {
+            select: {
+              id: true,
+              institutionId: true,
+              studentId: true,
+              classId: true,
+              createdAt: true,
+              schoolClass: {
+                select: {
+                  course: {
+                    select: {
+                      id: true,
+                      ownerAdminId: true,
+                      enrollmentFee: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!charge || charge.status !== 'PAID') {
+        return;
+      }
+
+      const enrollmentFeeAmount = this.toMoneyValue(
+        Number(charge.enrollment.schoolClass.course.enrollmentFee ?? 0),
+      );
+      if (enrollmentFeeAmount <= 0) {
+        return;
+      }
+
+      const paidEnrollmentFeeCharge = await this.prisma.monthlyCharge.findFirst({
+        where: {
+          enrollmentId: charge.enrollmentId,
+          status: 'PAID',
+          amount: enrollmentFeeAmount,
+          dueDate: charge.enrollment.createdAt,
+        },
+        select: { id: true },
+      });
+
+      if (!paidEnrollmentFeeCharge) {
+        return;
+      }
+
+      await this.contractsService.sendAutomaticContractsForEnrollment({
+        institutionId: charge.enrollment.institutionId,
+        enrollmentId: charge.enrollment.id,
+        studentId: charge.enrollment.studentId,
+        courseId: charge.enrollment.schoolClass.course.id,
+        classId: charge.enrollment.classId,
+        createdByUserId: charge.enrollment.schoolClass.course.ownerAdminId,
+      });
+    } catch {
+      // A falha no envio automático não deve bloquear o financeiro.
+    }
+  }
+
+  private toMoneyValue(value: unknown): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Number(Math.max(0, numeric).toFixed(2));
   }
 
   private async resolveProvider(

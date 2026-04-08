@@ -13,6 +13,7 @@ import {
   buildContractInvitationEmail,
   buildContractPinEmail,
 } from './templates/contract-signature-email.template';
+import { buildPasswordResetCodeEmail } from './templates/password-reset-code-email.template';
 
 type SendAccountVerificationEmailParams = {
   to: string;
@@ -35,6 +36,13 @@ type SendContractSigningPinEmailParams = {
   recipientName: string;
   templateTitle: string;
   pinCode: string;
+  expiresInMinutes: number;
+};
+
+type SendPasswordResetCodeEmailParams = {
+  to: string;
+  recipientName: string;
+  resetCode: string;
   expiresInMinutes: number;
 };
 
@@ -115,6 +123,29 @@ export class MailService {
       );
       throw new InternalServerErrorException(
         'Não foi possível enviar o código de assinatura no momento.',
+      );
+    }
+  }
+
+  async sendPasswordResetCodeEmail(
+    params: SendPasswordResetCodeEmailParams,
+  ): Promise<void> {
+    const template = buildPasswordResetCodeEmail(params);
+
+    try {
+      await this.getTransporter().sendMail({
+        from: this.resolveSenderAddress(),
+        to: params.to,
+        subject: template.subject,
+        text: template.text,
+        html: template.html,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Falha ao enviar código de redefinição de senha para ${params.to}: ${this.formatMailError(error)}`,
+      );
+      throw new InternalServerErrorException(
+        'Não foi possível enviar o código de redefinição de senha no momento.',
       );
     }
   }

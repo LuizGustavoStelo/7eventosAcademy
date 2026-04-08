@@ -339,7 +339,12 @@ const STUDENT_SECTIONS_ENABLED_WITHOUT_CLASS = new Set<SectionId>([
   'st-student-profile',
 ]);
 
-const STUDENT_SECTIONS_ENABLED_WITHOUT_CONTRACT = new Set<SectionId>([
+const STUDENT_SECTIONS_ENABLED_BEFORE_CONTRACT = new Set<SectionId>([
+  'st-student-finance',
+]);
+
+const STUDENT_SECTIONS_ENABLED_WITH_PENDING_CONTRACT = new Set<SectionId>([
+  'st-student-finance',
   'st-student-contracts',
   'st-student-notices',
 ]);
@@ -952,6 +957,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [showFinanceValues, setShowFinanceValues] = useState(false);
   const [pendingContractNotificationCount, setPendingContractNotificationCount] = useState(0);
+  const [hasContractAvailable, setHasContractAvailable] = useState(false);
   const [hasSignedContract, setHasSignedContract] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1062,14 +1068,17 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         const pendingCount = (Array.isArray(contracts) ? contracts : []).filter((item) =>
           hasPendingContractSignature(item),
         ).length;
+        const availableCount = Array.isArray(contracts) ? contracts.length : 0;
         const signedCount = (Array.isArray(contracts) ? contracts : []).filter((item) => {
           const normalized = String(item.status || '').trim().toUpperCase();
           return normalized === 'SIGNED' || Boolean(item.signedAt);
         }).length;
         setPendingContractNotificationCount(pendingCount);
+        setHasContractAvailable(availableCount > 0);
         setHasSignedContract(signedCount > 0);
       } catch {
         setPendingContractNotificationCount(0);
+        setHasContractAvailable(false);
         setHasSignedContract(false);
       }
     } catch (loadError) {
@@ -1079,6 +1088,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           : 'Não foi possível carregar a Área do Aluno.',
       );
       setPendingContractNotificationCount(0);
+      setHasContractAvailable(false);
       setHasSignedContract(false);
     } finally {
       setLoading(false);
@@ -1243,11 +1253,16 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const cobrancas = dashboard?.cobrancas ?? [];
   const agenda = dashboard?.agenda ?? [];
   const hasActiveClass = matriculas.length > 0;
-  const isContractGateLocked = !hasSignedContract;
+  const isPreContractStage = !hasContractAvailable;
+  const isPreSignatureStage = hasContractAvailable && !hasSignedContract;
+  const isContractGateLocked = isPreContractStage || isPreSignatureStage;
 
   const isSectionDisabled = (sectionId: SectionId) => {
-    if (isContractGateLocked) {
-      return !STUDENT_SECTIONS_ENABLED_WITHOUT_CONTRACT.has(sectionId);
+    if (isPreContractStage) {
+      return !STUDENT_SECTIONS_ENABLED_BEFORE_CONTRACT.has(sectionId);
+    }
+    if (isPreSignatureStage) {
+      return !STUDENT_SECTIONS_ENABLED_WITH_PENDING_CONTRACT.has(sectionId);
     }
     if (hasActiveClass) return false;
     return !STUDENT_SECTIONS_ENABLED_WITHOUT_CLASS.has(sectionId);
@@ -1630,7 +1645,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label, 'pt-BR'))
       .slice(0, 6);
-  }, [studentSearchQuery, hasActiveClass, isContractGateLocked]);
+  }, [studentSearchQuery, hasActiveClass, isPreContractStage, isPreSignatureStage]);
 
   const executeStudentSearch = () => {
     const topSuggestion = studentSearchSuggestions[0];
@@ -1654,8 +1669,16 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
   useEffect(() => {
     if (!isSectionDisabled(activeSection)) return;
-    setActiveSection(isContractGateLocked ? 'st-student-contracts' : 'st-student-panel');
-  }, [activeSection, hasActiveClass, isContractGateLocked]);
+    if (isPreContractStage) {
+      setActiveSection('st-student-finance');
+      return;
+    }
+    if (isPreSignatureStage) {
+      setActiveSection('st-student-contracts');
+      return;
+    }
+    setActiveSection('st-student-panel');
+  }, [activeSection, hasActiveClass, isPreContractStage, isPreSignatureStage]);
 
   useEffect(() => {
     const target = document.getElementById(activeSection);
@@ -1961,6 +1984,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           token={token}
           initialContractId={initialContractId}
           onSignedSuccess={() => {
+            setHasContractAvailable(true);
             setHasSignedContract(true);
             void loadDashboard({ bypassCache: true });
           }}
@@ -2364,17 +2388,30 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               {isContractGateLocked ? (
                 <section className="student-contract-gate-banner" role="alert">
                   <div>
-                    <strong>Acesso parcial liberado</strong>
-                    <p>
-                      Assine o contrato para desbloquear aulas, agenda, transmissões, frequência,
-                      financeiro, materiais e certificado.
-                    </p>
+                    <strong>
+                      {isPreContractStage ? 'Acesso financeiro liberado' : 'Acesso parcial liberado'}
+                    </strong>
+                    {isPreContractStage ? (
+                      <p>
+                        Finalize o pagamento da taxa de matrícula no financeiro. Após a quitação,
+                        o contrato será liberado para assinatura.
+                      </p>
+                    ) : (
+                      <p>
+                        Assine o contrato para desbloquear aulas, agenda, transmissões, frequência,
+                        materiais e certificado.
+                      </p>
+                    )}
                   </div>
                   <button
                     type="button"
-                    onClick={() => openSection('st-student-contracts')}
+                    onClick={() =>
+                      openSection(
+                        isPreContractStage ? 'st-student-finance' : 'st-student-contracts',
+                      )
+                    }
                   >
-                    Ir para Contratos
+                    {isPreContractStage ? 'Ir para Financeiro' : 'Ir para Contratos'}
                   </button>
                 </section>
               ) : null}
@@ -2774,4 +2811,3 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     </section>
   );
 }
-
