@@ -68,6 +68,10 @@ type RegistrationPayload = {
   jobTitle: string;
   street?: string;
   streetNumber?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
   courseIds?: string[];
   selectedPaymentOptionId?: string;
 };
@@ -549,6 +553,10 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const [zipCode, setZipCode] = useState('');
   const [address, setAddress] = useState('');
   const [streetNumber, setStreetNumber] = useState('');
+  const [complement, setComplement] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
   const [zipLookupLoading, setZipLookupLoading] = useState(false);
   const [zipLookupError, setZipLookupError] = useState('');
   const [selectedCourseId, setSelectedCourseId] = useState('');
@@ -611,16 +619,19 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
           setZipLookupError('CEP não encontrado. Preencha o endereço manualmente.');
           return;
         }
-        const parts = [
-          String(data.logradouro || '').trim(),
-          String(data.bairro || '').trim(),
-          String(data.localidade || '').trim(),
-        ].filter(Boolean);
-        const uf = String(data.uf || '').trim();
-        const fullAddress = uf ? `${parts.join(', ')} - ${uf}` : parts.join(', ');
-        if (fullAddress) {
-          setAddress(fullAddress);
-        }
+        const viaCepStreet = String(data.logradouro || '').trim();
+        const viaCepComplement = String(data.complemento || '').trim();
+        const viaCepNeighborhood = String(data.bairro || '').trim();
+        const viaCepCity = String(data.localidade || '').trim();
+        const viaCepState = String(data.uf || '')
+          .trim()
+          .toUpperCase();
+
+        if (viaCepStreet) setAddress(viaCepStreet);
+        if (viaCepComplement) setComplement(viaCepComplement);
+        if (viaCepNeighborhood) setNeighborhood(viaCepNeighborhood);
+        if (viaCepCity) setCity(viaCepCity);
+        if (viaCepState) setState(viaCepState);
       } catch (lookupError) {
         if (controller.signal.aborted) return;
         setZipLookupError(
@@ -705,8 +716,11 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     if (!birthCity.trim()) return 'Informe a cidade em que nasceu.';
     if (!maritalStatus) return 'Selecione o estado civil.';
     if (!isValidZipCode(zipCode)) return 'Informe um CEP válido com 8 dígitos.';
-    if (!address.trim()) return 'Informe o endereço completo.';
+    if (!address.trim()) return 'Informe a rua/endereço.';
     if (!streetNumber.trim()) return 'Informe o número da residência.';
+    if (!neighborhood.trim()) return 'Informe o bairro.';
+    if (!city.trim()) return 'Informe a cidade.';
+    if (!/^[A-Za-z]{2}$/.test(state.trim())) return 'Informe a UF com 2 letras.';
     return '';
   };
 
@@ -785,6 +799,10 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     setZipCode('');
     setAddress('');
     setStreetNumber('');
+    setComplement('');
+    setNeighborhood('');
+    setCity('');
+    setState('');
     setZipLookupLoading(false);
     setZipLookupError('');
     setSelectedCourseId('');
@@ -814,7 +832,9 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       birthDate: birthDateToIso(birthDate),
       birthCity: birthCity.trim(),
       maritalStatus,
-      address: `${address.trim()}, ${streetNumber.trim()}`,
+      address: `${address.trim()}, ${streetNumber.trim()} - ${neighborhood.trim()} - ${city.trim()} - ${state
+        .trim()
+        .toUpperCase()}`,
       zipCode: onlyDigits(zipCode),
       fatherName: fatherName.trim().replace(/\s{2,}/g, ' '),
       motherName: motherName.trim().replace(/\s{2,}/g, ' '),
@@ -825,6 +845,10 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       password,
       street: address.trim(),
       streetNumber: streetNumber.trim(),
+      complement: complement.trim() || undefined,
+      neighborhood: neighborhood.trim(),
+      city: city.trim(),
+      state: state.trim().toUpperCase(),
       courseIds: selectedCourseId ? [selectedCourseId] : undefined,
       selectedPaymentOptionId: selectedPaymentOptionId || undefined,
     };
@@ -1062,7 +1086,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                   value={address}
                   onChange={(event) => setAddress(normalizeTextInput(event.target.value))}
                   disabled={loading}
-                  placeholder="Rua, bairro, cidade - UF"
+                  placeholder="Rua/avenida"
                 />
               </label>
 
@@ -1076,6 +1100,50 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                   }
                   disabled={loading}
                   placeholder="Ex.: 123"
+                />
+              </label>
+
+              <label>
+                Complemento
+                <input
+                  type="text"
+                  value={complement}
+                  onChange={(event) => setComplement(normalizeTextInput(event.target.value))}
+                  disabled={loading}
+                  placeholder="Ex.: Apto 101"
+                />
+              </label>
+
+              <label>
+                Bairro *
+                <input
+                  type="text"
+                  value={neighborhood}
+                  onChange={(event) => setNeighborhood(normalizeTextInput(event.target.value))}
+                  disabled={loading}
+                />
+              </label>
+
+              <label>
+                Cidade *
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(event) => setCity(normalizeTextInput(event.target.value))}
+                  disabled={loading}
+                />
+              </label>
+
+              <label>
+                UF *
+                <input
+                  type="text"
+                  value={state}
+                  onChange={(event) =>
+                    setState(event.target.value.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase())
+                  }
+                  disabled={loading}
+                  placeholder="Ex.: MT"
                 />
               </label>
             </>

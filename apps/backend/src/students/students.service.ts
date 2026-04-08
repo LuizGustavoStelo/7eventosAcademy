@@ -113,6 +113,11 @@ export class StudentsService {
     const birthCity = dto.birthCity.trim();
     const maritalStatus = dto.maritalStatus.trim();
     const address = dto.address.trim();
+    const parsedAddress = this.parseAddressComponents(address);
+    const normalizedState =
+      String(dto.state ?? parsedAddress.state ?? '')
+        .trim()
+        .toUpperCase() || undefined;
     const fatherName = dto.fatherName.trim();
     const motherName = dto.motherName.trim();
     const graduation = dto.graduation.trim();
@@ -209,12 +214,12 @@ export class StudentsService {
               companyName,
               jobTitle,
               zipCode: dto.zipCode,
-              street: dto.street ?? address,
+              street: dto.street ?? parsedAddress.street ?? address,
               streetNumber: dto.streetNumber,
               complement: dto.complement,
-              neighborhood: dto.neighborhood,
-              city: dto.city,
-              state: dto.state,
+              neighborhood: dto.neighborhood ?? parsedAddress.neighborhood,
+              city: dto.city ?? parsedAddress.city,
+              state: normalizedState,
             },
           },
           studentCourses:
@@ -1026,6 +1031,53 @@ export class StudentsService {
         throw error;
       }
     }
+  }
+
+  private parseAddressComponents(address: string): {
+    street?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+  } {
+    const normalized = String(address || '').trim();
+    if (!normalized) return {};
+
+    const stateMatch = normalized.match(/[-\s]([A-Za-z]{2})$/);
+    const state = stateMatch ? stateMatch[1].toUpperCase() : undefined;
+    const withoutState = stateMatch
+      ? normalized.slice(0, stateMatch.index).trim().replace(/[-,]\s*$/, '')
+      : normalized;
+
+    const parts = withoutState
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (parts.length === 0) {
+      return { state };
+    }
+
+    if (parts.length === 1) {
+      return {
+        street: parts[0],
+        state,
+      };
+    }
+
+    if (parts.length === 2) {
+      return {
+        street: parts[0],
+        city: parts[1],
+        state,
+      };
+    }
+
+    return {
+      street: parts[0],
+      neighborhood: parts[1],
+      city: parts.slice(2).join(', '),
+      state,
+    };
   }
 
   private detectDelimiter(headerLine: string) {
