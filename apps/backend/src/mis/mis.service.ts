@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { request as httpsRequest } from 'node:https';
 import { Prisma } from '@prisma/client';
@@ -199,6 +204,8 @@ const STUDENT_PALETTE_KEYS: Array<keyof StudentBrandingPalette> = [
 
 @Injectable()
 export class MisService {
+  private readonly logger = new Logger(MisService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly secrets: SecretsService,
@@ -343,6 +350,9 @@ export class MisService {
 
     const provider = this.normalizeFinancialProvider(config?.provider);
     const settings = this.decryptFinancialSettings(config?.encryptedSettings);
+    this.logger.log(
+      `[checkout] charge=${charge.id} provider=${provider} method=${method} ownerAdmin=${ownerAdminId || 'none'}`,
+    );
 
     if (!config?.isActive || provider === 'manual') {
       return this.buildManualPaymentResponse(charge.id, method);
@@ -2325,6 +2335,9 @@ export class MisService {
     const numeroContratoCliente = this.resolveSicoobNumeroContratoCobranca(
       input.config,
     );
+    this.logger.log(
+      `[sicoob-boleto] emit charge=${input.charge.id} cliente=${numeroContratoCliente} contrato=${numeroContratoCliente} modalidade=${input.config.boletoModalidade} conta=${input.config.boletoNumeroContaCorrente} nossoNumero=${existingNossoNumero || 'novo'}`,
+    );
 
     const boletoPayload: Record<string, unknown> = {
       numeroCliente: numeroContratoCliente,
@@ -2385,12 +2398,20 @@ export class MisService {
       const contractClientMismatch =
         normalizedMessage.includes('numero do contrato') &&
         normalizedMessage.includes('numero do cliente');
+      this.logger.warn(
+        `[sicoob-boleto] emit failed charge=${input.charge.id} mismatch=${contractClientMismatch} message=${String(
+          (error as Error)?.message || '',
+        )}`,
+      );
       if (!contractClientMismatch) {
         throw error;
       }
       delete boletoPayload.nossoNumero;
       boletoPayload.numeroCliente = numeroContratoCliente;
       boletoPayload.numeroContratoCobranca = numeroContratoCliente;
+      this.logger.warn(
+        `[sicoob-boleto] retry without nossoNumero charge=${input.charge.id} cliente=${numeroContratoCliente}`,
+      );
       emitted = await this.sicoobJsonRequest<Record<string, unknown>>({
         url: `${input.config.cobrancaBancariaBaseUrl}/boletos`,
         method: 'POST',
@@ -2401,7 +2422,6 @@ export class MisService {
         appendClientIdHeader: true,
       });
     }
-
     const parsedNossoNumero =
       this.extractFirstValueAsString(emitted, [
         'nossoNumero',
@@ -2409,6 +2429,9 @@ export class MisService {
         'numeroNossoNumero',
         'numeroTitulo',
       ]) || existingNossoNumero;
+    this.logger.log(
+      `[sicoob-boleto] emit success charge=${input.charge.id} nossoNumero=${parsedNossoNumero || 'n/a'}`,
+    );
     let bankSlipUrl = this.extractFirstValueAsString(emitted, [
       'urlPdfBoleto',
       'urlBoleto',
@@ -2600,6 +2623,15 @@ export class MisService {
     return trimmed.replace(/\/+$/, '');
   }
 
+  private safeUrlForLog(value: string): string {
+    try {
+      const parsed = new URL(value);
+      return `${parsed.origin}${parsed.pathname}`;
+    } catch {
+      return value;
+    }
+  }
+
   private normalizePem(value: string | null | undefined): string {
     const trimmed = String(value || '').trim();
     if (!trimmed) return '';
@@ -2753,11 +2785,15 @@ export class MisService {
     });
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      const gatewayMessage = this.extractSicoobGatewayErrorMessage(
+        response.payload,
+        'Falha ao comunicar com a API do Sicoob.',
+      );
+      this.logger.warn(
+        `[sicoob-http] ${input.method} ${this.safeUrlForLog(input.url)} status=${response.statusCode} message=${gatewayMessage}`,
+      );
       throw new BadRequestException(
-        this.extractSicoobGatewayErrorMessage(
-          response.payload,
-          'Falha ao comunicar com a API do Sicoob.',
-        ),
+        gatewayMessage,
       );
     }
 
