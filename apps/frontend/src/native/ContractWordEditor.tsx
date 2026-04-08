@@ -81,6 +81,11 @@ const EMPTY_COMMAND_STATE: CommandState = {
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const clampPad = (v: number) => clamp(Number.isFinite(v) ? v : PAD_MIN, PAD_MIN, PAD_MAX);
 const clampOpacity = (v: number) => clamp(Number.isFinite(v) ? v : 0.22, 0, 1);
+const normalizeMeaningfulText = (value: string) =>
+  String(value || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[\u200b-\u200d\ufeff]/g, '')
+    .trim();
 
 const hasMeaningfulHtml = (html: string) => {
   const raw = String(html || '').trim();
@@ -91,7 +96,7 @@ const hasMeaningfulHtml = (html: string) => {
   const root = doc.getElementById('content-root');
   if (!root) return false;
 
-  const text = String(root.textContent || '').replace(/\u00a0/g, ' ').trim();
+  const text = normalizeMeaningfulText(root.textContent || '');
   if (text) return true;
 
   return Boolean(
@@ -99,6 +104,35 @@ const hasMeaningfulHtml = (html: string) => {
       'img,table,svg,canvas,iframe,video,audio,object,embed,input,textarea,select',
     ),
   );
+};
+
+const isIgnorableNodeForPagination = (node: ChildNode) => {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return normalizeMeaningfulText(node.textContent || '') === '';
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) return true;
+  const element = node as HTMLElement;
+  if (element.tagName === 'BR' && element.attributes.length === 0) return true;
+  return false;
+};
+
+const countMovableNodes = (container: HTMLElement) =>
+  Array.from(container.childNodes).filter(
+    (node) => !isIgnorableNodeForPagination(node),
+  ).length;
+
+const getLastMovableNode = (container: HTMLElement): ChildNode | null => {
+  let current: ChildNode | null = container.lastChild;
+  while (current) {
+    if (isIgnorableNodeForPagination(current)) {
+      const previous = current.previousSibling;
+      container.removeChild(current);
+      current = previous;
+      continue;
+    }
+    return current;
+  }
+  return null;
 };
 
 const encodeMeta = (v: string) => encodeURIComponent(String(v || ''));
@@ -686,11 +720,12 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
       let guard = 0;
       while (current.scrollHeight > current.clientHeight + 1 && guard < 600) {
         guard += 1;
-        const nodeToMove = current.lastChild;
+        const beforeOverflow = current.scrollHeight - current.clientHeight;
+        const nodeToMove = getLastMovableNode(current);
         if (!nodeToMove) break;
         if (!next) {
-          const currentNodeCount = current.childNodes.length;
-          if (currentNodeCount <= 1) break;
+          const movableNodeCount = countMovableNodes(current);
+          if (movableNodeCount <= 1) break;
           if (!hasMeaningfulHtml(current.innerHTML || '')) break;
           appendNew = true;
           appendFrom = i;
@@ -706,6 +741,12 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
           next.childNodes.length === 1 &&
           next.scrollHeight > next.clientHeight + 1
         ) {
+          current.appendChild(nodeToMove);
+          break;
+        }
+
+        const afterOverflow = current.scrollHeight - current.clientHeight;
+        if (afterOverflow >= beforeOverflow - 0.5) {
           current.appendChild(nodeToMove);
           break;
         }
