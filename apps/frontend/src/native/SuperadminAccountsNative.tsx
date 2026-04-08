@@ -411,6 +411,7 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
   const [brandingForm, setBrandingForm] = useState<BrandingFormState>(() =>
     defaultBrandingForm(),
   );
+  const [brandingLogoFileName, setBrandingLogoFileName] = useState('');
   const [brandingMeta, setBrandingMeta] = useState<BrandingMetaState | null>(null);
   const [configFlags, setConfigFlags] = useState<ConfigFlags>({
     certificateConfigured: false,
@@ -518,6 +519,7 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
       );
 
       setBrandingForm(toBrandingForm(data.branding));
+      setBrandingLogoFileName('');
       setBrandingMeta({
         institutionName: data.institution.name,
         institutionSlug: data.institution.slug,
@@ -630,6 +632,45 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
     }
   };
 
+  const handleBrandingLogoFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setBrandingLogoFileName('');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setBrandingError('Selecione um arquivo de imagem válido para a logo.');
+      setBrandingLogoFileName('');
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      const logoDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          resolve(String(reader.result ?? ''));
+        };
+        reader.onerror = () => {
+          reject(new Error('Falha ao processar arquivo de logo.'));
+        };
+        reader.readAsDataURL(file);
+      });
+
+      setBrandingForm((current) => ({
+        ...current,
+        logoUrl: logoDataUrl,
+      }));
+      setBrandingLogoFileName(file.name);
+      setBrandingError('');
+    } catch {
+      setBrandingError('Falha ao processar arquivo da logo. Tente novamente.');
+      setBrandingLogoFileName('');
+      event.target.value = '';
+    }
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedAccountId) {
@@ -721,7 +762,7 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
 
     try {
       const payload = {
-        logoUrl: brandingForm.logoUrl.trim(),
+        logoUrl: brandingForm.logoUrl.trim() || DEFAULT_STUDENT_BRANDING_LOGO_URL,
         primaryColor: normalizeHexColor(
           brandingForm.primaryColor,
           DEFAULT_STUDENT_BRANDING_PALETTE.primaryColor,
@@ -972,7 +1013,7 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
 
           <aside className="native-panel native-super-finance-panel">
             <header className="native-panel-header">
-              <h3>Financeiro e branding</h3>
+              <h3>Configurações da conta</h3>
             </header>
 
             {selectedAccount ? (
@@ -988,7 +1029,10 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                   </small>
                 </div>
 
-                <form className="native-form-grid native-super-finance-form" onSubmit={submit}>
+                <details className="native-super-accordion">
+                  <summary>Financeiro e cobrança</summary>
+                  <div className="native-super-accordion-content">
+                    <form className="native-form-grid native-super-finance-form" onSubmit={submit}>
                   <label>
                     Provedor
                     <select
@@ -1339,139 +1383,162 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                   ) : null}
                   {formError ? <p className="native-error">{formError}</p> : null}
 
-                  <div className="native-modal-actions">
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => {
-                        if (!selectedAccountId) return;
-                        void loadFinancialConfig(selectedAccountId);
-                      }}
-                    >
-                      Recarregar campos
-                    </button>
-                    <button type="submit" disabled={saving || loadingConfig}>
-                      {saving ? 'Salvando...' : 'Salvar financeiro'}
-                    </button>
-                  </div>
-                </form>
-
-                <div className="native-super-divider" />
-
-                <form className="native-form-grid native-super-branding-form" onSubmit={submitBranding}>
-                  <header className="native-super-branding-head">
-                    <h4>Identidade visual da instituição</h4>
-                    <small>
-                      {brandingMeta?.isCustom ? 'Personalizada' : 'Padrão da Área do Aluno'}
-                      {brandingMeta?.updatedAt ? ` • Atualizada em ${formatDate(brandingMeta.updatedAt)}` : ''}
-                    </small>
-                  </header>
-
-                  <p className="native-super-note">
-                    Personalize logo e paleta por instituição. Se não houver personalização,
-                    o sistema usa automaticamente o padrão da Área do Aluno.
-                  </p>
-
-                  <label>
-                    URL do logo
-                    <input
-                      type="url"
-                      value={brandingForm.logoUrl}
-                      onChange={(event) =>
-                        setBrandingForm((current) => ({
-                          ...current,
-                          logoUrl: event.target.value,
-                        }))
-                      }
-                      placeholder="/Logo-IPESK.png"
-                    />
-                  </label>
-
-                  <div className="native-super-branding-colors">
-                    {BRANDING_COLOR_FIELDS.map((field) => (
-                      <label key={field.key} className="native-super-branding-color-field">
-                        {field.label}
-                        <div className="native-super-branding-color-inputs">
-                          <input
-                            type="color"
-                            value={brandingForm[field.key]}
-                            onChange={(event) =>
-                              setBrandingForm((current) => ({
-                                ...current,
-                                [field.key]: event.target.value,
-                              }))
-                            }
-                          />
-                          <input
-                            value={brandingForm[field.key]}
-                            onChange={(event) =>
-                              setBrandingForm((current) => ({
-                                ...current,
-                                [field.key]: event.target.value,
-                              }))
-                            }
-                            placeholder="#000000"
-                          />
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-
-                  <div className="native-super-branding-preview" style={brandingPreviewStyle}>
-                    <div className="native-super-branding-preview-top">
-                      <img
-                        src={brandingPreviewLogo}
-                        alt={brandingMeta?.institutionName || selectedAccount.name}
-                      />
-                      <div>
-                        <strong>{brandingMeta?.institutionName || selectedAccount.name}</strong>
-                        <small>{brandingMeta?.institutionSlug || selectedAccount.id.slice(0, 8)}</small>
+                      <div className="native-modal-actions">
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => {
+                            if (!selectedAccountId) return;
+                            void loadFinancialConfig(selectedAccountId);
+                          }}
+                        >
+                          Recarregar campos
+                        </button>
+                        <button type="submit" disabled={saving || loadingConfig}>
+                          {saving ? 'Salvando...' : 'Salvar financeiro'}
+                        </button>
                       </div>
-                    </div>
-                    <div className="native-super-branding-preview-cards">
-                      <article>
-                        <span>Primária</span>
-                        <strong>{brandingForm.primaryColor}</strong>
-                      </article>
-                      <article>
-                        <span>Secundária</span>
-                        <strong>{brandingForm.secondaryColor}</strong>
-                      </article>
-                    </div>
+                    </form>
                   </div>
+                </details>
 
-                  {loadingBranding ? (
-                    <p className="native-info">Carregando identidade visual...</p>
-                  ) : null}
-                  {brandingError ? <p className="native-error">{brandingError}</p> : null}
+                <section className="native-super-branding-panel">
+                  <details className="native-super-accordion">
+                    <summary>Identidade visual da instituição</summary>
+                    <div className="native-super-accordion-content">
+                      <form className="native-form-grid native-super-branding-form" onSubmit={submitBranding}>
+                        <header className="native-super-branding-head">
+                          <h4>Identidade visual da instituição</h4>
+                          <small>
+                            {brandingMeta?.isCustom ? 'Personalizada' : 'Padrão da Área do Aluno'}
+                            {brandingMeta?.updatedAt
+                              ? ` • Atualizada em ${formatDate(brandingMeta.updatedAt)}`
+                              : ''}
+                          </small>
+                        </header>
 
-                  <div className="native-modal-actions">
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => {
-                        if (!selectedAccountId) return;
-                        void loadBrandingConfig(selectedAccountId);
-                      }}
-                      disabled={savingBranding}
-                    >
-                      Recarregar identidade
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => {
-                        void resetBrandingToDefault();
-                      }}
-                      disabled={savingBranding}
-                    >
-                      Restaurar padrão
-                    </button>
-                    <button type="submit" disabled={savingBranding || loadingBranding}>
-                      {savingBranding ? 'Salvando...' : 'Salvar identidade'}
-                    </button>
-                  </div>
-                </form>
+                        <p className="native-super-note">
+                          Personalize logo e paleta por instituição. Se não houver personalização,
+                          o sistema usa automaticamente o padrão da Área do Aluno.
+                        </p>
+
+                        <label>
+                          Logo da instituição
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => {
+                              void handleBrandingLogoFileChange(event);
+                            }}
+                          />
+                          <small>
+                            {brandingLogoFileName
+                              ? `Arquivo selecionado: ${brandingLogoFileName}`
+                              : 'Envie um arquivo de imagem para substituir a logo da instituição.'}
+                          </small>
+                        </label>
+
+                        <div className="native-super-branding-colors">
+                          {BRANDING_COLOR_FIELDS.map((field) => (
+                            <label key={field.key} className="native-super-branding-color-field">
+                              {field.label}
+                              <div className="native-super-branding-color-inputs">
+                                <div className="native-super-branding-color-swatch">
+                                  <span
+                                    style={{
+                                      backgroundColor: normalizeHexColor(
+                                        brandingForm[field.key],
+                                        DEFAULT_STUDENT_BRANDING_PALETTE[field.key],
+                                      ),
+                                    }}
+                                  />
+                                  <input
+                                    type="color"
+                                    value={normalizeHexColor(
+                                      brandingForm[field.key],
+                                      DEFAULT_STUDENT_BRANDING_PALETTE[field.key],
+                                    )}
+                                    onChange={(event) =>
+                                      setBrandingForm((current) => ({
+                                        ...current,
+                                        [field.key]: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <input
+                                  value={brandingForm[field.key]}
+                                  onChange={(event) =>
+                                    setBrandingForm((current) => ({
+                                      ...current,
+                                      [field.key]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="#000000"
+                                />
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+
+                        <div className="native-super-branding-preview" style={brandingPreviewStyle}>
+                          <div className="native-super-branding-preview-top">
+                            <img
+                              src={brandingPreviewLogo}
+                              alt={brandingMeta?.institutionName || selectedAccount.name}
+                            />
+                            <div>
+                              <strong>{brandingMeta?.institutionName || selectedAccount.name}</strong>
+                              <small>{brandingMeta?.institutionSlug || selectedAccount.id.slice(0, 8)}</small>
+                            </div>
+                          </div>
+                          <div className="native-super-branding-preview-cards">
+                            <article>
+                              <span>Primária</span>
+                              <strong>{brandingForm.primaryColor}</strong>
+                            </article>
+                            <article>
+                              <span>Secundária</span>
+                              <strong>{brandingForm.secondaryColor}</strong>
+                            </article>
+                          </div>
+                        </div>
+
+                        {loadingBranding ? (
+                          <p className="native-info">Carregando identidade visual...</p>
+                        ) : null}
+                        {brandingError ? <p className="native-error">{brandingError}</p> : null}
+
+                        <div className="native-modal-actions">
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => {
+                              if (!selectedAccountId) return;
+                              void loadBrandingConfig(selectedAccountId);
+                            }}
+                            disabled={savingBranding}
+                          >
+                            Recarregar identidade
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => {
+                              void resetBrandingToDefault();
+                            }}
+                            disabled={savingBranding}
+                          >
+                            Restaurar padrão
+                          </button>
+                          <button type="submit" disabled={savingBranding || loadingBranding}>
+                            {savingBranding ? 'Salvando...' : 'Salvar identidade'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </details>
+                </section>
               </>
             ) : (
               <p className="native-info">

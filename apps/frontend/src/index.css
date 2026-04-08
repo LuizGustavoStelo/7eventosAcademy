@@ -4052,6 +4052,52 @@ table button:disabled {
   align-content: start;
 }
 
+.native-super-branding-panel {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  padding: 0.55rem;
+  background: #f8fafc;
+}
+
+.native-super-accordion {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.native-super-accordion summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.68rem 0.72rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.native-super-accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.native-super-accordion summary::after {
+  content: '▾';
+  color: #64748b;
+  transition: transform 0.2s ease;
+}
+
+.native-super-accordion[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.native-super-accordion-content {
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 0.7rem;
+}
+
 .native-super-selected-account {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 10px;
@@ -4080,12 +4126,6 @@ table button:disabled {
   font-size: 0.8rem;
   resize: vertical;
   font-family: 'Courier New', monospace;
-}
-
-.native-super-divider {
-  width: 100%;
-  border-top: 1px dashed rgba(15, 23, 42, 0.16);
-  margin: 0.1rem 0 0.15rem;
 }
 
 .native-super-branding-form {
@@ -4127,13 +4167,28 @@ table button:disabled {
   align-items: center;
 }
 
-.native-super-branding-color-inputs input[type='color'] {
+.native-super-branding-color-swatch {
   width: 42px;
   height: 34px;
-  border: 1px solid rgba(15, 23, 42, 0.2);
+  border: 1px solid rgba(15, 23, 42, 0.22);
   border-radius: 8px;
+  padding: 3px;
   background: #fff;
-  padding: 2px;
+  position: relative;
+  cursor: pointer;
+}
+
+.native-super-branding-color-swatch span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 5px;
+}
+
+.native-super-branding-color-swatch input[type='color'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
   cursor: pointer;
 }
 
