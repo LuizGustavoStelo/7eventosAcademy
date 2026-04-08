@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
@@ -6,6 +6,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { PublicStudentRegistrationDto } from '../students/dto/public-student-registration.dto';
 import { StudentsService } from '../students/students.service';
 import { CoursesService } from '../courses/courses.service';
+import { PayStudentChargeDto } from './dto/pay-student-charge.dto';
 import { MisService } from './mis.service';
 
 /**
@@ -50,6 +51,33 @@ export class MisController {
   async getCobrancas(@Req() req: FastifyRequest) {
     const user = (req as any).user;
     return this.misService.getAlunoCobrancas(user?.sub);
+  }
+
+  @SkipThrottle()
+  @Roles('user', 'admin', 'superadmin')
+  @Post('aluno/cobrancas/:chargeId/pagar')
+  async payCobranca(
+    @Req() req: FastifyRequest,
+    @Param('chargeId') chargeId: string,
+    @Body() dto: PayStudentChargeDto,
+  ) {
+    const user = (req as any).user;
+    return this.misService.payAlunoCobranca(user?.sub, chargeId, dto);
+  }
+
+  @SkipThrottle()
+  @Public()
+  @Post('public/payments/webhook/:provider')
+  async paymentWebhook(
+    @Param('provider') provider: string,
+    @Body() payload: unknown,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.misService.handlePaymentWebhook(
+      provider,
+      payload,
+      (req as any)?.headers ?? {},
+    );
   }
 
   @SkipThrottle()

@@ -140,6 +140,9 @@ type StudentCharge = {
   dueDate: string | null;
   amount: number;
   status: string;
+  paymentMethod?: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD' | string;
+  paymentOptionTitle?: string | null;
+  canPay?: boolean;
   externalChargeId: string | null;
   className: string;
   courseName: string;
@@ -153,6 +156,18 @@ type StudentCharge = {
   } | null;
 };
 
+type StudentChargePaymentResponse = {
+  chargeId: string;
+  provider: string;
+  method: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD' | string;
+  checkoutUrl: string | null;
+  invoiceUrl: string | null;
+  bankSlipUrl: string | null;
+  pixCopyPaste: string | null;
+  pixQrCodeImage: string | null;
+  message: string;
+};
+
 type StudentAreaNativeProps = {
   token: string;
   user: {
@@ -164,7 +179,7 @@ type StudentAreaNativeProps = {
 };
 
 const STUDENT_CACHE_TTL_MS = 25_000;
-const REFRESH_MS = 120_000;
+const REFRESH_MS = 30_000;
 const DEFAULT_STUDENT_BRANDING_LOGO_URL = '/Logo-IPESK.png';
 const DEFAULT_STUDENT_BRANDING_PALETTE: StudentBrandingPalette = {
   primaryColor: '#139395',
@@ -621,6 +636,16 @@ function normalizeChargeStatus(status: string | null | undefined) {
   return status;
 }
 
+function paymentMethodLabel(value: string | null | undefined) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase();
+  if (normalized === 'BANK_SLIP') return 'Boleto';
+  if (normalized === 'CREDIT_CARD') return 'Cartão de crédito';
+  if (normalized === 'PIX') return 'Pix';
+  return 'Pagamento';
+}
+
 function hasPendingContractSignature(item: StudentContractNoticeItem): boolean {
   const normalizedStatus = String(item.status || '').trim().toUpperCase();
   if (normalizedStatus === 'SENT' || normalizedStatus === 'VIEWED' || normalizedStatus === 'PIN_VERIFIED') {
@@ -954,6 +979,16 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [showFinanceValues, setShowFinanceValues] = useState(false);
+  const [payingChargeId, setPayingChargeId] = useState<string | null>(null);
+  const [chargePaymentDataById, setChargePaymentDataById] = useState<
+    Record<string, StudentChargePaymentResponse>
+  >({});
+  const [chargePaymentErrorById, setChargePaymentErrorById] = useState<
+    Record<string, string>
+  >({});
+  const [chargePaymentInfoById, setChargePaymentInfoById] = useState<
+    Record<string, string>
+  >({});
   const [pendingContractNotificationCount, setPendingContractNotificationCount] = useState(0);
   const [hasContractAvailable, setHasContractAvailable] = useState(false);
   const [hasSignedContract, setHasSignedContract] = useState(false);
@@ -1688,6 +1723,98 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, [activeSection]);
 
+  const handlePayCharge = async (charge: StudentCharge) => {
+    setPayingChargeId(charge.id);
+    setChargePaymentErrorById((current) => ({
+      ...current,
+      [charge.id]: '',
+    }));
+    setChargePaymentInfoById((current) => ({
+      ...current,
+      [charge.id]: '',
+    }));
+
+    try {
+      const returnUrl =
+        typeof window !== 'undefined' ? window.location.href : undefined;
+      const payment = await apiRequest<StudentChargePaymentResponse>(
+        token,
+        `/mis/v1/aluno/cobrancas/${charge.id}/pagar`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            returnUrl,
+          }),
+        },
+      );
+
+      setChargePaymentDataById((current) => ({
+        ...current,
+        [charge.id]: payment,
+      }));
+
+      if (payment.checkoutUrl && typeof window !== 'undefined') {
+        const opened = window.open(
+          payment.checkoutUrl,
+          '_blank',
+          'noopener,noreferrer',
+        );
+        if (!opened) {
+          setChargePaymentInfoById((current) => ({
+            ...current,
+            [charge.id]:
+              'Pagamento gerado. Use o botão "Abrir cobrança" para continuar.',
+          }));
+        }
+      } else {
+        setChargePaymentInfoById((current) => ({
+          ...current,
+          [charge.id]: payment.message || 'Cobrança preparada com sucesso.',
+        }));
+      }
+
+      void loadDashboard({ bypassCache: true });
+    } catch (paymentError) {
+      setChargePaymentErrorById((current) => ({
+        ...current,
+        [charge.id]:
+          paymentError instanceof Error
+            ? paymentError.message
+            : 'Não foi possível iniciar o pagamento.',
+      }));
+    } finally {
+      setPayingChargeId((current) => (current === charge.id ? null : current));
+    }
+  };
+
+  const handleCopyPixCode = async (chargeId: string) => {
+    const pixCode = chargePaymentDataById[chargeId]?.pixCopyPaste?.trim() || '';
+    if (!pixCode) return;
+
+    try {
+      if (
+        typeof navigator === 'undefined' ||
+        !navigator.clipboard ||
+        typeof navigator.clipboard.writeText !== 'function'
+      ) {
+        throw new Error('Clipboard indisponível');
+      }
+      await navigator.clipboard.writeText(pixCode);
+      setChargePaymentInfoById((current) => ({
+        ...current,
+        [chargeId]: 'Código Pix copiado.',
+      }));
+    } catch {
+      setChargePaymentErrorById((current) => ({
+        ...current,
+        [chargeId]: 'Não foi possível copiar o código Pix automaticamente.',
+      }));
+    }
+  };
+
   const renderProfileAvatarActions = () => (
     <div className="student-template-profile-actions">
       <input
@@ -2030,6 +2157,16 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               <div className="student-page-list">
                 {financeMetrics.visible.map((charge) => {
                   const isOverdue = isChargeOverdue(charge);
+                  const paymentData = chargePaymentDataById[charge.id];
+                  const paymentError = chargePaymentErrorById[charge.id];
+                  const paymentInfo = chargePaymentInfoById[charge.id];
+                  const isPaying = payingChargeId === charge.id;
+                  const normalizedStatus = String(charge.status || '')
+                    .trim()
+                    .toUpperCase();
+                  const canPay =
+                    charge.canPay !== false
+                    && (normalizedStatus === 'PENDING' || normalizedStatus === 'OVERDUE');
                   return (
                     <article key={charge.id} className={`student-page-list-item ${isOverdue ? 'is-overdue' : ''}`}>
                     <div>
@@ -2037,12 +2174,50 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                         {formatCurrency(charge.amount)}
                       </strong>
                       <small>
-                        {charge.className} • Vencimento {formatDate(charge.dueDate)}
+                        {charge.className} • {paymentMethodLabel(charge.paymentMethod)} • Vencimento{' '}
+                        {formatDate(charge.dueDate)}
                       </small>
+                      {paymentInfo ? (
+                        <small className="student-charge-feedback">{paymentInfo}</small>
+                      ) : null}
+                      {paymentError ? (
+                        <small className="student-charge-feedback is-error">{paymentError}</small>
+                      ) : null}
+                      {paymentData?.pixCopyPaste ? (
+                        <div className="student-charge-inline-actions">
+                          <button
+                            type="button"
+                            className="student-charge-secondary-action"
+                            onClick={() => void handleCopyPixCode(charge.id)}
+                          >
+                            Copiar Pix
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
-                    <span className={isOverdue ? 'student-charge-status is-overdue' : 'student-charge-status'}>
-                      {normalizeChargeStatus(charge.status)}
-                    </span>
+                    <div className="student-charge-actions">
+                      <span className={isOverdue ? 'student-charge-status is-overdue' : 'student-charge-status'}>
+                        {normalizeChargeStatus(charge.status)}
+                      </span>
+                      {canPay ? (
+                        <button
+                          type="button"
+                          onClick={() => void handlePayCharge(charge)}
+                          disabled={isPaying}
+                        >
+                          {isPaying ? 'Gerando...' : 'Pagar'}
+                        </button>
+                      ) : null}
+                      {paymentData?.checkoutUrl ? (
+                        <a
+                          href={paymentData.checkoutUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Abrir cobrança
+                        </a>
+                      ) : null}
+                    </div>
                     </article>
                   );
                 })}

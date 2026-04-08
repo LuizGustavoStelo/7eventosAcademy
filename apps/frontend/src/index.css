@@ -427,20 +427,27 @@ table button:disabled {
 }
 
 .auth-form .auth-link-btn {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  color: #0f7f82;
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  color: #0f7f82 !important;
   font-weight: 700;
-  padding: 0.2rem 0;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  padding: 0 !important;
+  margin-top: 0.15rem;
   justify-self: start;
+  width: fit-content;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .auth-form .auth-link-btn:hover:not(:disabled) {
   transform: none;
   filter: none;
   box-shadow: none;
-  text-decoration: underline;
+  color: #0b6c6f !important;
 }
 
 .auth-password-meta {
@@ -7699,6 +7706,71 @@ table button {
   color: #72849a;
   font-size: 0.8rem;
   line-height: 1.35;
+}
+
+.student-charge-feedback {
+  display: block;
+  margin-top: 0.25rem;
+  color: #0f7f81;
+}
+
+.student-charge-feedback.is-error {
+  color: #b91c1c;
+}
+
+.student-charge-inline-actions {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.student-charge-secondary-action {
+  border: 1px solid #d7e3eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #345273;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.28rem 0.58rem;
+  cursor: pointer;
+}
+
+.student-charge-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.32rem;
+  flex-wrap: wrap;
+}
+
+.student-charge-actions > span,
+.student-charge-actions > a,
+.student-charge-actions > button {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 0.34rem 0.66rem;
+  border: 0;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.student-charge-actions > a,
+.student-charge-actions > button {
+  background: linear-gradient(90deg, #127f81, #169c9f);
+  color: #fff;
+  cursor: pointer;
+}
+
+.student-charge-actions > button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .student-page-list-item > span,

@@ -1759,7 +1759,7 @@ export default function App() {
                 onClick={abrirModalRecuperacaoSenha}
                 disabled={carregando}
               >
-                Esqueci a senha
+                Esqueci minha senha
               </button>
             ) : null}
 
