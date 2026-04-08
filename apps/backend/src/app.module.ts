@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
@@ -20,24 +20,30 @@ import { WordpressIntegrationModule } from './wordpress-integration/wordpress-in
 import { MisModule } from './mis/mis.module';
 import { SuperadminAccountsModule } from './superadmin-accounts/superadmin-accounts.module';
 
+function readThrottleEnv(name: string, fallback: number): number {
+  const parsed = Number(process.env[name] ?? '');
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.floor(parsed);
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
 
     // Rate limiting global por IP.
-    // default: alta capacidade para navegação do painel sem travar UX.
+    // default: capacidade para navegação sem travar UX.
     // public-mis: agressivo para proteger cadastro público contra abuso.
     ThrottlerModule.forRoot([
       {
         name: 'default',
-        ttl: 10_000,  // janela de 10 segundos
-        limit: 220,   // ~1320 req/min por IP, com reset rápido
+        ttl: readThrottleEnv('THROTTLE_DEFAULT_TTL_MS', 10_000),
+        limit: readThrottleEnv('THROTTLE_DEFAULT_LIMIT', 400),
       },
       {
         name: 'public-mis',
-        ttl: 60_000,  // janela de 60 segundos
-        limit: 10,    // máximo de 10 req/min por IP
+        ttl: readThrottleEnv('THROTTLE_PUBLIC_TTL_MS', 60_000),
+        limit: readThrottleEnv('THROTTLE_PUBLIC_LIMIT', 10),
       },
     ]),
 
@@ -59,7 +65,6 @@ import { SuperadminAccountsModule } from './superadmin-accounts/superadmin-accou
   ],
   controllers: [AppController],
   providers: [
-    // Guard global de rate limiting (aplica o perfil "default" em toda a API)
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
@@ -67,5 +72,3 @@ import { SuperadminAccountsModule } from './superadmin-accounts/superadmin-accou
   ],
 })
 export class AppModule {}
-
-

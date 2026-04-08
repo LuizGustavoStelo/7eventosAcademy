@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AgendaNative } from './native/AgendaNative';
 import { ClassesNative } from './native/ClassesNative';
@@ -18,6 +18,7 @@ import { SuperadminAccountsNative } from './native/SuperadminAccountsNative';
 import { SuperadminDashboardNative } from './native/SuperadminDashboardNative';
 import { SuperadminImpersonationNative } from './native/SuperadminImpersonationNative';
 import { SuperadminWordpressNative } from './native/SuperadminWordpressNative';
+import { apiRequest } from './native/api';
 import { toPtBrApiMessage } from './errorMessages';
 
 type Role = 'user' | 'admin' | 'superadmin';
@@ -111,14 +112,14 @@ const SECOES_SUPERADMIN: NavSection[] = [
   },
   {
     id: 'superadmin_gestao_contas',
-    label: 'Gestão de Contas',
+    label: 'GestÃ£o de Contas',
     subtitle: 'Template fiel: superadmin_gestao_de_contas',
     templatePath: '/templates/superadmin_gestao_de_contas/index.html',
     renderMode: 'native',
   },
   {
     id: 'superadmin_impersonacao',
-    label: 'Impersonação',
+    label: 'ImpersonaÃ§Ã£o',
     subtitle: 'Template fiel: superadmin_tela_de_impersonacao',
     templatePath: '/templates/superadmin_tela_de_impersonacao/index.html',
     renderMode: 'native',
@@ -126,7 +127,7 @@ const SECOES_SUPERADMIN: NavSection[] = [
   {
     id: 'superadmin_wordpress_plugin',
     label: 'Plugin WordPress',
-    subtitle: 'Gerenciar licenças e releases do plugin 7academy',
+    subtitle: 'Gerenciar licenÃ§as e releases do plugin 7academy',
     templatePath: '/templates/superadmin_wordpress_plugin/index.html',
     renderMode: 'native',
   },
@@ -164,14 +165,14 @@ const SECOES_ADMIN: NavSection[] = [
   {
     id: 'admin_contratos',
     label: 'Contratos',
-    subtitle: 'Modelos, envio e assinatura eletrônica',
+    subtitle: 'Modelos, envio e assinatura eletrÃ´nica',
     templatePath: '/templates/admin_professor_contratos/index.html',
     renderMode: 'native',
   },
   {
     id: 'admin_aulas',
     label: 'Aulas',
-    subtitle: 'Lançamento de presença por aula (retroativo e bloqueio de futuras)',
+    subtitle: 'LanÃ§amento de presenÃ§a por aula (retroativo e bloqueio de futuras)',
     templatePath: '/templates/admin_professor_agenda_de_aulas_e_lives/index.html',
     renderMode: 'native',
   },
@@ -205,14 +206,14 @@ const SECOES_ADMIN: NavSection[] = [
   },
   {
     id: 'admin_relatorios',
-    label: 'Relatórios',
+    label: 'RelatÃ³rios',
     subtitle: 'Template fiel: admin_professor_relatorios_e_analises',
     templatePath: '/templates/admin_professor_relatorios_e_analises/index.html',
     renderMode: 'native',
   },
   {
     id: 'admin_configuracoes',
-    label: 'Configurações',
+    label: 'ConfiguraÃ§Ãµes',
     subtitle: 'Template fiel: admin_professor_configuracoes',
     templatePath: '/templates/admin_professor_configuracoes/index.html',
     renderMode: 'native',
@@ -518,13 +519,13 @@ function PublicPortalBlocked({ message }: { message: string }) {
             Acesso restrito
           </button>
         </div>
-        <h2>Portal indisponível</h2>
+        <h2>Portal indisponÃ­vel</h2>
         <p className="auth-error" style={{ marginTop: 0 }}>
           {message}
         </p>
         <div style={{ display: 'grid', gap: 12 }}>
           <p style={{ margin: 0, color: 'var(--text-secondary, #52667a)', lineHeight: 1.6 }}>
-            Se você é aluno ou responsável, confirme com a instituição se a licença está ativa.
+            Se vocÃª Ã© aluno ou responsÃ¡vel, confirme com a instituiÃ§Ã£o se a licenÃ§a estÃ¡ ativa.
           </p>
           <a href="/" style={{ color: 'var(--accent-primary, #139395)', fontWeight: 600 }}>
             Recarregar
@@ -698,7 +699,7 @@ export default function App() {
     if (!portalLicenseToken || !portalLicenseDomain || !portalLicenseSiteUrl) {
       setPublicPortalLicense({
         status: 'blocked',
-        message: 'Licença não informada para este portal.',
+        message: 'LicenÃ§a nÃ£o informada para este portal.',
       });
       return;
     }
@@ -728,7 +729,7 @@ export default function App() {
         if (!response.ok || !data?.valid) {
           setPublicPortalLicense({
             status: 'blocked',
-            message: 'Licença expirada, inativa ou inválida para este portal.',
+            message: 'LicenÃ§a expirada, inativa ou invÃ¡lida para este portal.',
           });
           return;
         }
@@ -738,7 +739,7 @@ export default function App() {
         if (!cancelled) {
           setPublicPortalLicense({
             status: 'blocked',
-            message: 'Não foi possível validar a licença deste portal.',
+            message: 'NÃ£o foi possÃ­vel validar a licenÃ§a deste portal.',
           });
         }
       }
@@ -752,9 +753,9 @@ export default function App() {
   const lerErroApi = async (response: Response) => {
     try {
       const data = (await response.json()) as { message?: string | string[] };
-      return toPtBrApiMessage(data.message, 'Falha na operação.');
+      return toPtBrApiMessage(data.message, 'Falha na operaÃ§Ã£o.');
     } catch {
-      return 'Falha na operação.';
+      return 'Falha na operaÃ§Ã£o.';
     }
   };
 
@@ -865,15 +866,9 @@ export default function App() {
     if (!token) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const me = await apiRequest<AuthUser>(token, '/auth/me', undefined, {
+        cacheTtlMs: 30_000,
       });
-
-      if (!response.ok) return;
-
-      const me = (await response.json()) as AuthUser;
       atualizarUsuarioSessao(me);
     } catch {
       // ignora erro de atualização de perfil
@@ -913,36 +908,17 @@ export default function App() {
 
     const loadTopbarNotifications = async () => {
       try {
-        const [noticesResult, contractInstancesResult] = await Promise.allSettled([
-          fetch(`${API_BASE_URL}/classes/notices/all`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+        const [noticesPayload, contractsPayload] = await Promise.all([
+          apiRequest<TopbarNotice[]>(token, '/classes/notices/all', undefined, {
+            cacheTtlMs: 45_000,
           }),
-          fetch(`${API_BASE_URL}/contracts/instances`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+          apiRequest<TopbarContractInstance[]>(token, '/contracts/instances', undefined, {
+            cacheTtlMs: 45_000,
           }),
         ]);
 
-        let notices: TopbarNotice[] = [];
-        if (noticesResult.status === 'fulfilled' && noticesResult.value.ok) {
-          const payload = (await noticesResult.value.json()) as TopbarNotice[] | unknown;
-          notices = Array.isArray(payload) ? payload : [];
-        }
-
-        let contracts: TopbarContractInstance[] = [];
-        if (
-          contractInstancesResult.status === 'fulfilled'
-          && contractInstancesResult.value.ok
-        ) {
-          const payload =
-            (await contractInstancesResult.value.json()) as
-              | TopbarContractInstance[]
-              | unknown;
-          contracts = Array.isArray(payload) ? payload : [];
-        }
+        const notices = Array.isArray(noticesPayload) ? noticesPayload : [];
+        const contracts = Array.isArray(contractsPayload) ? contractsPayload : [];
 
         const nowMs = Date.now();
         const hasAnyActiveNotice = notices.some((notice) =>
@@ -1075,7 +1051,7 @@ export default function App() {
         if (response.status === 403 && apiError?.code === 'EMAIL_NAO_CONFIRMADO') {
           const mensagem = obterMensagemApi(
             apiError,
-            'Seu e-mail ainda não foi confirmado. Digite o código enviado para continuar.',
+            'Seu e-mail ainda nÃ£o foi confirmado. Digite o cÃ³digo enviado para continuar.',
           );
 
           abrirFluxoConfirmacaoEmail(
@@ -1085,19 +1061,19 @@ export default function App() {
           return;
         }
 
-        setErro(obterMensagemApi(apiError, 'Falha na operação.'));
+        setErro(obterMensagemApi(apiError, 'Falha na operaÃ§Ã£o.'));
         return;
       }
 
       if (!payload || !('accessToken' in payload)) {
-        setErro('Resposta inválida do servidor.');
+        setErro('Resposta invÃ¡lida do servidor.');
         return;
       }
 
       persistirSessao(payload as AuthResponse);
       limparFluxoConfirmacaoEmail();
     } catch {
-      setErro('Não foi possível conectar com o backend.');
+      setErro('NÃ£o foi possÃ­vel conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -1114,7 +1090,7 @@ export default function App() {
     }
 
     if (senha !== confirmacaoSenha) {
-      setErro('A confirmação de senha não confere.');
+      setErro('A confirmaÃ§Ã£o de senha nÃ£o confere.');
       return;
     }
 
@@ -1132,12 +1108,12 @@ export default function App() {
         .catch(() => null)) as RegisterResponse | ApiErrorResponse | null;
 
       if (!response.ok) {
-        setErro(obterMensagemApi(payload as ApiErrorResponse | null, 'Falha na operação.'));
+        setErro(obterMensagemApi(payload as ApiErrorResponse | null, 'Falha na operaÃ§Ã£o.'));
         return;
       }
 
       if (!payload || !('requiresEmailVerification' in payload)) {
-        setErro('Resposta inválida do servidor.');
+        setErro('Resposta invÃ¡lida do servidor.');
         return;
       }
 
@@ -1146,10 +1122,10 @@ export default function App() {
       setEmail(registerData.email);
       abrirFluxoConfirmacaoEmail(
         registerData.email,
-        registerData.message || 'Enviamos um código de confirmação para o seu e-mail.',
+        registerData.message || 'Enviamos um cÃ³digo de confirmaÃ§Ã£o para o seu e-mail.',
       );
     } catch {
-      setErro('Não foi possível conectar com o backend.');
+      setErro('NÃ£o foi possÃ­vel conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -1161,12 +1137,12 @@ export default function App() {
     setAviso('');
 
     if (!confirmacaoEmailPendente) {
-      setErro('Nenhum e-mail pendente de confirmação no momento.');
+      setErro('Nenhum e-mail pendente de confirmaÃ§Ã£o no momento.');
       return;
     }
 
     if (codigoConfirmacao.trim().length !== 6) {
-      setErro('Digite o código de 6 dígitos enviado para seu e-mail.');
+      setErro('Digite o cÃ³digo de 6 dÃ­gitos enviado para seu e-mail.');
       return;
     }
 
@@ -1190,7 +1166,7 @@ export default function App() {
         setErro(
           obterMensagemApi(
             payload as ApiErrorResponse | null,
-            'Não foi possível confirmar o e-mail.',
+            'NÃ£o foi possÃ­vel confirmar o e-mail.',
           ),
         );
         return;
@@ -1199,14 +1175,14 @@ export default function App() {
       const mensagem =
         payload && 'message' in payload
           ? String(payload.message)
-          : 'E-mail confirmado com sucesso. Faça login para continuar.';
+          : 'E-mail confirmado com sucesso. FaÃ§a login para continuar.';
 
       setAviso(mensagem);
       setEmail(confirmacaoEmailPendente.email);
       limparFluxoConfirmacaoEmail();
       setModoCadastro(false);
     } catch {
-      setErro('Não foi possível conectar com o backend.');
+      setErro('NÃ£o foi possÃ­vel conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -1236,7 +1212,7 @@ export default function App() {
         setErro(
           obterMensagemApi(
             payload as ApiErrorResponse | null,
-            'Não foi possível reenviar o código.',
+            'NÃ£o foi possÃ­vel reenviar o cÃ³digo.',
           ),
         );
         return;
@@ -1245,7 +1221,7 @@ export default function App() {
       const mensagem =
         payload && 'message' in payload
           ? String(payload.message)
-          : 'Enviamos um novo código de confirmação para seu e-mail.';
+          : 'Enviamos um novo cÃ³digo de confirmaÃ§Ã£o para seu e-mail.';
 
       if (payload && 'sent' in payload && payload.sent === false) {
         setErro(mensagem);
@@ -1254,7 +1230,7 @@ export default function App() {
 
       setAviso(mensagem);
     } catch {
-      setErro('Não foi possível conectar com o backend.');
+      setErro('NÃ£o foi possÃ­vel conectar com o backend.');
     } finally {
       setCarregando(false);
     }
@@ -1290,8 +1266,8 @@ export default function App() {
     return (
       <div className={`auth-shell ${isEmbedded ? 'embedded' : ''}`}>
         <section className="auth-card">
-          <h2>Verificando licença</h2>
-          <p>Preparando o portal com validação de acesso...</p>
+          <h2>Verificando licenÃ§a</h2>
+          <p>Preparando o portal com validaÃ§Ã£o de acesso...</p>
         </section>
       </div>
     );
@@ -1314,9 +1290,9 @@ export default function App() {
         ? 'Criar conta'
         : 'Entrar';
     const subtituloAutenticacao = modoConfirmacaoEmailAtivo
-      ? 'Digite o código de 6 dígitos enviado para o seu e-mail.'
+      ? 'Digite o cÃ³digo de 6 dÃ­gitos enviado para o seu e-mail.'
       : modoCadastroAtivo
-        ? 'Cadastre-se para acessar o painel da instituição.'
+        ? 'Cadastre-se para acessar o painel da instituiÃ§Ã£o.'
         : 'Acesse com suas credenciais para continuar.';
 
     return (
@@ -1335,7 +1311,7 @@ export default function App() {
                   alt="7Eventos Academy"
                 />
               </div>
-              <span className="auth-brand-eyebrow">Área administrativa</span>
+              <span className="auth-brand-eyebrow">Ãrea administrativa</span>
             </div>
 
           </section>
@@ -1405,7 +1381,7 @@ export default function App() {
                   disabled={carregando}
                 />
 
-                <label htmlFor="codigoConfirmacao">Código de confirmação</label>
+                <label htmlFor="codigoConfirmacao">CÃ³digo de confirmaÃ§Ã£o</label>
                 <input
                   id="codigoConfirmacao"
                   type="text"
@@ -1488,7 +1464,7 @@ export default function App() {
                   onClick={reenviarCodigoConfirmacao}
                   disabled={carregando}
                 >
-                  Reenviar código
+                  Reenviar cÃ³digo
                 </button>
                 <button
                   type="button"
@@ -1510,12 +1486,12 @@ export default function App() {
         {!isEmbedded && !isStudentPortalMode && (
           <section className="auth-panel auth-panel-aftercard">
             <p>
-              Ambiente completo para gestão de contas, turmas, matrículas, financeiro e
-              operação acadêmica.
+              Ambiente completo para gestÃ£o de contas, turmas, matrÃ­culas, financeiro e
+              operaÃ§Ã£o acadÃªmica.
             </p>
             <div className="auth-panel-highlights">
-              <span>Visão centralizada da operação</span>
-              <span>Fluxos acadêmicos e financeiros no mesmo lugar</span>
+              <span>VisÃ£o centralizada da operaÃ§Ã£o</span>
+              <span>Fluxos acadÃªmicos e financeiros no mesmo lugar</span>
             </div>
           </section>
         )}
@@ -1614,7 +1590,7 @@ export default function App() {
                 }}
               />
               {globalSearchSuggestions.length > 0 ? (
-                <div className="global-topbar-search-menu" role="listbox" aria-label="Sugestões de busca">
+                <div className="global-topbar-search-menu" role="listbox" aria-label="SugestÃµes de busca">
                   {globalSearchSuggestions.map((suggestion) => (
                     <button
                       key={`search-${suggestion.sectionId}`}
@@ -1637,7 +1613,7 @@ export default function App() {
             <button
               type="button"
               className="global-topbar-icon"
-              aria-label="Notificações"
+              aria-label="NotificaÃ§Ãµes"
               onClick={abrirNotificacoes}
             >
               <TopbarIcon name="notifications" />
@@ -1665,7 +1641,7 @@ export default function App() {
                     const message =
                       error instanceof Error
                         ? error.message
-                        : 'Não foi possível atualizar a foto de perfil.';
+                        : 'NÃ£o foi possÃ­vel atualizar a foto de perfil.';
                     window.alert(message);
                   } finally {
                     event.target.value = '';
@@ -1674,7 +1650,7 @@ export default function App() {
               />
               <img
                 className="global-topbar-avatar"
-                alt="Avatar do usuário"
+                alt="Avatar do usuÃ¡rio"
                 src={
                   usuario?.avatarUrl ||
                   'https://lh3.googleusercontent.com/aida-public/AB6AXuDDw0TJspg79mG5fWY5VjXS8gA3CE9GPLyYCbl0ZwS48kInu_yAIMZeKLC-OO1TctEVlEQysf1QpBPTp8Ml57g9o3zSmOUvPKnOaJm_IE9_7ZO_Tx_aDraQVsQLeQvThBrV9idAYpQDADLvjejTx6ovynKPs6bTZNhy1nmT1Ns-q5zbuMwFPjqqLe6Xs_P8CYwLK3gFTRvheh09Ut1P3UIbNyqcLVWrchzSNWi-sAIj_dgvKhNaNS7dwFGFCfE7NgF_XgphKdfvTwbQ'
@@ -1684,7 +1660,7 @@ export default function App() {
               <div className="global-topbar-user-meta">
                 <span className="global-topbar-user-name">{usuario?.name ?? 'Professor'}</span>
                 <span className="global-topbar-user-role">
-                  {roleLabel} • {maskEmail(usuario?.email)}
+                  {roleLabel} â€¢ {maskEmail(usuario?.email)}
                 </span>
               </div>
             </div>
@@ -1695,10 +1671,10 @@ export default function App() {
           <section className="native-impersonation-banner">
             <div>
               <strong>
-                Sessão de impersonação ativa: {impersonationMeta.actorName}
+                SessÃ£o de impersonaÃ§Ã£o ativa: {impersonationMeta.actorName}
               </strong>
               <small>
-                Motivo: {impersonationMeta.reason} • Expira em{' '}
+                Motivo: {impersonationMeta.reason} â€¢ Expira em{' '}
                 {new Intl.DateTimeFormat('pt-BR', {
                   day: '2-digit',
                   month: '2-digit',
@@ -1708,7 +1684,7 @@ export default function App() {
               </small>
             </div>
             <button type="button" onClick={encerrarImpersonacao}>
-              Encerrar impersonação
+              Encerrar impersonaÃ§Ã£o
             </button>
           </section>
         ) : null}

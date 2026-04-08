@@ -1,12 +1,9 @@
-import { ValidationPipe } from '@nestjs/common';
+﻿import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import helmet from '@fastify/helmet';
-import {
-  FastifyAdapter,
-  NestFastifyApplication,
-} from '@nestjs/platform-fastify';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { join } from 'path';
 import { AppModule } from './app.module';
 
@@ -18,11 +15,25 @@ function readEnvMegabytes(name: string, fallbackMb: number): number {
   return Math.floor(raw);
 }
 
+function readTrustProxy(): boolean | number | string {
+  const raw = String(process.env.TRUST_PROXY ?? '').trim();
+  if (!raw) {
+    return process.env.NODE_ENV === 'production';
+  }
+
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+
+  const asNumber = Number(raw);
+  if (Number.isFinite(asNumber) && asNumber >= 0) {
+    return Math.floor(asNumber);
+  }
+
+  return raw;
+}
+
 async function bootstrap() {
-  const multipartMaxFileSizeMb = readEnvMegabytes(
-    'MULTIPART_MAX_FILE_SIZE_MB',
-    32,
-  );
+  const multipartMaxFileSizeMb = readEnvMegabytes('MULTIPART_MAX_FILE_SIZE_MB', 32);
   const httpBodyLimitMb = readEnvMegabytes('HTTP_BODY_LIMIT_MB', 40);
 
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -30,37 +41,33 @@ async function bootstrap() {
     new FastifyAdapter({
       logger: false,
       bodyLimit: httpBodyLimitMb * 1024 * 1024,
+      trustProxy: readTrustProxy(),
     }),
   );
 
-  // ── Cabeçalhos de segurança HTTP (Helmet) ──────────────────────────────────
   await app.register(helmet, {
     contentSecurityPolicy: {
       directives: {
-        defaultSrc:  ["'self'"],
-        scriptSrc:   ["'self'", "'unsafe-inline'"],   // necessário para os scripts inline do MIS
-        styleSrc:    ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-        fontSrc:     ["'self'", 'https://fonts.gstatic.com'],
-        imgSrc:      ["'self'", 'data:'],
-        connectSrc:  ["'self'"],
-        frameSrc:    ["'self'"],
-        frameAncestors: ["*"], // Permitir que o MIS seja incorporado em iFrames de outros domínios (WP)
-        objectSrc:   ["'none'"],
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"],
+        frameSrc: ["'self'"],
+        frameAncestors: ['*'],
+        objectSrc: ["'none'"],
         upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
       },
     },
-    // Permite que as páginas do MIS sejam carregadas em iframe pelo WordPress
     frameguard: false,
     crossOriginEmbedderPolicy: false,
   });
 
-  // ── Arquivos estáticos do MIS (HTML/CSS/JS) ────────────────────────────────
   await app.register(fastifyStatic, {
     root: join(__dirname, '..', 'public'),
     prefix: '/api/',
     decorateReply: false,
-    // Garante que ativos estáticos (como fontes e CSS) tenham CORS habilitado,
-    // mesmo para iframes em domínios diferentes.
     setHeaders: (res) => {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -68,7 +75,6 @@ async function bootstrap() {
     },
   });
 
-  // ── Upload multipart ───────────────────────────────────────────────────────
   await app.register(multipart, {
     limits: {
       fileSize: multipartMaxFileSizeMb * 1024 * 1024,
@@ -76,9 +82,6 @@ async function bootstrap() {
     },
   });
 
-  // ── CORS ───────────────────────────────────────────────────────────────────
-  // Em produção, restrito ao(s) domínio(s) configurado(s) via env.
-  // Ex: CORS_ORIGINS=https://www.7eventos.com,https://academy.7eventos.com
   const rawOrigins = process.env.CORS_ORIGINS ?? '';
   const allowedOrigins: (string | RegExp)[] = rawOrigins
     .split(',')
@@ -86,19 +89,14 @@ async function bootstrap() {
     .filter(Boolean);
 
   app.enableCors({
-    origin:
-      process.env.NODE_ENV === 'production' && allowedOrigins.length > 0
-        ? allowedOrigins
-        : true,             // em dev, libera tudo
+    origin: process.env.NODE_ENV === 'production' && allowedOrigins.length > 0 ? allowedOrigins : true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
 
-  // ── Global Prefix ──────────────────────────────────────────────────────────
   app.setGlobalPrefix('api');
 
-  // ── Pipes de validação ─────────────────────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

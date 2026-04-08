@@ -1,4 +1,5 @@
-import { toPtBrApiMessage } from '../errorMessages';
+﻿import { toPtBrApiMessage } from '../errorMessages';
+
 export type ApiErrorPayload = {
   message?: string | string[];
 };
@@ -6,8 +7,12 @@ export type ApiErrorPayload = {
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
 const GET_CACHE_TTL_MS = 8_000;
+const RATE_LIMIT_RETRY_ATTEMPTS = 3;
+const RATE_LIMIT_BASE_DELAY_MS = 800;
+
 const inFlightRequests = new Map<string, Promise<unknown>>();
 const getResponseCache = new Map<string, { expiresAt: number; data: unknown }>();
+const rateLimitBackoffByKey = new Map<string, number>();
 
 type ApiRequestOptions = {
   cacheTtlMs?: number;
@@ -19,6 +24,36 @@ const sleep = (ms: number) =>
     window.setTimeout(resolve, ms);
   });
 
+function parseRetryAfterMs(value: string | null): number | null {
+  if (!value) return null;
+
+  const asSeconds = Number(value);
+  if (Number.isFinite(asSeconds) && asSeconds > 0) {
+    return asSeconds * 1000;
+  }
+
+  const asDate = Date.parse(value);
+  if (Number.isFinite(asDate)) {
+    const diff = asDate - Date.now();
+    if (diff > 0) return diff;
+  }
+
+  return null;
+}
+
+function computeRetryDelayMs(cacheKey: string, response: Response, attempt: number): number {
+  const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
+  if (retryAfterMs && retryAfterMs > 0) {
+    return retryAfterMs;
+  }
+
+  const previousDelay = rateLimitBackoffByKey.get(cacheKey) ?? RATE_LIMIT_BASE_DELAY_MS;
+  const multiplied = previousDelay * Math.max(1, attempt + 1);
+  const nextBase = Math.min(8_000, multiplied);
+  const jitter = Math.round(Math.random() * 250);
+  return nextBase + jitter;
+}
+
 export async function apiRequest<T>(
   token: string,
   path: string,
@@ -26,13 +61,14 @@ export async function apiRequest<T>(
   options?: ApiRequestOptions,
 ): Promise<T> {
   const method = (init?.method ?? 'GET').toUpperCase();
-  const shouldUseCache = method === 'GET' && !options?.bypassCache;
-  const cacheKey = `${token}::${path}`;
+  const isGet = method === 'GET';
+  const shouldUseCache = isGet && !options?.bypassCache;
+  const cacheKey = `${method}::${token}::${path}`;
   const cacheTtlMs = options?.cacheTtlMs ?? GET_CACHE_TTL_MS;
 
-  if (shouldUseCache) {
+  if (isGet) {
     const cached = getResponseCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
+    if (shouldUseCache && cached && cached.expiresAt > Date.now()) {
       return cached.data as T;
     }
 
@@ -43,7 +79,12 @@ export async function apiRequest<T>(
   }
 
   const executeRequest = async () => {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    for (let attempt = 0; attempt <= RATE_LIMIT_RETRY_ATTEMPTS; attempt += 1) {
+      const backoffUntil = rateLimitBackoffByKey.get(cacheKey) ?? 0;
+      if (backoffUntil > Date.now()) {
+        await sleep(backoffUntil - Date.now());
+      }
+
       const response = await fetch(`${API_BASE_URL}${path}`, {
         ...init,
         headers: {
@@ -52,15 +93,14 @@ export async function apiRequest<T>(
         },
       });
 
-      if (response.status === 429 && attempt === 0) {
-        const retryAfterSeconds = Number(response.headers.get('retry-after') ?? '');
-        const retryDelayMs =
-          Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
-            ? retryAfterSeconds * 1000
-            : 800;
+      if (response.status === 429 && attempt < RATE_LIMIT_RETRY_ATTEMPTS) {
+        const retryDelayMs = computeRetryDelayMs(cacheKey, response, attempt);
+        rateLimitBackoffByKey.set(cacheKey, Date.now() + retryDelayMs);
         await sleep(retryDelayMs);
         continue;
       }
+
+      rateLimitBackoffByKey.delete(cacheKey);
 
       if (!response.ok) {
         let message = `Falha na requisição (${response.status}).`;
@@ -80,18 +120,20 @@ export async function apiRequest<T>(
       return (await response.json()) as T;
     }
 
-    throw new Error('Limite de requisições atingido temporariamente.');
+    throw new Error('Limite de requisições atingido temporariamente. Tente novamente em instantes.');
   };
 
-  if (shouldUseCache) {
+  if (isGet) {
     const promise = executeRequest();
     inFlightRequests.set(cacheKey, promise as Promise<unknown>);
     try {
       const data = await promise;
-      getResponseCache.set(cacheKey, {
-        expiresAt: Date.now() + cacheTtlMs,
-        data,
-      });
+      if (shouldUseCache) {
+        getResponseCache.set(cacheKey, {
+          expiresAt: Date.now() + cacheTtlMs,
+          data,
+        });
+      }
       return data;
     } finally {
       inFlightRequests.delete(cacheKey);
