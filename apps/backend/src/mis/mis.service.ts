@@ -2335,12 +2335,14 @@ export class MisService {
     const numeroContratoCliente = this.resolveSicoobNumeroContratoCobranca(
       input.config,
     );
+    const numeroContratoClienteAsNumber =
+      this.parsePositiveInteger(numeroContratoCliente, null) ?? undefined;
     this.logger.log(
       `[sicoob-boleto] emit charge=${input.charge.id} cliente=${numeroContratoCliente} contrato=${numeroContratoCliente} modalidade=${input.config.boletoModalidade} conta=${input.config.boletoNumeroContaCorrente} nossoNumero=${existingNossoNumero || 'novo'}`,
     );
 
     const boletoPayload: Record<string, unknown> = {
-      numeroCliente: numeroContratoCliente,
+      numeroCliente: numeroContratoClienteAsNumber ?? numeroContratoCliente,
       codigoModalidade: input.config.boletoModalidade,
       numeroContaCorrente: input.config.boletoNumeroContaCorrente,
       codigoEspecieDocumento: 'DM',
@@ -2373,7 +2375,8 @@ export class MisService {
       },
       gerarPdf: false,
       codigoCadastrarPIX: 1,
-      numeroContratoCobranca: numeroContratoCliente,
+      numeroContratoCobranca: numeroContratoClienteAsNumber ?? numeroContratoCliente,
+      numeroContrato: numeroContratoClienteAsNumber ?? numeroContratoCliente,
     };
     if (existingNossoNumero) {
       boletoPayload.nossoNumero = Number(existingNossoNumero);
@@ -2382,7 +2385,10 @@ export class MisService {
     let emitted: Record<string, unknown>;
     try {
       emitted = await this.sicoobJsonRequest<Record<string, unknown>>({
-        url: `${input.config.cobrancaBancariaBaseUrl}/boletos`,
+        url: this.buildSicoobBoletosInclusionUrl(
+          input.config,
+          numeroContratoCliente,
+        ),
         method: 'POST',
         config: input.config,
         accessToken,
@@ -2407,13 +2413,20 @@ export class MisService {
         throw error;
       }
       delete boletoPayload.nossoNumero;
-      boletoPayload.numeroCliente = numeroContratoCliente;
-      boletoPayload.numeroContratoCobranca = numeroContratoCliente;
+      boletoPayload.numeroCliente =
+        numeroContratoClienteAsNumber ?? numeroContratoCliente;
+      boletoPayload.numeroContratoCobranca =
+        numeroContratoClienteAsNumber ?? numeroContratoCliente;
+      boletoPayload.numeroContrato =
+        numeroContratoClienteAsNumber ?? numeroContratoCliente;
       this.logger.warn(
         `[sicoob-boleto] retry without nossoNumero charge=${input.charge.id} cliente=${numeroContratoCliente}`,
       );
       emitted = await this.sicoobJsonRequest<Record<string, unknown>>({
-        url: `${input.config.cobrancaBancariaBaseUrl}/boletos`,
+        url: this.buildSicoobBoletosInclusionUrl(
+          input.config,
+          numeroContratoCliente,
+        ),
         method: 'POST',
         config: input.config,
         accessToken,
@@ -2630,6 +2643,17 @@ export class MisService {
     } catch {
       return value;
     }
+  }
+
+  private buildSicoobBoletosInclusionUrl(
+    config: ResolvedSicoobConfig,
+    numeroContratoCliente: string,
+  ): string {
+    const url = new URL(`${config.cobrancaBancariaBaseUrl}/boletos`);
+    url.searchParams.set('numeroCliente', numeroContratoCliente);
+    url.searchParams.set('numeroContratoCobranca', numeroContratoCliente);
+    url.searchParams.set('codigoModalidade', String(config.boletoModalidade));
+    return url.toString();
   }
 
   private normalizePem(value: string | null | undefined): string {
