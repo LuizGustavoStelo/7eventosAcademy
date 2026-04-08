@@ -44,6 +44,7 @@ type StudentContractDetails = {
 type StudentContractsNativeProps = {
   token: string;
   initialContractId?: string | null;
+  onSignedSuccess?: () => void;
 };
 
 type DrawState = {
@@ -97,6 +98,7 @@ function contractStatusTone(status: string): string {
 export function StudentContractsNative({
   token,
   initialContractId,
+  onSignedSuccess,
 }: StudentContractsNativeProps) {
   const [contracts, setContracts] = useState<StudentContractItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -431,6 +433,7 @@ export function StudentContractsNative({
       setFeedback('Contrato assinado com sucesso.');
       setAcceptTerms(false);
       setPinInput('');
+      onSignedSuccess?.();
     } catch (signError) {
       setError(
         signError instanceof Error ? signError.message : 'Falha ao assinar contrato.',

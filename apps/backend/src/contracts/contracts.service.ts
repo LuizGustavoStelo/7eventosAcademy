@@ -1644,6 +1644,12 @@ export class ContractsService {
         },
       });
 
+      await this.createEnrollmentChargesAfterContractSignature(
+        tx,
+        instance.enrollmentId,
+        now,
+      );
+
       await tx.contractArtifact.createMany({
         data: [
           {
@@ -1697,6 +1703,219 @@ export class ContractsService {
       signedContentHash,
       signedPdfHash,
     };
+  }
+
+  private async createEnrollmentChargesAfterContractSignature(
+    tx: Prisma.TransactionClient,
+    enrollmentId?: string | null,
+    signedAt?: Date,
+  ) {
+    if (!enrollmentId) return;
+
+    const existingCharges = await tx.monthlyCharge.count({
+      where: { enrollmentId },
+    });
+    if (existingCharges > 0) return;
+
+    const enrollment = await tx.enrollment.findUnique({
+      where: { id: enrollmentId },
+      select: {
+        id: true,
+        schoolClass: {
+          select: {
+            startDate: true,
+            course: {
+              select: {
+                ownerAdminId: true,
+                enrollmentFee: true,
+                paymentModel: true,
+                installmentMonths: true,
+                installmentValue: true,
+              },
+            },
+          },
+        },
+        selectedPaymentOption: true,
+      },
+    });
+
+    if (!enrollment) return;
+
+    const charges = this.buildChargesForEnrollmentAfterContract({
+      classStartDate: enrollment.schoolClass.startDate,
+      signedAt: signedAt ?? new Date(),
+      enrollmentFee: Number(enrollment.schoolClass.course.enrollmentFee ?? 0),
+      paymentModel: enrollment.schoolClass.course.paymentModel,
+      installmentMonths: enrollment.schoolClass.course.installmentMonths,
+      installmentValue: enrollment.schoolClass.course.installmentValue,
+      selectedPaymentOption: enrollment.selectedPaymentOption,
+    });
+
+    if (charges.length === 0) return;
+
+    await tx.monthlyCharge.createMany({
+      data: charges.map((item) => ({
+        enrollmentId: enrollment.id,
+        ownerAdminId: enrollment.schoolClass.course.ownerAdminId,
+        dueDate: item.dueDate,
+        amount: item.amount,
+        status: item.status,
+      })),
+    });
+  }
+
+  private buildChargesForEnrollmentAfterContract(input: {
+    classStartDate: Date;
+    signedAt: Date;
+    enrollmentFee: number;
+    paymentModel: string;
+    installmentMonths: number | null;
+    installmentValue: Prisma.Decimal | null;
+    selectedPaymentOption: Prisma.JsonValue | null;
+  }) {
+    const result: Array<{
+      dueDate: Date;
+      amount: number;
+      status: 'PENDING' | 'OVERDUE';
+    }> = [];
+    const now = new Date();
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+
+    const enrollmentFee = Number(input.enrollmentFee || 0);
+    if (Number.isFinite(enrollmentFee) && enrollmentFee > 0) {
+      const feeDate = new Date(input.signedAt);
+      const feeStart = new Date(
+        feeDate.getFullYear(),
+        feeDate.getMonth(),
+        feeDate.getDate(),
+      );
+      result.push({
+        dueDate: feeDate,
+        amount: this.toMoneyValue(enrollmentFee),
+        status: feeStart < startOfToday ? 'OVERDUE' : 'PENDING',
+      });
+    }
+
+    const selectedOption = this.parseInstallmentOptionFromJson(
+      input.selectedPaymentOption,
+    );
+
+    if (selectedOption) {
+      if (selectedOption.type !== 'INSTALLMENTS') return result;
+      const months = Number(selectedOption.installmentCount ?? 0);
+      const value = Number(selectedOption.installmentAmount ?? 0);
+      if (
+        !Number.isFinite(months) ||
+        months <= 0 ||
+        !Number.isFinite(value) ||
+        value <= 0
+      ) {
+        return result;
+      }
+      const base = selectedOption.installmentStartDate
+        ? new Date(selectedOption.installmentStartDate)
+        : new Date(input.classStartDate);
+      if (Number.isNaN(base.getTime())) return result;
+
+      for (let index = 0; index < months; index += 1) {
+        const dueDate = this.buildChargeDueDate(
+          base,
+          index,
+          selectedOption.dueDay ?? undefined,
+        );
+        const dueDateStart = new Date(
+          dueDate.getFullYear(),
+          dueDate.getMonth(),
+          dueDate.getDate(),
+        );
+        result.push({
+          dueDate,
+          amount: this.toMoneyValue(value),
+          status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+        });
+      }
+
+      return result;
+    }
+
+    if (String(input.paymentModel).toUpperCase() !== 'INSTALLMENTS') return result;
+    const months = Number(input.installmentMonths ?? 0);
+    const value = Number(input.installmentValue?.toNumber?.() ?? 0);
+    if (!Number.isFinite(months) || months <= 0 || !Number.isFinite(value) || value <= 0) {
+      return result;
+    }
+
+    const base = new Date(input.classStartDate);
+
+    for (let index = 0; index < months; index += 1) {
+      const dueDate = new Date(base.getTime());
+      dueDate.setMonth(dueDate.getMonth() + index);
+      const dueDateStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+      result.push({
+        dueDate,
+        amount: this.toMoneyValue(value),
+        status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+      });
+    }
+
+    return result;
+  }
+
+  private parseInstallmentOptionFromJson(raw: Prisma.JsonValue | null) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const source = raw as Record<string, unknown>;
+    const normalizedType = String(source.type || '').toUpperCase();
+    if (normalizedType !== 'INSTALLMENTS' && normalizedType !== 'CASH') return null;
+
+    const installmentCount = this.toPositiveInt(source.installmentCount);
+    const installmentAmount = this.toMoneyValue(source.installmentAmount);
+    const dueDay = this.toPositiveInt(source.dueDay);
+    const installmentStartDate = (() => {
+      const value = String(source.installmentStartDate || '').trim();
+      if (!value) return null;
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+    })();
+
+    return {
+      type: normalizedType as 'INSTALLMENTS' | 'CASH',
+      installmentCount,
+      installmentAmount,
+      dueDay,
+      installmentStartDate,
+    };
+  }
+
+  private buildChargeDueDate(baseDate: Date, monthOffset: number, dueDay?: number) {
+    const dueDate = new Date(baseDate.getTime());
+    dueDate.setMonth(dueDate.getMonth() + monthOffset);
+
+    if (!dueDay) {
+      return dueDate;
+    }
+
+    const year = dueDate.getFullYear();
+    const month = dueDate.getMonth();
+    const maxDay = new Date(year, month + 1, 0).getDate();
+    dueDate.setDate(Math.min(Math.max(1, dueDay), maxDay));
+    return dueDate;
+  }
+
+  private toMoneyValue(value: unknown): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Number(Math.max(0, numeric).toFixed(2));
+  }
+
+  private toPositiveInt(value: unknown): number | null {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return null;
+    const integer = Math.trunc(numeric);
+    return integer > 0 ? integer : null;
   }
 
   private requireActiveInstitutionId(actor: ContractActor): string {

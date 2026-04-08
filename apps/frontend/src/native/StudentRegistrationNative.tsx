@@ -104,6 +104,10 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',
 });
+const STUDENT_PORTAL_LOGIN_URL = String(
+  import.meta.env.VITE_STUDENT_PORTAL_LOGIN_URL ||
+    'https://ipesk.com.br/area-do-aluno/',
+).trim();
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => {
@@ -608,10 +612,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   }, []);
 
   const buildPortalLink = () => {
-    const params = new URLSearchParams();
-    params.set('embed', '1');
-    params.set('app', 'student');
-    return `/area-do-aluno/?${params.toString()}`;
+    return STUDENT_PORTAL_LOGIN_URL;
   };
 
   const validateStepOne = () => {
@@ -791,6 +792,15 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       setCodeLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!success) return undefined;
+    const redirectTimer = window.setTimeout(() => {
+      window.location.href = buildPortalLink();
+    }, 1400);
+    return () => window.clearTimeout(redirectTimer);
+  }, [success]);
+
   return (
     <section className={`native-student-register ${embedded ? 'is-embedded' : ''}`}>
       <article className="native-student-register-card">

@@ -6225,6 +6225,51 @@ table button {
   font-weight: 500;
 }
 
+.student-contract-gate-banner {
+  margin-bottom: 1rem;
+  border: 1px solid #f6c99f;
+  background: linear-gradient(135deg, #fff8ef, #fff2df);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.student-contract-gate-banner strong {
+  display: block;
+  margin: 0;
+  color: #9a3412;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.student-contract-gate-banner p {
+  margin: 0.22rem 0 0;
+  color: #7c2d12;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  max-width: 62ch;
+}
+
+.student-contract-gate-banner button {
+  border: 1px solid #ea580c;
+  background: #fff;
+  color: #9a3412;
+  border-radius: 10px;
+  padding: 0.42rem 0.74rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.student-contract-gate-banner button:hover {
+  background: #fff7ed;
+}
+
 .student-finance-visibility-toggle {
   border: 1px solid #c8d7de;
   background: #f7fbfc;
@@ -7804,6 +7849,15 @@ table button {
     color: #8a9aae;
     border-color: #d7e0e8;
     background: #f4f7fa;
+  }
+
+  .student-contract-gate-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .student-contract-gate-banner button {
+    width: 100%;
   }
 
   .student-template-support {

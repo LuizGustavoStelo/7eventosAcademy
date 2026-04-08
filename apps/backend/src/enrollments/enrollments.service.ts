@@ -156,14 +156,6 @@ export class EnrollmentsService {
           course: schoolClass.course,
         });
 
-        const installmentCharges = this.buildInstallmentCharges({
-          classStartDate: schoolClass.startDate,
-          paymentModel: schoolClass.course.paymentModel,
-          installmentMonths: schoolClass.course.installmentMonths,
-          installmentValue: schoolClass.course.installmentValue,
-          selectedPaymentOption,
-        });
-
         const createdEnrollment = await tx.enrollment.create({
           data: {
             classId: dto.classId,
@@ -198,18 +190,6 @@ export class EnrollmentsService {
             },
           },
         });
-
-        if (installmentCharges.length > 0) {
-          await tx.monthlyCharge.createMany({
-            data: installmentCharges.map((item) => ({
-              enrollmentId: createdEnrollment.id,
-              ownerAdminId: schoolClass.course.ownerAdminId,
-              dueDate: item.dueDate,
-              amount: item.amount,
-              status: item.status,
-            })),
-          });
-        }
 
         await tx.studentCourse.update({
           where: {
