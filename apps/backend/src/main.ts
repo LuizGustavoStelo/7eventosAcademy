@@ -1,4 +1,4 @@
-﻿import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';

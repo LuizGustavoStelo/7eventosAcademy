@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AgendaNative } from './native/AgendaNative';
 import { ClassesNative } from './native/ClassesNative';

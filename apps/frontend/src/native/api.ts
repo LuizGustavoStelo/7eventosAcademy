@@ -1,4 +1,4 @@
-﻿import { toPtBrApiMessage } from '../errorMessages';
+import { toPtBrApiMessage } from '../errorMessages';
 
 export type ApiErrorPayload = {
   message?: string | string[];
