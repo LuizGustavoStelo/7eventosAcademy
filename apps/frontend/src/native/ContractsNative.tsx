@@ -127,15 +127,15 @@ type ContractsNativeProps = {
 
 const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#111827;">
   <div style="max-width:794px;min-height:1123px;margin:0 auto;padding:20px 56px;box-sizing:border-box;background:#fff;">
-    <h2 style="margin:0 0 4px;font-size:16px;text-align:center;">INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS</h2>
+    <h2 style="margin:0 0 4px;font-size:16px;text-align:center;">INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÃ‡ÃƒO DE SERVIÃ‡OS EDUCACIONAIS</h2>
     <p style="margin:0 0 16px;text-align:center;">
-      Pós-graduação: <strong>{{curso_nome}}</strong>
+      PÃ³s-graduaÃ§Ã£o: <strong>{{curso_nome}}</strong>
     </p>
     <p style="margin:0 0 16px;text-align:center;font-size:11px;color:#4b5563;">
       {{contratada_nome}} - CNPJ {{contratada_cnp}} - {{contratada_endereco}}
     </p>
 
-    <h3 style="margin:0 0 8px;font-size:13px;">1. Identificação do(a) contratante</h3>
+    <h3 style="margin:0 0 8px;font-size:13px;">1. IdentificaÃ§Ã£o do(a) contratante</h3>
     <table style="width:100%;border-collapse:collapse;font-size:12px;">
       <tbody>
         <tr>
@@ -144,7 +144,7 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
         </tr>
         <tr>
           <td style="border:1px solid #d1d5db;padding:6px;"><strong>CPF</strong><br />{{aluno_cpf}}</td>
-          <td style="border:1px solid #d1d5db;padding:6px;"><strong>RG / Órgão</strong><br />{{aluno_rg}} - {{aluno_orgao_expedidor}}</td>
+          <td style="border:1px solid #d1d5db;padding:6px;"><strong>RG / Ã“rgÃ£o</strong><br />{{aluno_rg}} - {{aluno_orgao_expedidor}}</td>
         </tr>
         <tr>
           <td style="border:1px solid #d1d5db;padding:6px;"><strong>Data de nascimento</strong><br />{{aluno_data_nascimento}}</td>
@@ -152,14 +152,14 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
         </tr>
         <tr>
           <td style="border:1px solid #d1d5db;padding:6px;"><strong>Pai</strong><br />{{aluno_nome_pai}}</td>
-          <td style="border:1px solid #d1d5db;padding:6px;"><strong>Mãe</strong><br />{{aluno_nome_mae}}</td>
+          <td style="border:1px solid #d1d5db;padding:6px;"><strong>MÃ£e</strong><br />{{aluno_nome_mae}}</td>
         </tr>
         <tr>
-          <td colspan="2" style="border:1px solid #d1d5db;padding:6px;"><strong>Endereço</strong><br />{{aluno_endereco}}, {{aluno_numero_endereco}} - CEP {{aluno_cep}} - {{aluno_cidade_nascimento}}</td>
+          <td colspan="2" style="border:1px solid #d1d5db;padding:6px;"><strong>EndereÃ§o</strong><br />{{aluno_endereco}}, {{aluno_numero_endereco}} - CEP {{aluno_cep}} - {{aluno_cidade_nascimento}}</td>
         </tr>
         <tr>
-          <td style="border:1px solid #d1d5db;padding:6px;"><strong>Graduação</strong><br />{{aluno_graduacao}}</td>
-          <td style="border:1px solid #d1d5db;padding:6px;"><strong>Ano de conclusão</strong><br />{{aluno_ano_conclusao_graduacao}}</td>
+          <td style="border:1px solid #d1d5db;padding:6px;"><strong>GraduaÃ§Ã£o</strong><br />{{aluno_graduacao}}</td>
+          <td style="border:1px solid #d1d5db;padding:6px;"><strong>Ano de conclusÃ£o</strong><br />{{aluno_ano_conclusao_graduacao}}</td>
         </tr>
         <tr>
           <td style="border:1px solid #d1d5db;padding:6px;"><strong>Empresa</strong><br />{{aluno_empresa}}</td>
@@ -168,66 +168,66 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
       </tbody>
     </table>
 
-    <h3 style="margin:16px 0 8px;font-size:13px;">2. Cláusulas e condições</h3>
+    <h3 style="margin:16px 0 8px;font-size:13px;">2. ClÃ¡usulas e condiÃ§Ãµes</h3>
     <p style="margin:0 0 8px;">
-      O presente INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS,
-      em específico para desenvolvimento de curso de Pós-Graduação Lato Sensu, é celebrado
-      entre o(a) CONTRATANTE e a CONTRATADA {{contratada_nome}}, observando-se a legislação
-      educacional e consumerista aplicável.
+      O presente INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÃ‡ÃƒO DE SERVIÃ‡OS EDUCACIONAIS,
+      em especÃ­fico para desenvolvimento de curso de PÃ³s-GraduaÃ§Ã£o Lato Sensu, Ã© celebrado
+      entre o(a) CONTRATANTE e a CONTRATADA {{contratada_nome}}, observando-se a legislaÃ§Ã£o
+      educacional e consumerista aplicÃ¡vel.
     </p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA PRIMEIRA:</strong> O presente contrato tem como obeto a prestação de serviços educacionais pela CONTRATADA ao CONTRATANTE, durante o desenvolvimento do curso <strong>{{curso_nome}}</strong>, turma <strong>{{turma_nome}}</strong>, nos períodos de sua ocorrência e prazos definidos em calendário e cronograma acadêmico.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA SEGUNDA:</strong> A CONTRATADA assegura ao CONTRATANTE/BENEFICIÁRIO vaga no corpo discente, ministrando aulas e demais atividades escolares, cuo planeamento pedagógico atende à legislação vigente.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA TERCEIRA:</strong> A CONTRATADA resguarda-se no direito de alterar estrutura curricular, ementas e organização acadêmica, visando adequação às demandas pedagógicas e de mercado.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA QUARTA:</strong> Os serviços contratados referem-se aos procedimentos relativos ao currículo do curso constante na matrícula, integrante deste contrato. Excluem-se serviços facultativos e de caráter pessoal do CONTRATANTE/BENEFICIÁRIO, como emissão de documentos extraordinários e outros não condizentes com a prática acadêmica regular.</p>
-    <p style="margin:0 0 6px;"><strong>§ 1º</strong> - As aulas serão ministradas em salas, laboratórios, ambientes virtuais ou locais indicados pela CONTRATADA, conforme natureza dos conteúdos, saídas de campo e técnicas pedagógicas necessárias.</p>
-    <p style="margin:0 0 6px;"><strong>§ 2º</strong> - Reserva-se à CONTRATADA, até 5 (cinco) dias antes do início de cada turma, o direito de cancelar turma com número insuficiente de alunos, assegurando ao CONTRATANTE realocação em turma equivalente, quando disponível.</p>
-    <p style="margin:0 0 8px;"><strong>§ 3º</strong> - ? de exclusiva competência da CONTRATADA a orientação técnica e pedagógica decorrente da prestação dos serviços educacionais.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA PRIMEIRA:</strong> O presente contrato tem como obeto a prestaÃ§Ã£o de serviÃ§os educacionais pela CONTRATADA ao CONTRATANTE, durante o desenvolvimento do curso <strong>{{curso_nome}}</strong>, turma <strong>{{turma_nome}}</strong>, nos perÃ­odos de sua ocorrÃªncia e prazos definidos em calendÃ¡rio e cronograma acadÃªmico.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA SEGUNDA:</strong> A CONTRATADA assegura ao CONTRATANTE/BENEFICIÃRIO vaga no corpo discente, ministrando aulas e demais atividades escolares, cuo planeamento pedagÃ³gico atende Ã  legislaÃ§Ã£o vigente.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA TERCEIRA:</strong> A CONTRATADA resguarda-se no direito de alterar estrutura curricular, ementas e organizaÃ§Ã£o acadÃªmica, visando adequaÃ§Ã£o Ã s demandas pedagÃ³gicas e de mercado.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA QUARTA:</strong> Os serviÃ§os contratados referem-se aos procedimentos relativos ao currÃ­culo do curso constante na matrÃ­cula, integrante deste contrato. Excluem-se serviÃ§os facultativos e de carÃ¡ter pessoal do CONTRATANTE/BENEFICIÃRIO, como emissÃ£o de documentos extraordinÃ¡rios e outros nÃ£o condizentes com a prÃ¡tica acadÃªmica regular.</p>
+    <p style="margin:0 0 6px;"><strong>Â§ 1Âº</strong> - As aulas serÃ£o ministradas em salas, laboratÃ³rios, ambientes virtuais ou locais indicados pela CONTRATADA, conforme natureza dos conteÃºdos, saÃ­das de campo e tÃ©cnicas pedagÃ³gicas necessÃ¡rias.</p>
+    <p style="margin:0 0 6px;"><strong>Â§ 2Âº</strong> - Reserva-se Ã  CONTRATADA, atÃ© 5 (cinco) dias antes do inÃ­cio de cada turma, o direito de cancelar turma com nÃºmero insuficiente de alunos, assegurando ao CONTRATANTE realocaÃ§Ã£o em turma equivalente, quando disponÃ­vel.</p>
+    <p style="margin:0 0 8px;"><strong>Â§ 3Âº</strong> - ? de exclusiva competÃªncia da CONTRATADA a orientaÃ§Ã£o tÃ©cnica e pedagÃ³gica decorrente da prestaÃ§Ã£o dos serviÃ§os educacionais.</p>
   </div>
 
   <div data-contract-page-break="true" style="page-break-after: always;"></div>
 
   <div style="max-width:794px;min-height:1123px;margin:0 auto;padding:20px 56px;box-sizing:border-box;background:#fff;">
-    <h3 style="margin:0 0 8px;font-size:13px;">2. Cláusulas e condições (continuação)</h3>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA QUINTA:</strong> Em contrapartida aos serviços prestados pela CONTRATADA, o(a) CONTRATANTE pagará os valores e parcelas descritos na seção financeira deste instrumento.</p>
-    <p style="margin:10px 0 6px;"><strong>§ 2º</strong> - Através da Modalidade de Pós Graduação MODULAR, o aluno terá a RENOVAÇÃO DE MATRÍCULA automática a cada 03 (três módulos), desde que atenda os seguintes critérios:</p>
+    <h3 style="margin:0 0 8px;font-size:13px;">2. ClÃ¡usulas e condiÃ§Ãµes (continuaÃ§Ã£o)</h3>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA QUINTA:</strong> Em contrapartida aos serviÃ§os prestados pela CONTRATADA, o(a) CONTRATANTE pagarÃ¡ os valores e parcelas descritos na seÃ§Ã£o financeira deste instrumento.</p>
+    <p style="margin:10px 0 6px;"><strong>Â§ 2Âº</strong> - AtravÃ©s da Modalidade de PÃ³s GraduaÃ§Ã£o MODULAR, o aluno terÃ¡ a RENOVAÃ‡ÃƒO DE MATRÃCULA automÃ¡tica a cada 03 (trÃªs mÃ³dulos), desde que atenda os seguintes critÃ©rios:</p>
     <ul style="margin:0 0 10px 18px;padding:0;">
-      <li style="margin:0 0 4px;">Ter assinado o Contrato de Prestações de Serviços Educacionais ORIGINÁRIO e apresentado toda a documentação necessária;</li>
-      <li style="margin:0 0 4px;">Estar totalmente adimplente em suas mensalidades até o mês precedente ao da renovação de matrícula;</li>
-      <li style="margin:0 0 4px;">Caso a situação financeira estea satisfatória, o CONTRATANTE não precisará efetuar qualquer procedimento, pois sua rematrícula estará assegurada;</li>
-      <li style="margin:0 0 4px;">Na vigência de alguma pendência, a matrícula só poderá ser renovada se o CONTRATANTE obtiver a liberação no Departamento Financeiro da CONTRATADA;</li>
-      <li style="margin:0 0 4px;">A realização dos módulos seguintes ao módulo realizado só poderá ocorrer mediante cumprimento dos encargos pedagógicos e financeiros do módulo anterior, conforme previsão de disciplinas.</li>
+      <li style="margin:0 0 4px;">Ter assinado o Contrato de PrestaÃ§Ãµes de ServiÃ§os Educacionais ORIGINÃRIO e apresentado toda a documentaÃ§Ã£o necessÃ¡ria;</li>
+      <li style="margin:0 0 4px;">Estar totalmente adimplente em suas mensalidades atÃ© o mÃªs precedente ao da renovaÃ§Ã£o de matrÃ­cula;</li>
+      <li style="margin:0 0 4px;">Caso a situaÃ§Ã£o financeira estea satisfatÃ³ria, o CONTRATANTE nÃ£o precisarÃ¡ efetuar qualquer procedimento, pois sua rematrÃ­cula estarÃ¡ assegurada;</li>
+      <li style="margin:0 0 4px;">Na vigÃªncia de alguma pendÃªncia, a matrÃ­cula sÃ³ poderÃ¡ ser renovada se o CONTRATANTE obtiver a liberaÃ§Ã£o no Departamento Financeiro da CONTRATADA;</li>
+      <li style="margin:0 0 4px;">A realizaÃ§Ã£o dos mÃ³dulos seguintes ao mÃ³dulo realizado sÃ³ poderÃ¡ ocorrer mediante cumprimento dos encargos pedagÃ³gicos e financeiros do mÃ³dulo anterior, conforme previsÃ£o de disciplinas.</li>
     </ul>
-    <p style="margin:0 0 8px;"><strong>§ 3º</strong> - Os pagamentos das parcelas deverão ser efetuados até a data do vencimento prevista, nos locais indicados pela CONTRATADA. A primeira parcela será cobrada no ato da matrícula.</p>
-    <p style="margin:0 0 6px;"><strong>§ 4º</strong> - A CONTRATADA poderá conceder descontos para pagamento dentro da data de pontualidade, sem obrigação de prorrogação ou alteração de datas.</p>
-    <p style="margin:0 0 6px;"><strong>§ 5º</strong> - O não pagamento no prazo firmado poderá acarretar perda de descontos promocionais.</p>
-    <p style="margin:0 0 8px;"><strong>§ 6º</strong> - O não recebimento de boleto não isenta o CONTRATANTE do pagamento no vencimento, devendo buscar segunda via nos canais oficiais da CONTRATADA.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA SEXTA:</strong> Em caso de inadimplência, incidirão multa e uros conforme legislação e políticas financeiras da CONTRATADA, podendo haver cobrança administrativa e/ou udicial, observadas as regras legais vigentes.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA S?TIMA - CANCELAMENTO/RESCIS?O:</strong> A rescisão por iniciativa do CONTRATANTE deverá ser formalizada por escrito, com antecedência mínima exigida pela instituição e regularização das obrigações financeiras vencidas e vincendas previstas contratualmente.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA OITAVA:</strong> A CONTRATADA não se responsabiliza pela guarda de obetos pessoais, documentos, valores ou veículos do CONTRATANTE, salvo nos casos legalmente comprovados de responsabilidade direta.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA NONA:</strong> O abandono de aulas sem formalização de cancelamento não extingue obrigações financeiras e acadêmicas previstas neste contrato e no regulamento institucional.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA D?CIMA:</strong> O CONTRATANTE deverá cumprir frequência mínima e critérios de aproveitamento acadêmico para certificação, conforme normas do curso e exigências legais.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA D?CIMA PRIMEIRA:</strong> O prazo de entrega de TCC/Artigo e regras de reposição de módulos observarão manual acadêmico e regulamento vigente da CONTRATADA.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA D?CIMA SEGUNDA:</strong> O CONTRATANTE autoriza, de forma gratuita e nos limites legais, o uso de imagem para fins institucionais e publicitários da CONTRATADA.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA D?CIMA TERCEIRA:</strong> O CONTRATANTE compromete-se a manter dados cadastrais atualizados, inclusive endereço e telefones, sob pena de validade das comunicações enviadas aos dados constantes em cadastro.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA D?CIMA QUARTA:</strong> Danos causados pelo CONTRATANTE a instalações, mobiliários ou equipamentos da CONTRATADA deverão ser ressarcidos.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA D?CIMA QUINTA:</strong> A renovação de vínculo acadêmico poderá ser recusada em caso de descumprimento de obrigações contratuais, acadêmicas ou financeiras.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA D?CIMA SEXTA:</strong> A apresentação de trabalho final e emissão de documentos acadêmicos podem exigir regularidade financeira do CONTRATANTE.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA D?CIMA S?TIMA:</strong> A CONTRATADA não responde por serviços de estacionamento, vigilância ou guarda de veículos, cabendo responsabilidade ao proprietário/condutor.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA D?CIMA OITAVA:</strong> As partes reconhecem plena validade das cláusulas pactuadas neste instrumento.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA D?CIMA NONA:</strong> O contrato extingue-se com o cumprimento dos créditos/módulos do curso, observadas as exigências de conclusão e certificação.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA VIG?SIMA:</strong> As partes atribuem ao presente contrato eficácia urídica plena para todos os fins legais cabíveis.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA VIG?SIMA PRIMEIRA:</strong> Casos omissos poderão ser tratados entre o aluno e os setores competentes da CONTRATADA.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA VIG?SIMA SEGUNDA:</strong> As informações cadastrais e documentais do preâmbulo são de inteira responsabilidade do CONTRATANTE.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA VIG?SIMA TERCEIRA:</strong> Havendo convenção arbitral aplicável, controvérsias patrimoniais disponíveis poderão ser resolvidas em câmara de mediação/conciliação/arbitragem, conforme legislação vigente.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA VIG?SIMA QUARTA - DO FORO:</strong> Fica eleito o foro de <strong>{{contrato_foro}}</strong> para dirimir conflitos não submetidos à arbitragem.</p>
+    <p style="margin:0 0 8px;"><strong>Â§ 3Âº</strong> - Os pagamentos das parcelas deverÃ£o ser efetuados atÃ© a data do vencimento prevista, nos locais indicados pela CONTRATADA. A primeira parcela serÃ¡ cobrada no ato da matrÃ­cula.</p>
+    <p style="margin:0 0 6px;"><strong>Â§ 4Âº</strong> - A CONTRATADA poderÃ¡ conceder descontos para pagamento dentro da data de pontualidade, sem obrigaÃ§Ã£o de prorrogaÃ§Ã£o ou alteraÃ§Ã£o de datas.</p>
+    <p style="margin:0 0 6px;"><strong>Â§ 5Âº</strong> - O nÃ£o pagamento no prazo firmado poderÃ¡ acarretar perda de descontos promocionais.</p>
+    <p style="margin:0 0 8px;"><strong>Â§ 6Âº</strong> - O nÃ£o recebimento de boleto nÃ£o isenta o CONTRATANTE do pagamento no vencimento, devendo buscar segunda via nos canais oficiais da CONTRATADA.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA SEXTA:</strong> Em caso de inadimplÃªncia, incidirÃ£o multa e uros conforme legislaÃ§Ã£o e polÃ­ticas financeiras da CONTRATADA, podendo haver cobranÃ§a administrativa e/ou udicial, observadas as regras legais vigentes.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA S?TIMA - CANCELAMENTO/RESCIS?O:</strong> A rescisÃ£o por iniciativa do CONTRATANTE deverÃ¡ ser formalizada por escrito, com antecedÃªncia mÃ­nima exigida pela instituiÃ§Ã£o e regularizaÃ§Ã£o das obrigaÃ§Ãµes financeiras vencidas e vincendas previstas contratualmente.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA OITAVA:</strong> A CONTRATADA nÃ£o se responsabiliza pela guarda de obetos pessoais, documentos, valores ou veÃ­culos do CONTRATANTE, salvo nos casos legalmente comprovados de responsabilidade direta.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA NONA:</strong> O abandono de aulas sem formalizaÃ§Ã£o de cancelamento nÃ£o extingue obrigaÃ§Ãµes financeiras e acadÃªmicas previstas neste contrato e no regulamento institucional.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA D?CIMA:</strong> O CONTRATANTE deverÃ¡ cumprir frequÃªncia mÃ­nima e critÃ©rios de aproveitamento acadÃªmico para certificaÃ§Ã£o, conforme normas do curso e exigÃªncias legais.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA D?CIMA PRIMEIRA:</strong> O prazo de entrega de TCC/Artigo e regras de reposiÃ§Ã£o de mÃ³dulos observarÃ£o manual acadÃªmico e regulamento vigente da CONTRATADA.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA D?CIMA SEGUNDA:</strong> O CONTRATANTE autoriza, de forma gratuita e nos limites legais, o uso de imagem para fins institucionais e publicitÃ¡rios da CONTRATADA.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA D?CIMA TERCEIRA:</strong> O CONTRATANTE compromete-se a manter dados cadastrais atualizados, inclusive endereÃ§o e telefones, sob pena de validade das comunicaÃ§Ãµes enviadas aos dados constantes em cadastro.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA D?CIMA QUARTA:</strong> Danos causados pelo CONTRATANTE a instalaÃ§Ãµes, mobiliÃ¡rios ou equipamentos da CONTRATADA deverÃ£o ser ressarcidos.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA D?CIMA QUINTA:</strong> A renovaÃ§Ã£o de vÃ­nculo acadÃªmico poderÃ¡ ser recusada em caso de descumprimento de obrigaÃ§Ãµes contratuais, acadÃªmicas ou financeiras.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA D?CIMA SEXTA:</strong> A apresentaÃ§Ã£o de trabalho final e emissÃ£o de documentos acadÃªmicos podem exigir regularidade financeira do CONTRATANTE.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA D?CIMA S?TIMA:</strong> A CONTRATADA nÃ£o responde por serviÃ§os de estacionamento, vigilÃ¢ncia ou guarda de veÃ­culos, cabendo responsabilidade ao proprietÃ¡rio/condutor.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA D?CIMA OITAVA:</strong> As partes reconhecem plena validade das clÃ¡usulas pactuadas neste instrumento.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA D?CIMA NONA:</strong> O contrato extingue-se com o cumprimento dos crÃ©ditos/mÃ³dulos do curso, observadas as exigÃªncias de conclusÃ£o e certificaÃ§Ã£o.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA VIG?SIMA:</strong> As partes atribuem ao presente contrato eficÃ¡cia urÃ­dica plena para todos os fins legais cabÃ­veis.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA VIG?SIMA PRIMEIRA:</strong> Casos omissos poderÃ£o ser tratados entre o aluno e os setores competentes da CONTRATADA.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA VIG?SIMA SEGUNDA:</strong> As informaÃ§Ãµes cadastrais e documentais do preÃ¢mbulo sÃ£o de inteira responsabilidade do CONTRATANTE.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA VIG?SIMA TERCEIRA:</strong> Havendo convenÃ§Ã£o arbitral aplicÃ¡vel, controvÃ©rsias patrimoniais disponÃ­veis poderÃ£o ser resolvidas em cÃ¢mara de mediaÃ§Ã£o/conciliaÃ§Ã£o/arbitragem, conforme legislaÃ§Ã£o vigente.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA VIG?SIMA QUARTA - DO FORO:</strong> Fica eleito o foro de <strong>{{contrato_foro}}</strong> para dirimir conflitos nÃ£o submetidos Ã  arbitragem.</p>
   </div>
 
   <div data-contract-page-break="true" style="page-break-after: always;"></div>
 
   <div style="max-width:794px;min-height:1123px;margin:0 auto;padding:20px 56px;box-sizing:border-box;background:#fff;">
-    <h3 style="margin:0 0 8px;font-size:13px;">3. Condições financeiras</h3>
+    <h3 style="margin:0 0 8px;font-size:13px;">3. CondiÃ§Ãµes financeiras</h3>
     <p style="margin:0 0 8px;">
-      Matrícula vinculada ao ID <strong>{{matricula_id}}</strong>. Total de parcelas: <strong>{{financeiro_parcelas_total}}</strong>.
+      MatrÃ­cula vinculada ao ID <strong>{{matricula_id}}</strong>. Total de parcelas: <strong>{{financeiro_parcelas_total}}</strong>.
     </p>
     <table style="width:100%;border-collapse:collapse;font-size:12px;margin:0 0 10px;">
       <tbody>
@@ -236,7 +236,7 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
           <td style="border:1px solid #d1d5db;padding:6px;"><strong>Valor total</strong><br />{{financeiro_valor_total}}</td>
         </tr>
         <tr>
-          <td style="border:1px solid #d1d5db;padding:6px;"><strong>Taxa de matrícula</strong><br />{{financeiro_taxa_matricula}}</td>
+          <td style="border:1px solid #d1d5db;padding:6px;"><strong>Taxa de matrÃ­cula</strong><br />{{financeiro_taxa_matricula}}</td>
           <td style="border:1px solid #d1d5db;padding:6px;"><strong>Valor da parcela</strong><br />{{financeiro_valor_parcela}}</td>
         </tr>
         <tr>
@@ -258,14 +258,14 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
         <tr>
           <td style="width:50%;padding:8px 12px 8px 0;vertical-align:top;">
             <div style="border-top:1px solid #111827;padding-top:6px;">
-              ALUNO(A) - CONTRATANTE/BENEFICIÁRIO<br />
+              ALUNO(A) - CONTRATANTE/BENEFICIÃRIO<br />
               Nome: {{aluno_nome}}<br />
               CPF: {{aluno_cpf}}
             </div>
           </td>
           <td style="width:50%;padding:8px 0 8px 12px;vertical-align:top;">
             <div style="border-top:1px solid #111827;padding-top:6px;">
-              INSTITUIÇÃO / PROFESSOR RESPONSÁVEL<br />
+              INSTITUIÃ‡ÃƒO / PROFESSOR RESPONSÃVEL<br />
               {{contratada_nome}}
             </div>
           </td>
@@ -274,7 +274,7 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
     </table>
 
     <p style="margin:16px 0 0;font-size:11px;color:#4b5563;">
-      Código de assinatura eletrônica: <strong>{{codigo_assinatura}}</strong>
+      CÃ³digo de assinatura eletrÃ´nica: <strong>{{codigo_assinatura}}</strong>
     </p>
   </div>
 </section>`;
@@ -287,7 +287,7 @@ const CONTRACT_EDITOR_PLACEHOLDERS: ContractPlaceholder[] = [
   { id: 'aluno_rg', label: 'Aluno: RG', token: '{{aluno_rg}}' },
   {
     id: 'aluno_orgao_expedidor',
-    label: 'Aluno: órgão expedidor',
+    label: 'Aluno: Ã³rgÃ£o expedidor',
     token: '{{aluno_orgao_expedidor}}',
   },
   { id: 'aluno_telefone', label: 'Aluno: telefone', token: '{{aluno_telefone}}' },
@@ -303,28 +303,28 @@ const CONTRACT_EDITOR_PLACEHOLDERS: ContractPlaceholder[] = [
     token: '{{aluno_estado_civil}}',
   },
   { id: 'aluno_nome_pai', label: 'Aluno: nome do pai', token: '{{aluno_nome_pai}}' },
-  { id: 'aluno_nome_mae', label: 'Aluno: nome da mãe', token: '{{aluno_nome_mae}}' },
-  { id: 'aluno_graduacao', label: 'Aluno: graduação', token: '{{aluno_graduacao}}' },
+  { id: 'aluno_nome_mae', label: 'Aluno: nome da mÃ£e', token: '{{aluno_nome_mae}}' },
+  { id: 'aluno_graduacao', label: 'Aluno: graduaÃ§Ã£o', token: '{{aluno_graduacao}}' },
   {
     id: 'aluno_ano_conclusao_graduacao',
-    label: 'Aluno: ano de conclusão',
+    label: 'Aluno: ano de conclusÃ£o',
     token: '{{aluno_ano_conclusao_graduacao}}',
   },
   { id: 'aluno_empresa', label: 'Aluno: empresa', token: '{{aluno_empresa}}' },
   { id: 'aluno_cargo', label: 'Aluno: cargo', token: '{{aluno_cargo}}' },
   { id: 'aluno_cep', label: 'Aluno: CEP', token: '{{aluno_cep}}' },
-  { id: 'aluno_endereco', label: 'Aluno: endereço', token: '{{aluno_endereco}}' },
+  { id: 'aluno_endereco', label: 'Aluno: endereÃ§o', token: '{{aluno_endereco}}' },
   {
     id: 'aluno_numero_endereco',
-    label: 'Aluno: número',
+    label: 'Aluno: nÃºmero',
     token: '{{aluno_numero_endereco}}',
   },
   { id: 'curso_nome', label: 'Curso: nome', token: '{{curso_nome}}' },
   { id: 'turma_nome', label: 'Turma: nome', token: '{{turma_nome}}' },
-  { id: 'matricula_id', label: 'Matrícula: ID', token: '{{matricula_id}}' },
+  { id: 'matricula_id', label: 'MatrÃ­cula: ID', token: '{{matricula_id}}' },
   { id: 'contratada_nome', label: 'Contratada: nome', token: '{{contratada_nome}}' },
   { id: 'contratada_cnp', label: 'Contratada: CNPJ', token: '{{contratada_cnp}}' },
-  { id: 'contratada_endereco', label: 'Contratada: endereço', token: '{{contratada_endereco}}' },
+  { id: 'contratada_endereco', label: 'Contratada: endereÃ§o', token: '{{contratada_endereco}}' },
   { id: 'contrato_foro', label: 'Contrato: foro', token: '{{contrato_foro}}' },
   {
     id: 'financeiro_parcelas_total',
@@ -349,7 +349,7 @@ const CONTRACT_EDITOR_PLACEHOLDERS: ContractPlaceholder[] = [
   { id: 'financeiro_valor_total', label: 'Financeiro: valor total', token: '{{financeiro_valor_total}}' },
   {
     id: 'financeiro_taxa_matricula',
-    label: 'Financeiro: taxa de matrícula',
+    label: 'Financeiro: taxa de matrÃ­cula',
     token: '{{financeiro_taxa_matricula}}',
   },
   {
@@ -368,7 +368,7 @@ const CONTRACT_EDITOR_PLACEHOLDERS: ContractPlaceholder[] = [
     token: '{{financeiro_formas_valores_resumo}}',
   },
   { id: 'contrato_cidade_assinatura', label: 'Contrato: cidade da assinatura', token: '{{contrato_cidade_assinatura}}' },
-  { id: 'contrato_data_emissao', label: 'Contrato: data de emissão', token: '{{contrato_data_emissao}}' },
+  { id: 'contrato_data_emissao', label: 'Contrato: data de emissÃ£o', token: '{{contrato_data_emissao}}' },
   {
     id: 'contrato_data_emissao_extenso',
     label: 'Contrato: data por extenso',
@@ -376,12 +376,12 @@ const CONTRACT_EDITOR_PLACEHOLDERS: ContractPlaceholder[] = [
   },
   {
     id: 'contrato_datahora_emissao',
-    label: 'Contrato: data/hora de emissão',
+    label: 'Contrato: data/hora de emissÃ£o',
     token: '{{contrato_datahora_emissao}}',
   },
   { id: 'assinado_por_nome', label: 'Assinante', token: '{{assinado_por_nome}}' },
   { id: 'assinado_em', label: 'Data/hora da assinatura', token: '{{assinado_em}}' },
-  { id: 'codigo_assinatura', label: 'Código da assinatura', token: '{{codigo_assinatura}}' },
+  { id: 'codigo_assinatura', label: 'CÃ³digo da assinatura', token: '{{codigo_assinatura}}' },
 ];
 
 function defaultTemplateForm(): TemplateFormState {
@@ -638,7 +638,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       setError(
         loadError instanceof Error
           ? loadError.message
-          : 'Falha ao carregar módulo de contratos.',
+          : 'Falha ao carregar mÃ³dulo de contratos.',
       );
     } finally {
       if (showLoading) setLoading(false);
@@ -673,7 +673,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
 
     const currentTemplate = templates.find((item) => item.id === selectedTemplateId);
     if (!currentTemplate) {
-      setFormError('Modelo selecionado não foi encontrado.');
+      setFormError('Modelo selecionado nÃ£o foi encontrado.');
       return;
     }
 
@@ -783,13 +783,13 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     };
 
     if (!payload.name || !payload.draftTitle || !payload.draftHtmlContent) {
-      setFormError('Preencha nome, título e conteúdo HTML do contrato.');
+      setFormError('Preencha nome, tÃ­tulo e conteÃºdo HTML do contrato.');
       return;
     }
 
     if (selectedTemplate && selectedTemplate.status.trim().toUpperCase() === 'PUBLISHED') {
       setFormError(
-        'Modelos publicados não aceitam edição direta. Use "Publicar versão" para atualizar conteúdo.',
+        'Modelos publicados aceitam apenas configuracao de envio automatico.',
       );
       return;
     }
@@ -856,7 +856,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
         loadInstances(instanceStatusFilter),
         loadAllInstancesForSignals(),
       ]);
-      setFeedback('Versão do contrato publicada com sucesso.');
+      setFeedback('VersÃ£o do contrato publicada com sucesso.');
     } catch (publishError) {
       const message =
         publishError instanceof Error
@@ -871,12 +871,12 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
 
   const saveAutoSendSettings = async () => {
     if (!selectedTemplateId) {
-      setAutoSendError('Selecione um modelo para configurar o envio automático.');
+      setAutoSendError('Selecione um modelo para configurar o envio automÃ¡tico.');
       return;
     }
 
     if (autoSendEnabled && !autoSendAllCourses && autoSendCourseIds.length === 0) {
-      setAutoSendError('Selecione ao menos um curso ou marque a opção de todos os cursos.');
+      setAutoSendError('Selecione ao menos um curso ou marque a opÃ§Ã£o de todos os cursos.');
       return;
     }
 
@@ -896,12 +896,12 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       });
 
       await loadTemplates();
-      setFeedback('Configuração de envio automático atualizada com sucesso.');
+      setFeedback('ConfiguraÃ§Ã£o de envio automÃ¡tico atualizada com sucesso.');
     } catch (saveError) {
       setAutoSendError(
         saveError instanceof Error
           ? saveError.message
-          : 'Falha ao salvar configuração de envio automático.',
+          : 'Falha ao salvar configuraÃ§Ã£o de envio automÃ¡tico.',
       );
     } finally {
       setAutoSendSaving(false);
@@ -945,7 +945,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
         loadAllInstancesForSignals(),
       ]);
       setFeedback(
-        `Contrato enviado com sucesso. Código de assinatura: ${result.signatureCode}.`,
+        `Contrato enviado com sucesso. CÃ³digo de assinatura: ${result.signatureCode}.`,
       );
       setSendForm((current) => ({
         ...current,
@@ -1010,7 +1010,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
             message = payload.message;
           }
         } catch {
-          // mantém mensagem padrão
+          // mantÃ©m mensagem padrÃ£o
         }
         throw new Error(message);
       }
@@ -1043,7 +1043,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
 
   const deleteInstance = async (instance: ContractInstanceItem) => {
     const shouldDelete = window.confirm(
-      `Desea realmente apagar o contrato "${instance.template.name}" de ${instance.student.name}? Esta ação remove o contrato também da visão do aluno.`,
+      `Desea realmente apagar o contrato "${instance.template.name}" de ${instance.student.name}? Esta aÃ§Ã£o remove o contrato tambÃ©m da visÃ£o do aluno.`,
     );
     if (!shouldDelete) return;
 
@@ -1109,8 +1109,12 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   };
 
   const deleteTemplate = async (template: ContractTemplate) => {
+    if (template.status.trim().toUpperCase() === 'PUBLISHED') {
+      setError('Modelo publicado permite apenas configuracao de envio automatico.');
+      return;
+    }
     const shouldDelete = window.confirm(
-      `Desea realmente apagar o modelo "${template.name}"? Esta ação também remove contratos enviados por este modelo.`,
+      `Desea realmente apagar o modelo "${template.name}"? Esta aÃ§Ã£o tambÃ©m remove contratos enviados por este modelo.`,
     );
     if (!shouldDelete) return;
 
@@ -1188,11 +1192,11 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
         <h2>{isEditorMode ? 'Editor de contrato' : 'Contratos'}</h2>
         {isEditorMode ? (
           <p>
-            Página dedicada para criar e editar modelos de contrato.
+            PÃ¡gina dedicada para criar e editar modelos de contrato.
           </p>
         ) : (
           <p>
-            Crie modelos, publique versões, envie contratos para assinatura do aluno e
+            Crie modelos, publique versÃµes, envie contratos para assinatura do aluno e
             acompanhe o ciclo de assinatura com rastreabilidade.
           </p>
         )}
@@ -1214,9 +1218,9 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                 instancesCountByStatus.signedInstitutionPending}
             </strong>
             <small>
-              {instancesCountByStatus.sent} enviados ⬢ {instancesCountByStatus.viewed} visualizados
+              {instancesCountByStatus.sent} enviados â¬¢ {instancesCountByStatus.viewed} visualizados
               {instancesCountByStatus.signedInstitutionPending > 0
-                ? ` ⬢ ${instancesCountByStatus.signedInstitutionPending} instituição pendente`
+                ? ` â¬¢ ${instancesCountByStatus.signedInstitutionPending} instituiÃ§Ã£o pendente`
                 : ''}
             </small>
           </article>
@@ -1262,7 +1266,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                     <div>
                       <strong>{template.name}</strong>
                       <small>
-                        Versão {template.latestVersionNumber} ⬢ Atualizado em{' '}
+                        VersÃ£o {template.latestVersionNumber} â¬¢ Atualizado em{' '}
                         {formatDateTime(template.updatedAt)}
                       </small>
                     </div>
@@ -1277,7 +1281,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                             ) : null}
                             {template.autoSendEnabled ? (
                               <span className="native-status-chip is-info">
-                                Envio automático
+                                Envio automÃ¡tico
                               </span>
                             ) : null}
                           </div>
@@ -1289,10 +1293,15 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                       type="button"
                       className="native-contract-template-delete"
                       aria-label={`Apagar modelo ${template.name}`}
+                      title={
+                        template.status.trim().toUpperCase() === 'PUBLISHED'
+                          ? 'Modelo publicado: apenas envio automático pode ser alterado.'
+                          : 'Apagar modelo'
+                      }
                       onClick={() => {
                         void deleteTemplate(template);
                       }}
-                      disabled={deletingTemplateId === template.id}
+                      disabled={deletingTemplateId === template.id || template.status.trim().toUpperCase() === 'PUBLISHED'}
                     >
                       <span className="material-symbols-outlined">
                         {deletingTemplateId === template.id ? 'hourglass_top' : 'delete'}
@@ -1325,10 +1334,10 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                 {selectedTemplate ? (
                   <small>
                     {selectedTemplate.latestVersion
-                      ? `Última publicação: v${selectedTemplate.latestVersion.versionNumber} em ${formatDateTime(
+                      ? `Ãšltima publicaÃ§Ã£o: v${selectedTemplate.latestVersion.versionNumber} em ${formatDateTime(
                           selectedTemplate.latestVersion.publishedAt,
                         )}`
-                      : 'Sem versão publicada'}
+                      : 'Sem versÃ£o publicada'}
                   </small>
                 ) : null}
               </header>
@@ -1341,13 +1350,13 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                     onChange={(event) =>
                       setTemplateForm((current) => ({ ...current, name: event.target.value }))
                     }
-                    placeholder="Ex: Contrato padrão de matrícula"
+                    placeholder="Ex: Contrato padrÃ£o de matrÃ­cula"
                     required
                   />
                 </label>
 
                 <label>
-                  Título visível no contrato
+                  TÃ­tulo visÃ­vel no contrato
                   <input
                     value={templateForm.draftTitle}
                     onChange={(event) =>
@@ -1356,13 +1365,13 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                         draftTitle: event.target.value,
                       }))
                     }
-                    placeholder="Ex: Contrato de Prestação de Serviços"
+                    placeholder="Ex: Contrato de PrestaÃ§Ã£o de ServiÃ§os"
                     required
                   />
                 </label>
 
                 <label className="native-contract-span-all">
-                  Descrição (opcional)
+                  DescriÃ§Ã£o (opcional)
                   <input
                     value={templateForm.description}
                     onChange={(event) =>
@@ -1398,9 +1407,14 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                       type="button"
                       className="ghost"
                       onClick={() => void publishTemplate()}
-                      disabled={templatePublishing || !selectedTemplateId}
+                      title={
+                        isSelectedTemplatePublished
+                          ? 'Modelo publicado: apenas envio automático pode ser alterado.'
+                          : undefined
+                      }
+                      disabled={templatePublishing || !selectedTemplateId || isSelectedTemplatePublished}
                     >
-                      {templatePublishing ? 'Publicando...' : 'Publicar versão'}
+                      {templatePublishing ? 'Publicando...' : 'Publicar versÃ£o'}
                     </button>
                   ) : null}
                   <button type="submit" disabled={templateSaving}>
@@ -1425,9 +1439,14 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                       type="button"
                       className="ghost"
                       onClick={() => void publishTemplate()}
-                      disabled={!selectedTemplateId || templatePublishing}
+                      title={
+                        isSelectedTemplatePublished
+                          ? 'Modelo publicado: apenas envio automático pode ser alterado.'
+                          : undefined
+                      }
+                      disabled={!selectedTemplateId || templatePublishing || isSelectedTemplatePublished}
                     >
-                      {templatePublishing ? 'Publicando...' : 'Publicar nova versão'}
+                      {templatePublishing ? 'Publicando...' : 'Publicar nova versÃ£o'}
                     </button>
                     <div
                       className="native-contract-editor-guard"
@@ -1438,7 +1457,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                     >
                       {showEditorBlockedHint && isSelectedTemplatePublished ? (
                         <span className="native-contract-editor-tooltip">
-                          Contratos já publicados não podem ser editados.
+                          Contratos jÃ¡ publicados nÃ£o podem ser editados.
                         </span>
                       ) : null}
                       <button
@@ -1464,7 +1483,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                       <div>
                         <strong>{selectedTemplate.name}</strong>
                         <small>
-                          Versão {selectedTemplate.latestVersionNumber} • Atualizado em{' '}
+                          VersÃ£o {selectedTemplate.latestVersionNumber} â€¢ Atualizado em{' '}
                           {formatDateTime(selectedTemplate.updatedAt)}
                         </small>
                       </div>
@@ -1474,19 +1493,19 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                           {templateStatusLabel(selectedTemplate.status)}
                         </span>
                         {selectedTemplate.autoSendEnabled ? (
-                          <span className="native-status-chip is-info">Envio automático</span>
+                          <span className="native-status-chip is-info">Envio automÃ¡tico</span>
                         ) : (
                           <span className="native-status-chip is-neutral">Envio manual</span>
                         )}
                       </div>
 
                       <p className="native-info" style={{ margin: 0 }}>
-                        {selectedTemplate.description || 'Sem descrição cadastrada para este modelo.'}
+                        {selectedTemplate.description || 'Sem descriÃ§Ã£o cadastrada para este modelo.'}
                       </p>
 
                       <div className="native-contract-quick-kpis">
                         <article>
-                          <span>Envio automático</span>
+                          <span>Envio automÃ¡tico</span>
                           <strong>{autoSendEnabled ? 'Ligado' : 'Desligado'}</strong>
                         </article>
                         <article>
@@ -1500,7 +1519,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                           </strong>
                         </article>
                         <article>
-                          <span>Pendências</span>
+                          <span>PendÃªncias</span>
                           <strong>
                             {pendingSignatureCountByTemplate.get(selectedTemplate.id) ?? 0}
                           </strong>
@@ -1520,13 +1539,13 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                             checked={autoSendEnabled}
                             onChange={(event) => setAutoSendEnabled(event.target.checked)}
                           />
-                          <span>Envio automático ao concluir a matrícula</span>
+                          <span>Envio automÃ¡tico ao concluir a matrÃ­cula</span>
                         </label>
 
                         {autoSendEnabled ? (
                           <>
                             <label>
-                              Escopo do envio automático
+                              Escopo do envio automÃ¡tico
                               <select
                                 value={autoSendAllCourses ? 'ALL' : 'SPECIFIC'}
                                 onChange={(event) => {
@@ -1569,7 +1588,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
 
                         <div className="native-modal-actions native-contract-span-all">
                           <button type="button" onClick={() => void saveAutoSendSettings()} disabled={autoSendSaving}>
-                            {autoSendSaving ? 'Salvando...' : 'Salvar envio automático'}
+                            {autoSendSaving ? 'Salvando...' : 'Salvar envio automÃ¡tico'}
                           </button>
                         </div>
                       </div>
@@ -1583,7 +1602,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                     </article>
                   </div>
                 ) : (
-                  <p className="native-info">Selecione um modelo na lista para ver resumo, preview e configurações rápidas.</p>
+                  <p className="native-info">Selecione um modelo na lista para ver resumo, preview e configuraÃ§Ãµes rÃ¡pidas.</p>
                 )}
               </article>
 
@@ -1705,7 +1724,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                     </label>
 
                     <label>
-                      Expiração do link (horas)
+                      ExpiraÃ§Ã£o do link (horas)
                       <input
                         type="number"
                         min={1}
@@ -1788,15 +1807,15 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                     <th>Status</th>
                     <th>Enviado em</th>
                     <th>Assinado em</th>
-                    <th>Ações</th>
+                    <th>AÃ§Ãµes</th>
                   </tr>
                 </thead>
                 <tbody>
                   {instances.length === 0 ? (
                     <tr>
                       <td colSpan={6}>
-                        Nenhum envio encontrado. O botão "Assinar instituição" aparece quando o
-                        contrato estiver assinado pelo aluno e pendente da instituição.
+                        Nenhum envio encontrado. O botÃ£o "Assinar instituiÃ§Ã£o" aparece quando o
+                        contrato estiver assinado pelo aluno e pendente da instituiÃ§Ã£o.
                       </td>
                     </tr>
                   ) : (
@@ -1848,8 +1867,8 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                               disabled={signingInstitutionInstanceId === instance.id}
                             >
                               {signingInstitutionInstanceId === instance.id
-                                ? 'Assinando instituição...'
-                                : 'Assinar instituição'}
+                                ? 'Assinando instituiÃ§Ã£o...'
+                                : 'Assinar instituiÃ§Ã£o'}
                             </button>
                           ) : null}
                           <button
@@ -1898,7 +1917,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                     <strong>{selectedInstanceDetails.student.name}</strong>
                   </article>
                   <article>
-                    <span>Código de assinatura</span>
+                    <span>CÃ³digo de assinatura</span>
                     <strong>{selectedInstanceDetails.signatureCode}</strong>
                   </article>
                   <article>
@@ -1923,7 +1942,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                     <h3>{selectedInstanceDetails.snapshotTemplateTitle}</h3>
                   </header>
                   <iframe
-                    title="Pré-visualização do contrato"
+                    title="PrÃ©-visualizaÃ§Ã£o do contrato"
                     sandbox=""
                     srcDoc={selectedInstanceDetails.documentHtml}
                   />
@@ -1939,13 +1958,13 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                         <article key={log.id}>
                           <strong>{log.action}</strong>
                           <small>
-                            {log.actorType} ⬢ {formatDateTime(log.createdAt)}
+                            {log.actorType} â¬¢ {formatDateTime(log.createdAt)}
                           </small>
                         </article>
                       ))}
                     </div>
                   ) : (
-                    <p className="native-info">Sem trilha de auditoria disponível para seu perfil.</p>
+                    <p className="native-info">Sem trilha de auditoria disponÃ­vel para seu perfil.</p>
                   )}
                 </article>
               </div>
@@ -1956,4 +1975,5 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     </section>
   );
 }
+
 
