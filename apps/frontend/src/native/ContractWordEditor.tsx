@@ -83,12 +83,22 @@ const clampPad = (v: number) => clamp(Number.isFinite(v) ? v : PAD_MIN, PAD_MIN,
 const clampOpacity = (v: number) => clamp(Number.isFinite(v) ? v : 0.22, 0, 1);
 
 const hasMeaningfulHtml = (html: string) => {
-  const normalized = String(html || '')
-    .replace(/<br\s*\/?>/gi, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/\s+/g, '')
-    .trim();
-  return Boolean(normalized);
+  const raw = String(html || '').trim();
+  if (!raw) return false;
+
+  const parser = new window.DOMParser();
+  const doc = parser.parseFromString(`<div id="content-root">${raw}</div>`, 'text/html');
+  const root = doc.getElementById('content-root');
+  if (!root) return false;
+
+  const text = String(root.textContent || '').replace(/\u00a0/g, ' ').trim();
+  if (text) return true;
+
+  return Boolean(
+    root.querySelector(
+      'img,table,svg,canvas,iframe,video,audio,object,embed,input,textarea,select',
+    ),
+  );
 };
 
 const encodeMeta = (v: string) => encodeURIComponent(String(v || ''));
@@ -676,13 +686,14 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
       let guard = 0;
       while (current.scrollHeight > current.clientHeight + 1 && guard < 600) {
         guard += 1;
+        const nodeToMove = current.lastChild;
+        if (!nodeToMove) break;
         if (!next) {
+          if (!hasMeaningfulHtml(current.innerHTML || '')) break;
           appendNew = true;
           appendFrom = i;
           break;
         }
-        const nodeToMove = current.lastChild;
-        if (!nodeToMove) break;
         next.insertBefore(nodeToMove, next.firstChild);
       }
       if (appendNew) break;
