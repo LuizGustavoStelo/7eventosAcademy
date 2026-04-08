@@ -66,7 +66,7 @@ type ResolvedSicoobConfig = {
   pixKey: string | null;
   boletoModalidade: number;
   boletoNumeroContaCorrente: number;
-  boletoNumeroContratoCobranca: number | null;
+  boletoNumeroContratoCobranca: number;
   cobrancaBancariaBaseUrl: string;
   pixRecebimentosBaseUrl: string;
 };
@@ -665,6 +665,7 @@ export class MisService {
         createdAt: true,
         enrollment: {
           select: {
+            createdAt: true,
             selectedPaymentOption: true,
             schoolClass: {
               select: {
@@ -672,6 +673,7 @@ export class MisService {
                 course: {
                   select: {
                     name: true,
+                    enrollmentFee: true,
                   },
                 },
               },
@@ -694,6 +696,7 @@ export class MisService {
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
       take: 30,
     });
+    const descriptionByChargeId = this.buildStudentChargeDescriptionMap(charges);
 
     return charges.map((charge) => ({
       id: charge.id,
@@ -701,6 +704,11 @@ export class MisService {
       dueDate: charge.dueDate,
       amount: Number(charge.amount),
       status: charge.status,
+      description:
+        descriptionByChargeId.get(charge.id) ??
+        this.buildStudentChargeDefaultDescription(
+          charge.enrollment.selectedPaymentOption,
+        ),
       paymentMethod: this.resolveEnrollmentPaymentMethod(
         charge.enrollment.selectedPaymentOption,
       ),
@@ -722,6 +730,142 @@ export class MisService {
           }
         : null,
     }));
+  }
+
+  private buildStudentChargeDescriptionMap(
+    charges: Array<{
+      id: string;
+      enrollmentId: string;
+      amount: Prisma.Decimal;
+      dueDate: Date;
+      createdAt: Date;
+      enrollment: {
+        createdAt: Date;
+        selectedPaymentOption: Prisma.JsonValue | null;
+        schoolClass: {
+          course: {
+            enrollmentFee: Prisma.Decimal | null;
+          };
+        };
+      };
+    }>,
+  ) {
+    const descriptionById = new Map<string, string>();
+    const byEnrollment = new Map<string, typeof charges>();
+
+    for (const charge of charges) {
+      const list = byEnrollment.get(charge.enrollmentId) ?? [];
+      list.push(charge);
+      byEnrollment.set(charge.enrollmentId, list);
+    }
+
+    byEnrollment.forEach((items) => {
+      const ordered = [...items].sort(
+        (a, b) =>
+          a.dueDate.getTime() - b.dueDate.getTime() ||
+          a.createdAt.getTime() - b.createdAt.getTime(),
+      );
+      const first = ordered[0];
+      if (!first) return;
+
+      const enrollmentFee = this.toMoneyValue(
+        Number(first.enrollment.schoolClass.course.enrollmentFee ?? 0),
+      );
+
+      const enrollmentFeeCharge =
+        enrollmentFee > 0
+          ? ordered.find((item) => {
+              const amount = this.toMoneyValue(Number(item.amount));
+              if (amount !== enrollmentFee) return false;
+              const dueDay = new Date(
+                item.dueDate.getFullYear(),
+                item.dueDate.getMonth(),
+                item.dueDate.getDate(),
+              ).getTime();
+              const enrollmentDay = new Date(
+                first.enrollment.createdAt.getFullYear(),
+                first.enrollment.createdAt.getMonth(),
+                first.enrollment.createdAt.getDate(),
+              ).getTime();
+              return dueDay === enrollmentDay;
+            }) ?? null
+          : null;
+
+      if (enrollmentFeeCharge) {
+        descriptionById.set(enrollmentFeeCharge.id, 'Matrícula');
+      }
+
+      const selectedOption = this.parseStudentSelectedPaymentOption(
+        first.enrollment.selectedPaymentOption,
+      );
+      const remaining = ordered.filter(
+        (item) => !enrollmentFeeCharge || item.id !== enrollmentFeeCharge.id,
+      );
+      if (remaining.length === 0) return;
+
+      if (selectedOption.type === 'CASH') {
+        remaining.forEach((item) => {
+          descriptionById.set(item.id, 'Valor do curso');
+        });
+        return;
+      }
+
+      const totalInstallments =
+        selectedOption.installmentCount > 0
+          ? selectedOption.installmentCount
+          : remaining.length;
+
+      remaining.forEach((item, index) => {
+        if (totalInstallments <= 1) {
+          descriptionById.set(item.id, 'Mensalidade 1/1');
+          return;
+        }
+        const currentInstallment = Math.min(index + 1, totalInstallments);
+        descriptionById.set(
+          item.id,
+          `Mensalidade ${currentInstallment}/${totalInstallments}`,
+        );
+      });
+    });
+
+    return descriptionById;
+  }
+
+  private parseStudentSelectedPaymentOption(
+    raw: Prisma.JsonValue | null | undefined,
+  ): {
+    type: 'CASH' | 'INSTALLMENTS';
+    installmentCount: number;
+  } {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return { type: 'INSTALLMENTS', installmentCount: 0 };
+    }
+
+    const record = raw as Record<string, unknown>;
+    const type =
+      String(record.type || '').toUpperCase() === 'INSTALLMENTS'
+        ? 'INSTALLMENTS'
+        : 'CASH';
+    const installmentCount = Number(record.installmentCount ?? 0);
+
+    return {
+      type,
+      installmentCount:
+        Number.isFinite(installmentCount) && installmentCount > 0
+          ? installmentCount
+          : 0,
+    };
+  }
+
+  private buildStudentChargeDefaultDescription(
+    raw: Prisma.JsonValue | null | undefined,
+  ) {
+    const selectedOption = this.parseStudentSelectedPaymentOption(raw);
+    if (selectedOption.type === 'CASH') return 'Valor do curso';
+    if (selectedOption.installmentCount > 0) {
+      return `Mensalidade 1/${selectedOption.installmentCount}`;
+    }
+    return 'Cobrança';
   }
 
   private async handleAsaasWebhook(
@@ -1231,12 +1375,10 @@ export class MisService {
         String(input.config.boletoModalidade),
       );
       consultaUrl.searchParams.set('nossoNumero', String(input.nossoNumero));
-      if (input.config.boletoNumeroContratoCobranca) {
-        consultaUrl.searchParams.set(
-          'numeroContratoCobranca',
-          String(input.config.boletoNumeroContratoCobranca),
-        );
-      }
+      consultaUrl.searchParams.set(
+        'numeroContratoCobranca',
+        String(this.resolveSicoobNumeroContratoCobranca(input.config)),
+      );
 
       try {
         const queried = await this.sicoobJsonRequest<unknown>({
@@ -1266,12 +1408,10 @@ export class MisService {
       );
       segundaViaUrl.searchParams.set('nossoNumero', String(input.nossoNumero));
       segundaViaUrl.searchParams.set('gerarPdf', 'false');
-      if (input.config.boletoNumeroContratoCobranca) {
-        segundaViaUrl.searchParams.set(
-          'numeroContratoCobranca',
-          String(input.config.boletoNumeroContratoCobranca),
-        );
-      }
+      segundaViaUrl.searchParams.set(
+        'numeroContratoCobranca',
+        String(this.resolveSicoobNumeroContratoCobranca(input.config)),
+      );
 
       const segundaVia = await this.sicoobJsonRequest<unknown>({
         url: segundaViaUrl.toString(),
@@ -2214,8 +2354,7 @@ export class MisService {
       },
       gerarPdf: false,
       codigoCadastrarPIX: 1,
-      numeroContratoCobranca:
-        input.config.boletoNumeroContratoCobranca ?? input.config.numeroCliente,
+      numeroContratoCobranca: this.resolveSicoobNumeroContratoCobranca(input.config),
     };
     if (existingNossoNumero) {
       boletoPayload.nossoNumero = Number(existingNossoNumero);
@@ -2264,12 +2403,10 @@ export class MisService {
       );
       segundaViaUrl.searchParams.set('nossoNumero', String(parsedNossoNumero));
       segundaViaUrl.searchParams.set('gerarPdf', 'false');
-      if (input.config.boletoNumeroContratoCobranca) {
-        segundaViaUrl.searchParams.set(
-          'numeroContratoCobranca',
-          String(input.config.boletoNumeroContratoCobranca),
-        );
-      }
+      segundaViaUrl.searchParams.set(
+        'numeroContratoCobranca',
+        String(this.resolveSicoobNumeroContratoCobranca(input.config)),
+      );
 
       const segundaVia = await this.sicoobJsonRequest<Record<string, unknown>>({
         url: segundaViaUrl.toString(),
@@ -2380,9 +2517,9 @@ export class MisService {
       sicoob.boletoNumeroContratoCobranca,
       this.parsePositiveInteger(
         process.env.SICOOB_BOLETO_NUMERO_CONTRATO_COBRANCA,
-        null,
+        numeroCliente,
       ),
-    );
+    ) ?? numeroCliente;
 
     return {
       clientId,
@@ -2397,6 +2534,12 @@ export class MisService {
       cobrancaBancariaBaseUrl: selectedBaseUrls.cobrancaBancaria,
       pixRecebimentosBaseUrl: selectedBaseUrls.pixRecebimentos,
     };
+  }
+
+  private resolveSicoobNumeroContratoCobranca(
+    config: ResolvedSicoobConfig,
+  ): number {
+    return config.numeroCliente;
   }
 
   private resolveSicoobBaseUrls(
@@ -3299,6 +3442,12 @@ export class MisService {
 
   private onlyDigits(value: string | null | undefined): string {
     return String(value || '').replace(/\D/g, '');
+  }
+
+  private toMoneyValue(value: unknown): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Number(Math.max(0, numeric).toFixed(2));
   }
 
   private extractGatewayErrorMessage(

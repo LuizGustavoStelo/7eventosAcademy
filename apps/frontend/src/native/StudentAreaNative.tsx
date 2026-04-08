@@ -140,6 +140,7 @@ type StudentCharge = {
   dueDate: string | null;
   amount: number;
   status: string;
+  description?: string | null;
   paymentMethod?: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD' | string;
   paymentOptionTitle?: string | null;
   canPay?: boolean;
@@ -1464,17 +1465,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         && dueTime >= startOfToday.getTime()
       );
     });
-    const visible = [...pendingAll].filter((item) => {
-      const due = toDate(item.dueDate);
-      if (!due) return item.status.toUpperCase() === 'OVERDUE';
-      const dueTime = due.getTime();
-      const isOverdue = dueTime < startOfToday.getTime() || item.status.toUpperCase() === 'OVERDUE';
-      const isCurrentMonthPending =
-        dueTime >= startOfCurrentMonth.getTime()
-        && dueTime <= endOfCurrentMonth.getTime()
-        && dueTime >= startOfToday.getTime();
-      return isOverdue || isCurrentMonthPending;
-    });
+    const visible = [...pendingAll];
     const nextCharge = visible[0] ?? null;
     const pendingAmount = pending.reduce((sum, item) => sum + item.amount, 0);
     const overdueAmount = overdue.reduce((sum, item) => sum + item.amount, 0);
@@ -2160,6 +2151,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   const paymentData = chargePaymentDataById[charge.id];
                   const paymentError = chargePaymentErrorById[charge.id];
                   const paymentInfo = chargePaymentInfoById[charge.id];
+                  const chargeDescription = String(charge.description || '').trim();
                   const isPaying = payingChargeId === charge.id;
                   const normalizedStatus = String(charge.status || '')
                     .trim()
@@ -2174,7 +2166,10 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                         {formatCurrency(charge.amount)}
                       </strong>
                       <small>
-                        {charge.className} • {paymentMethodLabel(charge.paymentMethod)} • Vencimento{' '}
+                        {chargeDescription || charge.className}
+                      </small>
+                      <small>
+                        {paymentMethodLabel(charge.paymentMethod)} • Vencimento{' '}
                         {formatDate(charge.dueDate)}
                       </small>
                       {paymentInfo ? (

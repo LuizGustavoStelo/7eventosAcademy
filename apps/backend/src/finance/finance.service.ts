@@ -356,24 +356,18 @@ export class FinanceService {
       },
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
     });
+    const descriptionByChargeId = this.buildChargeDescriptionMap(charges);
 
-    const relevantActionableChargeIds = this.getRelevantActionableChargeIds(charges);
-
-    return charges
-      .filter((charge) => {
-        if (charge.status === 'PENDING' || charge.status === 'OVERDUE') {
-          return relevantActionableChargeIds.has(charge.id);
-        }
-        return true;
-      })
-      .map((charge) => ({
+    return charges.map((charge) => ({
       ...charge,
+      description:
+        descriptionByChargeId.get(charge.id) ?? this.buildDefaultChargeDescription(charge),
       amount: Number(charge.amount),
       paymentTransactions: charge.paymentTransactions.map((transaction) => ({
         ...transaction,
         amount: Number(transaction.amount),
       })),
-      }));
+    }));
   }
 
   async createCharge(dto: CreateChargeDto, user: JwtPayload) {
@@ -811,15 +805,26 @@ export class FinanceService {
     });
   }
 
-  private getRelevantActionableChargeIds(
+  private buildChargeDescriptionMap(
     charges: Array<{
       id: string;
       enrollmentId: string;
+      amount: Prisma.Decimal | number;
       dueDate: Date;
+      createdAt: Date;
       status: 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELED';
+      enrollment: {
+        createdAt: Date;
+        selectedPaymentOption: Prisma.JsonValue | null;
+        schoolClass: {
+          course: {
+            enrollmentFee: Prisma.Decimal | number | null;
+          };
+        };
+      };
     }>,
   ) {
-    const selectedIds = new Set<string>();
+    const descriptionById = new Map<string, string>();
     const byEnrollment = new Map<string, typeof charges>();
 
     charges.forEach((charge) => {
@@ -829,23 +834,84 @@ export class FinanceService {
     });
 
     byEnrollment.forEach((items) => {
-      const overdue = items
-        .filter((item) => item.status === 'OVERDUE')
-        .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
-      if (overdue.length > 0) {
-        selectedIds.add(overdue[0].id);
-        return;
+      const ordered = [...items].sort(
+        (a, b) =>
+          a.dueDate.getTime() - b.dueDate.getTime() ||
+          a.createdAt.getTime() - b.createdAt.getTime(),
+      );
+
+      const reference = ordered[0];
+      if (!reference) return;
+
+      const enrollmentFeeAmount = this.toMoneyValue(
+        Number(reference.enrollment.schoolClass.course.enrollmentFee ?? 0),
+      );
+
+      const enrollmentFeeCharge =
+        enrollmentFeeAmount > 0
+          ? ordered.find((item) => {
+              const amount = this.toMoneyValue(Number(item.amount));
+              if (amount !== enrollmentFeeAmount) return false;
+              const dueAt = new Date(
+                item.dueDate.getFullYear(),
+                item.dueDate.getMonth(),
+                item.dueDate.getDate(),
+              ).getTime();
+              const enrollmentCreatedAt = new Date(
+                reference.enrollment.createdAt.getFullYear(),
+                reference.enrollment.createdAt.getMonth(),
+                reference.enrollment.createdAt.getDate(),
+              ).getTime();
+              return dueAt === enrollmentCreatedAt;
+            }) ?? null
+          : null;
+
+      if (enrollmentFeeCharge) {
+        descriptionById.set(enrollmentFeeCharge.id, 'Matrícula');
       }
 
-      const pending = items
-        .filter((item) => item.status === 'PENDING')
-        .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
-      if (pending.length > 0) {
-        selectedIds.add(pending[0].id);
-      }
+      const installmentCharges = ordered.filter(
+        (item) => !enrollmentFeeCharge || item.id !== enrollmentFeeCharge.id,
+      );
+      if (installmentCharges.length === 0) return;
+
+      const selectedOption = this.parseEnrollmentSelectedPaymentOption(
+        reference.enrollment.selectedPaymentOption,
+      );
+      const configuredInstallments = Number(selectedOption?.installmentCount ?? 0);
+      const totalInstallments =
+        configuredInstallments > 0
+          ? configuredInstallments
+          : installmentCharges.length;
+
+      installmentCharges.forEach((item, index) => {
+        if (totalInstallments <= 1) {
+          descriptionById.set(item.id, 'Mensalidade 1/1');
+          return;
+        }
+        const position = Math.min(index + 1, totalInstallments);
+        descriptionById.set(item.id, `Mensalidade ${position}/${totalInstallments}`);
+      });
     });
 
-    return selectedIds;
+    return descriptionById;
+  }
+
+  private buildDefaultChargeDescription(charge: {
+    enrollment: {
+      selectedPaymentOption: Prisma.JsonValue | null;
+    };
+  }) {
+    const selectedOption = this.parseEnrollmentSelectedPaymentOption(
+      charge.enrollment.selectedPaymentOption,
+    );
+    if (selectedOption?.type === 'CASH') {
+      return 'Pagamento à vista';
+    }
+    if ((selectedOption?.installmentCount ?? 0) > 0) {
+      return `Mensalidade 1/${selectedOption?.installmentCount}`;
+    }
+    return 'Cobrança';
   }
 
   private toPrismaChargeStatus(status: string) {

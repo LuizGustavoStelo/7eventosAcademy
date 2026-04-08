@@ -27,6 +27,7 @@ type Charge = {
   id: string;
   amount: number;
   dueDate: string;
+  description?: string;
   status: 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELED';
   enrollment?: {
     id: string;
@@ -251,12 +252,16 @@ export function FinanceNative({ token }: FinanceNativeProps) {
       const studentEmail = item.enrollment?.student?.email?.toLowerCase() ?? '';
       const className = item.enrollment?.schoolClass?.name?.toLowerCase() ?? '';
       const courseName = item.enrollment?.schoolClass?.course?.name?.toLowerCase() ?? '';
+      const description = String(item.description || '')
+        .trim()
+        .toLowerCase();
 
       return (
         studentName.includes(query) ||
         studentEmail.includes(query) ||
         className.includes(query) ||
-        courseName.includes(query)
+        courseName.includes(query) ||
+        description.includes(query)
       );
     });
   }, [charges, search, statusFilter]);
@@ -509,6 +514,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
               <tr>
                 <th>Aluno</th>
                 <th>Turma</th>
+                <th>Descrição</th>
                 <th>Valor</th>
                 <th>Vencimento</th>
                 <th>Status</th>
@@ -518,7 +524,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
             <tbody>
               {filteredCharges.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>Nenhuma cobrança encontrada.</td>
+                  <td colSpan={7}>Nenhuma cobrança encontrada.</td>
                 </tr>
               ) : (
                 filteredCharges.map((charge) => {
@@ -541,6 +547,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                         </div>
                       </td>
                       <td>{className}</td>
+                      <td>{charge.description || 'Cobrança'}</td>
                       <td className={financeSensitiveClass}>{formatCurrency(Number(charge.amount || 0))}</td>
                       <td>{formatDate(charge.dueDate)}</td>
                       <td>
