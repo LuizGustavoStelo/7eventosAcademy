@@ -2372,13 +2372,18 @@ export class MisService {
       boletoPayload.nossoNumero = Number(existingNossoNumero);
     }
 
-    let emitted: Record<string, unknown>;
-    try {
-      emitted = await this.sicoobJsonRequest<Record<string, unknown>>({
-        url: this.buildSicoobBoletosInclusionUrl(
-          input.config,
-          numeroContratoCliente,
-        ),
+    const inclusionUrlDefault = `${input.config.cobrancaBancariaBaseUrl}/boletos`;
+    const inclusionUrlByContract = this.buildSicoobBoletosInclusionUrl(
+      input.config,
+      numeroContratoCliente,
+    );
+    const inclusionUrlLegacy = this.buildSicoobBoletosInclusionLegacyUrl(
+      input.config,
+      numeroContratoCliente,
+    );
+    const emitBankSlip = async (url: string) =>
+      this.sicoobJsonRequest<Record<string, unknown>>({
+        url,
         method: 'POST',
         config: input.config,
         accessToken,
@@ -2386,6 +2391,10 @@ export class MisService {
         body: boletoPayload,
         appendClientIdHeader: true,
       });
+
+    let emitted: Record<string, unknown>;
+    try {
+      emitted = await emitBankSlip(inclusionUrlDefault);
     } catch (error) {
       const message = String((error as Error)?.message || '').toLowerCase();
       const normalizedMessage = message
@@ -2406,20 +2415,21 @@ export class MisService {
       boletoPayload.numeroCliente =
         numeroContratoClienteAsNumber ?? numeroContratoCliente;
       this.logger.warn(
-        `[sicoob-boleto] retry without nossoNumero charge=${input.charge.id} cliente=${numeroContratoCliente}`,
+        `[sicoob-boleto] retry without nossoNumero charge=${input.charge.id} cliente=${numeroContratoCliente} strategy=contract-query`,
       );
-      emitted = await this.sicoobJsonRequest<Record<string, unknown>>({
-        url: this.buildSicoobBoletosInclusionUrl(
-          input.config,
-          numeroContratoCliente,
-        ),
-        method: 'POST',
-        config: input.config,
-        accessToken,
-        scope: 'boletos_inclusao',
-        body: boletoPayload,
-        appendClientIdHeader: true,
-      });
+      try {
+        emitted = await emitBankSlip(inclusionUrlByContract);
+      } catch (retryError) {
+        this.logger.warn(
+          `[sicoob-boleto] retry failed charge=${input.charge.id} strategy=contract-query message=${String(
+            (retryError as Error)?.message || '',
+          )}`,
+        );
+        this.logger.warn(
+          `[sicoob-boleto] retry without nossoNumero charge=${input.charge.id} cliente=${numeroContratoCliente} strategy=legacy-query`,
+        );
+        emitted = await emitBankSlip(inclusionUrlLegacy);
+      }
     }
     const parsedNossoNumero =
       this.extractFirstValueAsString(emitted, [
@@ -2634,6 +2644,16 @@ export class MisService {
     const url = new URL(`${config.cobrancaBancariaBaseUrl}/boletos`);
     url.searchParams.set('numeroContrato', numeroContratoCliente);
     url.searchParams.set('modalidade', String(config.boletoModalidade));
+    return url.toString();
+  }
+
+  private buildSicoobBoletosInclusionLegacyUrl(
+    config: ResolvedSicoobConfig,
+    numeroContratoCliente: string,
+  ): string {
+    const url = new URL(`${config.cobrancaBancariaBaseUrl}/boletos`);
+    url.searchParams.set('numeroCliente', numeroContratoCliente);
+    url.searchParams.set('codigoModalidade', String(config.boletoModalidade));
     return url.toString();
   }
 
