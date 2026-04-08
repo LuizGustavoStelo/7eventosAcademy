@@ -1465,7 +1465,28 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         && dueTime >= startOfToday.getTime()
       );
     });
-    const visible = [...pendingAll];
+    const visibleBase = [...pendingAll].filter((item) => {
+      const due = toDate(item.dueDate);
+      if (!due) return item.status.toUpperCase() === 'OVERDUE';
+      const dueTime = due.getTime();
+      const isOverdue = dueTime < startOfToday.getTime() || item.status.toUpperCase() === 'OVERDUE';
+      const isCurrentMonthPending =
+        dueTime >= startOfCurrentMonth.getTime()
+        && dueTime <= endOfCurrentMonth.getTime()
+        && dueTime >= startOfToday.getTime();
+      return isOverdue || isCurrentMonthPending;
+    });
+    const visibleById = new Set(visibleBase.map((item) => item.id));
+    const visible = [...visibleBase];
+    pendingAll.forEach((item) => {
+      if (visibleById.has(item.id)) return;
+      const description = String(item.description || '').trim().toLowerCase();
+      const shouldAlwaysShow =
+        description === 'matrícula' || description.startsWith('mensalidade 1/');
+      if (!shouldAlwaysShow) return;
+      visible.push(item);
+      visibleById.add(item.id);
+    });
     const nextCharge = visible[0] ?? null;
     const pendingAmount = pending.reduce((sum, item) => sum + item.amount, 0);
     const overdueAmount = overdue.reduce((sum, item) => sum + item.amount, 0);
@@ -2166,11 +2187,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                         {formatCurrency(charge.amount)}
                       </strong>
                       <small>
-                        {chargeDescription || charge.className}
-                      </small>
-                      <small>
-                        {paymentMethodLabel(charge.paymentMethod)} • Vencimento{' '}
-                        {formatDate(charge.dueDate)}
+                        {chargeDescription || charge.className} • {paymentMethodLabel(charge.paymentMethod)} •
+                        {' '}Vencimento {formatDate(charge.dueDate)}
                       </small>
                       {paymentInfo ? (
                         <small className="student-charge-feedback">{paymentInfo}</small>

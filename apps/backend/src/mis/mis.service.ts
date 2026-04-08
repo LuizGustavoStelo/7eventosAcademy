@@ -60,13 +60,13 @@ type FinancialSettings = {
 type ResolvedSicoobConfig = {
   clientId: string;
   tokenUrl: string;
-  numeroCliente: number;
+  numeroCliente: string;
   certPem: string;
   keyPem: string;
   pixKey: string | null;
   boletoModalidade: number;
   boletoNumeroContaCorrente: number;
-  boletoNumeroContratoCobranca: number;
+  boletoNumeroContratoCobranca: string;
   cobrancaBancariaBaseUrl: string;
   pixRecebimentosBaseUrl: string;
 };
@@ -2360,15 +2360,35 @@ export class MisService {
       boletoPayload.nossoNumero = Number(existingNossoNumero);
     }
 
-    const emitted = await this.sicoobJsonRequest<Record<string, unknown>>({
-      url: `${input.config.cobrancaBancariaBaseUrl}/boletos`,
-      method: 'POST',
-      config: input.config,
-      accessToken,
-      scope: 'boletos_inclusao',
-      body: boletoPayload,
-      appendClientIdHeader: true,
-    });
+    let emitted: Record<string, unknown>;
+    try {
+      emitted = await this.sicoobJsonRequest<Record<string, unknown>>({
+        url: `${input.config.cobrancaBancariaBaseUrl}/boletos`,
+        method: 'POST',
+        config: input.config,
+        accessToken,
+        scope: 'boletos_inclusao',
+        body: boletoPayload,
+        appendClientIdHeader: true,
+      });
+    } catch (error) {
+      const message = String((error as Error)?.message || '').toLowerCase();
+      const contractClientMismatch =
+        message.includes('número do contrato') && message.includes('número do cliente');
+      if (!existingNossoNumero || !contractClientMismatch) {
+        throw error;
+      }
+      delete boletoPayload.nossoNumero;
+      emitted = await this.sicoobJsonRequest<Record<string, unknown>>({
+        url: `${input.config.cobrancaBancariaBaseUrl}/boletos`,
+        method: 'POST',
+        config: input.config,
+        accessToken,
+        scope: 'boletos_inclusao',
+        body: boletoPayload,
+        appendClientIdHeader: true,
+      });
+    }
 
     const parsedNossoNumero =
       this.extractFirstValueAsString(emitted, [
@@ -2408,22 +2428,26 @@ export class MisService {
         String(this.resolveSicoobNumeroContratoCobranca(input.config)),
       );
 
-      const segundaVia = await this.sicoobJsonRequest<Record<string, unknown>>({
-        url: segundaViaUrl.toString(),
-        method: 'GET',
-        config: input.config,
-        accessToken,
-        scope: 'boletos_consulta',
-        appendClientIdHeader: true,
-      });
+      try {
+        const segundaVia = await this.sicoobJsonRequest<Record<string, unknown>>({
+          url: segundaViaUrl.toString(),
+          method: 'GET',
+          config: input.config,
+          accessToken,
+          scope: 'boletos_consulta',
+          appendClientIdHeader: true,
+        });
 
-      bankSlipUrl = this.extractFirstValueAsString(segundaVia, [
-        'urlPdfBoleto',
-        'urlBoleto',
-        'linkBoleto',
-        'boletoUrl',
-        'url',
-      ]);
+        bankSlipUrl = this.extractFirstValueAsString(segundaVia, [
+          'urlPdfBoleto',
+          'urlBoleto',
+          'linkBoleto',
+          'boletoUrl',
+          'url',
+        ]);
+      } catch {
+        // Se a segunda via falhar, mantém a cobrança válida e retorna mensagem/linha digitável.
+      }
     }
 
     const externalChargeId = parsedNossoNumero
@@ -2485,7 +2509,7 @@ export class MisService {
     const tokenUrl = this.normalizeBaseUrl(
       String(sicoob.tokenUrl || DEFAULT_SICOOB_TOKEN_URL).trim(),
     );
-    const numeroCliente = this.parsePositiveInteger(
+    const numeroCliente = this.parsePositiveIntegerString(
       sicoob.numeroCliente,
       null,
     );
@@ -2510,17 +2534,9 @@ export class MisService {
         sicoob.boletoNumeroContaCorrente,
         this.parsePositiveInteger(
           process.env.SICOOB_BOLETO_NUMERO_CONTA_CORRENTE,
-          numeroCliente,
+          this.parsePositiveInteger(numeroCliente, 1),
         ),
-      ) ?? numeroCliente;
-    const boletoNumeroContratoCobranca = this.parsePositiveInteger(
-      sicoob.boletoNumeroContratoCobranca,
-      this.parsePositiveInteger(
-        process.env.SICOOB_BOLETO_NUMERO_CONTRATO_COBRANCA,
-        numeroCliente,
-      ),
-    ) ?? numeroCliente;
-
+      ) ?? this.parsePositiveInteger(numeroCliente, 1)!;
     return {
       clientId,
       tokenUrl,
@@ -2530,7 +2546,7 @@ export class MisService {
       pixKey,
       boletoModalidade,
       boletoNumeroContaCorrente,
-      boletoNumeroContratoCobranca,
+      boletoNumeroContratoCobranca: numeroCliente,
       cobrancaBancariaBaseUrl: selectedBaseUrls.cobrancaBancaria,
       pixRecebimentosBaseUrl: selectedBaseUrls.pixRecebimentos,
     };
@@ -2538,7 +2554,7 @@ export class MisService {
 
   private resolveSicoobNumeroContratoCobranca(
     config: ResolvedSicoobConfig,
-  ): number {
+  ): string {
     return config.numeroCliente;
   }
 
@@ -2597,6 +2613,19 @@ export class MisService {
     }
 
     return parsed;
+  }
+
+  private parsePositiveIntegerString(
+    value: unknown,
+    fallback: string | null,
+  ): string | null {
+    const raw = String(value ?? '').trim();
+    if (!raw) return fallback;
+    const digitsOnly = raw.replace(/\D/g, '');
+    if (!digitsOnly) return fallback;
+    if (!/^[0-9]+$/.test(digitsOnly)) return fallback;
+    if (/^0+$/.test(digitsOnly)) return fallback;
+    return digitsOnly;
   }
 
   private extractSicoobExternalId(
