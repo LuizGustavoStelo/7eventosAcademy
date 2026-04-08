@@ -586,6 +586,7 @@ export class FinanceService {
               studentId: true,
               classId: true,
               createdAt: true,
+              selectedPaymentOption: true,
               schoolClass: {
                 select: {
                   course: {
@@ -593,6 +594,9 @@ export class FinanceService {
                       id: true,
                       ownerAdminId: true,
                       enrollmentFee: true,
+                      paymentModel: true,
+                      installmentMonths: true,
+                      installmentValue: true,
                     },
                   },
                 },
@@ -606,24 +610,78 @@ export class FinanceService {
         return;
       }
 
+      const enrollmentCharges = await this.prisma.monthlyCharge.findMany({
+        where: {
+          enrollmentId: charge.enrollmentId,
+        },
+        select: {
+          id: true,
+          status: true,
+          dueDate: true,
+          createdAt: true,
+          amount: true,
+        },
+        orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
+      });
+
       const enrollmentFeeAmount = this.toMoneyValue(
         Number(charge.enrollment.schoolClass.course.enrollmentFee ?? 0),
       );
-      if (enrollmentFeeAmount <= 0) {
+
+      const enrollmentFeeCharge =
+        enrollmentFeeAmount > 0
+          ? enrollmentCharges.find((item) => {
+              const amount = this.toMoneyValue(Number(item.amount));
+              return (
+                amount === enrollmentFeeAmount &&
+                item.dueDate.getTime() === charge.enrollment.createdAt.getTime()
+              );
+            }) ?? null
+          : null;
+
+      const enrollmentFeePaid =
+        enrollmentFeeAmount <= 0 ||
+        Boolean(enrollmentFeeCharge && enrollmentFeeCharge.status === 'PAID');
+      if (!enrollmentFeePaid) {
         return;
       }
 
-      const paidEnrollmentFeeCharge = await this.prisma.monthlyCharge.findFirst({
+      const selectedOption = this.parseEnrollmentSelectedPaymentOption(
+        charge.enrollment.selectedPaymentOption,
+      );
+      const requiresFirstInstallment =
+        selectedOption
+          ? selectedOption.type === 'INSTALLMENTS' &&
+            Number(selectedOption.installmentCount ?? 0) > 0 &&
+            Number(selectedOption.installmentAmount ?? 0) > 0
+          : String(charge.enrollment.schoolClass.course.paymentModel).toUpperCase() ===
+              'INSTALLMENTS' &&
+            Number(charge.enrollment.schoolClass.course.installmentMonths ?? 0) > 0 &&
+            Number(charge.enrollment.schoolClass.course.installmentValue ?? 0) > 0;
+
+      const firstInstallmentCharge = enrollmentCharges.find(
+        (item) => !enrollmentFeeCharge || item.id !== enrollmentFeeCharge.id,
+      );
+      const firstInstallmentPaid =
+        !requiresFirstInstallment ||
+        Boolean(firstInstallmentCharge && firstInstallmentCharge.status === 'PAID');
+      if (!firstInstallmentPaid) {
+        return;
+      }
+
+      const alreadySentContract = await this.prisma.contractInstance.findFirst({
         where: {
-          enrollmentId: charge.enrollmentId,
-          status: 'PAID',
-          amount: enrollmentFeeAmount,
-          dueDate: charge.enrollment.createdAt,
+          institutionId: charge.enrollment.institutionId,
+          enrollmentId: charge.enrollment.id,
+          studentId: charge.enrollment.studentId,
+          status: {
+            notIn: ['CANCELED', 'ARCHIVED'],
+          },
         },
         select: { id: true },
       });
 
-      if (!paidEnrollmentFeeCharge) {
+      if (alreadySentContract) {
         return;
       }
 
@@ -638,6 +696,34 @@ export class FinanceService {
     } catch {
       // A falha no envio automático não deve bloquear o financeiro.
     }
+  }
+
+  private parseEnrollmentSelectedPaymentOption(
+    raw: Prisma.JsonValue | null | undefined,
+  ) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return null;
+    }
+
+    const record = raw as Record<string, unknown>;
+    const type =
+      String(record.type || '').toUpperCase() === 'INSTALLMENTS'
+        ? 'INSTALLMENTS'
+        : 'CASH';
+    const installmentCount = Number(record.installmentCount ?? 0);
+    const installmentAmount = Number(record.installmentAmount ?? 0);
+
+    return {
+      type,
+      installmentCount:
+        Number.isFinite(installmentCount) && installmentCount > 0
+          ? installmentCount
+          : 0,
+      installmentAmount:
+        Number.isFinite(installmentAmount) && installmentAmount > 0
+          ? installmentAmount
+          : 0,
+    };
   }
 
   private toMoneyValue(value: unknown): number {

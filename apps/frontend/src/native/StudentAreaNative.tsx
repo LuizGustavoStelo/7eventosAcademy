@@ -344,9 +344,7 @@ const STUDENT_SECTIONS_ENABLED_BEFORE_CONTRACT = new Set<SectionId>([
 ]);
 
 const STUDENT_SECTIONS_ENABLED_WITH_PENDING_CONTRACT = new Set<SectionId>([
-  'st-student-finance',
   'st-student-contracts',
-  'st-student-notices',
 ]);
 
 const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -2389,7 +2387,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 <section className="student-contract-gate-banner" role="alert">
                   <div>
                     <strong>
-                      {isPreContractStage ? 'Acesso financeiro liberado' : 'Acesso parcial liberado'}
+                      {isPreContractStage
+                        ? 'Acesso parcial liberado: falta o pagamento'
+                        : 'Acesso parcial liberado: falta a assinatura do contrato'}
                     </strong>
                     {isPreContractStage ? (
                       <p>

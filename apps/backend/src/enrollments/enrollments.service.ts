@@ -240,7 +240,32 @@ export class EnrollmentsService {
     const enrollmentFeeAmount = Number(
       enrollment.schoolClass?.course?.enrollmentFee ?? 0,
     );
-    if (!Number.isFinite(enrollmentFeeAmount) || enrollmentFeeAmount <= 0) {
+    const selectedPaymentOption =
+      enrollment.selectedPaymentOption &&
+      typeof enrollment.selectedPaymentOption === 'object' &&
+      !Array.isArray(enrollment.selectedPaymentOption)
+        ? (enrollment.selectedPaymentOption as Record<string, unknown>)
+        : null;
+    const selectedPaymentType = String(selectedPaymentOption?.type ?? '')
+      .trim()
+      .toUpperCase();
+    const selectedInstallmentCount = Number(
+      selectedPaymentOption?.installmentCount ?? 0,
+    );
+    const selectedInstallmentAmount = Number(
+      selectedPaymentOption?.installmentAmount ?? 0,
+    );
+    const requiresFirstInstallmentPayment =
+      selectedPaymentType === 'INSTALLMENTS' &&
+      Number.isFinite(selectedInstallmentCount) &&
+      selectedInstallmentCount > 0 &&
+      Number.isFinite(selectedInstallmentAmount) &&
+      selectedInstallmentAmount > 0;
+    const shouldSendContractImmediately =
+      (!Number.isFinite(enrollmentFeeAmount) || enrollmentFeeAmount <= 0) &&
+      !requiresFirstInstallmentPayment;
+
+    if (shouldSendContractImmediately) {
       try {
         await this.contractsService.sendAutomaticContractsForEnrollment({
           institutionId: enrollment.institutionId,
