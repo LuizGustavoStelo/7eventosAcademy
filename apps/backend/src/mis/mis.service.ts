@@ -1365,10 +1365,13 @@ export class MisService {
         scope: 'boletos_consulta',
       });
 
+      const numeroContratoCliente = this.resolveSicoobNumeroContratoCobranca(
+        input.config,
+      );
       const consultaUrl = new URL(`${input.config.cobrancaBancariaBaseUrl}/boletos`);
       consultaUrl.searchParams.set(
         'numeroCliente',
-        String(input.config.numeroCliente),
+        String(numeroContratoCliente),
       );
       consultaUrl.searchParams.set(
         'codigoModalidade',
@@ -1377,7 +1380,7 @@ export class MisService {
       consultaUrl.searchParams.set('nossoNumero', String(input.nossoNumero));
       consultaUrl.searchParams.set(
         'numeroContratoCobranca',
-        String(this.resolveSicoobNumeroContratoCobranca(input.config)),
+        String(numeroContratoCliente),
       );
 
       try {
@@ -1400,7 +1403,7 @@ export class MisService {
       );
       segundaViaUrl.searchParams.set(
         'numeroCliente',
-        String(input.config.numeroCliente),
+        String(numeroContratoCliente),
       );
       segundaViaUrl.searchParams.set(
         'codigoModalidade',
@@ -1410,7 +1413,7 @@ export class MisService {
       segundaViaUrl.searchParams.set('gerarPdf', 'false');
       segundaViaUrl.searchParams.set(
         'numeroContratoCobranca',
-        String(this.resolveSicoobNumeroContratoCobranca(input.config)),
+        String(numeroContratoCliente),
       );
 
       const segundaVia = await this.sicoobJsonRequest<unknown>({
@@ -2319,9 +2322,12 @@ export class MisService {
     const dueDate = this.toYyyyMmDd(input.charge.dueDate);
     const studentName = String(input.charge.enrollment.student.name || '').trim();
     const email = String(input.charge.enrollment.student.email || '').trim().toLowerCase();
+    const numeroContratoCliente = this.resolveSicoobNumeroContratoCobranca(
+      input.config,
+    );
 
     const boletoPayload: Record<string, unknown> = {
-      numeroCliente: input.config.numeroCliente,
+      numeroCliente: numeroContratoCliente,
       codigoModalidade: input.config.boletoModalidade,
       numeroContaCorrente: input.config.boletoNumeroContaCorrente,
       codigoEspecieDocumento: 'DM',
@@ -2354,7 +2360,7 @@ export class MisService {
       },
       gerarPdf: false,
       codigoCadastrarPIX: 1,
-      numeroContratoCobranca: this.resolveSicoobNumeroContratoCobranca(input.config),
+      numeroContratoCobranca: numeroContratoCliente,
     };
     if (existingNossoNumero) {
       boletoPayload.nossoNumero = Number(existingNossoNumero);
@@ -2373,12 +2379,18 @@ export class MisService {
       });
     } catch (error) {
       const message = String((error as Error)?.message || '').toLowerCase();
+      const normalizedMessage = message
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
       const contractClientMismatch =
-        message.includes('número do contrato') && message.includes('número do cliente');
-      if (!existingNossoNumero || !contractClientMismatch) {
+        normalizedMessage.includes('numero do contrato') &&
+        normalizedMessage.includes('numero do cliente');
+      if (!contractClientMismatch) {
         throw error;
       }
       delete boletoPayload.nossoNumero;
+      boletoPayload.numeroCliente = numeroContratoCliente;
+      boletoPayload.numeroContratoCobranca = numeroContratoCliente;
       emitted = await this.sicoobJsonRequest<Record<string, unknown>>({
         url: `${input.config.cobrancaBancariaBaseUrl}/boletos`,
         method: 'POST',
@@ -2415,7 +2427,7 @@ export class MisService {
       );
       segundaViaUrl.searchParams.set(
         'numeroCliente',
-        String(input.config.numeroCliente),
+        String(numeroContratoCliente),
       );
       segundaViaUrl.searchParams.set(
         'codigoModalidade',
@@ -2425,7 +2437,7 @@ export class MisService {
       segundaViaUrl.searchParams.set('gerarPdf', 'false');
       segundaViaUrl.searchParams.set(
         'numeroContratoCobranca',
-        String(this.resolveSicoobNumeroContratoCobranca(input.config)),
+        String(numeroContratoCliente),
       );
 
       try {
