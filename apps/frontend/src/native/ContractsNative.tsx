@@ -14,6 +14,9 @@ type ContractTemplate = {
   latestVersionNumber: number;
   publishedAt: string | null;
   updatedAt: string;
+  autoSendEnabled: boolean;
+  autoSendAllCourses: boolean;
+  autoSendCourseIds: string[];
   latestVersion: {
     id: string;
     versionNumber: number;
@@ -105,6 +108,9 @@ type TemplateFormState = {
   description: string;
   draftTitle: string;
   draftHtmlContent: string;
+  autoSendEnabled: boolean;
+  autoSendAllCourses: boolean;
+  autoSendCourseIds: string[];
 };
 
 type SendFormState = {
@@ -387,6 +393,9 @@ function defaultTemplateForm(): TemplateFormState {
     description: '',
     draftTitle: 'Contrato Educacional',
     draftHtmlContent: DEFAULT_TEMPLATE_HTML,
+    autoSendEnabled: false,
+    autoSendAllCourses: true,
+    autoSendCourseIds: [],
   };
 }
 
@@ -604,7 +613,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     setError('');
     try {
       if (isEditorMode) {
-        await loadTemplates();
+        await Promise.all([loadTemplates(), loadOptions()]);
       } else {
         await Promise.all([
           loadTemplates(),
@@ -661,6 +670,11 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       description: currentTemplate.description || '',
       draftTitle: currentTemplate.draftTitle,
       draftHtmlContent: currentTemplate.draftHtmlContent,
+      autoSendEnabled: Boolean(currentTemplate.autoSendEnabled),
+      autoSendAllCourses: Boolean(currentTemplate.autoSendAllCourses),
+      autoSendCourseIds: Array.isArray(currentTemplate.autoSendCourseIds)
+        ? currentTemplate.autoSendCourseIds
+        : [],
     });
   }, [selectedTemplateId, templates]);
 
@@ -723,6 +737,11 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       description: template.description || '',
       draftTitle: template.draftTitle,
       draftHtmlContent: template.draftHtmlContent,
+      autoSendEnabled: Boolean(template.autoSendEnabled),
+      autoSendAllCourses: Boolean(template.autoSendAllCourses),
+      autoSendCourseIds: Array.isArray(template.autoSendCourseIds)
+        ? template.autoSendCourseIds
+        : [],
     });
     setFormError('');
   };
@@ -738,10 +757,22 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       description: templateForm.description.trim() || undefined,
       draftTitle: templateForm.draftTitle.trim(),
       draftHtmlContent: templateForm.draftHtmlContent.trim(),
+      autoSendEnabled: templateForm.autoSendEnabled,
+      autoSendAllCourses: templateForm.autoSendAllCourses,
+      autoSendCourseIds: templateForm.autoSendAllCourses
+        ? []
+        : templateForm.autoSendCourseIds,
     };
 
     if (!payload.name || !payload.draftTitle || !payload.draftHtmlContent) {
       setFormError('Preencha nome, título e conteúdo HTML do contrato.');
+      return;
+    }
+
+    if (payload.autoSendEnabled && !payload.autoSendAllCourses && payload.autoSendCourseIds.length === 0) {
+      setFormError(
+        'Selecione ao menos um curso para envio automático ou marque a opção de todos os cursos.',
+      );
       return;
     }
 
@@ -1191,6 +1222,11 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                                 Assinatura pendente
                               </span>
                             ) : null}
+                            {template.autoSendEnabled ? (
+                              <span className="native-status-chip is-info">
+                                Envio automático
+                              </span>
+                            ) : null}
                           </div>
                         </>
                       );
@@ -1285,6 +1321,73 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                     placeholder="Uso interno para diferenciar modelos"
                   />
                 </label>
+
+                <label className="native-contract-span-all native-contract-send-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={templateForm.autoSendEnabled}
+                    onChange={(event) =>
+                      setTemplateForm((current) => ({
+                        ...current,
+                        autoSendEnabled: event.target.checked,
+                      }))
+                    }
+                  />
+                  <span>
+                    Envio automático do contrato ao matricular aluno
+                  </span>
+                </label>
+
+                {templateForm.autoSendEnabled ? (
+                  <>
+                    <label>
+                      Escopo do envio automático
+                      <select
+                        value={templateForm.autoSendAllCourses ? 'ALL' : 'SPECIFIC'}
+                        onChange={(event) => {
+                          const allCourses = event.target.value === 'ALL';
+                          setTemplateForm((current) => ({
+                            ...current,
+                            autoSendAllCourses: allCourses,
+                            autoSendCourseIds: allCourses ? [] : current.autoSendCourseIds,
+                          }));
+                        }}
+                      >
+                        <option value="ALL">Todos os cursos</option>
+                        <option value="SPECIFIC">Cursos específicos</option>
+                      </select>
+                    </label>
+
+                    {!templateForm.autoSendAllCourses ? (
+                      <label className="native-contract-span-all">
+                        Cursos que receberão este contrato
+                        <select
+                          multiple
+                          size={Math.min(Math.max(courses.length, 4), 10)}
+                          value={templateForm.autoSendCourseIds}
+                          onChange={(event) => {
+                            const selected = Array.from(event.target.selectedOptions).map(
+                              (option) => option.value,
+                            );
+                            setTemplateForm((current) => ({
+                              ...current,
+                              autoSendCourseIds: selected,
+                            }));
+                          }}
+                        >
+                          {courses.map((course) => (
+                            <option key={course.id} value={course.id}>
+                              {course.name}
+                            </option>
+                          ))}
+                        </select>
+                        <small>
+                          Alunos matriculados nos cursos selecionados receberão este contrato automaticamente.
+                        </small>
+                      </label>
+                    ) : null}
+                  </>
+                ) : null}
 
                 <div className="native-contract-span-all">
                   <p className="native-contract-editor-label">Documento do contrato</p>

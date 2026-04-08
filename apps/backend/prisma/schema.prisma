@@ -443,6 +443,9 @@ model ContractTemplate {
   status              ContractTemplateStatus @default(DRAFT)
   draftTitle          String                @map("draft_title")
   draftHtmlContent    String                @map("draft_html_content")
+  autoSendEnabled     Boolean               @default(false) @map("auto_send_enabled")
+  autoSendAllCourses  Boolean               @default(true) @map("auto_send_all_courses")
+  autoSendCourseIds   Json?                 @map("auto_send_course_ids")
   latestVersionNumber Int                   @default(0) @map("latest_version_number")
   publishedAt         DateTime?             @map("published_at")
   createdByUserId     String                @map("created_by_user_id") @db.Uuid

@@ -38,6 +38,16 @@ type ContractSendContext = {
   publicOrigin?: string | null;
 };
 
+type AutoSendContractInput = {
+  institutionId: string;
+  studentId: string;
+  enrollmentId: string;
+  courseId?: string | null;
+  classId?: string | null;
+  createdByUserId: string;
+  publicOrigin?: string | null;
+};
+
 const DEFAULT_SIGNING_TOKEN_HOURS = 72;
 const MAX_SIGNING_TOKEN_HOURS = 168;
 const DEFAULT_PIN_TTL_MINUTES = 10;
@@ -83,6 +93,9 @@ export class ContractsService {
       status: template.status,
       draftTitle: template.draftTitle,
       draftHtmlContent: template.draftHtmlContent,
+      autoSendEnabled: template.autoSendEnabled,
+      autoSendAllCourses: template.autoSendAllCourses,
+      autoSendCourseIds: this.parseUuidListFromJson(template.autoSendCourseIds),
       latestVersionNumber: template.latestVersionNumber,
       publishedAt: template.publishedAt,
       updatedAt: template.updatedAt,
@@ -102,6 +115,17 @@ export class ContractsService {
         status: ContractTemplateStatus.DRAFT,
         draftTitle: dto.draftTitle.trim(),
         draftHtmlContent: sanitizedHtml,
+        autoSendEnabled: Boolean(dto.autoSendEnabled),
+        autoSendAllCourses:
+          dto.autoSendEnabled === true
+            ? dto.autoSendAllCourses !== false
+            : true,
+        autoSendCourseIds:
+          dto.autoSendEnabled === true &&
+          dto.autoSendAllCourses === false &&
+          Array.isArray(dto.autoSendCourseIds)
+            ? (dto.autoSendCourseIds as Prisma.InputJsonValue)
+            : Prisma.DbNull,
         createdByUserId: actor.sub,
         updatedByUserId: actor.sub,
       },
@@ -113,6 +137,9 @@ export class ContractsService {
       description: template.description,
       status: template.status,
       draftTitle: template.draftTitle,
+      autoSendEnabled: template.autoSendEnabled,
+      autoSendAllCourses: template.autoSendAllCourses,
+      autoSendCourseIds: this.parseUuidListFromJson(template.autoSendCourseIds),
       latestVersionNumber: template.latestVersionNumber,
       publishedAt: template.publishedAt,
       createdAt: template.createdAt,
@@ -154,6 +181,24 @@ export class ContractsService {
     if (dto.draftHtmlContent !== undefined) {
       data.draftHtmlContent = this.sanitizeContractHtml(dto.draftHtmlContent);
     }
+    if (dto.autoSendEnabled !== undefined) {
+      data.autoSendEnabled = Boolean(dto.autoSendEnabled);
+    }
+    if (dto.autoSendAllCourses !== undefined) {
+      data.autoSendAllCourses = Boolean(dto.autoSendAllCourses);
+    }
+    if (dto.autoSendCourseIds !== undefined) {
+      data.autoSendCourseIds = Array.isArray(dto.autoSendCourseIds)
+        ? (dto.autoSendCourseIds as Prisma.InputJsonValue)
+        : Prisma.DbNull;
+    }
+    if (dto.autoSendEnabled === false) {
+      data.autoSendAllCourses = true;
+      data.autoSendCourseIds = Prisma.DbNull;
+    }
+    if (dto.autoSendEnabled === true && dto.autoSendAllCourses === true) {
+      data.autoSendCourseIds = Prisma.DbNull;
+    }
 
     const updated = await this.prisma.contractTemplate.update({
       where: { id: templateId },
@@ -166,6 +211,9 @@ export class ContractsService {
       description: updated.description,
       status: updated.status,
       draftTitle: updated.draftTitle,
+      autoSendEnabled: updated.autoSendEnabled,
+      autoSendAllCourses: updated.autoSendAllCourses,
+      autoSendCourseIds: this.parseUuidListFromJson(updated.autoSendCourseIds),
       latestVersionNumber: updated.latestVersionNumber,
       publishedAt: updated.publishedAt,
       updatedAt: updated.updatedAt,
@@ -1918,6 +1966,76 @@ export class ContractsService {
     return integer > 0 ? integer : null;
   }
 
+  async sendAutomaticContractsForEnrollment(input: AutoSendContractInput) {
+    const templates = await this.prisma.contractTemplate.findMany({
+      where: {
+        institutionId: input.institutionId,
+        status: ContractTemplateStatus.PUBLISHED,
+        autoSendEnabled: true,
+        latestVersionNumber: { gt: 0 },
+      },
+      select: {
+        id: true,
+        autoSendAllCourses: true,
+        autoSendCourseIds: true,
+      },
+      orderBy: [{ updatedAt: 'desc' }],
+    });
+
+    if (templates.length === 0) return;
+
+    for (const template of templates) {
+      if (!template.autoSendAllCourses) {
+        const templateCourseIds = this.parseUuidListFromJson(
+          template.autoSendCourseIds,
+        );
+        if (
+          !input.courseId ||
+          templateCourseIds.length === 0 ||
+          !templateCourseIds.includes(input.courseId)
+        ) {
+          continue;
+        }
+      }
+
+      const alreadySent = await this.prisma.contractInstance.findFirst({
+        where: {
+          institutionId: input.institutionId,
+          templateId: template.id,
+          studentId: input.studentId,
+          enrollmentId: input.enrollmentId,
+          status: {
+            notIn: [ContractInstanceStatus.CANCELED, ContractInstanceStatus.ARCHIVED],
+          },
+        },
+        select: { id: true },
+      });
+      if (alreadySent) continue;
+
+      try {
+        await this.sendInstance(
+          {
+            templateId: template.id,
+            studentId: input.studentId,
+            enrollmentId: input.enrollmentId,
+            courseId: input.courseId || undefined,
+            classId: input.classId || undefined,
+            sendEmail: true,
+          },
+          {
+            sub: input.createdByUserId,
+            role: 'admin',
+            activeInstitutionId: input.institutionId,
+            activePermissionCodes: [],
+          },
+          { publicOrigin: input.publicOrigin ?? null },
+        );
+      } catch {
+        // O envio automático não deve quebrar a matrícula se houver falha.
+      }
+    }
+  }
+
   private requireActiveInstitutionId(actor: ContractActor): string {
     const institutionId = actor.activeInstitutionId ?? null;
     if (!institutionId) {
@@ -2338,6 +2456,18 @@ export class ContractsService {
     }
 
     return `/api/contracts/sign/${rawToken}`;
+  }
+
+  private parseUuidListFromJson(raw: Prisma.JsonValue | null | undefined): string[] {
+    if (!Array.isArray(raw)) return [];
+    const ids = raw
+      .map((item) => String(item || '').trim())
+      .filter((item) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          item,
+        ),
+      );
+    return Array.from(new Set(ids));
   }
 
   private normalizeAbsoluteOrigin(value?: string | null): string | null {

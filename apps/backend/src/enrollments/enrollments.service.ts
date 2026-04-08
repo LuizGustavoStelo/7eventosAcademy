@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, StudentCourseStatus, UserRole } from '@prisma/client';
+import { ContractsService } from '../contracts/contracts.service';
 import { PrismaService } from '../database/prisma.service';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 
@@ -50,7 +51,10 @@ type EnrollmentPaymentOption = {
 
 @Injectable()
 export class EnrollmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly contractsService: ContractsService,
+  ) {}
 
   async create(
     dto: CreateEnrollmentDto,
@@ -209,6 +213,19 @@ export class EnrollmentsService {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
+
+    try {
+      await this.contractsService.sendAutomaticContractsForEnrollment({
+        institutionId: enrollment.institutionId,
+        enrollmentId: enrollment.id,
+        studentId: enrollment.studentId,
+        courseId: enrollment.schoolClass?.course?.id ?? null,
+        classId: enrollment.classId,
+        createdByUserId: enrollment.schoolClass.course.ownerAdminId,
+      });
+    } catch {
+      // O envio automático de contrato não deve bloquear a criação da matrícula.
+    }
 
     return enrollment;
   }
