@@ -286,12 +286,22 @@ export class MisService {
       return this.buildManualPaymentResponse(charge.id, method);
     }
 
+    if (provider === 'sicoob') {
+      return this.buildManualPaymentResponse(
+        charge.id,
+        method,
+        'Pagamento online para Sicoob ainda não está habilitado nesta tela. Use o fluxo financeiro manual.',
+        provider,
+      );
+    }
+
     const apiKey = settings.generic?.apiKey?.trim() || '';
     if (!apiKey) {
       return this.buildManualPaymentResponse(
         charge.id,
         method,
-        'A conta está sem API key configurada para checkout automático.',
+        'Pagamento automático não está habilitado para esta conta.',
+        provider,
       );
     }
 
