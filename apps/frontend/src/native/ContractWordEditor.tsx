@@ -689,12 +689,26 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
         const nodeToMove = current.lastChild;
         if (!nodeToMove) break;
         if (!next) {
+          const currentNodeCount = current.childNodes.length;
+          if (currentNodeCount <= 1) break;
           if (!hasMeaningfulHtml(current.innerHTML || '')) break;
           appendNew = true;
           appendFrom = i;
           break;
         }
+        const nextWasEmpty = !hasMeaningfulHtml(next.innerHTML || '');
         next.insertBefore(nodeToMove, next.firstChild);
+
+        // Evita loop infinito quando o último bloco é indivisível e maior que a página.
+        if (
+          nextWasEmpty &&
+          !hasMeaningfulHtml(current.innerHTML || '') &&
+          next.childNodes.length === 1 &&
+          next.scrollHeight > next.clientHeight + 1
+        ) {
+          current.appendChild(nodeToMove);
+          break;
+        }
       }
       if (appendNew) break;
     }
