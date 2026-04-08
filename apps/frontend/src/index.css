@@ -726,8 +726,8 @@ table button:disabled {
 }
 
 .global-topbar-tabs button.active {
-  color: #f25c05;
-  border-bottom-color: #f25c05;
+  color: var(--admin-accent-strong, #f25c05);
+  border-bottom-color: var(--admin-accent-strong, #f25c05);
 }
 
 .template-frame-wrap {
@@ -5017,7 +5017,7 @@ table button:disabled {
 }
 
 .global-sidebar-nav button:hover {
-  background: rgba(255, 92, 0, 0.1);
+  background: color-mix(in srgb, var(--admin-accent, #ff5c00) 12%, transparent);
   color: #1a293e;
 }
 
@@ -5026,9 +5026,9 @@ table button:disabled {
 }
 
 .global-sidebar-nav button.active {
-  background: rgba(255, 92, 0, 0.12);
+  background: color-mix(in srgb, var(--admin-accent, #ff5c00) 14%, transparent);
   color: #0f172a;
-  box-shadow: inset -4px 0 0 #ff5c00;
+  box-shadow: inset -4px 0 0 var(--admin-accent, #ff5c00);
 }
 
 .global-sidebar-nav button.active .global-sidebar-icon {

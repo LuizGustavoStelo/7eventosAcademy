@@ -8,7 +8,7 @@ import {
 import { MultipartFile } from '@fastify/multipart';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { UploadOwnerType, UserRole } from '@prisma/client';
+import { Prisma, UploadOwnerType, UserRole } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
@@ -26,12 +26,39 @@ import { VerifyPasswordResetCodeDto } from './dto/verify-password-reset-code.dto
 
 type AppRole = 'user' | 'admin' | 'superadmin';
 
+type InstitutionBrandingPalette = {
+  primaryColor: string;
+  primaryStrongColor: string;
+  secondaryColor: string;
+  secondaryStrongColor: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  surfaceSoftColor: string;
+  borderColor: string;
+  textColor: string;
+  mutedColor: string;
+};
+
 type AuthUserPayload = {
   id: string;
   name: string;
   email: string;
   role: AppRole;
   avatarUrl: string | null;
+  institution:
+    | {
+        id: string;
+        name: string;
+        slug: string;
+      }
+    | null;
+  branding:
+    | {
+        logoUrl: string;
+        palette: InstitutionBrandingPalette;
+        isCustom: boolean;
+      }
+    | null;
 };
 
 type AuthPayload = {
@@ -308,6 +335,31 @@ const ROLE_PERMISSION_MATRIX: Record<string, string[]> = {
 };
 
 const PROFILE_AVATAR_KIND = 'PROFILE_AVATAR';
+const DEFAULT_STUDENT_BRANDING_LOGO_URL = '/Logo-IPESK.png';
+const DEFAULT_STUDENT_BRANDING_PALETTE: InstitutionBrandingPalette = {
+  primaryColor: '#139395',
+  primaryStrongColor: '#0f7f81',
+  secondaryColor: '#283e6e',
+  secondaryStrongColor: '#1f3158',
+  backgroundColor: '#eff3f4',
+  surfaceColor: '#ffffff',
+  surfaceSoftColor: '#f6f8f9',
+  borderColor: '#d9e2e7',
+  textColor: '#243650',
+  mutedColor: '#5f7087',
+};
+const BRANDING_COLOR_FIELDS: Array<keyof InstitutionBrandingPalette> = [
+  'primaryColor',
+  'primaryStrongColor',
+  'secondaryColor',
+  'secondaryStrongColor',
+  'backgroundColor',
+  'surfaceColor',
+  'surfaceSoftColor',
+  'borderColor',
+  'textColor',
+  'mutedColor',
+];
 const ACCESS_TOKEN_TTL_SECONDS = 86_400;
 const EMAIL_VERIFICATION_CODE_LENGTH = 6;
 const DEFAULT_VERIFICATION_TTL_MINUTES = 15;
@@ -1171,13 +1223,16 @@ export class AuthService {
     });
   }
 
-  async getMe(userId: string): Promise<AuthUserPayload> {
+  async getMe(
+    userId: string,
+    activeInstitutionId?: string | null,
+  ): Promise<AuthUserPayload> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('Usuário não encontrado.');
     }
 
-    return this.buildUserPayload(user);
+    return this.buildUserPayload(user, activeInstitutionId);
   }
 
   async updateMe(userId: string, dto: UpdateMeDto): Promise<AuthUserPayload> {
@@ -1305,7 +1360,7 @@ export class AuthService {
 
     return {
       accessToken,
-      user: await this.buildUserPayload(target),
+      user: await this.buildUserPayload(target, context.activeInstitutionId),
       context,
       impersonation: {
         active: true,
@@ -1334,7 +1389,7 @@ export class AuthService {
 
     return {
       accessToken,
-      user: await this.buildUserPayload(user),
+      user: await this.buildUserPayload(user, context.activeInstitutionId),
       context,
     };
   }
@@ -1588,17 +1643,83 @@ export class AuthService {
     });
   }
 
-  private async buildUserPayload(user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  }): Promise<AuthUserPayload> {
+  private async buildUserPayload(
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+    },
+    preferredInstitutionId?: string | null,
+  ): Promise<AuthUserPayload> {
     const avatar = await this.uploadsService.getOwnerAsset(
       UploadOwnerType.USER,
       user.id,
       PROFILE_AVATAR_KIND,
     );
+
+    let membership = null as
+      | {
+          institution: {
+            id: string;
+            name: string;
+            slug: string;
+            brandingLogoUrl: string | null;
+            brandingPalette: Prisma.JsonValue | null;
+          };
+        }
+      | null;
+
+    if (preferredInstitutionId) {
+      membership = await this.prisma.institutionMember.findFirst({
+        where: {
+          userId: user.id,
+          status: 'ACTIVE',
+          institutionId: preferredInstitutionId,
+        },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          institution: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              brandingLogoUrl: true,
+              brandingPalette: true,
+            },
+          },
+        },
+      });
+    }
+
+    if (!membership) {
+      membership = await this.prisma.institutionMember.findFirst({
+        where: {
+          userId: user.id,
+          status: 'ACTIVE',
+        },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          institution: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              brandingLogoUrl: true,
+              brandingPalette: true,
+            },
+          },
+        },
+      });
+    }
+
+    const institution = membership?.institution ?? null;
+    const branding = institution
+      ? this.resolveInstitutionBranding({
+          brandingLogoUrl: institution.brandingLogoUrl,
+          brandingPalette: institution.brandingPalette,
+        })
+      : null;
 
     return {
       id: user.id,
@@ -1606,7 +1727,71 @@ export class AuthService {
       email: user.email,
       role: this.mapRole(user.role),
       avatarUrl: avatar?.url ?? null,
+      institution: institution
+        ? {
+            id: institution.id,
+            name: institution.name,
+            slug: institution.slug,
+          }
+        : null,
+      branding,
     };
+  }
+
+  private resolveInstitutionBranding(institution: {
+    brandingLogoUrl: string | null;
+    brandingPalette: Prisma.JsonValue | null;
+  }): {
+    logoUrl: string;
+    palette: InstitutionBrandingPalette;
+    isCustom: boolean;
+  } {
+    const palette = this.resolveBrandingPalette(institution.brandingPalette);
+    const logoUrl =
+      institution.brandingLogoUrl?.trim() || DEFAULT_STUDENT_BRANDING_LOGO_URL;
+    const hasCustomLogo =
+      Boolean(institution.brandingLogoUrl) &&
+      institution.brandingLogoUrl !== DEFAULT_STUDENT_BRANDING_LOGO_URL;
+    const hasCustomPalette = !this.isDefaultBrandingPalette(palette);
+
+    return {
+      logoUrl,
+      palette,
+      isCustom: hasCustomLogo || hasCustomPalette,
+    };
+  }
+
+  private resolveBrandingPalette(
+    rawPalette?: Prisma.JsonValue | null,
+  ): InstitutionBrandingPalette {
+    const palette = { ...DEFAULT_STUDENT_BRANDING_PALETTE };
+    if (!rawPalette || typeof rawPalette !== 'object' || Array.isArray(rawPalette)) {
+      return palette;
+    }
+
+    const rawMap = rawPalette as Record<string, unknown>;
+    for (const field of BRANDING_COLOR_FIELDS) {
+      const value = rawMap[field];
+      if (typeof value !== 'string') continue;
+      const normalized = value.trim().toLowerCase();
+      if (this.isHexColor(normalized)) {
+        palette[field] = normalized;
+      }
+    }
+
+    return palette;
+  }
+
+  private isDefaultBrandingPalette(palette: InstitutionBrandingPalette) {
+    return BRANDING_COLOR_FIELDS.every(
+      (field) =>
+        palette[field].toLowerCase() ===
+        DEFAULT_STUDENT_BRANDING_PALETTE[field].toLowerCase(),
+    );
+  }
+
+  private isHexColor(value: string) {
+    return /^#([0-9a-fA-F]{6})$/.test(value);
   }
 
   private mapRole(role: string): AppRole {

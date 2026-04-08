@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { CSSProperties, FormEvent } from 'react';
 import { AgendaNative } from './native/AgendaNative';
 import { ClassesNative } from './native/ClassesNative';
 import { ContractsNative } from './native/ContractsNative';
@@ -22,12 +22,34 @@ import { apiRequest } from './native/api';
 import { toPtBrApiMessage } from './errorMessages';
 
 type Role = 'user' | 'admin' | 'superadmin';
+type BrandingPalette = {
+  primaryColor: string;
+  primaryStrongColor: string;
+  secondaryColor: string;
+  secondaryStrongColor: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  surfaceSoftColor: string;
+  borderColor: string;
+  textColor: string;
+  mutedColor: string;
+};
 type AuthUser = {
   id: string;
   name: string;
   email: string;
   role: Role;
   avatarUrl?: string | null;
+  institution?: {
+    id: string;
+    name: string;
+    slug: string;
+  } | null;
+  branding?: {
+    logoUrl: string;
+    palette: BrandingPalette;
+    isCustom: boolean;
+  } | null;
 };
 type AuthResponse = {
   accessToken: string;
@@ -119,6 +141,8 @@ const IMPERSONATION_SOURCE_TOKEN_KEY = 'academy-impersonation-source-token';
 const IMPERSONATION_SOURCE_USER_KEY = 'academy-impersonation-source-user';
 const IMPERSONATION_META_KEY = 'academy-impersonation-meta';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+const DEFAULT_ADMIN_LOGO_URL = '/7eventos_academy_logo.png';
+const DEFAULT_BRANDING_LOGO_URL = '/Logo-IPESK.png';
 
 const SECOES_SUPERADMIN: NavSection[] = [
   {
@@ -1926,14 +1950,27 @@ export default function App() {
 
   const impersonando = Boolean(impersonationMeta && usuario?.role !== 'superadmin');
   const roleLabel = impersonando ? 'Administrador (Impersonado)' : usuario?.role === 'superadmin' ? 'Superadmin' : 'Professor';
+  const adminBrandingLogoUrl =
+    usuario?.role === 'admin'
+      ? usuario?.branding?.logoUrl || DEFAULT_BRANDING_LOGO_URL
+      : DEFAULT_ADMIN_LOGO_URL;
+  const adminBrandingStyle = useMemo(() => {
+    if (usuario?.role !== 'admin' || !usuario.branding?.palette) {
+      return undefined;
+    }
+    return {
+      '--admin-accent': usuario.branding.palette.primaryColor,
+      '--admin-accent-strong': usuario.branding.palette.primaryStrongColor,
+    } as CSSProperties;
+  }, [usuario]);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" style={adminBrandingStyle}>
       <aside className={`global-sidebar ${mobileMenuOpen ? 'is-mobile-open' : ''}`}>
         <div className="global-sidebar-brand">
           <img
             className="global-sidebar-brand-logo"
-            src="/7eventos_academy_logo.png"
+            src={adminBrandingLogoUrl}
             alt="7Eventos Academy Manager"
           />
         </div>

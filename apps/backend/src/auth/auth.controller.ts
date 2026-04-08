@@ -94,7 +94,10 @@ export class AuthController {
 
   @Get('me')
   async me(@Req() request: AuthenticatedRequest) {
-    return this.authService.getMe(request.user.sub);
+    return this.authService.getMe(
+      request.user.sub,
+      request.user.activeInstitutionId ?? null,
+    );
   }
 
   @Patch('me')

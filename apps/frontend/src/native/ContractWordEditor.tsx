@@ -55,6 +55,17 @@ const PAD_DEFAULT: Padding = { top: 20, right: 15, bottom: 20, left: 15 };
 const MAX_BG_BYTES = 1024 * 1024;
 const BG_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const PDF_MIME_TYPE = 'application/pdf';
+const DOCX_MIME_TYPE =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const DOCX_IMAGE_MIME_BY_EXT: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.svg': 'image/svg+xml',
+};
 const EMPTY_COMMAND_STATE: CommandState = {
   bold: false,
   italic: false,
@@ -112,6 +123,60 @@ const readAsDataUrl = (file: File) =>
 
 const isPdfFile = (file: File) =>
   file.type === PDF_MIME_TYPE || /\.pdf$/i.test(String(file.name || ''));
+
+const isDocxFile = (file: File) =>
+  file.type === DOCX_MIME_TYPE || /\.docx$/i.test(String(file.name || ''));
+
+const detectDocxImageMime = (path: string) => {
+  const normalized = String(path || '').toLowerCase();
+  for (const [ext, mime] of Object.entries(DOCX_IMAGE_MIME_BY_EXT)) {
+    if (normalized.endsWith(ext)) return mime;
+  }
+  return null;
+};
+
+const bytesToBase64 = (bytes: Uint8Array) => {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let start = 0; start < bytes.length; start += chunkSize) {
+    const chunk = bytes.subarray(start, start + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return window.btoa(binary);
+};
+
+async function renderDocxBackground(file: File) {
+  const { unzipSync } = await import('fflate');
+  let archive: Record<string, Uint8Array>;
+
+  try {
+    archive = unzipSync(new Uint8Array(await file.arrayBuffer()));
+  } catch {
+    throw new Error('DOCX_INVALID');
+  }
+
+  let selectedBytes: Uint8Array | null = null;
+  let selectedMime: string | null = null;
+
+  for (const [path, bytes] of Object.entries(archive)) {
+    const normalized = path.toLowerCase();
+    if (!normalized.startsWith('word/media/')) continue;
+    if (!bytes || bytes.length === 0) continue;
+    const mime = detectDocxImageMime(normalized);
+    if (!mime) continue;
+
+    if (!selectedBytes || bytes.length > selectedBytes.length) {
+      selectedBytes = bytes;
+      selectedMime = mime;
+    }
+  }
+
+  if (!selectedBytes || !selectedMime) {
+    throw new Error('DOCX_BACKGROUND_NOT_FOUND');
+  }
+
+  return `data:${selectedMime};base64,${bytesToBase64(selectedBytes)}`;
+}
 
 const loadImage = (dataUrl: string) =>
   new Promise<HTMLImageElement>((resolve, reject) => {
@@ -935,8 +1000,11 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
       } else if (isPdfFile(file)) {
         const firstPageDataUrl = await renderPdfFirstPage(file);
         compressed = await compressBackgroundDataUrl(firstPageDataUrl);
+      } else if (isDocxFile(file)) {
+        const docxImageDataUrl = await renderDocxBackground(file);
+        compressed = await compressBackgroundDataUrl(docxImageDataUrl);
       } else {
-        window.alert('Formato inválido. Use JPG, PNG, WEBP ou PDF.');
+        window.alert('Formato inválido. Use JPG, PNG, WEBP, PDF ou DOCX.');
         return;
       }
 
@@ -946,7 +1014,9 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
       }
       setBackgroundImageData(compressed);
     } catch {
-      window.alert('Não foi possível processar o arquivo de fundo.');
+      window.alert(
+        'Não foi possível processar o arquivo de fundo. No DOCX, use um timbrado com imagem incorporada.',
+      );
     }
   };
 
@@ -1075,14 +1145,14 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
               <input
                 ref={backgroundInputRef}
                 type="file"
-                accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,image/jpeg,image/png,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 className="contract-word-editor-hidden-input"
                 onChange={selectBackground}
               />
             </div>
             <p>
-              Formatos aceitos: JPG, PNG, WEBP e PDF (1ª página). O editor reduz automaticamente
-              para preservar desempenho.
+              Formatos aceitos: JPG, PNG, WEBP, PDF (1ª página) e DOCX (imagem incorporada no
+              arquivo). O editor reduz automaticamente para preservar desempenho.
             </p>
             <div className="contract-word-editor-settings-grid two-columns">
               <label>

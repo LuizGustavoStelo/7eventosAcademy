@@ -406,6 +406,7 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
   const [loadingBranding, setLoadingBranding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingBranding, setSavingBranding] = useState(false);
+  const [uploadingBrandingLogo, setUploadingBrandingLogo] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
   const [formError, setFormError] = useState('');
@@ -664,6 +665,13 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
       return;
     }
 
+    if (!selectedAccountId) {
+      setBrandingError('Selecione uma conta antes de enviar a logo.');
+      setBrandingLogoFileName('');
+      event.target.value = '';
+      return;
+    }
+
     if (!file.type.startsWith('image/')) {
       setBrandingError('Selecione um arquivo de imagem válido para a logo.');
       setBrandingLogoFileName('');
@@ -672,27 +680,34 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
     }
 
     try {
-      const logoDataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          resolve(String(reader.result ?? ''));
-        };
-        reader.onerror = () => {
-          reject(new Error('Falha ao processar arquivo de logo.'));
-        };
-        reader.readAsDataURL(file);
+      setUploadingBrandingLogo(true);
+      setBrandingError('');
+      setFeedback('');
+
+      const body = new FormData();
+      body.append('logo', file);
+
+      const data = await apiRequest<{
+        branding: AccountBrandingResponse['branding'];
+      }>(token, `/superadmin/accounts/${selectedAccountId}/branding/logo`, {
+        method: 'POST',
+        body,
       });
 
       setBrandingForm((current) => ({
         ...current,
-        logoUrl: logoDataUrl,
+        logoUrl: data.branding.logoUrl || DEFAULT_STUDENT_BRANDING_LOGO_URL,
       }));
       setBrandingLogoFileName(file.name);
-      setBrandingError('');
+      setFeedback('Logo da instituição enviada com sucesso.');
+      await loadDashboard(false);
+      await loadBrandingConfig(selectedAccountId);
     } catch {
-      setBrandingError('Falha ao processar arquivo da logo. Tente novamente.');
+      setBrandingError('Falha ao enviar a logo da instituição. Tente novamente.');
       setBrandingLogoFileName('');
       event.target.value = '';
+    } finally {
+      setUploadingBrandingLogo(false);
     }
   };
 
@@ -1515,12 +1530,15 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                           <input
                             type="file"
                             accept="image/*"
+                            disabled={uploadingBrandingLogo || savingBranding}
                             onChange={(event) => {
                               void handleBrandingLogoFileChange(event);
                             }}
                           />
                           <small>
-                            {brandingLogoFileName
+                            {uploadingBrandingLogo
+                              ? 'Enviando logo...'
+                              : brandingLogoFileName
                               ? `Arquivo selecionado: ${brandingLogoFileName}`
                               : 'Envie um arquivo de imagem para substituir a logo da instituição.'}
                           </small>

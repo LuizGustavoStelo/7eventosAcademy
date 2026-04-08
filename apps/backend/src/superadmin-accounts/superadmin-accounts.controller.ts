@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, Put, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  Req,
+} from '@nestjs/common';
+import { MultipartFile } from '@fastify/multipart';
 import type { FastifyRequest } from 'fastify';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CreateImpersonationSessionDto } from './dto/create-impersonation-session.dto';
@@ -10,6 +20,7 @@ type AuthenticatedRequest = FastifyRequest & {
   user: {
     sub: string;
   };
+  file: () => Promise<MultipartFile | undefined>;
 };
 
 @Roles('superadmin')
@@ -53,6 +64,24 @@ export class SuperadminAccountsController {
     return this.superadminAccountsService.upsertAccountBrandingConfig(
       userId,
       dto,
+    );
+  }
+
+  @Post(':userId/branding/logo')
+  async uploadAccountBrandingLogo(
+    @Req() request: AuthenticatedRequest,
+    @Param('userId') userId: string,
+  ) {
+    const file = await request.file();
+    if (!file) {
+      throw new BadRequestException(
+        'Envie um arquivo de imagem no campo logo.',
+      );
+    }
+
+    return this.superadminAccountsService.uploadAccountBrandingLogo(
+      userId,
+      file,
     );
   }
 

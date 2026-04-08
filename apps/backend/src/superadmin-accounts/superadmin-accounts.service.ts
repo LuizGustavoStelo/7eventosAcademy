@@ -3,14 +3,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { MultipartFile } from '@fastify/multipart';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma, UploadOwnerType, UserRole } from '@prisma/client';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../database/prisma.service';
 import { SecretsService } from '../security/secrets/secrets.service';
+import { UploadsService } from '../uploads/uploads.service';
 import { UpsertAccountBrandingDto } from './dto/upsert-account-branding.dto';
 import {
   FinancialProvider,
@@ -132,6 +134,7 @@ export class SuperadminAccountsService {
     private readonly prisma: PrismaService,
     private readonly secrets: SecretsService,
     private readonly authService: AuthService,
+    private readonly uploadsService: UploadsService,
   ) {}
 
   async getAccountsDashboard() {
@@ -261,7 +264,7 @@ export class SuperadminAccountsService {
     });
 
     if (!user || user.role !== UserRole.ADMIN) {
-      throw new NotFoundException('Conta admin/professor não encontrada.');
+      throw new NotFoundException('Conta admin/professor nÃ£o encontrada.');
     }
 
     const config = await this.prisma.accountFinancialConfig.findUnique({
@@ -325,7 +328,7 @@ export class SuperadminAccountsService {
     });
 
     if (!user || user.role !== UserRole.ADMIN) {
-      throw new NotFoundException('Conta admin/professor não encontrada.');
+      throw new NotFoundException('Conta admin/professor nÃ£o encontrada.');
     }
 
     const existing = await this.prisma.accountFinancialConfig.findUnique({
@@ -421,6 +424,12 @@ export class SuperadminAccountsService {
     const account = await this.findAdminAccountWithInstitution(userId);
 
     if (dto.resetToDefault) {
+      await this.uploadsService.deleteOwnerAssetByKind(
+        UploadOwnerType.USER,
+        account.id,
+        'INSTITUTION_BRANDING_LOGO',
+      );
+
       const savedInstitution = await this.prisma.institution.update({
         where: { id: account.institution.id },
         data: {
@@ -454,13 +463,13 @@ export class SuperadminAccountsService {
     const paletteFieldMap: Array<
       [keyof InstitutionBrandingPalette, string | undefined, string]
     > = [
-      ['primaryColor', dto.primaryColor, 'cor primária'],
-      ['primaryStrongColor', dto.primaryStrongColor, 'cor primária forte'],
-      ['secondaryColor', dto.secondaryColor, 'cor secundária'],
-      ['secondaryStrongColor', dto.secondaryStrongColor, 'cor secundária forte'],
+      ['primaryColor', dto.primaryColor, 'cor primÃ¡ria'],
+      ['primaryStrongColor', dto.primaryStrongColor, 'cor primÃ¡ria forte'],
+      ['secondaryColor', dto.secondaryColor, 'cor secundÃ¡ria'],
+      ['secondaryStrongColor', dto.secondaryStrongColor, 'cor secundÃ¡ria forte'],
       ['backgroundColor', dto.backgroundColor, 'cor de fundo'],
-      ['surfaceColor', dto.surfaceColor, 'cor de superfície'],
-      ['surfaceSoftColor', dto.surfaceSoftColor, 'cor de superfície suave'],
+      ['surfaceColor', dto.surfaceColor, 'cor de superfÃ­cie'],
+      ['surfaceSoftColor', dto.surfaceSoftColor, 'cor de superfÃ­cie suave'],
       ['borderColor', dto.borderColor, 'cor de borda'],
       ['textColor', dto.textColor, 'cor de texto'],
       ['mutedColor', dto.mutedColor, 'cor de texto auxiliar'],
@@ -490,6 +499,46 @@ export class SuperadminAccountsService {
         brandingPalette: shouldPersistPalette
           ? (nextPalette as Prisma.InputJsonValue)
           : Prisma.DbNull,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        brandingLogoUrl: true,
+        brandingPalette: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      success: true,
+      institution: {
+        id: savedInstitution.id,
+        name: savedInstitution.name,
+        slug: savedInstitution.slug,
+      },
+      branding: this.resolveInstitutionBranding(savedInstitution),
+    };
+  }
+
+  async uploadAccountBrandingLogo(userId: string, file: MultipartFile) {
+    const account = await this.findAdminAccountWithInstitution(userId);
+
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Envie um arquivo de imagem válido.');
+    }
+
+    const uploaded = await this.uploadsService.bindFileToOwner({
+      ownerType: UploadOwnerType.USER,
+      ownerId: account.id,
+      kind: 'INSTITUTION_BRANDING_LOGO',
+      file,
+    });
+
+    const savedInstitution = await this.prisma.institution.update({
+      where: { id: account.institution.id },
+      data: {
+        brandingLogoUrl: uploaded.url,
       },
       select: {
         id: true,
@@ -554,13 +603,13 @@ export class SuperadminAccountsService {
     });
 
     if (!user || user.role !== UserRole.ADMIN) {
-      throw new NotFoundException('Conta admin/professor não encontrada.');
+      throw new NotFoundException('Conta admin/professor nÃ£o encontrada.');
     }
 
     const institution = user.institutionMembers[0]?.institution ?? null;
     if (!institution) {
       throw new NotFoundException(
-        'Instituição ativa não encontrada para esta conta.',
+        'InstituiÃ§Ã£o ativa nÃ£o encontrada para esta conta.',
       );
     }
 
@@ -637,9 +686,9 @@ export class SuperadminAccountsService {
       return null;
     }
 
-    if (normalized.length > 2048) {
+    if (normalized.length > 2_000_000) {
       throw new BadRequestException(
-        'URL do logo muito longa. Use no máximo 2048 caracteres.',
+        'Logo muito grande. Use no máximo 2 MB em texto/base64.',
       );
     }
 
@@ -775,8 +824,8 @@ export class SuperadminAccountsService {
       const requiredFieldMap: Array<[keyof SicoobSettings, string]> = [
         ['clientId', 'Client ID'],
         ['tokenUrl', 'URL de token'],
-        ['numeroCliente', 'Número do cliente/cedente'],
-        ['certificatePem', 'Certificado público (PEM/CRT)'],
+        ['numeroCliente', 'NÃºmero do cliente/cedente'],
+        ['certificatePem', 'Certificado pÃºblico (PEM/CRT)'],
         ['privateKeyPem', 'Chave privada (PEM/KEY)'],
       ];
 
@@ -784,17 +833,17 @@ export class SuperadminAccountsService {
         const value = nextSicoob[field];
         if (!value || (typeof value === 'string' && value.trim() === '')) {
           throw new BadRequestException(
-            `Para Sicoob, o campo "${label}" é obrigatório.`,
+            `Para Sicoob, o campo "${label}" Ã© obrigatÃ³rio.`,
           );
         }
       }
 
       const productLabelMap: Array<[keyof SicoobBaseUrls, string]> = [
-        ['cobrancaBancaria', 'Cobrança Bancária V3'],
-        ['cobrancaBancariaPagamentos', 'Cobrança Bancária Pagamentos'],
+        ['cobrancaBancaria', 'CobranÃ§a BancÃ¡ria V3'],
+        ['cobrancaBancariaPagamentos', 'CobranÃ§a BancÃ¡ria Pagamentos'],
         ['pixPagamentos', 'Pix Pagamentos'],
         ['pixRecebimentos', 'Pix Recebimentos'],
-        ['spbTransferencias', 'SPB Transferências'],
+        ['spbTransferencias', 'SPB TransferÃªncias'],
       ];
       const urlsToValidate =
         environment === 'sandbox'
@@ -805,7 +854,7 @@ export class SuperadminAccountsService {
         const value = urlsToValidate[productKey];
         if (!value || value.trim() === '') {
           const environmentLabel =
-            environment === 'sandbox' ? 'sandbox' : 'produção';
+            environment === 'sandbox' ? 'sandbox' : 'produÃ§Ã£o';
           throw new BadRequestException(
             `Para Sicoob, informe a URL base de ${environmentLabel} para ${productLabel}.`,
           );
@@ -868,7 +917,7 @@ export class SuperadminAccountsService {
       const pfxBuffer = Buffer.from(pfxBase64, 'base64');
       if (!pfxBuffer || pfxBuffer.length === 0) {
         throw new BadRequestException(
-          'Arquivo PFX inválido. Verifique o conteúdo enviado.',
+          'Arquivo PFX invÃ¡lido. Verifique o conteÃºdo enviado.',
         );
       }
       writeFileSync(pfxPath, pfxBuffer);
@@ -931,14 +980,14 @@ export class SuperadminAccountsService {
         error.code === 'ENOENT'
       ) {
         throw new BadRequestException(
-          'OpenSSL não está disponível no servidor para processar PFX. Use os campos manuais (PEM/KEY) ou instale o OpenSSL.',
+          'OpenSSL nÃ£o estÃ¡ disponÃ­vel no servidor para processar PFX. Use os campos manuais (PEM/KEY) ou instale o OpenSSL.',
         );
       }
       if (error instanceof BadRequestException) {
         throw error;
       }
       throw new BadRequestException(
-        'Não foi possível extrair certificado e chave privada do PFX. Verifique o arquivo e a senha.',
+        'NÃ£o foi possÃ­vel extrair certificado e chave privada do PFX. Verifique o arquivo e a senha.',
       );
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
@@ -949,7 +998,7 @@ export class SuperadminAccountsService {
     const match = content.match(pattern);
     if (!match || match.length === 0) {
       throw new BadRequestException(
-        'Formato de certificado/chave inválido ao processar o PFX.',
+        'Formato de certificado/chave invÃ¡lido ao processar o PFX.',
       );
     }
     return match[0].trim();
@@ -983,7 +1032,7 @@ export class SuperadminAccountsService {
       normalized !== 'asaas' &&
       normalized !== 'stripe'
     ) {
-      throw new BadRequestException('Provedor financeiro inválido.');
+      throw new BadRequestException('Provedor financeiro invÃ¡lido.');
     }
     return normalized;
   }

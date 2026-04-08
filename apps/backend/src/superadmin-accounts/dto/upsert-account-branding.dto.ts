@@ -35,7 +35,7 @@ export class UpsertAccountBrandingDto {
   @IsOptional()
   @Transform(({ value }) => normalizeTextValue(value))
   @IsString()
-  @MaxLength(2048)
+  @MaxLength(2_000_000)
   logoUrl?: string;
 
   @IsOptional()
