@@ -721,14 +721,14 @@ export class StudentsService {
   }
 
   private buildOwnedStudentWhere(actor?: StudentActor): Prisma.UserWhereInput {
-    if (actor?.activeInstitutionId) {
+    if (!actor || actor.role === 'superadmin') {
+      return {};
+    }
+
+    if (actor.activeInstitutionId) {
       return {
         institutionId: actor.activeInstitutionId,
       };
-    }
-
-    if (!actor || actor.role === 'superadmin') {
-      return {};
     }
 
     return {
@@ -737,14 +737,14 @@ export class StudentsService {
   }
 
   private buildOwnedCourseWhere(actor?: StudentActor): Prisma.CourseWhereInput {
-    if (actor?.activeInstitutionId) {
+    if (!actor || actor.role === 'superadmin') {
+      return {};
+    }
+
+    if (actor.activeInstitutionId) {
       return {
         institutionId: actor.activeInstitutionId,
       };
-    }
-
-    if (!actor || actor.role === 'superadmin') {
-      return {};
     }
 
     return {
