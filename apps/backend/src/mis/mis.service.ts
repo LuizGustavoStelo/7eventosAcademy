@@ -2362,7 +2362,6 @@ export class MisService {
         email: email || undefined,
       },
       gerarPdf: false,
-      codigoCadastrarPIX: 1,
     };
     if (existingNossoNumero) {
       boletoPayload.nossoNumero = Number(existingNossoNumero);

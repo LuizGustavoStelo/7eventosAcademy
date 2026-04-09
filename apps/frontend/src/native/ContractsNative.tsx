@@ -143,6 +143,11 @@ const escapeHtmlForIframe = (value: string) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
+const escapeAttributeForIframe = (value: string) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;');
+
 function buildContractPreviewSrcDoc(rawHtml: string) {
   const parser = new window.DOMParser();
   const doc = parser.parseFromString(
@@ -158,6 +163,7 @@ function buildContractPreviewSrcDoc(rawHtml: string) {
   if (settingsNode) settingsNode.remove();
 
   const wrapper = root.querySelector<HTMLElement>('[data-contract-document-wrapper="true"]');
+  const wrapperStyle = String(wrapper?.getAttribute('style') || '').trim();
   const source = wrapper ? String(wrapper.innerHTML || '') : String(root.innerHTML || '');
   const pages = source
     .replace(CONTRACT_PREVIEW_PAGE_BREAK_REGEX, '<!--CONTRACT_PREVIEW_BREAK-->')
@@ -168,7 +174,12 @@ function buildContractPreviewSrcDoc(rawHtml: string) {
   }
 
   const bodyHtml = pages
-    .map((page) => `<section class="contract-preview-page">${page || '<p>&nbsp;</p>'}</section>`)
+    .map((page) => {
+      const styleAttr = wrapperStyle
+        ? ` style="${escapeAttributeForIframe(wrapperStyle)}"`
+        : '';
+      return `<article class="contract-preview-sheet"><section class="contract-preview-page"${styleAttr}>${page || '<p>&nbsp;</p>'}</section></article>`;
+    })
     .join('<div class="contract-preview-separator" aria-hidden="true"></div>');
 
   return `<!doctype html>
@@ -191,29 +202,41 @@ function buildContractPreviewSrcDoc(rawHtml: string) {
       min-height: 100vh;
       overflow-y: auto;
     }
-    .contract-preview-page {
+    .contract-preview-sheet {
       width: 794px;
-      min-height: 1123px;
       margin: 0 auto;
-      background: #fff;
       border: 1px solid rgba(15, 23, 42, 0.12);
       border-radius: 8px;
       overflow: hidden;
       box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+      background: #fff;
+    }
+    .contract-preview-page {
+      width: 794px;
+      height: 1123px;
+      min-height: 1123px;
+      max-height: 1123px;
+      margin: 0;
+      overflow: hidden;
     }
     .contract-preview-separator {
       height: 14px;
     }
     @media (max-width: 860px) {
       body { padding: 8px; }
+      .contract-preview-sheet {
+        width: 100%;
+      }
       .contract-preview-page {
         width: 100%;
         min-height: auto;
+        height: auto;
+        max-height: none;
       }
     }
   </style>
 </head>
-<body>${bodyHtml || `<section class="contract-preview-page"><p>${escapeHtmlForIframe('Sem conteúdo para pré-visualizar.')}</p></section>`}</body>
+<body>${bodyHtml || `<article class="contract-preview-sheet"><section class="contract-preview-page"><p>${escapeHtmlForIframe('Sem conteúdo para pré-visualizar.')}</p></section></article>`}</body>
 </html>`;
 }
 
@@ -1201,12 +1224,8 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   };
 
   const deleteTemplate = async (template: ContractTemplate) => {
-    if (template.status.trim().toUpperCase() === 'PUBLISHED') {
-      setError('Modelo publicado permite apenas configuracao de envio automatico.');
-      return;
-    }
     const shouldDelete = window.confirm(
-      `Desea realmente apagar o modelo "${template.name}"? Esta ação também remove contratos enviados por este modelo.`,
+      `Deseja realmente apagar o modelo "${template.name}"? Esta ação também remove contratos enviados por este modelo.`,
     );
     if (!shouldDelete) return;
 
@@ -1387,13 +1406,13 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                       aria-label={`Apagar modelo ${template.name}`}
                       title={
                         template.status.trim().toUpperCase() === 'PUBLISHED'
-                          ? 'Modelo publicado: apenas envio automático pode ser alterado.'
+                          ? 'Apagar modelo publicado'
                           : 'Apagar modelo'
                       }
                       onClick={() => {
                         void deleteTemplate(template);
                       }}
-                      disabled={deletingTemplateId === template.id || template.status.trim().toUpperCase() === 'PUBLISHED'}
+                      disabled={deletingTemplateId === template.id}
                     >
                       <span className="material-symbols-outlined">
                         {deletingTemplateId === template.id ? 'hourglass_top' : 'delete'}

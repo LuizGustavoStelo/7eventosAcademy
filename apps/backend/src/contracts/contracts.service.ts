@@ -381,12 +381,6 @@ export class ContractsService {
       throw new NotFoundException('Modelo de contrato não encontrado.');
     }
 
-    if (existing.status === ContractTemplateStatus.PUBLISHED) {
-      throw new BadRequestException(
-        'Modelo publicado nao pode ser excluido. Altere apenas o envio automatico.',
-      );
-    }
-
     const result = await this.prisma.$transaction(async (tx) => {
       const deletedInstances = await tx.contractInstance.deleteMany({
         where: {

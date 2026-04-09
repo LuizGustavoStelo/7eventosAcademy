@@ -411,6 +411,7 @@ export class EnrollmentsService {
   }
 
   private buildInstallmentCharges(input: {
+    enrollmentCreatedAt: Date;
     classStartDate: Date;
     paymentModel: string;
     installmentMonths: number | null;
@@ -443,7 +444,9 @@ export class EnrollmentsService {
         now.getMonth(),
         now.getDate(),
       );
-      const base = new Date(input.classStartDate);
+      const base = input.selectedPaymentOption.installmentStartDate
+        ? new Date(input.classStartDate)
+        : new Date(input.enrollmentCreatedAt);
       if (input.selectedPaymentOption.installmentStartDate) {
         const scheduled = new Date(input.selectedPaymentOption.installmentStartDate);
         if (!Number.isNaN(scheduled.getTime())) {
@@ -524,25 +527,44 @@ export class EnrollmentsService {
     selectedPaymentOption?: EnrollmentPaymentOption;
   }) {
     const charges = this.buildInstallmentCharges({
+      enrollmentCreatedAt: input.enrollmentCreatedAt,
       classStartDate: input.classStartDate,
       paymentModel: input.paymentModel,
       installmentMonths: input.installmentMonths,
       installmentValue: input.installmentValue,
       selectedPaymentOption: input.selectedPaymentOption,
     });
+    const enrollmentGraceDueDate = this.addHours(input.enrollmentCreatedAt, 48);
+    const chargesWithGrace =
+      input.selectedPaymentOption?.type === 'INSTALLMENTS' &&
+      !input.selectedPaymentOption.installmentStartDate &&
+      charges.length > 0
+        ? charges.map((item, index) => {
+            if (index !== 0) return item;
+            const dueDate =
+              item.dueDate.getTime() < enrollmentGraceDueDate.getTime()
+                ? new Date(enrollmentGraceDueDate)
+                : item.dueDate;
+            return {
+              ...item,
+              dueDate,
+              status: this.resolveChargeStatusByDueDate(dueDate),
+            };
+          })
+        : charges;
 
     const enrollmentFee = this.toMoneyValue(input.enrollmentFee);
     if (enrollmentFee <= 0) {
-      return charges;
+      return chargesWithGrace;
     }
 
     return [
       {
-        dueDate: new Date(input.enrollmentCreatedAt),
+        dueDate: new Date(enrollmentGraceDueDate),
         amount: enrollmentFee,
-        status: 'PENDING' as const,
+        status: this.resolveChargeStatusByDueDate(enrollmentGraceDueDate),
       },
-      ...charges,
+      ...chargesWithGrace,
     ];
   }
 
@@ -559,6 +581,19 @@ export class EnrollmentsService {
     const maxDay = new Date(year, month + 1, 0).getDate();
     dueDate.setDate(Math.min(Math.max(1, dueDay), maxDay));
     return dueDate;
+  }
+
+  private addHours(value: Date, hours: number) {
+    const result = new Date(value.getTime());
+    result.setHours(result.getHours() + hours);
+    return result;
+  }
+
+  private resolveChargeStatusByDueDate(dueDate: Date): 'PENDING' | 'OVERDUE' {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dueDateStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+    return dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING';
   }
 
   private async resolveEnrollmentPaymentOption(input: {
