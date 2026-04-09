@@ -8,4 +8,8 @@ export class SignInstitutionTemplateDto {
   @IsString()
   @MaxLength(200)
   signerName?: string;
+
+  @IsOptional()
+  @IsString()
+  signatureData?: string;
 }

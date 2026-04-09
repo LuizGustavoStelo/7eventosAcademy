@@ -1313,6 +1313,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
         body: JSON.stringify({
           signerName: institutionSignerNameDraft.trim(),
           acceptTerms: true,
+          signatureData,
         }),
       });
 

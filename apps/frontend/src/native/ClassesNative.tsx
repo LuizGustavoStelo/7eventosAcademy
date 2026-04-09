@@ -191,7 +191,7 @@ function formatDateTime(value: string | null): string {
 
 function sanitizeOnlyLetters(value: string): string {
   return value
-    .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s]/g, '')
+    .replace(/[^\p{L}\d\s-]/gu, '')
     .replace(/\s{2,}/g, ' ')
     .replace(/^\s+/g, '');
 }

@@ -696,7 +696,7 @@ function isPaymentOptionDisplayable(option: {
 
 function sanitizeOnlyLetters(value: string): string {
   return value
-    .replace(/[^\p{L}\s]/gu, '')
+    .replace(/[^\p{L}\s-]/gu, '')
     .replace(/\s{2,}/g, ' ')
     .replace(/^\s+/g, '');
 }

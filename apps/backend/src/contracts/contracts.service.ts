@@ -437,23 +437,67 @@ export class ContractsService {
     const signedAt = new Date();
     const signerNameOverride = String(dto.signerName || '').trim();
     const signerName = signerNameOverride || signer.name;
+    const signatureData = this.normalizeSignatureDataUrl(dto.signatureData || '');
+    if (!signatureData) {
+      throw new BadRequestException(
+        'Assinatura desenhada da instituição é obrigatória.',
+      );
+    }
+    const signatureImageHash = this.sha256(signatureData);
 
-    return this.prisma.contractTemplate.update({
-      where: { id: template.id },
-      data: {
-        institutionSignedAt: signedAt,
-        institutionSignedByUserId: signer.id,
-        institutionSignedByName: signerName,
-        updatedByUserId: actor.sub,
-      },
-      select: {
-        id: true,
-        status: true,
-        latestVersionNumber: true,
-        institutionSignedAt: true,
-        institutionSignedByUserId: true,
-        institutionSignedByName: true,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const latestVersion = await tx.contractTemplateVersion.findFirst({
+        where: {
+          institutionId,
+          templateId: template.id,
+          versionNumber: template.latestVersionNumber,
+        },
+        select: {
+          id: true,
+          placeholdersJson: true,
+        },
+      });
+      if (!latestVersion) {
+        throw new NotFoundException(
+          'Versão publicada do modelo não foi encontrada para assinatura institucional.',
+        );
+      }
+
+      const currentPlaceholders = this.snapshotToRecord(
+        latestVersion.placeholdersJson,
+      );
+      const updatedPlaceholders = {
+        ...currentPlaceholders,
+        __institutionSignatureData: signatureData,
+        __institutionSignatureImageHash: signatureImageHash,
+        __institutionSignatureSignedAt: signedAt.toISOString(),
+        __institutionSignatureSignerName: signerName,
+      } as Prisma.InputJsonValue;
+
+      await tx.contractTemplateVersion.update({
+        where: { id: latestVersion.id },
+        data: {
+          placeholdersJson: updatedPlaceholders,
+        },
+      });
+
+      return tx.contractTemplate.update({
+        where: { id: template.id },
+        data: {
+          institutionSignedAt: signedAt,
+          institutionSignedByUserId: signer.id,
+          institutionSignedByName: signerName,
+          updatedByUserId: actor.sub,
+        },
+        select: {
+          id: true,
+          status: true,
+          latestVersionNumber: true,
+          institutionSignedAt: true,
+          institutionSignedByUserId: true,
+          institutionSignedByName: true,
+        },
+      });
     });
   }
 
@@ -745,6 +789,10 @@ export class ContractsService {
       String(template.institutionSignedByName || '').trim() ||
       this.resolveContractProviderName();
     const institutionSignedAt = template.institutionSignedAt;
+    const institutionSignatureData =
+      this.readInstitutionSignatureDataFromTemplateVersion(
+        templateVersion.placeholdersJson,
+      );
 
     let courseName = '';
     let className = '';
@@ -1091,13 +1139,17 @@ export class ContractsService {
         contrato_foro: this.resolveContractForum(),
       },
     );
+    const cleanedUnsignedHtml = this.removeLegacySignatureIdentificationBlock(
+      unsignedHtmlSnapshot,
+    );
     const institutionSignatureBlock = this.buildInstitutionSignatureBlockHtml({
       signerName: institutionSignerName,
       signedAt: institutionSignedAt,
       signatureCode,
+      signatureData: institutionSignatureData,
     });
     const institutionSignedUnsignedHtmlSnapshot =
-      `${unsignedHtmlSnapshot}\n${institutionSignatureBlock}`.trim();
+      `${cleanedUnsignedHtml}\n${institutionSignatureBlock}`.trim();
     const unsignedContentHash = this.sha256(institutionSignedUnsignedHtmlSnapshot);
     const tokenHours = Math.min(
       dto.expiresInHours ?? DEFAULT_SIGNING_TOKEN_HOURS,
@@ -1147,6 +1199,7 @@ export class ContractsService {
               signedAt: institutionSignedAt.toISOString(),
               signedByUserId: template.institutionSignedByUserId || null,
               signedByName: institutionSignerName,
+              signatureData: institutionSignatureData,
             },
           } as Prisma.InputJsonValue,
           unsignedHtmlSnapshot: institutionSignedUnsignedHtmlSnapshot,
@@ -1310,12 +1363,14 @@ export class ContractsService {
     const baseHtml = isStudentAlreadySigned
       ? instance.signedHtmlSnapshot || instance.unsignedHtmlSnapshot
       : instance.unsignedHtmlSnapshot;
+    const cleanedBaseHtml = this.removeLegacySignatureIdentificationBlock(baseHtml);
     const institutionSignatureBlock = this.buildInstitutionSignatureBlockHtml({
       signerName: signer.name,
       signedAt: now,
       signatureCode: instance.signatureCode,
+      signatureData: institutionSignature.signatureData,
     });
-    const institutionSignedHtml = `${baseHtml}\n${institutionSignatureBlock}`.trim();
+    const institutionSignedHtml = `${cleanedBaseHtml}\n${institutionSignatureBlock}`.trim();
     const institutionSignedContentHash = this.sha256(institutionSignedHtml);
     const institutionSignedPdfBuffer = isStudentAlreadySigned
       ? await this.renderContractPdfBuffer(institutionSignedHtml)
@@ -1331,6 +1386,7 @@ export class ContractsService {
         signedAt: now.toISOString(),
         signedByUserId: signer.id,
         signedByName: signer.name,
+        signatureData: institutionSignature.signatureData,
       },
       ...(institutionSignedPdfBuffer
         ? {
@@ -2917,6 +2973,7 @@ export class ContractsService {
   private readInstitutionSignature(snapshot: Prisma.JsonValue | null): {
     signedAt: string | null;
     signedByName: string | null;
+    signatureData: string | null;
   } {
     const base = this.snapshotToRecord(snapshot);
     const rawSignature = base.institutionSignature;
@@ -2928,6 +2985,7 @@ export class ContractsService {
       return {
         signedAt: null,
         signedByName: null,
+        signatureData: null,
       };
     }
 
@@ -2942,17 +3000,33 @@ export class ContractsService {
       typeof signedByNameRaw === 'string' && signedByNameRaw.trim()
         ? signedByNameRaw.trim()
         : null;
+    const signatureDataRaw = signature.signatureData;
+    const signatureData =
+      typeof signatureDataRaw === 'string'
+        ? this.normalizeSignatureDataUrl(signatureDataRaw)
+        : null;
 
     return {
       signedAt,
       signedByName,
+      signatureData,
     };
+  }
+
+  private readInstitutionSignatureDataFromTemplateVersion(
+    placeholdersJson: Prisma.JsonValue | null,
+  ): string | null {
+    const placeholders = this.snapshotToRecord(placeholdersJson);
+    const rawSignatureData = placeholders.__institutionSignatureData;
+    if (typeof rawSignatureData !== 'string') return null;
+    return this.normalizeSignatureDataUrl(rawSignatureData);
   }
 
   private buildInstitutionSignatureBlockHtml(params: {
     signerName: string;
     signedAt: Date;
     signatureCode: string;
+    signatureData?: string | null;
   }) {
     const signedAtLabel = new Intl.DateTimeFormat('pt-BR', {
       day: '2-digit',
@@ -2963,18 +3037,32 @@ export class ContractsService {
       second: '2-digit',
     }).format(params.signedAt);
 
+    const signatureImageSection = params.signatureData
+      ? `
+        <div style="margin-top:12px;">
+          <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;"><strong>Assinatura:</strong></p>
+          <img
+            alt="Assinatura desenhada da institui??o"
+            src="${this.escapeHtml(params.signatureData)}"
+            style="display:block;max-width:360px;width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;background:#fff;"
+          />
+        </div>
+      `
+      : '';
+
     return `
-      <section style="margin-top:24px;padding:16px;border:1px solid #d1d5db;border-radius:8px;background:#f8fafc;">
-        <h4 style="margin:0 0 8px;font-family:Arial,sans-serif;">Assinatura institucional</h4>
-        <p style="margin:0 0 6px;font-family:Arial,sans-serif;">
+      <section style="margin-top:24px;padding:16px;border:1px solid #d1d5db;border-radius:8px;background:#f8fafc;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
+        <h4 style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:16px;line-height:1.3;">Assinatura institucional</h4>
+        <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
           <strong>Assinado por:</strong> ${this.escapeHtml(params.signerName)}
         </p>
-        <p style="margin:0 0 6px;font-family:Arial,sans-serif;">
+        <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
           <strong>Data/hora:</strong> ${this.escapeHtml(signedAtLabel)}
         </p>
-        <p style="margin:0;font-family:Arial,sans-serif;">
-          <strong>Código de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
+        <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
+          <strong>C?digo de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
         </p>
+        ${signatureImageSection}
       </section>
     `;
   }
@@ -2997,22 +3085,26 @@ export class ContractsService {
       second: '2-digit',
     }).format(params.signedAt);
 
+    const cleanedUnsignedHtml = this.removeLegacySignatureIdentificationBlock(
+      unsignedHtml,
+    );
+
     const signatureBlock = `
-      <section style="margin-top:24px;padding:16px;border:1px solid #d1d5db;border-radius:8px;">
-        <h4 style="margin:0 0 8px;font-family:Arial,sans-serif;">Assinatura eletrônica</h4>
-        <p style="margin:0 0 6px;font-family:Arial,sans-serif;">
+      <section style="margin-top:24px;padding:16px;border:1px solid #d1d5db;border-radius:8px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
+        <h4 style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:16px;line-height:1.3;">Assinatura eletr?nica</h4>
+        <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
           <strong>Assinado por:</strong> ${this.escapeHtml(params.signerName)}
         </p>
-        <p style="margin:0 0 6px;font-family:Arial,sans-serif;">
+        <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
           <strong>Data/hora:</strong> ${this.escapeHtml(signedAtLabel)}
         </p>
-        <p style="margin:0;font-family:Arial,sans-serif;">
-          <strong>Código de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
+        <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
+          <strong>C?digo de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
         </p>
         <div style="margin-top:12px;">
-          <p style="margin:0 0 6px;font-family:Arial,sans-serif;"><strong>Assinatura:</strong></p>
+          <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;"><strong>Assinatura:</strong></p>
           <img
-            alt="Assinatura desenhada do signatário"
+            alt="Assinatura desenhada do signat?rio"
             src="${this.escapeHtml(params.signatureData)}"
             style="display:block;max-width:360px;width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;background:#fff;"
           />
@@ -3020,9 +3112,25 @@ export class ContractsService {
       </section>
     `;
 
-    return `${unsignedHtml}\n${signatureBlock}`.trim();
+    return `${cleanedUnsignedHtml}\n${signatureBlock}`.trim();
   }
 
+  private removeLegacySignatureIdentificationBlock(html: string): string {
+    let normalized = String(html || '').trim();
+    if (!normalized) return normalized;
+
+    normalized = normalized.replace(
+      /<table[\s\S]*?ALUNO\(A\)\s*-\s*CONTRATANTE\/BENEFICI[\s\S]*?INSTITUI[\s\S]*?PROFESSOR\s*RESPONS[\s\S]*?<\/table>/gi,
+      '',
+    );
+
+    normalized = normalized.replace(
+      /<(p|div|span|td)[^>]*>\s*C[\s\S]*?digo de assinatura eletr[\s\S]*?nica:[\s\S]*?<\/\1>/gi,
+      '',
+    );
+
+    return normalized;
+  }
   private normalizeSignatureDataUrl(value: string): string | null {
     const raw = String(value ?? '').trim();
     if (!raw) return null;

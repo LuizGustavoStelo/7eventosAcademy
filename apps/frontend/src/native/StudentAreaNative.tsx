@@ -993,7 +993,6 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   );
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [showFinanceValues, setShowFinanceValues] = useState(false);
   const [payingChargeId, setPayingChargeId] = useState<string | null>(null);
   const [chargePaymentDataById, setChargePaymentDataById] = useState<
     Record<string, StudentChargePaymentResponse>
@@ -1597,9 +1596,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       : '';
   const financeProgress =
     cobrancas.length > 0 ? Math.round((financeMetrics.paid.length / cobrancas.length) * 100) : 0;
-  const financeSensitiveClass = showFinanceValues
-    ? 'student-finance-sensitive'
-    : 'student-finance-sensitive is-hidden';
+  const financeSensitiveClass = 'student-finance-sensitive';
 
   const titleName = me?.name || user.name;
   const topbarName = firstAndLastName(titleName);
@@ -2802,17 +2799,6 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       ? `Bem-vindo de volta, ${firstName(titleName)}!`
                       : currentMeta.title}
                   </h2>
-                  {activeSection === 'st-student-finance' ? (
-                    <button
-                      type="button"
-                      className="student-finance-visibility-toggle"
-                      onClick={() => setShowFinanceValues((current) => !current)}
-                      aria-label={showFinanceValues ? 'Ocultar valores financeiros' : 'Exibir valores financeiros'}
-                    >
-                      <StudentIcon name={showFinanceValues ? 'visibility_off' : 'visibility'} />
-                      <span>{showFinanceValues ? 'Ocultar valores' : 'Exibir valores'}</span>
-                    </button>
-                  ) : null}
                 </div>
                 <p>{currentSubtitle}</p>
               </section>
