@@ -149,7 +149,9 @@ type StudentCharge = {
     discountType?: 'PERCENT' | 'FIXED' | string;
     discountValue?: number | null;
     appliesTo?: 'TOTAL' | 'INSTALLMENT' | string;
+    installmentScope?: 'ALL' | 'SINGLE' | string;
     discountLabel?: string | null;
+    targetLabel?: string | null;
   } | null;
   canPay?: boolean;
   externalChargeId: string | null;
@@ -1566,6 +1568,17 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           : `${generatedLabel} de desconto`,
     };
   }, [cobrancas]);
+  const activeVoucherTargetLabel = useMemo(() => {
+    if (!activeVoucher) return '';
+    const targetLabel = String(activeVoucher.targetLabel || '').trim();
+    if (targetLabel) return targetLabel;
+    const appliesToInstallment =
+      String(activeVoucher.appliesTo || '').toUpperCase() === 'INSTALLMENT';
+    if (!appliesToInstallment) return 'curso inteiro';
+    return String(activeVoucher.installmentScope || '').toUpperCase() === 'SINGLE'
+      ? 'uma mensalidade'
+      : 'todas as mensalidades';
+  }, [activeVoucher]);
 
   const nextChargeLabel = financeMetrics.nextCharge
     ? formatDayMonth(financeMetrics.nextCharge.dueDate)
@@ -2300,6 +2313,10 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   <p>
                     Código aplicado:{' '}
                     <span className={financeSensitiveClass}>{activeVoucher.code}</span>
+                  </p>
+                  <p>
+                    Aplicação:{' '}
+                    <span className={financeSensitiveClass}>{activeVoucherTargetLabel}</span>
                   </p>
                 </>
               ) : (

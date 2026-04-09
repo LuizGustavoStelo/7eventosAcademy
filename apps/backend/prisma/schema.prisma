@@ -87,6 +87,13 @@ enum FinanceVoucherAppliesTo {
   @@map("finance_voucher_applies_to")
 }
 
+enum FinanceVoucherInstallmentScope {
+  ALL    @map("all")
+  SINGLE @map("single")
+
+  @@map("finance_voucher_installment_scope")
+}
+
 enum UploadOwnerType {
   COURSE     @map("course")
   USER       @map("user")
@@ -647,6 +654,9 @@ model FinanceVoucher {
   discountType            FinanceVoucherDiscountType @map("discount_type")
   discountValue           Decimal                   @map("discount_value") @db.Decimal(12, 2)
   appliesTo               FinanceVoucherAppliesTo   @map("applies_to")
+  installmentScope        FinanceVoucherInstallmentScope @default(ALL) @map("installment_scope")
+  maxUses                 Int?                      @map("max_uses")
+  usageCount              Int                       @default(0) @map("usage_count")
   allowedPaymentOptionIds Json?                     @map("allowed_payment_option_ids")
   active                  Boolean                   @default(true)
   createdAt               DateTime                  @default(now()) @map("created_at")

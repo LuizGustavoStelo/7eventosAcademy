@@ -8859,6 +8859,20 @@ table button {
   gap: 0.42rem;
 }
 
+.native-course-payment-voucher-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(15, 127, 130, 0.22);
+  background: rgba(16, 185, 129, 0.1);
+  color: #0f766e;
+  border-radius: 999px;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .native-course-payment-expand-icon {
   width: 22px;
   height: 22px;

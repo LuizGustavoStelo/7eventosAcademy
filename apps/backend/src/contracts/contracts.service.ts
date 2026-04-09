@@ -85,6 +85,19 @@ type ContractSelectedPaymentOption = {
   discountDeadlineDay: number | null;
   discountRequiresActiveCrf: boolean;
   discountAppliesTo: 'INSTALLMENT' | 'TOTAL' | null;
+  appliedVoucher: {
+    code: string;
+    title: string | null;
+    discountType: 'PERCENT' | 'FIXED';
+    discountValue: number;
+    appliesTo: 'TOTAL' | 'INSTALLMENT';
+    installmentScope: 'ALL' | 'SINGLE';
+    discountLabel: string;
+    targetLabel: string | null;
+    discountedInstallments: number | null;
+    discountedInstallmentAmount: number | null;
+    regularInstallmentAmount: number | null;
+  } | null;
 };
 
 const DEFAULT_SIGNING_TOKEN_HOURS = 72;
@@ -931,6 +944,34 @@ export class ContractsService {
       `Quantidade de parcelas: ${installmentCountForSummary}`,
       `Valor da parcela: ${this.formatCurrencyPtBr(installmentValueForSummary)}`,
     ];
+
+    if (selectedPaymentOption?.appliedVoucher) {
+      const voucher = selectedPaymentOption.appliedVoucher;
+      const voucherTargetLabel =
+        voucher.targetLabel ||
+        (voucher.appliesTo === 'INSTALLMENT'
+          ? voucher.installmentScope === 'SINGLE'
+            ? 'uma mensalidade'
+            : 'todas as mensalidades'
+          : 'curso inteiro');
+      formsAndValuesSummaryLines.push(
+        `Voucher aplicado: ${voucher.discountLabel || voucher.code} (${voucherTargetLabel}).`,
+      );
+      if (
+        voucher.appliesTo === 'INSTALLMENT' &&
+        voucher.installmentScope === 'SINGLE' &&
+        (voucher.discountedInstallmentAmount ?? 0) > 0 &&
+        (voucher.regularInstallmentAmount ?? 0) > 0
+      ) {
+        formsAndValuesSummaryLines.push(
+          `1ª parcela com voucher: ${this.formatCurrencyPtBr(
+            Number(voucher.discountedInstallmentAmount ?? 0),
+          )} | Demais parcelas: ${this.formatCurrencyPtBr(
+            Number(voucher.regularInstallmentAmount ?? 0),
+          )}.`,
+        );
+      }
+    }
 
     if (selectedPaymentOption?.discountEnabled && selectedOptionDiscountTotalAmount > 0) {
       formsAndValuesSummaryLines.push(
@@ -2302,6 +2343,61 @@ export class ContractsService {
       discountAppliesToRaw === 'INSTALLMENT' || discountAppliesToRaw === 'TOTAL'
         ? (discountAppliesToRaw as 'INSTALLMENT' | 'TOTAL')
         : null;
+    const voucherRaw =
+      source.appliedVoucher &&
+      typeof source.appliedVoucher === 'object' &&
+      !Array.isArray(source.appliedVoucher)
+        ? (source.appliedVoucher as Record<string, unknown>)
+        : null;
+    const voucherCode = String(voucherRaw?.code || '').trim();
+    const voucherDiscountTypeRaw = String(voucherRaw?.discountType || '')
+      .trim()
+      .toUpperCase();
+    const voucherDiscountType: 'PERCENT' | 'FIXED' | null =
+      voucherDiscountTypeRaw === 'PERCENT'
+        ? 'PERCENT'
+        : voucherDiscountTypeRaw === 'FIXED'
+          ? 'FIXED'
+          : null;
+    const voucherDiscountValue = this.toMoneyValue(voucherRaw?.discountValue);
+    const voucherAppliesToRaw = String(voucherRaw?.appliesTo || '')
+      .trim()
+      .toUpperCase();
+    const voucherAppliesTo: 'INSTALLMENT' | 'TOTAL' | null =
+      voucherAppliesToRaw === 'INSTALLMENT'
+        ? 'INSTALLMENT'
+        : voucherAppliesToRaw === 'TOTAL'
+          ? 'TOTAL'
+          : null;
+    const voucherInstallmentScopeRaw = String(voucherRaw?.installmentScope || '')
+      .trim()
+      .toUpperCase();
+    const voucherInstallmentScope: 'ALL' | 'SINGLE' =
+      voucherInstallmentScopeRaw === 'SINGLE' ? 'SINGLE' : 'ALL';
+    const appliedVoucher =
+      voucherCode && voucherDiscountType && voucherDiscountValue > 0 && voucherAppliesTo
+        ? {
+            code: voucherCode,
+            title: String(voucherRaw?.title || '').trim() || null,
+            discountType: voucherDiscountType,
+            discountValue: voucherDiscountValue,
+            appliesTo: voucherAppliesTo,
+            installmentScope: voucherInstallmentScope,
+            discountLabel: String(voucherRaw?.discountLabel || '').trim(),
+            targetLabel: String(voucherRaw?.targetLabel || '').trim() || null,
+            discountedInstallments: this.toPositiveInt(
+              voucherRaw?.discountedInstallments,
+            ),
+            discountedInstallmentAmount:
+              this.toMoneyValue(voucherRaw?.discountedInstallmentAmount) > 0
+                ? this.toMoneyValue(voucherRaw?.discountedInstallmentAmount)
+                : null,
+            regularInstallmentAmount:
+              this.toMoneyValue(voucherRaw?.regularInstallmentAmount) > 0
+                ? this.toMoneyValue(voucherRaw?.regularInstallmentAmount)
+                : null,
+          }
+        : null;
 
     return {
       id,
@@ -2320,6 +2416,7 @@ export class ContractsService {
       discountDeadlineDay,
       discountRequiresActiveCrf,
       discountAppliesTo,
+      appliedVoucher,
     };
   }
 
@@ -2650,6 +2747,11 @@ export class ContractsService {
     const hasDiscountInstallment =
       Number.isFinite(discountInstallmentAmount) && discountInstallmentAmount > 0;
     const crfLabel = selectedOption.discountRequiresActiveCrf ? ' (CRF ativo)' : '';
+    const voucher = selectedOption.appliedVoucher;
+    const hasSingleInstallmentVoucher =
+      voucher?.appliesTo === 'INSTALLMENT' &&
+      voucher.installmentScope === 'SINGLE' &&
+      Number(voucher.discountedInstallmentAmount ?? 0) > 0;
 
     const baseDate =
       (selectedOption.installmentStartDate &&
@@ -2665,7 +2767,9 @@ export class ContractsService {
         index,
         selectedOption.dueDay ?? undefined,
       );
-      const amountValue = this.toMoneyValue(regularInstallmentAmount);
+      const amountValue = hasSingleInstallmentVoucher && index === 0
+        ? this.toMoneyValue(voucher?.discountedInstallmentAmount ?? 0)
+        : this.toMoneyValue(regularInstallmentAmount);
       const discountValue = hasDiscountInstallment
         ? this.toMoneyValue(discountInstallmentAmount)
         : 0;
@@ -2680,6 +2784,10 @@ export class ContractsService {
           )}. ${
             hasDeadline ? `Após dia ${discountDeadlineDay}` : 'Valor regular'
           }: ${this.formatCurrencyPtBr(amountValue)}${crfLabel}.`
+        : hasSingleInstallmentVoucher && index === 0
+          ? `Voucher aplicado nesta parcela: ${voucher?.discountLabel || voucher?.code || ''}.`
+          : hasSingleInstallmentVoucher && index > 0
+            ? `Parcela regular (voucher aplicado apenas na 1ª mensalidade).`
         : null;
 
       return {

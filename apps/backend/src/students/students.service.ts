@@ -122,8 +122,8 @@ export class StudentsService {
     const motherName = dto.motherName.trim();
     const graduation = dto.graduation.trim();
     const graduationConclusionYear = Number(dto.graduationConclusionYear);
-    const companyName = dto.companyName.trim();
-    const jobTitle = dto.jobTitle.trim();
+    const companyName = String(dto.companyName ?? '').trim();
+    const jobTitle = String(dto.jobTitle ?? '').trim();
     const birthDate = new Date(dto.birthDate);
     if (Number.isNaN(birthDate.getTime()) || birthDate > new Date()) {
       throw new BadRequestException('Data de nascimento inválida.');
@@ -211,8 +211,8 @@ export class StudentsService {
               motherName,
               graduation,
               graduationConclusionYear,
-              companyName,
-              jobTitle,
+              companyName: companyName || null,
+              jobTitle: jobTitle || null,
               zipCode: dto.zipCode,
               street: dto.street ?? parsedAddress.street ?? address,
               streetNumber: dto.streetNumber,

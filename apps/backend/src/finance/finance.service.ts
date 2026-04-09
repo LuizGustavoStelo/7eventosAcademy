@@ -17,6 +17,7 @@ type ChargeStatusInput = 'pending' | 'paid' | 'overdue' | 'canceled';
 type TransactionStatusInput = 'pending' | 'success' | 'failed' | 'refunded';
 type VoucherDiscountTypeInput = 'PERCENT' | 'FIXED';
 type VoucherAppliesToInput = 'TOTAL' | 'INSTALLMENT';
+type VoucherInstallmentScopeInput = 'ALL' | 'SINGLE';
 type VoucherPaymentOptionTypeInput = 'CASH' | 'INSTALLMENTS';
 
 export type VoucherPaymentOptionShape = {
@@ -66,7 +67,15 @@ type AppliedVoucherSnapshot = {
   discountType: VoucherDiscountTypeInput;
   discountValue: number;
   appliesTo: VoucherAppliesToInput;
+  installmentScope: VoucherInstallmentScopeInput;
   discountLabel: string;
+  targetLabel: string;
+  discountedInstallments: number | null;
+  discountedInstallmentAmount: number | null;
+  regularInstallmentAmount: number | null;
+  usageCount: number;
+  maxUses: number | null;
+  remainingUses: number | null;
 };
 
 @Injectable()
@@ -671,6 +680,13 @@ export class FinanceService {
       discountType: voucher.discountType,
       discountValue: Number(voucher.discountValue),
       appliesTo: voucher.appliesTo,
+      installmentScope: voucher.installmentScope,
+      maxUses: voucher.maxUses,
+      usageCount: voucher.usageCount,
+      remainingUses:
+        voucher.maxUses && voucher.maxUses > 0
+          ? Math.max(0, voucher.maxUses - voucher.usageCount)
+          : null,
       discountLabel: this.formatVoucherDiscountLabel(
         voucher.discountType,
         Number(voucher.discountValue),
@@ -734,7 +750,12 @@ export class FinanceService {
 
     const discountType = this.normalizeVoucherDiscountType(dto.discountType);
     const appliesTo = this.normalizeVoucherAppliesTo(dto.appliesTo);
+    const installmentScope =
+      appliesTo === 'INSTALLMENT'
+        ? this.normalizeVoucherInstallmentScope(dto.installmentScope)
+        : 'ALL';
     const discountValue = this.toMoneyValue(dto.discountValue);
+    const maxUses = this.normalizeVoucherMaxUses(dto.maxUses);
     if (discountValue <= 0) {
       throw new BadRequestException(
         'Informe um valor de desconto maior que zero para o voucher.',
@@ -773,6 +794,9 @@ export class FinanceService {
         discountType,
         discountValue,
         appliesTo,
+        installmentScope,
+        maxUses,
+        usageCount: 0,
         allowedPaymentOptionIds: normalizedAllowedOptionIds as Prisma.InputJsonValue,
         active: dto.active !== false,
       },
@@ -795,6 +819,13 @@ export class FinanceService {
       discountType: createdVoucher.discountType,
       discountValue: Number(createdVoucher.discountValue),
       appliesTo: createdVoucher.appliesTo,
+      installmentScope: createdVoucher.installmentScope,
+      maxUses: createdVoucher.maxUses,
+      usageCount: createdVoucher.usageCount,
+      remainingUses:
+        createdVoucher.maxUses && createdVoucher.maxUses > 0
+          ? Math.max(0, createdVoucher.maxUses - createdVoucher.usageCount)
+          : null,
       discountLabel: this.formatVoucherDiscountLabel(
         createdVoucher.discountType,
         Number(createdVoucher.discountValue),
@@ -851,6 +882,13 @@ export class FinanceService {
       discountType: updatedVoucher.discountType,
       discountValue: Number(updatedVoucher.discountValue),
       appliesTo: updatedVoucher.appliesTo,
+      installmentScope: updatedVoucher.installmentScope,
+      maxUses: updatedVoucher.maxUses,
+      usageCount: updatedVoucher.usageCount,
+      remainingUses:
+        updatedVoucher.maxUses && updatedVoucher.maxUses > 0
+          ? Math.max(0, updatedVoucher.maxUses - updatedVoucher.usageCount)
+          : null,
       discountLabel: this.formatVoucherDiscountLabel(
         updatedVoucher.discountType,
         Number(updatedVoucher.discountValue),
@@ -900,12 +938,18 @@ export class FinanceService {
         discountType: true,
         discountValue: true,
         appliesTo: true,
+        installmentScope: true,
+        maxUses: true,
+        usageCount: true,
         allowedPaymentOptionIds: true,
       },
     });
 
     if (!voucher) {
       throw new BadRequestException('Voucher de desconto inválido para este curso.');
+    }
+    if (voucher.maxUses && voucher.maxUses > 0 && voucher.usageCount >= voucher.maxUses) {
+      throw new BadRequestException('Voucher indisponível: limite de uso atingido.');
     }
 
     const paymentOptions = this.extractVoucherCoursePaymentOptions(course);
@@ -933,10 +977,23 @@ export class FinanceService {
       discountType: voucher.discountType,
       discountValue: Number(voucher.discountValue),
       appliesTo: voucher.appliesTo,
+      installmentScope: voucher.installmentScope,
       discountLabel: this.formatVoucherDiscountLabel(
         voucher.discountType,
         Number(voucher.discountValue),
       ),
+      targetLabel:
+        voucher.appliesTo === 'INSTALLMENT'
+          ? voucher.installmentScope === 'SINGLE'
+            ? 'uma mensalidade'
+            : 'todas as mensalidades'
+          : 'curso inteiro',
+      usageCount: voucher.usageCount,
+      maxUses: voucher.maxUses,
+      remainingUses:
+        voucher.maxUses && voucher.maxUses > 0
+          ? Math.max(0, voucher.maxUses - voucher.usageCount)
+          : null,
       allowedPaymentOptionIds: this.parseAllowedPaymentOptionIds(
         voucher.allowedPaymentOptionIds,
       ),
@@ -950,6 +1007,7 @@ export class FinanceService {
     courseId: string;
     voucherCode: string;
     paymentOption: VoucherPaymentOptionShape;
+    consumeUsage?: boolean;
   }): Promise<VoucherPaymentOptionShape> {
     const normalizedCode = this.normalizeVoucherCode(input.voucherCode);
     const voucher = await this.findActiveVoucherForCourse({
@@ -961,6 +1019,9 @@ export class FinanceService {
 
     if (!voucher) {
       throw new BadRequestException('Voucher de desconto inválido para este curso.');
+    }
+    if (voucher.maxUses && voucher.maxUses > 0 && voucher.usageCount >= voucher.maxUses) {
+      throw new BadRequestException('Voucher indisponível: limite de uso atingido.');
     }
 
     if (
@@ -976,11 +1037,67 @@ export class FinanceService {
       );
     }
 
+    const consumeUsage = Boolean(input.consumeUsage);
+    let usageCount = voucher.usageCount;
+    if (consumeUsage) {
+      if (voucher.maxUses && voucher.maxUses > 0) {
+        const consumed = await (input.tx ?? this.prisma).financeVoucher.updateMany({
+          where: {
+            id: voucher.id,
+            usageCount: { lt: voucher.maxUses },
+          },
+          data: {
+            usageCount: { increment: 1 },
+          },
+        });
+        if (consumed.count === 0) {
+          throw new BadRequestException('Voucher indisponível: limite de uso atingido.');
+        }
+      } else {
+        await (input.tx ?? this.prisma).financeVoucher.update({
+          where: { id: voucher.id },
+          data: {
+            usageCount: { increment: 1 },
+          },
+        });
+      }
+      usageCount = Number(voucher.usageCount ?? 0) + 1;
+    }
+
     const adjusted = this.applyVoucherValuesToPaymentOption(input.paymentOption, {
       discountType: voucher.discountType,
       discountValue: Number(voucher.discountValue),
       appliesTo: voucher.appliesTo,
+      installmentScope: voucher.installmentScope,
     });
+
+    const discountValue = Number(voucher.discountValue);
+    const targetLabel =
+      voucher.appliesTo === 'INSTALLMENT'
+        ? voucher.installmentScope === 'SINGLE'
+          ? 'uma mensalidade'
+          : 'todas as mensalidades'
+        : 'curso inteiro';
+
+    const installmentCount = Math.max(
+      1,
+      Number(input.paymentOption.installmentCount ?? 1),
+    );
+    const regularInstallmentAmount = this.toMoneyValue(
+      Number(input.paymentOption.installmentAmount ?? 0),
+    );
+    const discountedInstallmentAmount =
+      voucher.appliesTo === 'INSTALLMENT' &&
+      voucher.installmentScope === 'SINGLE' &&
+      input.paymentOption.type === 'INSTALLMENTS'
+        ? this.toMoneyValue(
+            adjusted.totalAmount -
+              regularInstallmentAmount * Math.max(0, installmentCount - 1),
+          )
+        : voucher.appliesTo === 'INSTALLMENT' &&
+            input.paymentOption.type === 'INSTALLMENTS'
+          ? this.toMoneyValue(Number(adjusted.installmentAmount ?? 0))
+          : null;
 
     return {
       ...adjusted,
@@ -989,12 +1106,32 @@ export class FinanceService {
         code: voucher.code,
         title: voucher.title,
         discountType: voucher.discountType,
-        discountValue: Number(voucher.discountValue),
+        discountValue,
         appliesTo: voucher.appliesTo,
+        installmentScope: voucher.installmentScope,
         discountLabel: this.formatVoucherDiscountLabel(
           voucher.discountType,
-          Number(voucher.discountValue),
+          discountValue,
         ),
+        targetLabel,
+        discountedInstallments:
+          voucher.appliesTo === 'INSTALLMENT'
+            ? voucher.installmentScope === 'SINGLE'
+              ? 1
+              : installmentCount
+            : null,
+        discountedInstallmentAmount,
+        regularInstallmentAmount:
+          voucher.appliesTo === 'INSTALLMENT' &&
+          input.paymentOption.type === 'INSTALLMENTS'
+            ? regularInstallmentAmount
+            : null,
+        usageCount,
+        maxUses: voucher.maxUses,
+        remainingUses:
+          voucher.maxUses && voucher.maxUses > 0
+            ? Math.max(0, voucher.maxUses - usageCount)
+            : null,
       },
     };
   }
@@ -1459,6 +1596,25 @@ export class FinanceService {
       : 'TOTAL';
   }
 
+  private normalizeVoucherInstallmentScope(
+    value?: string | null,
+  ): VoucherInstallmentScopeInput {
+    return String(value || '').trim().toUpperCase() === 'SINGLE'
+      ? 'SINGLE'
+      : 'ALL';
+  }
+
+  private normalizeVoucherMaxUses(value?: number | null): number | null {
+    if (value === null || value === undefined) return null;
+    const parsed = Math.trunc(Number(value));
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      throw new BadRequestException(
+        'Informe um limite de uso válido (inteiro maior que zero).',
+      );
+    }
+    return parsed;
+  }
+
   private normalizePaymentOptionIdList(ids: string[]) {
     return Array.from(
       new Set(
@@ -1586,6 +1742,7 @@ export class FinanceService {
       discountType: VoucherDiscountTypeInput;
       discountValue: number;
       appliesTo: VoucherAppliesToInput;
+      installmentScope: VoucherInstallmentScopeInput;
     },
   ): VoucherPaymentOptionShape {
     const next = {
@@ -1612,63 +1769,131 @@ export class FinanceService {
     );
 
     if (voucher.appliesTo === 'INSTALLMENT' && next.type === 'INSTALLMENTS') {
-      const adjustedInstallment = applyDiscount(currentInstallment);
-      next.installmentAmount = adjustedInstallment;
-      next.totalAmount = this.toMoneyValue(adjustedInstallment * installmentCount);
+      if (voucher.installmentScope === 'SINGLE') {
+        const adjustedFirstInstallment = applyDiscount(currentInstallment);
+        next.installmentAmount = currentInstallment;
+        next.totalAmount = this.toMoneyValue(
+          adjustedFirstInstallment +
+            currentInstallment * Math.max(0, installmentCount - 1),
+        );
 
-      if ((next.discountInstallmentAmount ?? 0) > 0) {
-        const discountInstallment = applyDiscount(
-          Number(next.discountInstallmentAmount ?? 0),
-        );
-        next.discountInstallmentAmount = discountInstallment;
-        next.discountTotalAmount = this.toMoneyValue(
-          discountInstallment * installmentCount,
-        );
-      } else if ((next.discountTotalAmount ?? 0) > 0) {
-        const adjustedDiscountTotal = applyDiscount(
-          Number(next.discountTotalAmount ?? 0),
-        );
-        next.discountTotalAmount = adjustedDiscountTotal;
-        next.discountInstallmentAmount = this.toMoneyValue(
-          adjustedDiscountTotal / installmentCount,
-        );
-      }
+        if ((next.discountInstallmentAmount ?? 0) > 0) {
+          const adjustedDiscountFirstInstallment = applyDiscount(
+            Number(next.discountInstallmentAmount ?? 0),
+          );
+          next.discountInstallmentAmount = Number(next.discountInstallmentAmount ?? 0);
+          next.discountTotalAmount = this.toMoneyValue(
+            adjustedDiscountFirstInstallment +
+              Number(next.discountInstallmentAmount ?? 0) *
+                Math.max(0, installmentCount - 1),
+          );
+        } else if ((next.discountTotalAmount ?? 0) > 0) {
+          next.discountTotalAmount = applyDiscount(Number(next.discountTotalAmount ?? 0));
+          next.discountInstallmentAmount = this.toMoneyValue(
+            Number(next.discountTotalAmount ?? 0) / installmentCount,
+          );
+        }
 
-      if ((next.promotionalInstallmentAmount ?? 0) > 0) {
-        const adjustedPromotionalInstallment = applyDiscount(
-          Number(next.promotionalInstallmentAmount ?? 0),
-        );
-        next.promotionalInstallmentAmount = adjustedPromotionalInstallment;
-        next.promotionalTotalAmount = this.toMoneyValue(
-          adjustedPromotionalInstallment * installmentCount,
-        );
-      } else if ((next.promotionalTotalAmount ?? 0) > 0) {
-        const adjustedPromotionalTotal = applyDiscount(
-          Number(next.promotionalTotalAmount ?? 0),
-        );
-        next.promotionalTotalAmount = adjustedPromotionalTotal;
-        next.promotionalInstallmentAmount = this.toMoneyValue(
-          adjustedPromotionalTotal / installmentCount,
-        );
-      }
+        if ((next.promotionalInstallmentAmount ?? 0) > 0) {
+          const adjustedPromotionalFirstInstallment = applyDiscount(
+            Number(next.promotionalInstallmentAmount ?? 0),
+          );
+          next.promotionalInstallmentAmount = Number(
+            next.promotionalInstallmentAmount ?? 0,
+          );
+          next.promotionalTotalAmount = this.toMoneyValue(
+            adjustedPromotionalFirstInstallment +
+              Number(next.promotionalInstallmentAmount ?? 0) *
+                Math.max(0, installmentCount - 1),
+          );
+        } else if ((next.promotionalTotalAmount ?? 0) > 0) {
+          next.promotionalTotalAmount = applyDiscount(
+            Number(next.promotionalTotalAmount ?? 0),
+          );
+          next.promotionalInstallmentAmount = this.toMoneyValue(
+            Number(next.promotionalTotalAmount ?? 0) / installmentCount,
+          );
+        }
 
-      if ((next.promotionalDiscountInstallmentAmount ?? 0) > 0) {
-        const adjustedPromotionalDiscountInstallment = applyDiscount(
-          Number(next.promotionalDiscountInstallmentAmount ?? 0),
-        );
-        next.promotionalDiscountInstallmentAmount =
-          adjustedPromotionalDiscountInstallment;
-        next.promotionalDiscountTotalAmount = this.toMoneyValue(
-          adjustedPromotionalDiscountInstallment * installmentCount,
-        );
-      } else if ((next.promotionalDiscountTotalAmount ?? 0) > 0) {
-        const adjustedPromotionalDiscountTotal = applyDiscount(
-          Number(next.promotionalDiscountTotalAmount ?? 0),
-        );
-        next.promotionalDiscountTotalAmount = adjustedPromotionalDiscountTotal;
-        next.promotionalDiscountInstallmentAmount = this.toMoneyValue(
-          adjustedPromotionalDiscountTotal / installmentCount,
-        );
+        if ((next.promotionalDiscountInstallmentAmount ?? 0) > 0) {
+          const adjustedPromotionalDiscountFirstInstallment = applyDiscount(
+            Number(next.promotionalDiscountInstallmentAmount ?? 0),
+          );
+          next.promotionalDiscountInstallmentAmount = Number(
+            next.promotionalDiscountInstallmentAmount ?? 0,
+          );
+          next.promotionalDiscountTotalAmount = this.toMoneyValue(
+            adjustedPromotionalDiscountFirstInstallment +
+              Number(next.promotionalDiscountInstallmentAmount ?? 0) *
+                Math.max(0, installmentCount - 1),
+          );
+        } else if ((next.promotionalDiscountTotalAmount ?? 0) > 0) {
+          next.promotionalDiscountTotalAmount = applyDiscount(
+            Number(next.promotionalDiscountTotalAmount ?? 0),
+          );
+          next.promotionalDiscountInstallmentAmount = this.toMoneyValue(
+            Number(next.promotionalDiscountTotalAmount ?? 0) / installmentCount,
+          );
+        }
+      } else {
+        const adjustedInstallment = applyDiscount(currentInstallment);
+        next.installmentAmount = adjustedInstallment;
+        next.totalAmount = this.toMoneyValue(adjustedInstallment * installmentCount);
+
+        if ((next.discountInstallmentAmount ?? 0) > 0) {
+          const discountInstallment = applyDiscount(
+            Number(next.discountInstallmentAmount ?? 0),
+          );
+          next.discountInstallmentAmount = discountInstallment;
+          next.discountTotalAmount = this.toMoneyValue(
+            discountInstallment * installmentCount,
+          );
+        } else if ((next.discountTotalAmount ?? 0) > 0) {
+          const adjustedDiscountTotal = applyDiscount(
+            Number(next.discountTotalAmount ?? 0),
+          );
+          next.discountTotalAmount = adjustedDiscountTotal;
+          next.discountInstallmentAmount = this.toMoneyValue(
+            adjustedDiscountTotal / installmentCount,
+          );
+        }
+
+        if ((next.promotionalInstallmentAmount ?? 0) > 0) {
+          const adjustedPromotionalInstallment = applyDiscount(
+            Number(next.promotionalInstallmentAmount ?? 0),
+          );
+          next.promotionalInstallmentAmount = adjustedPromotionalInstallment;
+          next.promotionalTotalAmount = this.toMoneyValue(
+            adjustedPromotionalInstallment * installmentCount,
+          );
+        } else if ((next.promotionalTotalAmount ?? 0) > 0) {
+          const adjustedPromotionalTotal = applyDiscount(
+            Number(next.promotionalTotalAmount ?? 0),
+          );
+          next.promotionalTotalAmount = adjustedPromotionalTotal;
+          next.promotionalInstallmentAmount = this.toMoneyValue(
+            adjustedPromotionalTotal / installmentCount,
+          );
+        }
+
+        if ((next.promotionalDiscountInstallmentAmount ?? 0) > 0) {
+          const adjustedPromotionalDiscountInstallment = applyDiscount(
+            Number(next.promotionalDiscountInstallmentAmount ?? 0),
+          );
+          next.promotionalDiscountInstallmentAmount =
+            adjustedPromotionalDiscountInstallment;
+          next.promotionalDiscountTotalAmount = this.toMoneyValue(
+            adjustedPromotionalDiscountInstallment * installmentCount,
+          );
+        } else if ((next.promotionalDiscountTotalAmount ?? 0) > 0) {
+          const adjustedPromotionalDiscountTotal = applyDiscount(
+            Number(next.promotionalDiscountTotalAmount ?? 0),
+          );
+          next.promotionalDiscountTotalAmount = adjustedPromotionalDiscountTotal;
+          next.promotionalDiscountInstallmentAmount = this.toMoneyValue(
+            adjustedPromotionalDiscountTotal / installmentCount,
+          );
+        }
       }
     } else {
       next.totalAmount = applyDiscount(currentTotal);
@@ -1739,6 +1964,9 @@ export class FinanceService {
         discountType: true,
         discountValue: true,
         appliesTo: true,
+        installmentScope: true,
+        maxUses: true,
+        usageCount: true,
         allowedPaymentOptionIds: true,
       },
     });

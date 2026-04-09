@@ -4003,6 +4003,11 @@ export class MisService {
       .trim()
       .toUpperCase();
     const appliesTo = appliesToRaw === 'INSTALLMENT' ? 'INSTALLMENT' : 'TOTAL';
+    const installmentScopeRaw = String(voucher.installmentScope || '')
+      .trim()
+      .toUpperCase();
+    const installmentScope =
+      installmentScopeRaw === 'SINGLE' ? 'SINGLE' : 'ALL';
     const discountLabelRaw = String(voucher.discountLabel || '').trim();
     const discountLabel =
       discountLabelRaw ||
@@ -4019,7 +4024,9 @@ export class MisService {
       discountType,
       discountValue,
       appliesTo,
+      installmentScope,
       discountLabel,
+      targetLabel: String(voucher.targetLabel || '').trim() || null,
     };
   }
 

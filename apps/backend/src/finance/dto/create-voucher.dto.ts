@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  IsInt,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -36,6 +37,10 @@ export class CreateVoucherDto {
   @IsIn(['TOTAL', 'INSTALLMENT'])
   appliesTo!: 'TOTAL' | 'INSTALLMENT';
 
+  @IsOptional()
+  @IsIn(['ALL', 'SINGLE'])
+  installmentScope?: 'ALL' | 'SINGLE';
+
   @IsArray()
   @IsString({ each: true })
   @MaxLength(120, { each: true })
@@ -45,4 +50,10 @@ export class CreateVoucherDto {
   @Type(() => Boolean)
   @IsBoolean()
   active?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  maxUses?: number;
 }

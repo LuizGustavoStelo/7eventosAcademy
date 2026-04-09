@@ -64,11 +64,13 @@ export class PublicStudentRegistrationDto {
   @Max(9999)
   graduationConclusionYear!: number;
 
+  @IsOptional()
   @IsString()
-  companyName!: string;
+  companyName?: string;
 
+  @IsOptional()
   @IsString()
-  jobTitle!: string;
+  jobTitle?: string;
 
   @IsOptional()
   @IsString()

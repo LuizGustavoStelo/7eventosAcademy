@@ -46,7 +46,12 @@ type CourseCatalogItem = {
       discountType?: 'PERCENT' | 'FIXED' | string;
       discountValue?: number | null;
       appliesTo?: 'TOTAL' | 'INSTALLMENT' | string;
+      installmentScope?: 'ALL' | 'SINGLE' | string;
       discountLabel?: string | null;
+      targetLabel?: string | null;
+      discountedInstallments?: number | null;
+      discountedInstallmentAmount?: number | null;
+      regularInstallmentAmount?: number | null;
     } | null;
     active?: boolean | null;
   }> | null;
@@ -72,8 +77,8 @@ type RegistrationPayload = {
   motherName: string;
   graduation: string;
   graduationConclusionYear: number;
-  companyName: string;
-  jobTitle: string;
+  companyName?: string;
+  jobTitle?: string;
   street?: string;
   streetNumber?: string;
   complement?: string;
@@ -112,7 +117,9 @@ type VoucherValidationResponse = {
   discountType: 'PERCENT' | 'FIXED';
   discountValue: number;
   appliesTo: 'TOTAL' | 'INSTALLMENT';
+  installmentScope?: 'ALL' | 'SINGLE';
   discountLabel: string;
+  targetLabel?: string;
   allowedPaymentOptionIds: string[];
   affectedPaymentOptionIds: string[];
 };
@@ -436,14 +443,6 @@ function paymentOptionDetailLines(option: PaymentOptionItem): PaymentOptionDetai
     Number(option.discountDeadlineDay || 0) > 0 &&
     Boolean(paymentOptionDiscountSummary(option));
 
-  const voucherLabel = String(option.appliedVoucher?.discountLabel || '').trim();
-  if (voucherLabel) {
-    lines.push({
-      text: `Voucher aplicado: ${voucherLabel}.`,
-      tone: 'highlight',
-    });
-  }
-
   if (dueDay > 0) {
     lines.push({ text: `Vencimento padrão: dia ${dueDay}.`, tone: 'default' });
   }
@@ -457,6 +456,30 @@ function paymentOptionDetailLines(option: PaymentOptionItem): PaymentOptionDetai
   if (type === 'INSTALLMENTS') {
     const count = Number(option.installmentCount || 0) || 1;
     const baseInstallment = resolveOptionInstallmentAmount(option);
+    const voucherInstallmentScope = String(
+      option.appliedVoucher?.installmentScope || '',
+    ).toUpperCase();
+    const voucherFirstInstallment = Number(
+      option.appliedVoucher?.discountedInstallmentAmount || 0,
+    );
+    const voucherRegularInstallment =
+      Number(option.appliedVoucher?.regularInstallmentAmount || 0) || baseInstallment;
+    if (voucherInstallmentScope === 'SINGLE' && voucherFirstInstallment > 0) {
+      lines.push({
+        text: `1ª mensalidade com desconto: ${currencyFormatter.format(voucherFirstInstallment)}.`,
+        tone: 'highlight',
+      });
+      lines.push({
+        text: `Demais ${Math.max(0, count - 1)} mensalidades: ${currencyFormatter.format(
+          voucherRegularInstallment,
+        )}.`,
+        tone: 'secondary',
+      });
+      lines.push({
+        text: `Total com voucher: ${currencyFormatter.format(resolveOptionTotalAmount(option))}.`,
+        tone: 'default',
+      });
+    }
 
     if (hasPromotionalDiscount) {
       const deadline = Number(option.promotionalDiscountDeadlineDay || 0);
@@ -559,6 +582,10 @@ function applyVoucherToPaymentOption(
 
   const appliesToInstallment =
     String(voucher.appliesTo || '').toUpperCase() === 'INSTALLMENT';
+  const installmentScope =
+    String(voucher.installmentScope || '').toUpperCase() === 'SINGLE'
+      ? 'SINGLE'
+      : 'ALL';
   const isPercent = String(voucher.discountType || '').toUpperCase() === 'PERCENT';
   const discountValue = Math.max(0, Number(voucher.discountValue || 0));
   const installmentCount = Math.max(1, Number(option.installmentCount || 1));
@@ -579,14 +606,45 @@ function applyVoucherToPaymentOption(
       discountValue: discountValue,
       appliesTo: voucher.appliesTo,
       discountLabel: voucher.discountLabel,
+      installmentScope,
+      targetLabel:
+        voucher.targetLabel ||
+        (appliesToInstallment
+          ? installmentScope === 'SINGLE'
+            ? 'uma mensalidade'
+            : 'todas as mensalidades'
+          : 'curso inteiro'),
     },
   };
 
   if (appliesToInstallment && String(option.type || '').toUpperCase() === 'INSTALLMENTS') {
     const baseInstallment = resolveOptionInstallmentAmount(option);
+    if (installmentScope === 'SINGLE') {
+      const adjustedFirstInstallment = applyDiscount(baseInstallment);
+      nextOption.installmentAmount = baseInstallment;
+      nextOption.totalAmount = Number(
+        (
+          adjustedFirstInstallment + baseInstallment * Math.max(0, installmentCount - 1)
+        ).toFixed(2),
+      );
+      nextOption.appliedVoucher = {
+        ...nextOption.appliedVoucher,
+        discountedInstallments: 1,
+        discountedInstallmentAmount: adjustedFirstInstallment,
+        regularInstallmentAmount: baseInstallment,
+      };
+      return nextOption;
+    }
+
     const adjustedInstallment = applyDiscount(baseInstallment);
     nextOption.installmentAmount = adjustedInstallment;
     nextOption.totalAmount = Number((adjustedInstallment * installmentCount).toFixed(2));
+    nextOption.appliedVoucher = {
+      ...nextOption.appliedVoucher,
+      discountedInstallments: installmentCount,
+      discountedInstallmentAmount: adjustedInstallment,
+      regularInstallmentAmount: baseInstallment,
+    };
 
     if (Number(option.discountInstallmentAmount || 0) > 0) {
       const discountedInstallment = applyDiscount(Number(option.discountInstallmentAmount || 0));
@@ -1000,8 +1058,6 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   };
 
   const validateStepThree = () => {
-    if (!companyName.trim()) return 'Informe a empresa onde trabalha.';
-    if (!jobTitle.trim()) return 'Informe o cargo.';
     if (password.length < 8) return 'A senha deve ter pelo menos 8 caracteres.';
     if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
       return 'A senha deve conter pelo menos letras e números.';
@@ -1121,8 +1177,8 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       motherName: motherName.trim().replace(/\s{2,}/g, ' '),
       graduation: graduation.trim(),
       graduationConclusionYear: Number(onlyDigits(graduationConclusionYear)),
-      companyName: companyName.trim(),
-      jobTitle: jobTitle.trim(),
+      companyName: companyName.trim() || undefined,
+      jobTitle: jobTitle.trim() || undefined,
       password,
       street: address.trim(),
       streetNumber: streetNumber.trim(),
@@ -1488,7 +1544,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
           {currentStep === 2 ? (
             <>
               <label>
-                Empresa onde trabalha *
+                Empresa onde trabalha
                 <input
                   type="text"
                   value={companyName}
@@ -1498,7 +1554,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               </label>
 
               <label>
-                Cargo *
+                Cargo
                 <input
                   type="text"
                   value={jobTitle}
@@ -1733,6 +1789,12 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                                     </svg>
                                   )}
                                 </span>
+                                {String(option.appliedVoucher?.discountLabel || '').trim() ? (
+                                  <span className="native-course-payment-voucher-chip">
+                                    Voucher aplicado:{' '}
+                                    {String(option.appliedVoucher?.discountLabel || '').trim()}
+                                  </span>
+                                ) : null}
                                 <button
                                   type="button"
                                   onClick={(event) => {

@@ -58,7 +58,12 @@ type EnrollmentPaymentOption = {
     discountType: 'PERCENT' | 'FIXED';
     discountValue: number;
     appliesTo: 'TOTAL' | 'INSTALLMENT';
+    installmentScope?: 'ALL' | 'SINGLE';
     discountLabel: string;
+    targetLabel?: string;
+    discountedInstallments?: number | null;
+    discountedInstallmentAmount?: number | null;
+    regularInstallmentAmount?: number | null;
   } | null;
 };
 
@@ -485,9 +490,21 @@ export class EnrollmentsService {
           dueDate.getMonth(),
           dueDate.getDate(),
         );
+        const appliedVoucher = input.selectedPaymentOption.appliedVoucher;
+        const appliesVoucherToSingleInstallment =
+          String(appliedVoucher?.appliesTo || '').toUpperCase() === 'INSTALLMENT' &&
+          String(appliedVoucher?.installmentScope || '').toUpperCase() === 'SINGLE' &&
+          index === 0;
+        const chargeAmount = appliesVoucherToSingleInstallment
+          ? this.toMoneyValue(
+              appliedVoucher?.discountedInstallmentAmount ??
+                input.selectedPaymentOption.installmentAmount ??
+                value,
+            )
+          : value;
         result.push({
           dueDate,
-          amount: value,
+          amount: chargeAmount,
           status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
         });
       }
@@ -713,6 +730,7 @@ export class EnrollmentsService {
       courseId: input.courseId,
       voucherCode,
       paymentOption: input.option as VoucherPaymentOptionShape,
+      consumeUsage: true,
     });
 
     return adjustedOption as EnrollmentPaymentOption;

@@ -102,6 +102,10 @@ type Voucher = {
   discountType: 'PERCENT' | 'FIXED' | string;
   discountValue: number;
   appliesTo: 'TOTAL' | 'INSTALLMENT' | string;
+  installmentScope?: 'ALL' | 'SINGLE' | string;
+  maxUses?: number | null;
+  usageCount?: number;
+  remainingUses?: number | null;
   discountLabel: string;
   allowedPaymentOptionIds: string[];
   active: boolean;
@@ -116,6 +120,8 @@ type VoucherFormState = {
   discountType: 'PERCENT' | 'FIXED';
   discountValue: string;
   appliesTo: 'TOTAL' | 'INSTALLMENT';
+  installmentScope: 'ALL' | 'SINGLE';
+  maxUses: string;
   allowedPaymentOptionIds: string[];
 };
 
@@ -155,6 +161,8 @@ function defaultVoucherForm(): VoucherFormState {
     discountType: 'PERCENT',
     discountValue: '',
     appliesTo: 'INSTALLMENT',
+    installmentScope: 'ALL',
+    maxUses: '',
     allowedPaymentOptionIds: [],
   };
 }
@@ -228,6 +236,24 @@ function paymentMethodLabel(value: string) {
 
 function voucherStatusClass(active: boolean) {
   return active ? 'is-success' : 'is-muted';
+}
+
+function voucherApplicationLabel(voucher: Voucher) {
+  const appliesToInstallment =
+    String(voucher.appliesTo || '').toUpperCase() === 'INSTALLMENT';
+  if (!appliesToInstallment) return 'Curso inteiro';
+  return String(voucher.installmentScope || '').toUpperCase() === 'SINGLE'
+    ? 'Uma mensalidade'
+    : 'Todas as mensalidades';
+}
+
+function voucherUsageLabel(voucher: Voucher) {
+  const used = Math.max(0, Number(voucher.usageCount ?? 0));
+  const max = Number(voucher.maxUses ?? 0);
+  if (!Number.isFinite(max) || max <= 0) {
+    return `${used}/∞`;
+  }
+  return `${used}/${max}`;
 }
 
 export function FinanceNative({ token }: FinanceNativeProps) {
@@ -477,6 +503,8 @@ export function FinanceNative({ token }: FinanceNativeProps) {
     setFeedback('');
 
     const discountValue = Number(voucherForm.discountValue);
+    const maxUses =
+      voucherForm.maxUses.trim() === '' ? undefined : Number(voucherForm.maxUses);
     if (!voucherForm.courseId) {
       setVoucherFormError('Selecione o curso do voucher.');
       return;
@@ -506,6 +534,13 @@ export function FinanceNative({ token }: FinanceNativeProps) {
         return;
       }
     }
+    if (
+      maxUses !== undefined &&
+      (!Number.isFinite(maxUses) || maxUses <= 0 || !Number.isInteger(maxUses))
+    ) {
+      setVoucherFormError('Informe um limite de uso inteiro maior que zero.');
+      return;
+    }
 
     setVoucherSubmitting(true);
     try {
@@ -519,6 +554,11 @@ export function FinanceNative({ token }: FinanceNativeProps) {
           discountType: voucherForm.discountType,
           discountValue,
           appliesTo: voucherForm.appliesTo,
+          installmentScope:
+            voucherForm.appliesTo === 'INSTALLMENT'
+              ? voucherForm.installmentScope
+              : 'ALL',
+          maxUses,
           allowedPaymentOptionIds: voucherForm.allowedPaymentOptionIds,
           active: true,
         }),
@@ -677,6 +717,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                   <th>Curso</th>
                   <th>Desconto</th>
                   <th>Aplicação</th>
+                  <th>Uso</th>
                   <th>Pagamentos</th>
                   <th>Status</th>
                   <th>Ações</th>
@@ -691,10 +732,14 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                     </td>
                     <td>{voucher.courseName}</td>
                     <td>{voucher.discountLabel}</td>
+                    <td>{voucherApplicationLabel(voucher)}</td>
                     <td>
-                      {String(voucher.appliesTo || '').toUpperCase() === 'INSTALLMENT'
-                        ? 'Mensalidade'
-                        : 'Curso inteiro'}
+                      <strong>{voucherUsageLabel(voucher)}</strong>
+                      <small>
+                        {Number(voucher.maxUses ?? 0) > 0
+                          ? `${Math.max(0, Number(voucher.remainingUses ?? 0))} restante(s)`
+                          : 'Sem limite'}
+                      </small>
                     </td>
                     <td>
                       {voucher.allowedPaymentOptionIds.length > 0
@@ -962,12 +1007,52 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                     setVoucherForm((current) => ({
                       ...current,
                       appliesTo: event.target.value as VoucherFormState['appliesTo'],
+                      installmentScope:
+                        event.target.value === 'INSTALLMENT'
+                          ? current.installmentScope
+                          : 'ALL',
                     }))
                   }
                 >
                   <option value="INSTALLMENT">Mensalidade</option>
                   <option value="TOTAL">Curso inteiro</option>
                 </select>
+              </label>
+
+              {voucherForm.appliesTo === 'INSTALLMENT' ? (
+                <label>
+                  Escopo da mensalidade
+                  <select
+                    value={voucherForm.installmentScope}
+                    onChange={(event) =>
+                      setVoucherForm((current) => ({
+                        ...current,
+                        installmentScope:
+                          event.target.value as VoucherFormState['installmentScope'],
+                      }))
+                    }
+                  >
+                    <option value="ALL">Todas as mensalidades</option>
+                    <option value="SINGLE">Uma mensalidade</option>
+                  </select>
+                </label>
+              ) : null}
+
+              <label>
+                Limite de uso (opcional)
+                <input
+                  type="number"
+                  step={1}
+                  min={1}
+                  value={voucherForm.maxUses}
+                  onChange={(event) =>
+                    setVoucherForm((current) => ({
+                      ...current,
+                      maxUses: event.target.value.replace(/[^\d]/g, ''),
+                    }))
+                  }
+                  placeholder="Ex.: 5"
+                />
               </label>
 
               {selectedVoucherCourse ? (
