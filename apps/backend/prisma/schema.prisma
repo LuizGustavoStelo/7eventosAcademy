@@ -453,6 +453,9 @@ model ContractTemplate {
   autoSendCourseIds   Json?                 @map("auto_send_course_ids")
   latestVersionNumber Int                   @default(0) @map("latest_version_number")
   publishedAt         DateTime?             @map("published_at")
+  institutionSignedAt DateTime?             @map("institution_signed_at")
+  institutionSignedByUserId String?         @map("institution_signed_by_user_id") @db.Uuid
+  institutionSignedByName String?           @map("institution_signed_by_name")
   createdByUserId     String                @map("created_by_user_id") @db.Uuid
   updatedByUserId     String                @map("updated_by_user_id") @db.Uuid
   createdAt           DateTime              @default(now()) @map("created_at")

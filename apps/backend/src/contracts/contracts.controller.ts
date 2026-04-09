@@ -77,6 +77,16 @@ export class ContractsController {
 
   @Roles('admin', 'superadmin')
   @RequirePermissions('contracts.templates.write')
+  @Post('templates/:templateId/sign-institution')
+  async signInstitutionTemplate(
+    @Param('templateId') templateId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.contractsService.signInstitutionTemplate(templateId, request.user);
+  }
+
+  @Roles('admin', 'superadmin')
+  @RequirePermissions('contracts.templates.write')
   @Delete('templates/:templateId')
   async deleteTemplate(
     @Param('templateId') templateId: string,

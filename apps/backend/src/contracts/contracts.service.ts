@@ -127,6 +127,9 @@ export class ContractsService {
       autoSendCourseIds: this.parseUuidListFromJson(template.autoSendCourseIds),
       latestVersionNumber: template.latestVersionNumber,
       publishedAt: template.publishedAt,
+      institutionSignedAt: template.institutionSignedAt,
+      institutionSignedByUserId: template.institutionSignedByUserId,
+      institutionSignedByName: template.institutionSignedByName,
       updatedAt: template.updatedAt,
       latestVersion: template.versions[0] ?? null,
     }));
@@ -171,6 +174,9 @@ export class ContractsService {
       autoSendCourseIds: this.parseUuidListFromJson(template.autoSendCourseIds),
       latestVersionNumber: template.latestVersionNumber,
       publishedAt: template.publishedAt,
+      institutionSignedAt: template.institutionSignedAt,
+      institutionSignedByUserId: template.institutionSignedByUserId,
+      institutionSignedByName: template.institutionSignedByName,
       createdAt: template.createdAt,
       updatedAt: template.updatedAt,
     };
@@ -261,6 +267,9 @@ export class ContractsService {
       autoSendCourseIds: this.parseUuidListFromJson(updated.autoSendCourseIds),
       latestVersionNumber: updated.latestVersionNumber,
       publishedAt: updated.publishedAt,
+      institutionSignedAt: updated.institutionSignedAt,
+      institutionSignedByUserId: updated.institutionSignedByUserId,
+      institutionSignedByName: updated.institutionSignedByName,
       updatedAt: updated.updatedAt,
     };
   }
@@ -333,6 +342,9 @@ export class ContractsService {
           status: ContractTemplateStatus.PUBLISHED,
           latestVersionNumber: nextVersion,
           publishedAt: now,
+          institutionSignedAt: null,
+          institutionSignedByUserId: null,
+          institutionSignedByName: null,
           draftTitle: title,
           draftHtmlContent: htmlContent,
           updatedByUserId: actor.sub,
@@ -347,6 +359,9 @@ export class ContractsService {
       status: result.template.status,
       latestVersionNumber: result.template.latestVersionNumber,
       publishedAt: result.template.publishedAt,
+      institutionSignedAt: result.template.institutionSignedAt,
+      institutionSignedByUserId: result.template.institutionSignedByUserId,
+      institutionSignedByName: result.template.institutionSignedByName,
       version: {
         id: result.version.id,
         versionNumber: result.version.versionNumber,
@@ -354,6 +369,71 @@ export class ContractsService {
         contentHash: result.version.contentHash,
       },
     };
+  }
+
+  async signInstitutionTemplate(templateId: string, actor: ContractActor) {
+    const institutionId = this.requireActiveInstitutionId(actor);
+    const template = await this.prisma.contractTemplate.findFirst({
+      where: { id: templateId, institutionId },
+      select: {
+        id: true,
+        status: true,
+        latestVersionNumber: true,
+        institutionSignedAt: true,
+      },
+    });
+
+    if (!template) {
+      throw new NotFoundException('Modelo de contrato nao encontrado.');
+    }
+
+    if (
+      template.status !== ContractTemplateStatus.PUBLISHED ||
+      template.latestVersionNumber <= 0
+    ) {
+      throw new BadRequestException(
+        'Somente modelos publicados podem receber assinatura institucional.',
+      );
+    }
+
+    if (template.institutionSignedAt) {
+      throw new BadRequestException('A assinatura institucional deste modelo ja foi registrada.');
+    }
+
+    const signer = await this.prisma.user.findFirst({
+      where: {
+        id: actor.sub,
+        institutionId,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+    if (!signer) {
+      throw new NotFoundException(
+        'Usuario responsavel pela assinatura institucional nao encontrado.',
+      );
+    }
+
+    const signedAt = new Date();
+    return this.prisma.contractTemplate.update({
+      where: { id: template.id },
+      data: {
+        institutionSignedAt: signedAt,
+        institutionSignedByUserId: signer.id,
+        institutionSignedByName: signer.name,
+        updatedByUserId: actor.sub,
+      },
+      select: {
+        id: true,
+        status: true,
+        latestVersionNumber: true,
+        institutionSignedAt: true,
+        institutionSignedByUserId: true,
+        institutionSignedByName: true,
+      },
+    });
   }
 
   async deleteTemplate(templateId: string, actor: ContractActor) {
@@ -570,6 +650,9 @@ export class ContractsService {
         name: true,
         status: true,
         latestVersionNumber: true,
+        institutionSignedAt: true,
+        institutionSignedByUserId: true,
+        institutionSignedByName: true,
       },
     });
     if (!template) {
@@ -582,6 +665,12 @@ export class ContractsService {
     ) {
       throw new BadRequestException(
         'O modelo precisa estar publicado antes do envio.',
+      );
+    }
+
+    if (!template.institutionSignedAt) {
+      throw new BadRequestException(
+        'A instituicao precisa assinar o modelo publicado antes do envio ao aluno.',
       );
     }
 
@@ -631,21 +720,10 @@ export class ContractsService {
       throw new NotFoundException('Aluno não encontrado nesta instituição.');
     }
 
-    const institutionSigner = await this.prisma.user.findFirst({
-      where: {
-        id: actor.sub,
-        institutionId,
-      },
-      select: {
-        id: true,
-        name: true,
-      },
-    });
-    if (!institutionSigner) {
-      throw new NotFoundException(
-        'Usuário responsável pela assinatura institucional não encontrado.',
-      );
-    }
+    const institutionSignerName =
+      String(template.institutionSignedByName || '').trim() ||
+      this.resolveContractProviderName();
+    const institutionSignedAt = template.institutionSignedAt;
 
     let courseName = '';
     let className = '';
@@ -915,8 +993,8 @@ export class ContractsService {
         contract_issue_date: this.formatDatePtBr(now),
         contract_issue_date_long: this.formatDateLongPtBr(now),
         contract_issue_datetime: this.formatDateTimePtBr(now),
-        signed_by_name: institutionSigner.name,
-        signed_at: this.formatDateTimePtBr(now),
+        signed_by_name: institutionSignerName,
+        signed_at: this.formatDateTimePtBr(institutionSignedAt),
         signature_code: signatureCode,
         aluno_nome: student.name,
         aluno_email: student.email,
@@ -955,8 +1033,8 @@ export class ContractsService {
         contrato_data_emissao: this.formatDatePtBr(now),
         contrato_data_emissao_extenso: this.formatDateLongPtBr(now),
         contrato_datahora_emissao: this.formatDateTimePtBr(now),
-        assinado_por_nome: institutionSigner.name,
-        assinado_em: this.formatDateTimePtBr(now),
+        assinado_por_nome: institutionSignerName,
+        assinado_em: this.formatDateTimePtBr(institutionSignedAt),
         codigo_assinatura: signatureCode,
         contratada_nome: this.resolveContractProviderName(),
         contratada_cnpj: this.resolveContractProviderDocument(),
@@ -965,8 +1043,8 @@ export class ContractsService {
       },
     );
     const institutionSignatureBlock = this.buildInstitutionSignatureBlockHtml({
-      signerName: institutionSigner.name,
-      signedAt: now,
+      signerName: institutionSignerName,
+      signedAt: institutionSignedAt,
       signatureCode,
     });
     const institutionSignedUnsignedHtmlSnapshot =
@@ -1017,9 +1095,9 @@ export class ContractsService {
             street: student.studentProfile?.street || null,
             streetNumber: student.studentProfile?.streetNumber || null,
             institutionSignature: {
-              signedAt: now.toISOString(),
-              signedByUserId: institutionSigner.id,
-              signedByName: institutionSigner.name,
+              signedAt: institutionSignedAt.toISOString(),
+              signedByUserId: template.institutionSignedByUserId || null,
+              signedByName: institutionSignerName,
             },
           } as Prisma.InputJsonValue,
           unsignedHtmlSnapshot: institutionSignedUnsignedHtmlSnapshot,
@@ -1052,8 +1130,8 @@ export class ContractsService {
           templateVersionId: templateVersion.id,
           studentId: student.id,
           expiresAt: expiresAt.toISOString(),
-          institutionSignedAt: now.toISOString(),
-          institutionSignedByName: institutionSigner.name,
+          institutionSignedAt: institutionSignedAt.toISOString(),
+          institutionSignedByName: institutionSignerName,
         },
       });
 
@@ -2228,6 +2306,7 @@ export class ContractsService {
         status: ContractTemplateStatus.PUBLISHED,
         autoSendEnabled: true,
         latestVersionNumber: { gt: 0 },
+        institutionSignedAt: { not: null },
       },
       select: {
         id: true,

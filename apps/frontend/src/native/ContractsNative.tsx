@@ -13,6 +13,9 @@ type ContractTemplate = {
   draftHtmlContent: string;
   latestVersionNumber: number;
   publishedAt: string | null;
+  institutionSignedAt: string | null;
+  institutionSignedByUserId: string | null;
+  institutionSignedByName: string | null;
   updatedAt: string;
   autoSendEnabled: boolean;
   autoSendAllCourses: boolean;
@@ -242,7 +245,7 @@ function buildContractPreviewSrcDoc(rawHtml: string) {
 
 const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#111827;">
   <div style="max-width:794px;min-height:1123px;margin:0 auto;padding:20px 56px;box-sizing:border-box;background:#fff;">
-    <h2 style="margin:0 0 4px;font-size:16px;text-align:center;">INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS</h2>
+    <h2 style="margin:0 0 4px;font-size:16px;text-align:center;">INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÃ‡ÃƒO DE SERVIÃ‡OS EDUCACIONAIS</h2>
     <p style="margin:0 0 16px;text-align:center;">
       Pós-graduação: <strong>{{curso_nome}}</strong>
     </p>
@@ -259,7 +262,7 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
         </tr>
         <tr>
           <td style="border:1px solid #d1d5db;padding:6px;"><strong>CPF</strong><br />{{aluno_cpf}}</td>
-          <td style="border:1px solid #d1d5db;padding:6px;"><strong>RG / Órgão</strong><br />{{aluno_rg}} - {{aluno_orgao_expedidor}}</td>
+          <td style="border:1px solid #d1d5db;padding:6px;"><strong>RG / Ã“rgÃ£o</strong><br />{{aluno_rg}} - {{aluno_orgao_expedidor}}</td>
         </tr>
         <tr>
           <td style="border:1px solid #d1d5db;padding:6px;"><strong>Data de nascimento</strong><br />{{aluno_data_nascimento}}</td>
@@ -285,7 +288,7 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
 
     <h3 style="margin:16px 0 8px;font-size:13px;">2. Cláusulas e condições</h3>
     <p style="margin:0 0 8px;">
-      O presente INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS,
+      O presente INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÃ‡ÃƒO DE SERVIÃ‡OS EDUCACIONAIS,
       em específico para desenvolvimento de curso de Pós-Graduação Lato Sensu, é celebrado
       entre o(a) CONTRATANTE e a CONTRATADA {{contratada_nome}}, observando-se a legislação
       educacional e consumerista aplicável.
@@ -296,7 +299,7 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
     <p style="margin:0 0 8px;"><strong>CLÁUSULA QUARTA:</strong> Os serviços contratados referem-se aos procedimentos relativos ao currículo do curso constante na matrícula, integrante deste contrato. Excluem-se serviços facultativos e de caráter pessoal do CONTRATANTE/BENEFICIÁRIO, como emissão de documentos extraordinários e outros não condizentes com a prática acadêmica regular.</p>
     <p style="margin:0 0 6px;"><strong>§ 1º</strong> - As aulas serão ministradas em salas, laboratórios, ambientes virtuais ou locais indicados pela CONTRATADA, conforme natureza dos conteúdos, saídas de campo e técnicas pedagógicas necessárias.</p>
     <p style="margin:0 0 6px;"><strong>§ 2º</strong> - Reserva-se à CONTRATADA, até 5 (cinco) dias antes do início de cada turma, o direito de cancelar turma com número insuficiente de alunos, assegurando ao CONTRATANTE realocação em turma equivalente, quando disponível.</p>
-    <p style="margin:0 0 8px;"><strong>§ 3º</strong> - É de exclusiva competência da CONTRATADA a orientação técnica e pedagógica decorrente da prestação dos serviços educacionais.</p>
+    <p style="margin:0 0 8px;"><strong>Â§ 3Âº</strong> - Ã‰ de exclusiva competÃªncia da CONTRATADA a orientaÃ§Ã£o tÃ©cnica e pedagÃ³gica decorrente da prestaÃ§Ã£o dos serviÃ§os educacionais.</p>
   </div>
 
   <div data-contract-page-break="true" style="page-break-after: always;"></div>
@@ -304,7 +307,7 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
   <div style="max-width:794px;min-height:1123px;margin:0 auto;padding:20px 56px;box-sizing:border-box;background:#fff;">
     <h3 style="margin:0 0 8px;font-size:13px;">2. Cláusulas e condições (continuação)</h3>
     <p style="margin:0 0 8px;"><strong>CLÁUSULA QUINTA:</strong> Em contrapartida aos serviços prestados pela CONTRATADA, o(a) CONTRATANTE pagará os valores e parcelas descritos na seção financeira deste instrumento.</p>
-    <p style="margin:10px 0 6px;"><strong>§ 2º</strong> - Através da Modalidade de Pós Graduação MODULAR, o aluno terá a RENOVAÇÃO DE MATRÍCULA automática a cada 03 (três módulos), desde que atenda os seguintes critérios:</p>
+    <p style="margin:10px 0 6px;"><strong>Â§ 2Âº</strong> - AtravÃ©s da Modalidade de PÃ³s GraduaÃ§Ã£o MODULAR, o aluno terÃ¡ a RENOVAÃ‡ÃƒO DE MATRÃCULA automÃ¡tica a cada 03 (trÃªs mÃ³dulos), desde que atenda os seguintes critÃ©rios:</p>
     <ul style="margin:0 0 10px 18px;padding:0;">
       <li style="margin:0 0 4px;">Ter assinado o Contrato de Prestações de Serviços Educacionais ORIGINÁRIO e apresentado toda a documentação necessária;</li>
       <li style="margin:0 0 4px;">Estar totalmente adimplente em suas mensalidades até o mês precedente ao da renovação de matrícula;</li>
@@ -317,24 +320,24 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
     <p style="margin:0 0 6px;"><strong>§ 5º</strong> - O não pagamento no prazo firmado poderá acarretar perda de descontos promocionais.</p>
     <p style="margin:0 0 8px;"><strong>§ 6º</strong> - O não recebimento de boleto não isenta o CONTRATANTE do pagamento no vencimento, devendo buscar segunda via nos canais oficiais da CONTRATADA.</p>
     <p style="margin:0 0 8px;"><strong>CLÁUSULA SEXTA:</strong> Em caso de inadimplência, incidirão multa e uros conforme legislação e políticas financeiras da CONTRATADA, podendo haver cobrança administrativa e/ou udicial, observadas as regras legais vigentes.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA SÉTIMA - CANCELAMENTO/RESCISÃO:</strong> A rescisão por iniciativa do CONTRATANTE deverá ser formalizada por escrito, com antecedência mínima exigida pela instituição e regularização das obrigações financeiras vencidas e vincendas previstas contratualmente.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA SÃ‰TIMA - CANCELAMENTO/RESCISÃƒO:</strong> A rescisÃ£o por iniciativa do CONTRATANTE deverÃ¡ ser formalizada por escrito, com antecedÃªncia mÃ­nima exigida pela instituiÃ§Ã£o e regularizaÃ§Ã£o das obrigaÃ§Ãµes financeiras vencidas e vincendas previstas contratualmente.</p>
     <p style="margin:0 0 8px;"><strong>CLÁUSULA OITAVA:</strong> A CONTRATADA não se responsabiliza pela guarda de obetos pessoais, documentos, valores ou veículos do CONTRATANTE, salvo nos casos legalmente comprovados de responsabilidade direta.</p>
     <p style="margin:0 0 8px;"><strong>CLÁUSULA NONA:</strong> O abandono de aulas sem formalização de cancelamento não extingue obrigações financeiras e acadêmicas previstas neste contrato e no regulamento institucional.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA:</strong> O CONTRATANTE deverá cumprir frequência mínima e critérios de aproveitamento acadêmico para certificação, conforme normas do curso e exigências legais.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA PRIMEIRA:</strong> O prazo de entrega de TCC/Artigo e regras de reposição de módulos observarão manual acadêmico e regulamento vigente da CONTRATADA.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA SEGUNDA:</strong> O CONTRATANTE autoriza, de forma gratuita e nos limites legais, o uso de imagem para fins institucionais e publicitários da CONTRATADA.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA TERCEIRA:</strong> O CONTRATANTE compromete-se a manter dados cadastrais atualizados, inclusive endereço e telefones, sob pena de validade das comunicações enviadas aos dados constantes em cadastro.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA QUARTA:</strong> Danos causados pelo CONTRATANTE a instalações, mobiliários ou equipamentos da CONTRATADA deverão ser ressarcidos.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA QUINTA:</strong> A renovação de vínculo acadêmico poderá ser recusada em caso de descumprimento de obrigações contratuais, acadêmicas ou financeiras.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA SEXTA:</strong> A apresentação de trabalho final e emissão de documentos acadêmicos podem exigir regularidade financeira do CONTRATANTE.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA SÉTIMA:</strong> A CONTRATADA não responde por serviços de estacionamento, vigilância ou guarda de veículos, cabendo responsabilidade ao proprietário/condutor.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA OITAVA:</strong> As partes reconhecem plena validade das cláusulas pactuadas neste instrumento.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA DÉCIMA NONA:</strong> O contrato extingue-se com o cumprimento dos créditos/módulos do curso, observadas as exigências de conclusão e certificação.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA VIGÉSIMA:</strong> As partes atribuem ao presente contrato eficácia urídica plena para todos os fins legais cabíveis.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA VIGÉSIMA PRIMEIRA:</strong> Casos omissos poderão ser tratados entre o aluno e os setores competentes da CONTRATADA.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA VIGÉSIMA SEGUNDA:</strong> As informações cadastrais e documentais do preâmbulo são de inteira responsabilidade do CONTRATANTE.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA VIGÉSIMA TERCEIRA:</strong> Havendo convenção arbitral aplicável, controvérsias patrimoniais disponíveis poderão ser resolvidas em câmara de mediação/conciliação/arbitragem, conforme legislação vigente.</p>
-    <p style="margin:0 0 8px;"><strong>CLÁUSULA VIGÉSIMA QUARTA - DO FORO:</strong> Fica eleito o foro de <strong>{{contrato_foro}}</strong> para dirimir conflitos não submetidos à arbitragem.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA DÃ‰CIMA:</strong> O CONTRATANTE deverÃ¡ cumprir frequÃªncia mÃ­nima e critÃ©rios de aproveitamento acadÃªmico para certificaÃ§Ã£o, conforme normas do curso e exigÃªncias legais.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA DÃ‰CIMA PRIMEIRA:</strong> O prazo de entrega de TCC/Artigo e regras de reposiÃ§Ã£o de mÃ³dulos observarÃ£o manual acadÃªmico e regulamento vigente da CONTRATADA.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA DÃ‰CIMA SEGUNDA:</strong> O CONTRATANTE autoriza, de forma gratuita e nos limites legais, o uso de imagem para fins institucionais e publicitÃ¡rios da CONTRATADA.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA DÃ‰CIMA TERCEIRA:</strong> O CONTRATANTE compromete-se a manter dados cadastrais atualizados, inclusive endereÃ§o e telefones, sob pena de validade das comunicaÃ§Ãµes enviadas aos dados constantes em cadastro.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA DÃ‰CIMA QUARTA:</strong> Danos causados pelo CONTRATANTE a instalaÃ§Ãµes, mobiliÃ¡rios ou equipamentos da CONTRATADA deverÃ£o ser ressarcidos.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA DÃ‰CIMA QUINTA:</strong> A renovaÃ§Ã£o de vÃ­nculo acadÃªmico poderÃ¡ ser recusada em caso de descumprimento de obrigaÃ§Ãµes contratuais, acadÃªmicas ou financeiras.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA DÃ‰CIMA SEXTA:</strong> A apresentaÃ§Ã£o de trabalho final e emissÃ£o de documentos acadÃªmicos podem exigir regularidade financeira do CONTRATANTE.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA DÃ‰CIMA SÃ‰TIMA:</strong> A CONTRATADA nÃ£o responde por serviÃ§os de estacionamento, vigilÃ¢ncia ou guarda de veÃ­culos, cabendo responsabilidade ao proprietÃ¡rio/condutor.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA DÃ‰CIMA OITAVA:</strong> As partes reconhecem plena validade das clÃ¡usulas pactuadas neste instrumento.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA DÃ‰CIMA NONA:</strong> O contrato extingue-se com o cumprimento dos crÃ©ditos/mÃ³dulos do curso, observadas as exigÃªncias de conclusÃ£o e certificaÃ§Ã£o.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA VIGÃ‰SIMA:</strong> As partes atribuem ao presente contrato eficÃ¡cia urÃ­dica plena para todos os fins legais cabÃ­veis.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA VIGÃ‰SIMA PRIMEIRA:</strong> Casos omissos poderÃ£o ser tratados entre o aluno e os setores competentes da CONTRATADA.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA VIGÃ‰SIMA SEGUNDA:</strong> As informaÃ§Ãµes cadastrais e documentais do preÃ¢mbulo sÃ£o de inteira responsabilidade do CONTRATANTE.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA VIGÃ‰SIMA TERCEIRA:</strong> Havendo convenÃ§Ã£o arbitral aplicÃ¡vel, controvÃ©rsias patrimoniais disponÃ­veis poderÃ£o ser resolvidas em cÃ¢mara de mediaÃ§Ã£o/conciliaÃ§Ã£o/arbitragem, conforme legislaÃ§Ã£o vigente.</p>
+    <p style="margin:0 0 8px;"><strong>CLÃUSULA VIGÃ‰SIMA QUARTA - DO FORO:</strong> Fica eleito o foro de <strong>{{contrato_foro}}</strong> para dirimir conflitos nÃ£o submetidos Ã  arbitragem.</p>
   </div>
 
   <div data-contract-page-break="true" style="page-break-after: always;"></div>
@@ -380,7 +383,7 @@ const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font
           </td>
           <td style="width:50%;padding:8px 0 8px 12px;vertical-align:top;">
             <div style="border-top:1px solid #111827;padding-top:6px;">
-              INSTITUIÇÃO / PROFESSOR RESPONSÁVEL<br />
+              INSTITUIÃ‡ÃƒO / PROFESSOR RESPONSÃVEL<br />
               {{contratada_nome}}
             </div>
           </td>
@@ -587,6 +590,12 @@ function hasInstitutionSignaturePending(item: {
   return !item.institutionSignedAt;
 }
 
+function isTemplateInstitutionSigned(template: {
+  institutionSignedAt?: string | null;
+} | null | undefined): boolean {
+  return Boolean(template?.institutionSignedAt);
+}
+
 function hasAnySignaturePending(item: {
   status: string;
   institutionSignedAt?: string | null;
@@ -637,7 +646,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   const [signingInstitutionInstanceId, setSigningInstitutionInstanceId] = useState<string | null>(
     null,
   );
-  const [signingInstitutionBatch, setSigningInstitutionBatch] = useState(false);
+  const [signingTemplateInstitution, setSigningTemplateInstitution] = useState(false);
 
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -655,6 +664,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   );
   const isSelectedTemplatePublished =
     selectedTemplate?.status.trim().toUpperCase() === 'PUBLISHED';
+  const isSelectedTemplateInstitutionSigned = isTemplateInstitutionSigned(selectedTemplate);
   const selectedTemplateCourseNames = useMemo(() => {
     if (!selectedTemplate) return [] as string[];
     const ids = Array.isArray(selectedTemplate.autoSendCourseIds)
@@ -671,7 +681,8 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       templates.filter(
         (item) =>
           item.status.trim().toUpperCase() === 'PUBLISHED' &&
-          Number(item.latestVersionNumber || 0) > 0,
+          Number(item.latestVersionNumber || 0) > 0 &&
+          isTemplateInstitutionSigned(item),
       ),
     [templates],
   );
@@ -1309,41 +1320,43 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   );
 
   const signInstitutionForSelectedTemplate = async () => {
-    if (!selectedTemplateId) return;
-    if (pendingInstitutionInstancesForSelectedTemplate.length === 0) {
-      setFeedback('Não há contratos pendentes de assinatura institucional para este modelo.');
+    if (!selectedTemplate) return;
+    if (selectedTemplate.status.trim().toUpperCase() !== 'PUBLISHED') {
+      setAutoSendError('Publique o modelo antes de registrar a assinatura da instituição.');
+      return;
+    }
+    if (isTemplateInstitutionSigned(selectedTemplate)) {
+      setFeedback('Este modelo já está assinado pela instituição.');
       return;
     }
 
     const shouldSign = window.confirm(
-      `Assinar instituição em ${pendingInstitutionInstancesForSelectedTemplate.length} contrato(s) pendente(s) deste modelo?`,
+      `Assinar a instituição no modelo "${selectedTemplate.name}" para liberar o envio aos alunos?`,
     );
     if (!shouldSign) return;
 
-    setSigningInstitutionBatch(true);
+    setSigningTemplateInstitution(true);
+    setAutoSendError('');
     setError('');
     setFeedback('');
     try {
-      for (const item of pendingInstitutionInstancesForSelectedTemplate) {
-        await apiRequest(token, `/contracts/instances/${item.id}/sign-institution`, {
-          method: 'POST',
-        });
-      }
+      await apiRequest(token, `/contracts/templates/${selectedTemplate.id}/sign-institution`, {
+        method: 'POST',
+      });
 
-      await Promise.all([
-        loadInstances(instanceStatusFilter),
-        loadAllInstancesForSignals(),
-      ]);
+      await loadTemplates();
 
-      setFeedback('Assinatura institucional em lote concluída com sucesso.');
+      setFeedback(
+        'Modelo assinado pela instituição com sucesso. Agora ele está liberado para envio ao aluno.',
+      );
     } catch (signError) {
-      setError(
+      setAutoSendError(
         signError instanceof Error
           ? signError.message
-          : 'Falha ao assinar instituição em lote.',
+          : 'Falha ao assinar o modelo pela instituição.',
       );
     } finally {
-      setSigningInstitutionBatch(false);
+      setSigningTemplateInstitution(false);
     }
   };
 
@@ -1435,6 +1448,9 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                             <span className={`native-status-chip ${templateStatusTone(template.status)}`}>
                               {templateStatusLabel(template.status)}
                             </span>
+                            {isTemplateInstitutionSigned(template) ? (
+                              <span className="native-status-chip is-success">Assinado</span>
+                            ) : null}
                             {hasPendingSignature ? (
                               <span className="native-status-chip is-warning">
                                 Assinatura pendente
@@ -1495,7 +1511,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                 {selectedTemplate ? (
                   <small>
                     {selectedTemplate.latestVersion
-                      ? `Última publicação: v${selectedTemplate.latestVersion.versionNumber} em ${formatDateTime(
+                      ? `Ãšltima publicaÃ§Ã£o: v${selectedTemplate.latestVersion.versionNumber} em ${formatDateTime(
                           selectedTemplate.latestVersion.publishedAt,
                         )}`
                       : 'Sem versão publicada'}
@@ -1634,6 +1650,9 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                         <span className={`native-status-chip ${templateStatusTone(selectedTemplate.status)}`}>
                           {templateStatusLabel(selectedTemplate.status)}
                         </span>
+                        {isSelectedTemplateInstitutionSigned ? (
+                          <span className="native-status-chip is-success">Assinado</span>
+                        ) : null}
                         {selectedTemplate.autoSendEnabled ? (
                           <span className="native-status-chip is-info">Envio automático</span>
                         ) : (
@@ -1643,6 +1662,11 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
 
                       <p className="native-info" style={{ margin: 0 }}>
                         {selectedTemplate.description || 'Sem descrição cadastrada para este modelo.'}
+                      </p>
+                      <p className="native-info" style={{ margin: 0 }}>
+                        {isSelectedTemplateInstitutionSigned
+                          ? `Assinado por ${selectedTemplate.institutionSignedByName || 'instituição'} em ${formatDateTime(selectedTemplate.institutionSignedAt)}`
+                          : 'Modelo ainda não assinado pela instituição.'}
                       </p>
 
                       <div className="native-contract-quick-kpis">
@@ -1790,11 +1814,18 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                             type="button"
                             className="ghost"
                             onClick={() => void signInstitutionForSelectedTemplate()}
-                            disabled={signingInstitutionBatch}
+                            disabled={
+                              signingTemplateInstitution ||
+                              !selectedTemplateId ||
+                              !isSelectedTemplatePublished ||
+                              isSelectedTemplateInstitutionSigned
+                            }
                           >
-                            {signingInstitutionBatch
-                              ? 'Assinando instituição...'
-                              : 'Assinar instituição (pendentes)'}
+                            {signingTemplateInstitution
+                              ? 'Assinando modelo...'
+                              : isSelectedTemplateInstitutionSigned
+                                ? 'Modelo assinado'
+                                : 'Assinar instituição (modelo)'}
                           </button>
                         </div>
                       </div>
@@ -1832,7 +1863,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                 {sendAccordionOpen ? (
                   <form className="native-form-grid native-contract-send-form" onSubmit={sendContract}>
                     <label>
-                      Modelo publicado
+                      Modelo publicado e assinado
                       <select
                         value={sendForm.templateId}
                         onChange={(event) =>
@@ -1854,7 +1885,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
 
                     {sendableTemplates.length === 0 ? (
                       <p className="native-info native-contract-span-all">
-                        Publique ao menos um modelo para habilitar envios.
+                        Publique e assine ao menos um modelo para habilitar envios.
                       </p>
                     ) : null}
 

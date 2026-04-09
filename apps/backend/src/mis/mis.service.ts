@@ -2483,6 +2483,13 @@ export class MisService {
       'urlArquivo',
       'arquivoUrl',
     ]);
+    let bankSlipPdfDataUri = this.extractFirstPdfDataUri(emitted);
+    if (bankSlipPdfDataUri && !bankSlipViewUrl) {
+      bankSlipViewUrl = bankSlipPdfDataUri;
+    }
+    if (bankSlipPdfDataUri && !bankSlipDownloadUrl) {
+      bankSlipDownloadUrl = bankSlipPdfDataUri;
+    }
     let linhaDigitavel = this.extractFirstValueAsString(emitted, [
       'linhaDigitavel',
       'linha',
@@ -2534,6 +2541,15 @@ export class MisService {
             'urlArquivo',
             'arquivoUrl',
           ]);
+        }
+        if (!bankSlipPdfDataUri) {
+          bankSlipPdfDataUri = this.extractFirstPdfDataUri(segundaVia);
+        }
+        if (bankSlipPdfDataUri && !bankSlipViewUrl) {
+          bankSlipViewUrl = bankSlipPdfDataUri;
+        }
+        if (bankSlipPdfDataUri && !bankSlipDownloadUrl) {
+          bankSlipDownloadUrl = bankSlipPdfDataUri;
         }
         if (!linhaDigitavel) {
           linhaDigitavel = this.extractFirstValueAsString(segundaVia, [
@@ -2712,6 +2728,89 @@ export class MisService {
     } catch {
       return null;
     }
+  }
+
+  private extractFirstPdfDataUri(payload: unknown): string | null {
+    const explicitPdfValue = this.extractFirstValueAsString(payload, [
+      'pdfBoleto',
+      'boletoPdf',
+      'pdf',
+      'arquivoPdf',
+      'pdfBase64',
+      'base64Pdf',
+      'pdfBase64Boleto',
+      'arquivoBase64',
+      'conteudoPdf',
+    ]);
+
+    const candidate =
+      explicitPdfValue || this.extractFirstPdfLikeString(payload);
+    if (!candidate) return null;
+
+    const trimmed = candidate.trim();
+    if (!trimmed) return null;
+    if (trimmed.toLowerCase().startsWith('data:application/pdf')) {
+      return trimmed;
+    }
+
+    const base64Candidate = trimmed.includes('base64,')
+      ? trimmed.split('base64,').pop() || ''
+      : trimmed;
+    const normalized = base64Candidate.replace(/\s+/g, '');
+    if (!normalized || normalized.length < 128) return null;
+
+    try {
+      const decoded = Buffer.from(normalized, 'base64');
+      if (!decoded.length) return null;
+      const signature = decoded.subarray(0, 4).toString('ascii');
+      if (signature !== '%PDF') return null;
+      return `data:application/pdf;base64,${normalized}`;
+    } catch {
+      return null;
+    }
+  }
+
+  private extractFirstPdfLikeString(payload: unknown): string | null {
+    if (!payload) return null;
+
+    const queue: unknown[] = [payload];
+    const visited = new Set<unknown>();
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (typeof current === 'string') {
+        const normalized = current.trim();
+        if (!normalized) continue;
+        const normalizedLower = normalized.toLowerCase();
+        if (normalizedLower.startsWith('data:application/pdf')) {
+          return normalized;
+        }
+        if (
+          normalized.length > 128 &&
+          (normalized.startsWith('JVBERi0') || normalized.includes('base64,JVBERi0'))
+        ) {
+          return normalized;
+        }
+        continue;
+      }
+
+      if (!current || typeof current !== 'object') continue;
+      if (visited.has(current)) continue;
+      visited.add(current);
+
+      if (Array.isArray(current)) {
+        current.forEach((item) => queue.push(item));
+        continue;
+      }
+
+      Object.values(current as Record<string, unknown>).forEach((value) => {
+        if (value !== null && value !== undefined) {
+          queue.push(value);
+        }
+      });
+    }
+
+    return null;
   }
 
   private buildSicoobBoletosInclusionUrl(
