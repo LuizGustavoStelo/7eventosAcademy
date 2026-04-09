@@ -460,6 +460,20 @@ function normalizeLegacyPageHtml(pageHtml: string) {
     parent.removeChild(container);
   });
 
+  const rootSection = root.firstElementChild as HTMLElement | null;
+  if (rootSection && rootSection.tagName === 'SECTION' && rootSection.hasAttribute('style')) {
+    const style = String(rootSection.getAttribute('style') || '');
+    const normalizedStyle = style
+      .replace(/(^|;)\s*font-size\s*:[^;]+;?/gi, '$1')
+      .replace(/(^|;)\s*line-height\s*:[^;]+;?/gi, '$1')
+      .replace(/;;+/g, ';')
+      .trim()
+      .replace(/^;/, '')
+      .replace(/;$/, '');
+    if (normalizedStyle) rootSection.setAttribute('style', normalizedStyle);
+    else rootSection.removeAttribute('style');
+  }
+
   return root.innerHTML;
 }
 

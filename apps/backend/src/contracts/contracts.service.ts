@@ -2664,7 +2664,7 @@ export class ContractsService {
       /\s(href|src)\s*=\s*(['"])\s*(javascript:|data:text\/html)[^'"]*\2/gi,
       ' $1="#"',
     );
-    return withoutJsUrls.trim();
+    return this.removeLegacySignatureIdentificationBlock(withoutJsUrls.trim());
   }
 
   private formatDatePtBr(value?: Date | string | null): string {

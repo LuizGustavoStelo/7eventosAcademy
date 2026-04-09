@@ -143,7 +143,7 @@ const EMPTY_DRAW_STATE: DrawState = {
   lastY: 0,
 };
 
-const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#111827;">
+const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;color:#111827;">
   <div style="max-width:794px;min-height:1123px;margin:0 auto;padding:20px 56px;box-sizing:border-box;background:#fff;">
     <h2 style="margin:0 0 4px;font-size:16px;text-align:center;">INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTA&Ccedil;&Atilde;O DE SERVI&Ccedil;OS EDUCACIONAIS</h2>
     <p style="margin:0 0 16px;text-align:center;">P&oacute;s-gradua&ccedil;&atilde;o: <strong>{{curso_nome}}</strong></p>
