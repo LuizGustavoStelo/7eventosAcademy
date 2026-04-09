@@ -22,6 +22,7 @@ import { PublishContractTemplateDto } from './dto/publish-contract-template.dto'
 import { RequestContractPinDto } from './dto/request-contract-pin.dto';
 import { SendContractInstanceDto } from './dto/send-contract-instance.dto';
 import { SignContractInstanceDto } from './dto/sign-contract-instance.dto';
+import { SignInstitutionTemplateDto } from './dto/sign-institution-template.dto';
 import { UpdateContractTemplateDto } from './dto/update-contract-template.dto';
 import { VerifyContractPinDto } from './dto/verify-contract-pin.dto';
 
@@ -80,9 +81,14 @@ export class ContractsController {
   @Post('templates/:templateId/sign-institution')
   async signInstitutionTemplate(
     @Param('templateId') templateId: string,
+    @Body() dto: SignInstitutionTemplateDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.contractsService.signInstitutionTemplate(templateId, request.user);
+    return this.contractsService.signInstitutionTemplate(
+      templateId,
+      request.user,
+      dto,
+    );
   }
 
   @Roles('admin', 'superadmin')

@@ -23,6 +23,7 @@ import { PublishContractTemplateDto } from './dto/publish-contract-template.dto'
 import { RequestContractPinDto } from './dto/request-contract-pin.dto';
 import { SendContractInstanceDto } from './dto/send-contract-instance.dto';
 import { SignContractInstanceDto } from './dto/sign-contract-instance.dto';
+import { SignInstitutionTemplateDto } from './dto/sign-institution-template.dto';
 import { UpdateContractTemplateDto } from './dto/update-contract-template.dto';
 
 type ContractActor = Pick<
@@ -372,8 +373,17 @@ export class ContractsService {
     };
   }
 
-  async signInstitutionTemplate(templateId: string, actor: ContractActor) {
+  async signInstitutionTemplate(
+    templateId: string,
+    actor: ContractActor,
+    dto: SignInstitutionTemplateDto,
+  ) {
     const institutionId = this.requireActiveInstitutionId(actor);
+    if (!dto.acceptTerms) {
+      throw new BadRequestException(
+        'É necessário confirmar os termos para assinar pela instituição.',
+      );
+    }
     const template = await this.prisma.contractTemplate.findFirst({
       where: { id: templateId, institutionId },
       select: {
@@ -404,12 +414,15 @@ export class ContractsService {
     const signer = await this.resolveInstitutionSigner(actor.sub, institutionId);
 
     const signedAt = new Date();
+    const signerNameOverride = String(dto.signerName || '').trim();
+    const signerName = signerNameOverride || signer.name;
+
     return this.prisma.contractTemplate.update({
       where: { id: template.id },
       data: {
         institutionSignedAt: signedAt,
         institutionSignedByUserId: signer.id,
-        institutionSignedByName: signer.name,
+        institutionSignedByName: signerName,
         updatedByUserId: actor.sub,
       },
       select: {

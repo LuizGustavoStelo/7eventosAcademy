@@ -647,6 +647,8 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     null,
   );
   const [signingTemplateInstitution, setSigningTemplateInstitution] = useState(false);
+  const [institutionSignerName, setInstitutionSignerName] = useState('');
+  const [institutionAcceptTerms, setInstitutionAcceptTerms] = useState(false);
 
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -825,6 +827,8 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       setAutoSendEnabled(false);
       setAutoSendAllCourses(true);
       setAutoSendCourseIds([]);
+      setInstitutionSignerName('');
+      setInstitutionAcceptTerms(false);
       setAutoSendError('');
       return;
     }
@@ -835,6 +839,8 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
         ? selectedTemplate.autoSendCourseIds
         : [],
     );
+    setInstitutionSignerName(selectedTemplate.institutionSignedByName || '');
+    setInstitutionAcceptTerms(false);
     setAutoSendError('');
   }, [selectedTemplate]);
 
@@ -1329,6 +1335,14 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       setFeedback('Este modelo já está assinado pela instituição.');
       return;
     }
+    if (!institutionSignerName.trim()) {
+      setAutoSendError('Informe o nome do responsável institucional para assinar.');
+      return;
+    }
+    if (!institutionAcceptTerms) {
+      setAutoSendError('Confirme os termos de assinatura institucional antes de continuar.');
+      return;
+    }
 
     const shouldSign = window.confirm(
       `Assinar a instituição no modelo "${selectedTemplate.name}" para liberar o envio aos alunos?`,
@@ -1342,6 +1356,11 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     try {
       await apiRequest(token, `/contracts/templates/${selectedTemplate.id}/sign-institution`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          signerName: institutionSignerName.trim(),
+          acceptTerms: true,
+        }),
       });
 
       await loadTemplates();
@@ -1804,6 +1823,32 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                           </>
                         ) : null}
 
+                        {!isSelectedTemplateInstitutionSigned ? (
+                          <>
+                            <label>
+                              Responsável pela assinatura institucional
+                              <input
+                                value={institutionSignerName}
+                                onChange={(event) => setInstitutionSignerName(event.target.value)}
+                                placeholder="Nome completo de quem assina"
+                              />
+                            </label>
+                            <label className="native-contract-span-all native-contract-send-checkbox">
+                              <input
+                                type="checkbox"
+                                checked={institutionAcceptTerms}
+                                onChange={(event) =>
+                                  setInstitutionAcceptTerms(event.target.checked)
+                                }
+                              />
+                              <span>
+                                Confirmo que estou autorizado(a) a assinar este modelo pela
+                                instituição.
+                              </span>
+                            </label>
+                          </>
+                        ) : null}
+
                         {autoSendError ? <p className="native-error native-contract-span-all">{autoSendError}</p> : null}
 
                         <div className="native-modal-actions native-contract-span-all">
@@ -1818,7 +1863,8 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                               signingTemplateInstitution ||
                               !selectedTemplateId ||
                               !isSelectedTemplatePublished ||
-                              isSelectedTemplateInstitutionSigned
+                              isSelectedTemplateInstitutionSigned ||
+                              (!institutionAcceptTerms || !institutionSignerName.trim())
                             }
                           >
                             {signingTemplateInstitution
