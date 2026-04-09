@@ -125,6 +125,98 @@ type ContractsNativeProps = {
   mode?: 'hub' | 'editor';
 };
 
+const CONTRACT_PREVIEW_PAGE_BREAK_REGEX =
+  /<div[^>]*(data-contract-page-break\s*=\s*["']true["'][^>]*|page-break-after\s*:\s*always[^>]*)><\/div>/gi;
+
+const hasPreviewMeaningfulHtml = (html: string) => {
+  const normalized = String(html || '')
+    .replace(/<br\s*\/?>/gi, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, '')
+    .trim();
+  return Boolean(normalized);
+};
+
+const escapeHtmlForIframe = (value: string) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+function buildContractPreviewSrcDoc(rawHtml: string) {
+  const parser = new window.DOMParser();
+  const doc = parser.parseFromString(
+    `<div id="preview-root">${String(rawHtml || '')}</div>`,
+    'text/html',
+  );
+  const root = doc.getElementById('preview-root');
+  if (!root) {
+    return '<!doctype html><html><body></body></html>';
+  }
+
+  const settingsNode = root.querySelector('[data-contract-editor-settings="true"]');
+  if (settingsNode) settingsNode.remove();
+
+  const wrapper = root.querySelector<HTMLElement>('[data-contract-document-wrapper="true"]');
+  const source = wrapper ? String(wrapper.innerHTML || '') : String(root.innerHTML || '');
+  const pages = source
+    .replace(CONTRACT_PREVIEW_PAGE_BREAK_REGEX, '<!--CONTRACT_PREVIEW_BREAK-->')
+    .split('<!--CONTRACT_PREVIEW_BREAK-->');
+
+  while (pages.length > 1 && !hasPreviewMeaningfulHtml(pages[pages.length - 1])) {
+    pages.pop();
+  }
+
+  const bodyHtml = pages
+    .map((page) => `<section class="contract-preview-page">${page || '<p>&nbsp;</p>'}</section>`)
+    .join('<div class="contract-preview-separator" aria-hidden="true"></div>');
+
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #eef2f7;
+      color: #0f172a;
+      font-family: Arial, sans-serif;
+    }
+    body {
+      padding: 14px;
+      min-height: 100vh;
+      overflow-y: auto;
+    }
+    .contract-preview-page {
+      width: 794px;
+      min-height: 1123px;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+    }
+    .contract-preview-separator {
+      height: 14px;
+    }
+    @media (max-width: 860px) {
+      body { padding: 8px; }
+      .contract-preview-page {
+        width: 100%;
+        min-height: auto;
+      }
+    }
+  </style>
+</head>
+<body>${bodyHtml || `<section class="contract-preview-page"><p>${escapeHtmlForIframe('Sem conteúdo para pré-visualizar.')}</p></section>`}</body>
+</html>`;
+}
+
 const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#111827;">
   <div style="max-width:794px;min-height:1123px;margin:0 auto;padding:20px 56px;box-sizing:border-box;background:#fff;">
     <h2 style="margin:0 0 4px;font-size:16px;text-align:center;">INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS</h2>
@@ -1598,7 +1690,11 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                       <header className="native-panel-header">
                         <h3>Preview do documento</h3>
                       </header>
-                      <iframe title="Preview do modelo de contrato" sandbox="" srcDoc={selectedTemplate.draftHtmlContent} />
+                      <iframe
+                        title="Preview do modelo de contrato"
+                        sandbox=""
+                        srcDoc={buildContractPreviewSrcDoc(selectedTemplate.draftHtmlContent)}
+                      />
                     </article>
                   </div>
                 ) : (
@@ -1944,7 +2040,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                   <iframe
                     title="Pré-visualização do contrato"
                     sandbox=""
-                    srcDoc={selectedInstanceDetails.documentHtml}
+                    srcDoc={buildContractPreviewSrcDoc(selectedInstanceDetails.documentHtml)}
                   />
                 </article>
 
