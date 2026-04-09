@@ -2405,12 +2405,18 @@ export class MisService {
         this.logger.warn(
           `[sicoob-boleto] duplicated title detected charge=${input.charge.id}; trying to recover existing boleto`,
         );
-        const recovered = await this.tryGetSicoobExistingBoletoByChargeReference({
+        let recovered = await this.tryGetSicoobExistingBoletoByChargeReference({
           config: input.config,
           accessToken,
           numeroContratoCliente: String(numeroContratoCliente),
           chargeReference: input.charge.id.slice(0, 20),
         });
+        if (!recovered && existingNossoNumero) {
+          recovered = await this.tryGetSicoobBoletoCharge({
+            config: input.config,
+            nossoNumero: existingNossoNumero,
+          });
+        }
         if (recovered) {
           emitted = recovered;
         } else {
@@ -2740,6 +2746,7 @@ export class MisService {
     const attempts: Array<Record<string, string>> = [
       { seuNumero: reference },
       { identificacaoBoletoEmpresa: reference },
+      {},
     ];
 
     for (const params of attempts) {
@@ -2809,7 +2816,7 @@ export class MisService {
       });
     }
 
-    return this.extractObjectPayload(payload);
+    return null;
   }
 
   private normalizePem(value: string | null | undefined): string {
