@@ -637,6 +637,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   const [signingInstitutionInstanceId, setSigningInstitutionInstanceId] = useState<string | null>(
     null,
   );
+  const [signingInstitutionBatch, setSigningInstitutionBatch] = useState(false);
 
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -1298,6 +1299,54 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     return counter;
   }, [instances]);
 
+  const pendingInstitutionInstancesForSelectedTemplate = useMemo(
+    () =>
+      allInstances.filter(
+        (item) =>
+          item.template?.id === selectedTemplateId && hasInstitutionSignaturePending(item),
+      ),
+    [allInstances, selectedTemplateId],
+  );
+
+  const signInstitutionForSelectedTemplate = async () => {
+    if (!selectedTemplateId) return;
+    if (pendingInstitutionInstancesForSelectedTemplate.length === 0) {
+      setFeedback('Não há contratos pendentes de assinatura institucional para este modelo.');
+      return;
+    }
+
+    const shouldSign = window.confirm(
+      `Assinar instituição em ${pendingInstitutionInstancesForSelectedTemplate.length} contrato(s) pendente(s) deste modelo?`,
+    );
+    if (!shouldSign) return;
+
+    setSigningInstitutionBatch(true);
+    setError('');
+    setFeedback('');
+    try {
+      for (const item of pendingInstitutionInstancesForSelectedTemplate) {
+        await apiRequest(token, `/contracts/instances/${item.id}/sign-institution`, {
+          method: 'POST',
+        });
+      }
+
+      await Promise.all([
+        loadInstances(instanceStatusFilter),
+        loadAllInstancesForSignals(),
+      ]);
+
+      setFeedback('Assinatura institucional em lote concluída com sucesso.');
+    } catch (signError) {
+      setError(
+        signError instanceof Error
+          ? signError.message
+          : 'Falha ao assinar instituição em lote.',
+      );
+    } finally {
+      setSigningInstitutionBatch(false);
+    }
+  };
+
   return (
     <section className="native-page native-contracts">
       <header className="native-page-header">
@@ -1617,12 +1666,66 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                             {pendingSignatureCountByTemplate.get(selectedTemplate.id) ?? 0}
                           </strong>
                         </article>
+                        <article>
+                          <span>Instituição pendente</span>
+                          <strong>{pendingInstitutionInstancesForSelectedTemplate.length}</strong>
+                        </article>
                       </div>
 
                       {autoSendEnabled && !autoSendAllCourses && selectedTemplateCourseNames.length > 0 ? (
                         <p className="native-info" style={{ margin: 0 }}>
                           Cursos vinculados: {selectedTemplateCourseNames.join(', ')}
                         </p>
+                      ) : null}
+
+                      {pendingInstitutionInstancesForSelectedTemplate.length > 0 ? (
+                        <article className="native-panel" style={{ padding: '0.65rem' }}>
+                          <header className="native-panel-header" style={{ marginBottom: '0.4rem' }}>
+                            <h3 style={{ fontSize: '0.95rem' }}>Pendências da instituição</h3>
+                          </header>
+                          <div className="native-table-wrap">
+                            <table className="native-table">
+                              <thead>
+                                <tr>
+                                  <th>Aluno</th>
+                                  <th>Status</th>
+                                  <th>Enviado em</th>
+                                  <th>Ação</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {pendingInstitutionInstancesForSelectedTemplate.map((item) => (
+                                  <tr key={item.id}>
+                                    <td>
+                                      <strong>{item.student.name}</strong>
+                                      <br />
+                                      <small>{item.student.emailMasked}</small>
+                                    </td>
+                                    <td>
+                                      <span className={`native-status-chip ${contractStatusTone(item.status)}`}>
+                                        {contractStatusLabel(item.status)}
+                                      </span>
+                                    </td>
+                                    <td>{formatDateTime(item.sentAt)}</td>
+                                    <td>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          void signInstitutionInstance(item);
+                                        }}
+                                        disabled={signingInstitutionInstanceId === item.id}
+                                      >
+                                        {signingInstitutionInstanceId === item.id
+                                          ? 'Assinando...'
+                                          : 'Assinar instituição'}
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </article>
                       ) : null}
 
                       <div className="native-form-grid native-contract-send-form">
@@ -1682,6 +1785,19 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                         <div className="native-modal-actions native-contract-span-all">
                           <button type="button" onClick={() => void saveAutoSendSettings()} disabled={autoSendSaving}>
                             {autoSendSaving ? 'Salvando...' : 'Salvar envio automático'}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => void signInstitutionForSelectedTemplate()}
+                            disabled={
+                              signingInstitutionBatch ||
+                              pendingInstitutionInstancesForSelectedTemplate.length === 0
+                            }
+                          >
+                            {signingInstitutionBatch
+                              ? 'Assinando instituição...'
+                              : 'Assinar instituição (pendentes)'}
                           </button>
                         </div>
                       </div>

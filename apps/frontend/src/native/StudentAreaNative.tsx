@@ -184,6 +184,7 @@ type StudentAreaNativeProps = {
 
 const STUDENT_CACHE_TTL_MS = 25_000;
 const REFRESH_MS = 30_000;
+const STUDENT_CHARGE_PAYMENT_CACHE_KEY = 'student-charge-payment-cache-v1';
 const DEFAULT_STUDENT_BRANDING_LOGO_URL = '/Logo-IPESK.png';
 const DEFAULT_STUDENT_BRANDING_PALETTE: StudentBrandingPalette = {
   primaryColor: '#139395',
@@ -1005,6 +1006,32 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     return value || null;
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(STUDENT_CHARGE_PAYMENT_CACHE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, StudentChargePaymentResponse> | null;
+      if (parsed && typeof parsed === 'object') {
+        setChargePaymentDataById(parsed);
+      }
+    } catch {
+      // Ignora cache inválido.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(
+        STUDENT_CHARGE_PAYMENT_CACHE_KEY,
+        JSON.stringify(chargePaymentDataById),
+      );
+    } catch {
+      // Ignora falha de escrita no storage.
+    }
+  }, [chargePaymentDataById]);
+
   const loadFallback = async (bypassCache = false): Promise<StudentDashboardPayload> => {
     const [me, matriculas, materiais, avisos] = await Promise.all([
       apiRequest<StudentMe>(token, '/mis/v1/aluno/me', undefined, {
@@ -1776,10 +1803,47 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       const friendlyDuplicatedTitleMessage =
         'Este boleto já foi emitido. Use os botões Ver PDF/Baixar.';
 
-      setChargePaymentDataById((current) => ({
-        ...current,
-        [charge.id]: payment,
-      }));
+      setChargePaymentDataById((current) => {
+        const previous = current[charge.id];
+        const incomingHasBankSlipLink = Boolean(
+          payment.bankSlipViewUrl?.trim()
+            || payment.bankSlipDownloadUrl?.trim()
+            || payment.bankSlipUrl?.trim()
+            || payment.checkoutUrl?.trim()
+            || payment.invoiceUrl?.trim(),
+        );
+        const previousHasBankSlipLink = Boolean(
+          previous?.bankSlipViewUrl?.trim()
+            || previous?.bankSlipDownloadUrl?.trim()
+            || previous?.bankSlipUrl?.trim()
+            || previous?.checkoutUrl?.trim()
+            || previous?.invoiceUrl?.trim(),
+        );
+        const mergedPayment =
+          !incomingHasBankSlipLink && previousHasBankSlipLink
+            ? {
+                ...previous,
+                ...payment,
+                bankSlipViewUrl: previous.bankSlipViewUrl || previous.bankSlipUrl || previous.checkoutUrl || null,
+                bankSlipDownloadUrl:
+                  previous.bankSlipDownloadUrl
+                  || previous.invoiceUrl
+                  || previous.bankSlipUrl
+                  || previous.checkoutUrl
+                  || null,
+                bankSlipUrl: previous.bankSlipUrl || previous.bankSlipViewUrl || previous.checkoutUrl || null,
+                checkoutUrl: previous.checkoutUrl || previous.bankSlipViewUrl || null,
+                invoiceUrl: previous.invoiceUrl || previous.bankSlipDownloadUrl || null,
+                bankSlipDigitableLine:
+                  payment.bankSlipDigitableLine || previous.bankSlipDigitableLine || null,
+              }
+            : payment;
+
+        return {
+          ...current,
+          [charge.id]: mergedPayment,
+        };
+      });
 
       const preferredOpenUrl = payment.bankSlipViewUrl || payment.checkoutUrl;
       if (preferredOpenUrl && typeof window !== 'undefined') {
@@ -2236,9 +2300,19 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     paymentData?.invoiceUrl?.trim() ||
                     paymentData?.bankSlipUrl?.trim() ||
                     bankSlipViewUrl;
-                  const isBankSlipPayment = paymentData?.method === 'BANK_SLIP';
+                  const isBankSlipPayment =
+                    charge.paymentMethod === 'BANK_SLIP' || paymentData?.method === 'BANK_SLIP';
                   const chargeDescription = String(charge.description || '').trim();
                   const isPaying = payingChargeId === charge.id;
+                  const duplicatedExistingTitleMessage = 'Este boleto já foi emitido. Use os botões Ver PDF/Baixar.';
+                  const hasDuplicatedTitleHint =
+                    String(paymentInfo || '')
+                      .toLowerCase()
+                      .includes(duplicatedExistingTitleMessage.toLowerCase()) ||
+                    String(paymentError || '')
+                      .toLowerCase()
+                      .includes(duplicatedExistingTitleMessage.toLowerCase());
+                  const hasAnyBankSlipLink = Boolean(bankSlipViewUrl || bankSlipDownloadUrl);
                   const normalizedStatus = String(charge.status || '')
                     .trim()
                     .toUpperCase();
@@ -2280,6 +2354,18 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                             onClick={() => void handleCopyBankSlipLine(charge.id)}
                           >
                             Copiar linha digitável
+                          </button>
+                        </div>
+                      ) : null}
+                      {isBankSlipPayment && hasDuplicatedTitleHint && !hasAnyBankSlipLink ? (
+                        <div className="student-charge-inline-actions">
+                          <button
+                            type="button"
+                            className="student-charge-secondary-action"
+                            onClick={() => void handlePayCharge(charge)}
+                            disabled={isPaying}
+                          >
+                            {isPaying ? 'Buscando...' : 'Buscar boleto emitido'}
                           </button>
                         </div>
                       ) : null}
