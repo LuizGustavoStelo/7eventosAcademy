@@ -624,13 +624,22 @@ export class FinanceService {
 
       const enrollmentFeeCharge =
         enrollmentFeeAmount > 0
-          ? enrollmentCharges.find((item) => {
-              const amount = this.toMoneyValue(Number(item.amount));
-              return (
-                amount === enrollmentFeeAmount &&
-                item.dueDate.getTime() === charge.enrollment.createdAt.getTime()
-              );
-            }) ?? null
+          ? (() => {
+              const candidates = enrollmentCharges.filter((item) => {
+                const amount = this.toMoneyValue(Number(item.amount));
+                return amount === enrollmentFeeAmount;
+              });
+              if (candidates.length === 0) return null;
+              if (candidates.length === 1) return candidates[0];
+
+              const enrollmentCreatedAt = charge.enrollment.createdAt.getTime();
+              return candidates.sort((a, b) => {
+                const distanceA = Math.abs(a.dueDate.getTime() - enrollmentCreatedAt);
+                const distanceB = Math.abs(b.dueDate.getTime() - enrollmentCreatedAt);
+                if (distanceA !== distanceB) return distanceA - distanceB;
+                return a.createdAt.getTime() - b.createdAt.getTime();
+              })[0];
+            })()
           : null;
 
       const enrollmentFeePaid =
