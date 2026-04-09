@@ -10,6 +10,37 @@ const hasPreviewMeaningfulHtml = (html: string) => {
   return Boolean(normalized);
 };
 
+const isPreviewPageBreakElement = (node: Node) => {
+  if (!(node instanceof HTMLElement)) return false;
+  if (String(node.dataset.contractPageBreak || '').toLowerCase() === 'true') return true;
+  const style = String(node.getAttribute('style') || '').toLowerCase().replace(/\s+/g, '');
+  return style.includes('page-break-after:always');
+};
+
+const collectPreviewPagesFromContainer = (container: HTMLElement) => {
+  const pages: string[] = [];
+  let current = '';
+
+  Array.from(container.childNodes).forEach((node) => {
+    if (isPreviewPageBreakElement(node)) {
+      pages.push(current);
+      current = '';
+      return;
+    }
+    if (node.nodeType === Node.TEXT_NODE) {
+      current += node.textContent || '';
+      return;
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      current += (node as HTMLElement).outerHTML;
+    }
+  });
+  pages.push(current);
+
+  while (pages.length > 1 && !hasPreviewMeaningfulHtml(pages[pages.length - 1])) pages.pop();
+  return pages;
+};
+
 const escapeHtmlForIframe = (value: string) =>
   String(value || '')
     .replace(/&/g, '&amp;')
@@ -59,33 +90,29 @@ export function buildContractPreviewSrcDoc(rawHtml: string) {
   if (settingsNode) settingsNode.remove();
 
   const wrapper = root.querySelector<HTMLElement>('[data-contract-document-wrapper="true"]');
-  const wrapperStyle = String(wrapper?.getAttribute('style') || '').trim();
+  let wrapperStyle = String(wrapper?.getAttribute('style') || '').trim();
+  let pages: string[] = [];
 
-  let source = String(root.innerHTML || '');
   if (wrapper) {
-    const flatRoot = doc.createElement('div');
-    const children = Array.from(root.childNodes);
-    for (const child of children) {
-      if (child === wrapper) {
-        const wrapperContent = doc.createElement('div');
-        wrapperContent.innerHTML = wrapper.innerHTML;
-        const wrapperChildren = Array.from(wrapperContent.childNodes);
-        for (const wrapperChild of wrapperChildren) {
-          flatRoot.appendChild(wrapperChild.cloneNode(true));
-        }
-        continue;
+    pages = collectPreviewPagesFromContainer(wrapper);
+  } else {
+    const firstElement = root.firstElementChild as HTMLElement | null;
+    if (
+      firstElement &&
+      firstElement.tagName === 'SECTION' &&
+      firstElement.querySelector('[data-contract-page-break="true"]')
+    ) {
+      wrapperStyle = String(firstElement.getAttribute('style') || '').trim();
+      pages = collectPreviewPagesFromContainer(firstElement);
+    } else {
+      const source = String(root.innerHTML || '');
+      pages = source
+        .replace(CONTRACT_PREVIEW_PAGE_BREAK_REGEX, '<!--CONTRACT_PREVIEW_BREAK-->')
+        .split('<!--CONTRACT_PREVIEW_BREAK-->');
+      while (pages.length > 1 && !hasPreviewMeaningfulHtml(pages[pages.length - 1])) {
+        pages.pop();
       }
-      flatRoot.appendChild(child.cloneNode(true));
     }
-    source = String(flatRoot.innerHTML || '');
-  }
-
-  const pages = source
-    .replace(CONTRACT_PREVIEW_PAGE_BREAK_REGEX, '<!--CONTRACT_PREVIEW_BREAK-->')
-    .split('<!--CONTRACT_PREVIEW_BREAK-->');
-
-  while (pages.length > 1 && !hasPreviewMeaningfulHtml(pages[pages.length - 1])) {
-    pages.pop();
   }
 
   const bodyHtml = pages
@@ -128,11 +155,10 @@ export function buildContractPreviewSrcDoc(rawHtml: string) {
     }
     .contract-preview-page {
       width: 794px;
-      height: 1123px;
       min-height: 1123px;
-      max-height: 1123px;
+      height: auto;
       margin: 0;
-      overflow: hidden;
+      overflow: visible;
     }
     .contract-preview-separator {
       height: 14px;
