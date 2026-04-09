@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { API_BASE_URL, apiRequest } from './api';
+import { buildContractPreviewSrcDoc } from './contractPreview';
 
 type StudentContractItem = {
   id: string;
@@ -698,7 +699,7 @@ export function StudentContractsNative({
             title="Pré-visualização do contrato do aluno"
             className="student-contract-document-frame"
             sandbox=""
-            srcDoc={selectedDetails.documentHtml}
+            srcDoc={buildContractPreviewSrcDoc(selectedDetails.documentHtml)}
           />
         )}
       </article>
