@@ -2664,7 +2664,7 @@ export class ContractsService {
       /\s(href|src)\s*=\s*(['"])\s*(javascript:|data:text\/html)[^'"]*\2/gi,
       ' $1="#"',
     );
-    return this.removeLegacySignatureIdentificationBlock(withoutJsUrls.trim());
+    return withoutJsUrls.trim();
   }
 
   private formatDatePtBr(value?: Date | string | null): string {
@@ -3119,14 +3119,71 @@ export class ContractsService {
     let normalized = String(html || '').trim();
     if (!normalized) return normalized;
 
-    normalized = normalized.replace(
-      /<table[\s\S]*?ALUNO\(A\)\s*-\s*CONTRATANTE\/BENEFICI[\s\S]*?INSTITUI[\s\S]*?PROFESSOR\s*RESPONS[\s\S]*?<\/table>/gi,
-      '',
-    );
+    const decodeHtmlEntities = (value: string): string => {
+      const named: Record<string, string> = {
+        amp: '&',
+        lt: '<',
+        gt: '>',
+        quot: '"',
+        apos: "'",
+        nbsp: ' ',
+        aacute: 'a',
+        agrave: 'a',
+        acirc: 'a',
+        atilde: 'a',
+        auml: 'a',
+        eacute: 'e',
+        ecirc: 'e',
+        iacute: 'i',
+        oacute: 'o',
+        ocirc: 'o',
+        otilde: 'o',
+        uacute: 'u',
+        ccedil: 'c',
+      };
+
+      return String(value || '').replace(
+        /&(#x?[0-9a-f]+|[a-zA-Z]+);/g,
+        (match: string, entity: string) => {
+          const raw = String(entity || '').toLowerCase();
+          if (!raw) return match;
+          if (raw.startsWith('#x')) {
+            const code = Number.parseInt(raw.slice(2), 16);
+            return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+          }
+          if (raw.startsWith('#')) {
+            const code = Number.parseInt(raw.slice(1), 10);
+            return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+          }
+          return named[raw] ?? match;
+        },
+      );
+    };
+
+    const normalizeForMatch = (value: string): string =>
+      decodeHtmlEntities(value)
+        .replace(/<[^>]*>/g, ' ')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+
+    normalized = normalized.replace(/<table\b[^>]*>[\s\S]*?<\/table>/gi, (tableHtml) => {
+      const text = normalizeForMatch(tableHtml);
+      const hasAluno =
+        text.includes('aluno a contratante beneficiario') ||
+        text.includes('aluno contratante beneficiario');
+      const hasInstituicao = text.includes('instituicao professor responsavel');
+      return hasAluno && hasInstituicao ? '' : tableHtml;
+    });
 
     normalized = normalized.replace(
-      /<(p|div|span|td)[^>]*>\s*C[\s\S]*?digo de assinatura eletr[\s\S]*?nica:[\s\S]*?<\/\1>/gi,
-      '',
+      /<(p|div|span|td)\b[^>]*>[\s\S]*?<\/\1>/gi,
+      (blockHtml: string) => {
+        const text = normalizeForMatch(blockHtml);
+        return text.includes('codigo de assinatura eletronica') ? '' : blockHtml;
+      },
     );
 
     return normalized;
