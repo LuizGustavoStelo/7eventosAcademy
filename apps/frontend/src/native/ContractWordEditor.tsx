@@ -116,6 +116,14 @@ const isIgnorableNodeForPagination = (node: ChildNode) => {
   if (node.nodeType !== Node.ELEMENT_NODE) return true;
   const element = node as HTMLElement;
   if (element.tagName === 'BR' && element.attributes.length === 0) return true;
+  if (
+    !hasMeaningfulHtml(element.innerHTML || '') &&
+    element.querySelector(
+      'img,table,svg,canvas,iframe,video,audio,object,embed,input,textarea,select',
+    ) === null
+  ) {
+    return true;
+  }
   return false;
 };
 
@@ -136,6 +144,30 @@ const getLastMovableNode = (container: HTMLElement): ChildNode | null => {
     return current;
   }
   return null;
+};
+
+type TailMovableCandidate = {
+  node: ChildNode;
+  parent: HTMLElement;
+};
+
+const getTailMovableCandidate = (
+  container: HTMLElement,
+): TailMovableCandidate | null => {
+  let parent: HTMLElement = container;
+  let node: ChildNode | null = getLastMovableNode(parent);
+
+  while (node && node.nodeType === Node.ELEMENT_NODE) {
+    const element = node as HTMLElement;
+    if (countMovableNodes(parent) !== 1) break;
+    const innerTail = getLastMovableNode(element);
+    if (!innerTail) break;
+    parent = element;
+    node = innerTail;
+  }
+
+  if (!node) return null;
+  return { node, parent };
 };
 
 const encodeMeta = (v: string) => encodeURIComponent(String(v || ''));
@@ -738,17 +770,18 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
       while (current.scrollHeight > current.clientHeight + 1 && guard < 600) {
         guard += 1;
         const beforeOverflow = current.scrollHeight - current.clientHeight;
-        const nodeToMove = getLastMovableNode(current);
-        if (!nodeToMove) break;
+        const candidate = getTailMovableCandidate(current);
+        if (!candidate) break;
+        const { node: nodeToMove, parent: sourceParent } = candidate;
         if (!next) {
           const movableNodeCount = countMovableNodes(current);
           if (movableNodeCount <= 1) break;
           if (!hasMeaningfulHtml(current.innerHTML || '')) break;
           if (beforeOverflow <= 2.5) break;
 
-          current.removeChild(nodeToMove);
+          sourceParent.removeChild(nodeToMove);
           const probeOverflow = current.scrollHeight - current.clientHeight;
-          current.appendChild(nodeToMove);
+          sourceParent.appendChild(nodeToMove);
           if (probeOverflow >= beforeOverflow - 0.5) {
             console.warn(
               '[ContractWordEditor] Nova página bloqueada (sem redução real de overflow).',
@@ -790,6 +823,7 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
           break;
         }
         const nextWasEmpty = !hasMeaningfulHtml(next.innerHTML || '');
+        sourceParent.removeChild(nodeToMove);
         next.insertBefore(nodeToMove, next.firstChild);
 
         // Evita loop infinito quando o último bloco é indivisível e maior que a página.
@@ -799,13 +833,13 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
           next.childNodes.length === 1 &&
           next.scrollHeight > next.clientHeight + 1
         ) {
-          current.appendChild(nodeToMove);
+          sourceParent.appendChild(nodeToMove);
           break;
         }
 
         const afterOverflow = current.scrollHeight - current.clientHeight;
         if (afterOverflow >= beforeOverflow - 0.5) {
-          current.appendChild(nodeToMove);
+          sourceParent.appendChild(nodeToMove);
           break;
         }
       }
