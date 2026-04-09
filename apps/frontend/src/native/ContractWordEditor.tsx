@@ -49,6 +49,8 @@ const PAGE_BREAK_REGEX = /<div[^>]*(data-contract-page-break\s*=\s*["']true["'][
 const A4_W = 794;
 const A4_H = 1123;
 const MAX_EDITOR_PAGES = 120;
+const MAX_APPEND_EVENTS_PER_WINDOW = 12;
+const APPEND_WINDOW_MS = 1200;
 const MM_TO_PX = 3.7795275591;
 const PAD_MIN = 5;
 const PAD_MAX = 40;
@@ -531,6 +533,10 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
   const pendingPaginationFromRef = useRef<number | null>(null);
   const paginationRafRef = useRef<number | null>(null);
   const appendPagePendingRef = useRef(false);
+  const appendWindowRef = useRef<{ startedAt: number; count: number }>({
+    startedAt: 0,
+    count: 0,
+  });
   const lastEmittedRef = useRef(String(value || ''));
   const resizeStateRef = useRef<{
     handle: ResizeHandle;
@@ -738,6 +744,47 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
           const movableNodeCount = countMovableNodes(current);
           if (movableNodeCount <= 1) break;
           if (!hasMeaningfulHtml(current.innerHTML || '')) break;
+          if (beforeOverflow <= 2.5) break;
+
+          current.removeChild(nodeToMove);
+          const probeOverflow = current.scrollHeight - current.clientHeight;
+          current.appendChild(nodeToMove);
+          if (probeOverflow >= beforeOverflow - 0.5) {
+            console.warn(
+              '[ContractWordEditor] Nova página bloqueada (sem redução real de overflow).',
+              {
+                index: i,
+                beforeOverflow,
+                probeOverflow,
+                movableNodeCount,
+                pageCount,
+              },
+            );
+            break;
+          }
+
+          const now = Date.now();
+          if (
+            now - appendWindowRef.current.startedAt > APPEND_WINDOW_MS ||
+            appendWindowRef.current.startedAt === 0
+          ) {
+            appendWindowRef.current.startedAt = now;
+            appendWindowRef.current.count = 0;
+          }
+          appendWindowRef.current.count += 1;
+          if (appendWindowRef.current.count > MAX_APPEND_EVENTS_PER_WINDOW) {
+            console.warn(
+              '[ContractWordEditor] Paginação automática desacelerada para evitar loop.',
+              {
+                index: i,
+                pageCount,
+                beforeOverflow,
+                windowCount: appendWindowRef.current.count,
+              },
+            );
+            break;
+          }
+
           appendNew = true;
           appendFrom = i;
           break;
