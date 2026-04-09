@@ -16,6 +16,7 @@ const defaultAllowedMigrations = [
   '20260408201000_institution_branding',
   '20260408223000_password_reset_code_flow',
   '20260409123000_contract_template_institution_signature',
+  '20260409150000_finance_vouchers',
 ];
 
 const allowedMigrations = (
