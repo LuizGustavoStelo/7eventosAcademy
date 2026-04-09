@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FormEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { API_BASE_URL, apiRequest } from './api';
 import { ContractWordEditor, type ContractPlaceholder } from './ContractWordEditor';
 
@@ -126,6 +126,20 @@ type SendFormState = {
 type ContractsNativeProps = {
   token: string;
   mode?: 'hub' | 'editor';
+};
+
+type DrawState = {
+  active: boolean;
+  pointerId: number | null;
+  lastX: number;
+  lastY: number;
+};
+
+const EMPTY_DRAW_STATE: DrawState = {
+  active: false,
+  pointerId: null,
+  lastX: 0,
+  lastY: 0,
 };
 
 const CONTRACT_PREVIEW_PAGE_BREAK_REGEX =
@@ -562,7 +576,12 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   );
   const [signingTemplateInstitution, setSigningTemplateInstitution] = useState(false);
   const [institutionSignerName, setInstitutionSignerName] = useState('');
-  const [institutionAcceptTerms, setInstitutionAcceptTerms] = useState(false);
+  const [institutionSignModalOpen, setInstitutionSignModalOpen] = useState(false);
+  const [institutionSignerNameDraft, setInstitutionSignerNameDraft] = useState('');
+  const [institutionAcceptTermsDraft, setInstitutionAcceptTermsDraft] = useState(false);
+  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const drawStateRef = useRef<DrawState>(EMPTY_DRAW_STATE);
+  const [hasSignatureStroke, setHasSignatureStroke] = useState(false);
 
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -591,6 +610,115 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     return ids.map((id) => courseMap.get(id) ?? id);
   }, [selectedTemplate, courses]);
   const isEditingTemplate = isEditorMode && !editorIsNewParam && Boolean(editorTemplateIdParam || selectedTemplateId);
+
+  const resetSignatureCanvas = useCallback(() => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+
+    const width = Math.max(canvas.clientWidth || 0, 320);
+    const height = Math.max(canvas.clientHeight || 0, 180);
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.lineWidth = 2.6 * ratio;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.strokeStyle = '#0f172a';
+
+    drawStateRef.current = { ...EMPTY_DRAW_STATE };
+    setHasSignatureStroke(false);
+  }, []);
+
+  const getCanvasPoint = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return null;
+
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const handleSignaturePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const canvas = signatureCanvasRef.current;
+    const context = canvas?.getContext('2d');
+    const point = getCanvasPoint(event);
+    if (!canvas || !context || !point) return;
+
+    canvas.setPointerCapture(event.pointerId);
+    drawStateRef.current = {
+      active: true,
+      pointerId: event.pointerId,
+      lastX: point.x,
+      lastY: point.y,
+    };
+
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    context.lineTo(point.x + 0.01, point.y + 0.01);
+    context.stroke();
+
+    setHasSignatureStroke(true);
+  };
+
+  const handleSignaturePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!drawStateRef.current.active) return;
+
+    const context = signatureCanvasRef.current?.getContext('2d');
+    const point = getCanvasPoint(event);
+    if (!context || !point) return;
+
+    context.beginPath();
+    context.moveTo(drawStateRef.current.lastX, drawStateRef.current.lastY);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+
+    drawStateRef.current.lastX = point.x;
+    drawStateRef.current.lastY = point.y;
+    setHasSignatureStroke(true);
+  };
+
+  const finishSignaturePointer = (pointerId?: number) => {
+    const canvas = signatureCanvasRef.current;
+
+    if (
+      pointerId !== undefined &&
+      drawStateRef.current.pointerId !== null &&
+      pointerId !== drawStateRef.current.pointerId
+    ) {
+      return;
+    }
+
+    if (canvas && drawStateRef.current.pointerId !== null) {
+      try {
+        canvas.releasePointerCapture(drawStateRef.current.pointerId);
+      } catch {
+        // Ignore release errors when the pointer was not captured.
+      }
+    }
+
+    drawStateRef.current = { ...EMPTY_DRAW_STATE };
+  };
+
+  const createSignatureDataUrl = (): string | null => {
+    if (!hasSignatureStroke) return null;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return null;
+    return canvas.toDataURL('image/png');
+  };
 
   const sendableTemplates = useMemo(
     () =>
@@ -742,7 +870,6 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       setAutoSendAllCourses(true);
       setAutoSendCourseIds([]);
       setInstitutionSignerName('');
-      setInstitutionAcceptTerms(false);
       setAutoSendError('');
       return;
     }
@@ -754,9 +881,16 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
         : [],
     );
     setInstitutionSignerName(selectedTemplate.institutionSignedByName || '');
-    setInstitutionAcceptTerms(false);
     setAutoSendError('');
   }, [selectedTemplate]);
+
+  useEffect(() => {
+    if (!institutionSignModalOpen) return;
+    const raf = window.requestAnimationFrame(() => {
+      resetSignatureCanvas();
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [institutionSignModalOpen, resetSignatureCanvas]);
 
   useEffect(() => {
     if (isEditorMode) return;
@@ -1239,7 +1373,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     [allInstances, selectedTemplateId],
   );
 
-  const signInstitutionForSelectedTemplate = async () => {
+  const openInstitutionTemplateSignModal = () => {
     if (!selectedTemplate) return;
     if (selectedTemplate.status.trim().toUpperCase() !== 'PUBLISHED') {
       setAutoSendError('Publique o modelo antes de registrar a assinatura da instituição.');
@@ -1249,19 +1383,38 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       setFeedback('Este modelo já está assinado pela instituição.');
       return;
     }
-    if (!institutionSignerName.trim()) {
+    setInstitutionSignerNameDraft(institutionSignerName.trim());
+    setInstitutionAcceptTermsDraft(false);
+    setInstitutionSignModalOpen(true);
+    setAutoSendError('');
+    setError('');
+    setFeedback('');
+  };
+
+  const signInstitutionForSelectedTemplate = async () => {
+    if (!selectedTemplate) return;
+    if (selectedTemplate.status.trim().toUpperCase() !== 'PUBLISHED') {
+      setAutoSendError('Publique o modelo antes de registrar a assinatura da instituição.');
+      return;
+    }
+    if (isTemplateInstitutionSigned(selectedTemplate)) {
+      setFeedback('Este modelo já está assinado pela instituição.');
+      setInstitutionSignModalOpen(false);
+      return;
+    }
+    if (!institutionSignerNameDraft.trim()) {
       setAutoSendError('Informe o nome do responsável institucional para assinar.');
       return;
     }
-    if (!institutionAcceptTerms) {
+    if (!institutionAcceptTermsDraft) {
       setAutoSendError('Confirme os termos de assinatura institucional antes de continuar.');
       return;
     }
-
-    const shouldSign = window.confirm(
-      `Assinar a instituição no modelo "${selectedTemplate.name}" para liberar o envio aos alunos?`,
-    );
-    if (!shouldSign) return;
+    const signatureData = createSignatureDataUrl();
+    if (!signatureData) {
+      setAutoSendError('Desenhe a assinatura institucional antes de concluir.');
+      return;
+    }
 
     setSigningTemplateInstitution(true);
     setAutoSendError('');
@@ -1272,12 +1425,14 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          signerName: institutionSignerName.trim(),
+          signerName: institutionSignerNameDraft.trim(),
           acceptTerms: true,
         }),
       });
 
       await loadTemplates();
+      setInstitutionSignerName(institutionSignerNameDraft.trim());
+      setInstitutionSignModalOpen(false);
 
       setFeedback(
         'Modelo assinado pela instituição com sucesso. Agora ele está liberado para envio ao aluno.',
@@ -1738,29 +1893,10 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                         ) : null}
 
                         {!isSelectedTemplateInstitutionSigned ? (
-                          <>
-                            <label>
-                              Responsável pela assinatura institucional
-                              <input
-                                value={institutionSignerName}
-                                onChange={(event) => setInstitutionSignerName(event.target.value)}
-                                placeholder="Nome completo de quem assina"
-                              />
-                            </label>
-                            <label className="native-contract-span-all native-contract-send-checkbox">
-                              <input
-                                type="checkbox"
-                                checked={institutionAcceptTerms}
-                                onChange={(event) =>
-                                  setInstitutionAcceptTerms(event.target.checked)
-                                }
-                              />
-                              <span>
-                                Confirmo que estou autorizado(a) a assinar este modelo pela
-                                instituição.
-                              </span>
-                            </label>
-                          </>
+                          <p className="native-info native-contract-span-all">
+                            A assinatura institucional do modelo &eacute; feita em um modal guiado com
+                            valida&ccedil;&atilde;o e desenho da assinatura.
+                          </p>
                         ) : null}
 
                         {autoSendError ? <p className="native-error native-contract-span-all">{autoSendError}</p> : null}
@@ -1772,13 +1908,12 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                           <button
                             type="button"
                             className="ghost"
-                            onClick={() => void signInstitutionForSelectedTemplate()}
+                            onClick={openInstitutionTemplateSignModal}
                             disabled={
                               signingTemplateInstitution ||
                               !selectedTemplateId ||
                               !isSelectedTemplatePublished ||
-                              isSelectedTemplateInstitutionSigned ||
-                              (!institutionAcceptTerms || !institutionSignerName.trim())
+                              isSelectedTemplateInstitutionSigned
                             }
                           >
                             {signingTemplateInstitution
@@ -2093,6 +2228,109 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
           ) : null}
         </div>
       </div>
+
+      {!isEditorMode && institutionSignModalOpen && selectedTemplate ? (
+        <div
+          className="native-modal-backdrop"
+          onClick={() => {
+            if (signingTemplateInstitution) return;
+            setInstitutionSignModalOpen(false);
+          }}
+        >
+          <section
+            className="native-modal native-modal-sm"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header>
+              <h3>Assinatura da institui&ccedil;&atilde;o</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  if (signingTemplateInstitution) return;
+                  setInstitutionSignModalOpen(false);
+                }}
+              >
+                Fechar
+              </button>
+            </header>
+
+            <div className="student-contract-step">
+              <header>
+                <span>Etapa 1</span>
+                <h5>Valida&ccedil;&atilde;o do respons&aacute;vel</h5>
+              </header>
+              <p>Confirme quem est&aacute; assinando este modelo em nome da institui&ccedil;&atilde;o.</p>
+              <input
+                value={institutionSignerNameDraft}
+                onChange={(event) => setInstitutionSignerNameDraft(event.target.value)}
+                placeholder="Nome completo de quem assina"
+                disabled={signingTemplateInstitution}
+              />
+              <label className="student-contract-accept">
+                <input
+                  type="checkbox"
+                  checked={institutionAcceptTermsDraft}
+                  onChange={(event) => setInstitutionAcceptTermsDraft(event.target.checked)}
+                  disabled={signingTemplateInstitution}
+                />
+                <span>
+                  Confirmo que estou autorizado(a) a assinar este modelo pela institui&ccedil;&atilde;o.</span>
+              </label>
+            </div>
+
+            <div className="student-contract-step">
+              <header>
+                <span>Etapa 2</span>
+                <h5>Desenhar assinatura</h5>
+              </header>
+              <p>Desenhe a assinatura institucional para concluir a valida&ccedil;&atilde;o do modelo.</p>
+
+              <div className="student-contract-signature-canvas-wrap">
+                <canvas
+                  ref={signatureCanvasRef}
+                  className="student-contract-signature-canvas"
+                  style={{ touchAction: 'none' }}
+                  onPointerDown={handleSignaturePointerDown}
+                  onPointerMove={handleSignaturePointerMove}
+                  onPointerUp={(event) => finishSignaturePointer(event.pointerId)}
+                  onPointerLeave={(event) => finishSignaturePointer(event.pointerId)}
+                  onPointerCancel={(event) => finishSignaturePointer(event.pointerId)}
+                />
+              </div>
+              <div className="student-contract-signature-helper">
+                <small>Use mouse ou toque para desenhar a assinatura.</small>
+                <button
+                  type="button"
+                  onClick={resetSignatureCanvas}
+                  disabled={!hasSignatureStroke || signingTemplateInstitution}
+                >
+                  Limpar assinatura
+                </button>
+              </div>
+            </div>
+
+            {autoSendError ? <p className="native-error">{autoSendError}</p> : null}
+
+            <div className="native-modal-actions">
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setInstitutionSignModalOpen(false)}
+                disabled={signingTemplateInstitution}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void signInstitutionForSelectedTemplate()}
+                disabled={signingTemplateInstitution}
+              >
+                {signingTemplateInstitution ? 'Assinando...' : 'Confirmar assinatura institucional'}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {!isEditorMode && detailsOpen ? (
         <div className="native-modal-backdrop" onClick={() => setDetailsOpen(false)}>
