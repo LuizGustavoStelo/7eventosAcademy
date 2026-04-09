@@ -460,20 +460,6 @@ function normalizeLegacyPageHtml(pageHtml: string) {
     parent.removeChild(container);
   });
 
-  const rootSection = root.firstElementChild as HTMLElement | null;
-  if (rootSection && rootSection.tagName === 'SECTION' && rootSection.hasAttribute('style')) {
-    const style = String(rootSection.getAttribute('style') || '');
-    const normalizedStyle = style
-      .replace(/(^|;)\s*font-size\s*:[^;]+;?/gi, '$1')
-      .replace(/(^|;)\s*line-height\s*:[^;]+;?/gi, '$1')
-      .replace(/;;+/g, ';')
-      .trim()
-      .replace(/^;/, '')
-      .replace(/;$/, '');
-    if (normalizedStyle) rootSection.setAttribute('style', normalizedStyle);
-    else rootSection.removeAttribute('style');
-  }
-
   return root.innerHTML;
 }
 
@@ -499,7 +485,13 @@ function parseValue(value: string) {
   }
 
   const wrapper = root.querySelector<HTMLElement>('[data-contract-document-wrapper="true"]');
-  const source = wrapper ? String(wrapper.innerHTML || '') : String(root.innerHTML || '');
+  let source = wrapper ? String(wrapper.innerHTML || '') : String(root.innerHTML || '');
+  if (!wrapper) {
+    const legacySection = root.querySelector<HTMLElement>('section');
+    if (legacySection?.querySelector('[data-contract-page-break="true"]')) {
+      source = String(legacySection.innerHTML || '');
+    }
+  }
   const normalized = source.replace(PAGE_BREAK_REGEX, '<!--CONTRACT_PAGE_BREAK-->');
   const pages = normalized
     .split('<!--CONTRACT_PAGE_BREAK-->')
