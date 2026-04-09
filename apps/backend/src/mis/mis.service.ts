@@ -83,6 +83,9 @@ type StudentChargePaymentResponse = {
   checkoutUrl: string | null;
   invoiceUrl: string | null;
   bankSlipUrl: string | null;
+  bankSlipViewUrl?: string | null;
+  bankSlipDownloadUrl?: string | null;
+  bankSlipDigitableLine?: string | null;
   pixCopyPaste: string | null;
   pixQrCodeImage: string | null;
   message: string;
@@ -2436,19 +2439,30 @@ export class MisService {
     this.logger.log(
       `[sicoob-boleto] emit success charge=${input.charge.id} nossoNumero=${parsedNossoNumero || 'n/a'}`,
     );
-    let bankSlipUrl = this.extractFirstValueAsString(emitted, [
+    let bankSlipViewUrl = this.extractFirstHttpUrl(emitted, [
       'urlPdfBoleto',
+      'urlPdf',
       'urlBoleto',
       'linkBoleto',
+      'linkVisualizacao',
+      'urlVisualizacao',
       'boletoUrl',
       'url',
     ]);
-    const linhaDigitavel = this.extractFirstValueAsString(emitted, [
+    let bankSlipDownloadUrl = this.extractFirstHttpUrl(emitted, [
+      'urlDownloadBoleto',
+      'urlDownload',
+      'downloadUrl',
+      'linkDownload',
+      'urlArquivo',
+      'arquivoUrl',
+    ]);
+    let linhaDigitavel = this.extractFirstValueAsString(emitted, [
       'linhaDigitavel',
       'linha',
     ]);
 
-    if (!bankSlipUrl && parsedNossoNumero) {
+    if ((!bankSlipViewUrl || !bankSlipDownloadUrl || !linhaDigitavel) && parsedNossoNumero) {
       const segundaViaUrl = new URL(
         `${input.config.cobrancaBancariaBaseUrl}/boletos/segunda-via`,
       );
@@ -2461,7 +2475,7 @@ export class MisService {
         String(input.config.boletoModalidade),
       );
       segundaViaUrl.searchParams.set('nossoNumero', String(parsedNossoNumero));
-      segundaViaUrl.searchParams.set('gerarPdf', 'false');
+      segundaViaUrl.searchParams.set('gerarPdf', 'true');
 
       try {
         const segundaVia = await this.sicoobJsonRequest<Record<string, unknown>>({
@@ -2473,17 +2487,42 @@ export class MisService {
           appendClientIdHeader: true,
         });
 
-        bankSlipUrl = this.extractFirstValueAsString(segundaVia, [
-          'urlPdfBoleto',
-          'urlBoleto',
-          'linkBoleto',
-          'boletoUrl',
-          'url',
-        ]);
+        if (!bankSlipViewUrl) {
+          bankSlipViewUrl = this.extractFirstHttpUrl(segundaVia, [
+            'urlPdfBoleto',
+            'urlPdf',
+            'urlBoleto',
+            'linkBoleto',
+            'linkVisualizacao',
+            'urlVisualizacao',
+            'boletoUrl',
+            'url',
+          ]);
+        }
+        if (!bankSlipDownloadUrl) {
+          bankSlipDownloadUrl = this.extractFirstHttpUrl(segundaVia, [
+            'urlDownloadBoleto',
+            'urlDownload',
+            'downloadUrl',
+            'linkDownload',
+            'urlArquivo',
+            'arquivoUrl',
+          ]);
+        }
+        if (!linhaDigitavel) {
+          linhaDigitavel = this.extractFirstValueAsString(segundaVia, [
+            'linhaDigitavel',
+            'linha',
+          ]);
+        }
       } catch {
         // Se a segunda via falhar, mantém a cobrança válida e retorna mensagem/linha digitável.
       }
     }
+
+    const checkoutUrl = bankSlipViewUrl || bankSlipDownloadUrl || null;
+    const invoiceUrl = bankSlipDownloadUrl || bankSlipViewUrl || null;
+    const bankSlipUrl = bankSlipViewUrl || bankSlipDownloadUrl || null;
 
     const externalChargeId = parsedNossoNumero
       ? `sicoob-boleto:${parsedNossoNumero}`
@@ -2506,12 +2545,15 @@ export class MisService {
       chargeId: input.charge.id,
       provider: input.provider,
       method: 'BANK_SLIP',
-      checkoutUrl: bankSlipUrl,
-      invoiceUrl: bankSlipUrl,
+      checkoutUrl,
+      invoiceUrl,
       bankSlipUrl,
+      bankSlipViewUrl,
+      bankSlipDownloadUrl: bankSlipDownloadUrl || bankSlipViewUrl || null,
+      bankSlipDigitableLine: linhaDigitavel,
       pixCopyPaste: null,
       pixQrCodeImage: null,
-      message: bankSlipUrl
+      message: checkoutUrl
         ? 'Boleto gerado com sucesso.'
         : linhaDigitavel
           ? `Boleto emitido. Linha digitável: ${linhaDigitavel}`
@@ -2629,6 +2671,20 @@ export class MisService {
       return `${parsed.origin}${parsed.pathname}`;
     } catch {
       return value;
+    }
+  }
+
+  private extractFirstHttpUrl(payload: unknown, keys: string[]): string | null {
+    const rawValue = this.extractFirstValueAsString(payload, keys);
+    if (!rawValue) return null;
+    try {
+      const parsed = new URL(rawValue);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        return null;
+      }
+      return parsed.toString();
+    } catch {
+      return null;
     }
   }
 

@@ -164,6 +164,9 @@ type StudentChargePaymentResponse = {
   checkoutUrl: string | null;
   invoiceUrl: string | null;
   bankSlipUrl: string | null;
+  bankSlipViewUrl?: string | null;
+  bankSlipDownloadUrl?: string | null;
+  bankSlipDigitableLine?: string | null;
   pixCopyPaste: string | null;
   pixQrCodeImage: string | null;
   message: string;
@@ -1768,9 +1771,10 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         [charge.id]: payment,
       }));
 
-      if (payment.checkoutUrl && typeof window !== 'undefined') {
+      const preferredOpenUrl = payment.bankSlipViewUrl || payment.checkoutUrl;
+      if (preferredOpenUrl && typeof window !== 'undefined') {
         const opened = window.open(
-          payment.checkoutUrl,
+          preferredOpenUrl,
           '_blank',
           'noopener,noreferrer',
         );
@@ -1778,7 +1782,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           setChargePaymentInfoById((current) => ({
             ...current,
             [charge.id]:
-              'Pagamento gerado. Use o botão "Abrir cobrança" para continuar.',
+              'Pagamento gerado. Use os botões de visualização/download para continuar.',
           }));
         }
       } else {
@@ -1823,6 +1827,31 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       setChargePaymentErrorById((current) => ({
         ...current,
         [chargeId]: 'Não foi possível copiar o código Pix automaticamente.',
+      }));
+    }
+  };
+
+  const handleCopyBankSlipLine = async (chargeId: string) => {
+    const line = chargePaymentDataById[chargeId]?.bankSlipDigitableLine?.trim() || '';
+    if (!line) return;
+
+    try {
+      if (
+        typeof navigator === 'undefined' ||
+        !navigator.clipboard ||
+        typeof navigator.clipboard.writeText !== 'function'
+      ) {
+        throw new Error('Clipboard indisponível');
+      }
+      await navigator.clipboard.writeText(line);
+      setChargePaymentInfoById((current) => ({
+        ...current,
+        [chargeId]: 'Linha digitável copiada.',
+      }));
+    } catch {
+      setChargePaymentErrorById((current) => ({
+        ...current,
+        [chargeId]: 'Não foi possível copiar a linha digitável automaticamente.',
       }));
     }
   };
@@ -2172,6 +2201,18 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   const paymentData = chargePaymentDataById[charge.id];
                   const paymentError = chargePaymentErrorById[charge.id];
                   const paymentInfo = chargePaymentInfoById[charge.id];
+                  const bankSlipViewUrl =
+                    paymentData?.bankSlipViewUrl?.trim() ||
+                    paymentData?.bankSlipUrl?.trim() ||
+                    paymentData?.checkoutUrl?.trim() ||
+                    paymentData?.invoiceUrl?.trim() ||
+                    '';
+                  const bankSlipDownloadUrl =
+                    paymentData?.bankSlipDownloadUrl?.trim() ||
+                    paymentData?.invoiceUrl?.trim() ||
+                    paymentData?.bankSlipUrl?.trim() ||
+                    bankSlipViewUrl;
+                  const isBankSlipPayment = paymentData?.method === 'BANK_SLIP';
                   const chargeDescription = String(charge.description || '').trim();
                   const isPaying = payingChargeId === charge.id;
                   const normalizedStatus = String(charge.status || '')
@@ -2207,6 +2248,17 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                           </button>
                         </div>
                       ) : null}
+                      {isBankSlipPayment && paymentData?.bankSlipDigitableLine ? (
+                        <div className="student-charge-inline-actions">
+                          <button
+                            type="button"
+                            className="student-charge-secondary-action"
+                            onClick={() => void handleCopyBankSlipLine(charge.id)}
+                          >
+                            Copiar linha digitável
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                     <div className="student-charge-actions">
                       <span className={isOverdue ? 'student-charge-status is-overdue' : 'student-charge-status'}>
@@ -2221,13 +2273,32 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                           {isPaying ? 'Gerando...' : 'Pagar'}
                         </button>
                       ) : null}
-                      {paymentData?.checkoutUrl ? (
+                      {!isBankSlipPayment && paymentData?.checkoutUrl ? (
                         <a
                           href={paymentData.checkoutUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
                           Abrir cobrança
+                        </a>
+                      ) : null}
+                      {isBankSlipPayment && bankSlipViewUrl ? (
+                        <a
+                          href={bankSlipViewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Ver PDF
+                        </a>
+                      ) : null}
+                      {isBankSlipPayment && bankSlipDownloadUrl ? (
+                        <a
+                          href={bankSlipDownloadUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download
+                        >
+                          Baixar boleto
                         </a>
                       ) : null}
                     </div>

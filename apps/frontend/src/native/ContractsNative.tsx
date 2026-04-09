@@ -641,7 +641,6 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
   const [formError, setFormError] = useState('');
   const [sendError, setSendError] = useState('');
   const [autoSendError, setAutoSendError] = useState('');
-  const [showEditorBlockedHint, setShowEditorBlockedHint] = useState(false);
 
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedInstanceDetails, setSelectedInstanceDetails] =
@@ -1559,32 +1558,13 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                     >
                       {templatePublishing ? 'Publicando...' : 'Publicar nova versão'}
                     </button>
-                    <div
-                      className="native-contract-editor-guard"
-                      onMouseEnter={() => {
-                        if (isSelectedTemplatePublished) setShowEditorBlockedHint(true);
-                      }}
-                      onMouseLeave={() => setShowEditorBlockedHint(false)}
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => openEditorPage(selectedTemplateId ?? undefined)}
                     >
-                      {showEditorBlockedHint && isSelectedTemplatePublished ? (
-                        <span className="native-contract-editor-tooltip">
-                          Contratos já publicados não podem ser editados.
-                        </span>
-                      ) : null}
-                      <button
-                        type="button"
-                        className={`ghost ${isSelectedTemplatePublished ? 'is-disabled' : ''}`}
-                        onClick={() => {
-                          if (isSelectedTemplatePublished) {
-                            setShowEditorBlockedHint(true);
-                            return;
-                          }
-                          openEditorPage(selectedTemplateId ?? undefined);
-                        }}
-                      >
-                        Abrir editor
-                      </button>
-                    </div>
+                      Abrir editor
+                    </button>
                   </div>
                 </header>
 
