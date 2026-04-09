@@ -1766,6 +1766,16 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         },
       );
 
+      const normalizedGatewayMessage = String(payment.message || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      const duplicatedTitleDetected =
+        normalizedGatewayMessage.includes('ja existe um titulo') &&
+        normalizedGatewayMessage.includes('identificacao');
+      const friendlyDuplicatedTitleMessage =
+        'Este boleto já foi emitido. Use os botões Ver PDF/Baixar.';
+
       setChargePaymentDataById((current) => ({
         ...current,
         [charge.id]: payment,
@@ -1788,18 +1798,32 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       } else {
         setChargePaymentInfoById((current) => ({
           ...current,
-          [charge.id]: payment.message || 'Cobrança preparada com sucesso.',
+          [charge.id]:
+            duplicatedTitleDetected
+              ? friendlyDuplicatedTitleMessage
+              : payment.message || 'Cobrança preparada com sucesso.',
         }));
       }
 
       void loadDashboard({ bypassCache: true });
     } catch (paymentError) {
+      const rawMessage =
+        paymentError instanceof Error
+          ? paymentError.message
+          : 'Não foi possível iniciar o pagamento.';
+      const normalizedGatewayMessage = String(rawMessage || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      const duplicatedTitleDetected =
+        normalizedGatewayMessage.includes('ja existe um titulo') &&
+        normalizedGatewayMessage.includes('identificacao');
       setChargePaymentErrorById((current) => ({
         ...current,
         [charge.id]:
-          paymentError instanceof Error
-            ? paymentError.message
-            : 'Não foi possível iniciar o pagamento.',
+          duplicatedTitleDetected
+            ? 'Este boleto já foi emitido. Use os botões Ver PDF/Baixar.'
+            : rawMessage,
       }));
     } finally {
       setPayingChargeId((current) => (current === charge.id ? null : current));

@@ -2398,6 +2398,25 @@ export class MisService {
       const normalizedMessage = message
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '');
+      const duplicatedTitle =
+        normalizedMessage.includes('ja existe um titulo') &&
+        normalizedMessage.includes('identificacao');
+      if (duplicatedTitle) {
+        this.logger.warn(
+          `[sicoob-boleto] duplicated title detected charge=${input.charge.id}; trying to recover existing boleto`,
+        );
+        const recovered = await this.tryGetSicoobExistingBoletoByChargeReference({
+          config: input.config,
+          accessToken,
+          numeroContratoCliente: String(numeroContratoCliente),
+          chargeReference: input.charge.id.slice(0, 20),
+        });
+        if (recovered) {
+          emitted = recovered;
+        } else {
+          throw error;
+        }
+      } else {
       const contractClientMismatch =
         normalizedMessage.includes('numero do contrato') &&
         normalizedMessage.includes('numero do cliente');
@@ -2427,6 +2446,7 @@ export class MisService {
           `[sicoob-boleto] retry without nossoNumero charge=${input.charge.id} cliente=${numeroContratoCliente} strategy=legacy-query`,
         );
         emitted = await emitBankSlip(inclusionUrlLegacy);
+      }
       }
     }
     const parsedNossoNumero =
@@ -2706,6 +2726,90 @@ export class MisService {
     url.searchParams.set('numeroCliente', numeroContratoCliente);
     url.searchParams.set('codigoModalidade', String(config.boletoModalidade));
     return url.toString();
+  }
+
+  private async tryGetSicoobExistingBoletoByChargeReference(input: {
+    config: ResolvedSicoobConfig;
+    accessToken: string;
+    numeroContratoCliente: string;
+    chargeReference: string;
+  }): Promise<Record<string, unknown> | null> {
+    const reference = String(input.chargeReference || '').trim();
+    if (!reference) return null;
+
+    const attempts: Array<Record<string, string>> = [
+      { seuNumero: reference },
+      { identificacaoBoletoEmpresa: reference },
+    ];
+
+    for (const params of attempts) {
+      const url = new URL(`${input.config.cobrancaBancariaBaseUrl}/boletos`);
+      url.searchParams.set('numeroContrato', input.numeroContratoCliente);
+      url.searchParams.set('modalidade', String(input.config.boletoModalidade));
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) url.searchParams.set(key, value);
+      });
+
+      try {
+        const payload = await this.sicoobJsonRequest<unknown>({
+          url: url.toString(),
+          method: 'GET',
+          config: input.config,
+          accessToken: input.accessToken,
+          scope: 'boletos_consulta',
+          appendClientIdHeader: true,
+        });
+
+        const candidate = this.findSicoobBoletoByChargeReference(payload, reference);
+        if (candidate) {
+          return candidate;
+        }
+      } catch {
+        // Tenta a próxima estratégia de consulta.
+      }
+    }
+
+    return null;
+  }
+
+  private findSicoobBoletoByChargeReference(
+    payload: unknown,
+    chargeReference: string,
+  ): Record<string, unknown> | null {
+    const normalizedReference = String(chargeReference || '').trim();
+    if (!normalizedReference) return null;
+
+    const queue: unknown[] = [payload];
+    const visited = new Set<unknown>();
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current || typeof current !== 'object') continue;
+      if (visited.has(current)) continue;
+      visited.add(current);
+
+      if (Array.isArray(current)) {
+        current.forEach((item) => queue.push(item));
+        continue;
+      }
+
+      const objectValue = current as Record<string, unknown>;
+      const seuNumero = this.extractFirstValueAsString(objectValue, ['seuNumero']);
+      const identificacao = this.extractFirstValueAsString(objectValue, [
+        'identificacaoBoletoEmpresa',
+      ]);
+      if (seuNumero === normalizedReference || identificacao === normalizedReference) {
+        return objectValue;
+      }
+
+      Object.values(objectValue).forEach((value) => {
+        if (value && typeof value === 'object') {
+          queue.push(value);
+        }
+      });
+    }
+
+    return this.extractObjectPayload(payload);
   }
 
   private normalizePem(value: string | null | undefined): string {
