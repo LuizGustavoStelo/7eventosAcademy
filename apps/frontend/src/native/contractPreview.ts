@@ -95,6 +95,33 @@ export function buildContractPreviewSrcDoc(rawHtml: string) {
 
   if (wrapper) {
     pages = collectPreviewPagesFromContainer(wrapper);
+    const siblingsBefore = Array.from(root.childNodes)
+      .slice(0, Array.from(root.childNodes).indexOf(wrapper))
+      .map((node) => {
+        if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+        if (node.nodeType === Node.ELEMENT_NODE) return (node as HTMLElement).outerHTML;
+        return '';
+      })
+      .join('');
+    const siblingsAfter = Array.from(root.childNodes)
+      .slice(Array.from(root.childNodes).indexOf(wrapper) + 1)
+      .map((node) => {
+        if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+        if (node.nodeType === Node.ELEMENT_NODE) return (node as HTMLElement).outerHTML;
+        return '';
+      })
+      .join('');
+
+    if (hasPreviewMeaningfulHtml(siblingsBefore)) {
+      const beforeContainer = doc.createElement('div');
+      beforeContainer.innerHTML = siblingsBefore;
+      pages = [...collectPreviewPagesFromContainer(beforeContainer), ...pages];
+    }
+    if (hasPreviewMeaningfulHtml(siblingsAfter)) {
+      const afterContainer = doc.createElement('div');
+      afterContainer.innerHTML = siblingsAfter;
+      pages = [...pages, ...collectPreviewPagesFromContainer(afterContainer)];
+    }
   } else {
     const firstElement = root.firstElementChild as HTMLElement | null;
     if (

@@ -109,6 +109,10 @@ const PIN_BLOCK_MINUTES = 15;
 const DEFAULT_SIGNATURE_TERMS_VERSION = 'v1';
 const DEFAULT_SIGNATURE_TERMS_TEXT =
   'Declaro que li e aceito os termos da assinatura eletrônica.';
+const CONTRACT_PAGE_BREAK_MARKER =
+  '<div data-contract-page-break="true" style="page-break-after: always;"></div>';
+const CONTRACT_PAGE_BREAK_REGEX =
+  /<div[^>]*(data-contract-page-break\s*=\s*["']true["'][^>]*|page-break-after\s*:\s*always[^>]*)><\/div>/gi;
 
 @Injectable()
 export class ContractsService {
@@ -683,11 +687,12 @@ export class ContractsService {
       institutionSignedByName: institutionSignature.signedByName,
       institutionSignaturePending,
       snapshotTemplateTitle: instance.snapshotTemplateTitle,
-      documentHtml:
+      documentHtml: this.normalizeKnownCorruptedTerms(
         instance.status === ContractInstanceStatus.SIGNED &&
-        instance.signedHtmlSnapshot
+          instance.signedHtmlSnapshot
           ? instance.signedHtmlSnapshot
           : instance.unsignedHtmlSnapshot,
+      ),
       student: {
         id: instance.student.id,
         name: instance.student.name,
@@ -1148,8 +1153,10 @@ export class ContractsService {
       signatureCode,
       signatureData: institutionSignatureData,
     });
-    const institutionSignedUnsignedHtmlSnapshot =
-      `${cleanedUnsignedHtml}\n${institutionSignatureBlock}`.trim();
+    const institutionSignedUnsignedHtmlSnapshot = this.appendBlockAsDocumentPage(
+      cleanedUnsignedHtml,
+      institutionSignatureBlock,
+    );
     const unsignedContentHash = this.sha256(institutionSignedUnsignedHtmlSnapshot);
     const tokenHours = Math.min(
       dto.expiresInHours ?? DEFAULT_SIGNING_TOKEN_HOURS,
@@ -1370,7 +1377,10 @@ export class ContractsService {
       signatureCode: instance.signatureCode,
       signatureData: institutionSignature.signatureData,
     });
-    const institutionSignedHtml = `${cleanedBaseHtml}\n${institutionSignatureBlock}`.trim();
+    const institutionSignedHtml = this.appendBlockAsDocumentPage(
+      cleanedBaseHtml,
+      institutionSignatureBlock,
+    );
     const institutionSignedContentHash = this.sha256(institutionSignedHtml);
     const institutionSignedPdfBuffer = isStudentAlreadySigned
       ? await this.renderContractPdfBuffer(institutionSignedHtml)
@@ -1553,18 +1563,13 @@ export class ContractsService {
       throw new NotFoundException('Contrato não encontrado.');
     }
 
-    const htmlContent =
+    const htmlContent = this.normalizeKnownCorruptedTerms(
       instance.status === ContractInstanceStatus.SIGNED && instance.signedHtmlSnapshot
         ? instance.signedHtmlSnapshot
-        : instance.unsignedHtmlSnapshot;
+        : instance.unsignedHtmlSnapshot,
+    );
 
-    const storedSignedPdfBase64 =
-      instance.status === ContractInstanceStatus.SIGNED
-        ? this.readSignedPdfBase64FromSnapshot(instance.snapshotStudentData)
-        : null;
-    const pdfBuffer = storedSignedPdfBase64
-      ? Buffer.from(storedSignedPdfBase64, 'base64')
-      : await this.renderContractPdfBuffer(htmlContent);
+    const pdfBuffer = await this.renderContractPdfBuffer(htmlContent);
 
     return {
       instanceId: instance.id,
@@ -1599,18 +1604,13 @@ export class ContractsService {
       throw new NotFoundException('Contrato não encontrado.');
     }
 
-    const htmlContent =
+    const htmlContent = this.normalizeKnownCorruptedTerms(
       instance.status === ContractInstanceStatus.SIGNED && instance.signedHtmlSnapshot
         ? instance.signedHtmlSnapshot
-        : instance.unsignedHtmlSnapshot;
+        : instance.unsignedHtmlSnapshot,
+    );
 
-    const storedSignedPdfBase64 =
-      instance.status === ContractInstanceStatus.SIGNED
-        ? this.readSignedPdfBase64FromSnapshot(instance.snapshotStudentData)
-        : null;
-    const pdfBuffer = storedSignedPdfBase64
-      ? Buffer.from(storedSignedPdfBase64, 'base64')
-      : await this.renderContractPdfBuffer(htmlContent);
+    const pdfBuffer = await this.renderContractPdfBuffer(htmlContent);
 
     return {
       instanceId: instance.id,
@@ -1715,11 +1715,12 @@ export class ContractsService {
       acceptedTermsVersion: refreshed.acceptedTermsVersion,
       template: refreshed.template,
       templateVersion: refreshed.templateVersion,
-      documentHtml:
+      documentHtml: this.normalizeKnownCorruptedTerms(
         refreshed.status === ContractInstanceStatus.SIGNED &&
-        refreshed.signedHtmlSnapshot
+          refreshed.signedHtmlSnapshot
           ? refreshed.signedHtmlSnapshot
           : refreshed.unsignedHtmlSnapshot,
+      ),
     };
   }
 
@@ -3042,7 +3043,7 @@ export class ContractsService {
         <div style="margin-top:12px;">
           <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;"><strong>Assinatura:</strong></p>
           <img
-            alt="Assinatura desenhada da institui??o"
+            alt="Assinatura desenhada da instituição"
             src="${this.escapeHtml(params.signatureData)}"
             style="display:block;max-width:360px;width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;background:#fff;"
           />
@@ -3060,7 +3061,7 @@ export class ContractsService {
           <strong>Data/hora:</strong> ${this.escapeHtml(signedAtLabel)}
         </p>
         <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
-          <strong>C?digo de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
+          <strong>Código de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
         </p>
         ${signatureImageSection}
       </section>
@@ -3091,7 +3092,7 @@ export class ContractsService {
 
     const signatureBlock = `
       <section style="margin-top:24px;padding:16px;border:1px solid #d1d5db;border-radius:8px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
-        <h4 style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:16px;line-height:1.3;">Assinatura eletr?nica</h4>
+        <h4 style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:16px;line-height:1.3;">Assinatura eletrônica</h4>
         <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
           <strong>Assinado por:</strong> ${this.escapeHtml(params.signerName)}
         </p>
@@ -3099,12 +3100,12 @@ export class ContractsService {
           <strong>Data/hora:</strong> ${this.escapeHtml(signedAtLabel)}
         </p>
         <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
-          <strong>C?digo de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
+          <strong>Código de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
         </p>
         <div style="margin-top:12px;">
           <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;"><strong>Assinatura:</strong></p>
           <img
-            alt="Assinatura desenhada do signat?rio"
+            alt="Assinatura desenhada do signatário"
             src="${this.escapeHtml(params.signatureData)}"
             style="display:block;max-width:360px;width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;background:#fff;"
           />
@@ -3112,7 +3113,136 @@ export class ContractsService {
       </section>
     `;
 
-    return `${cleanedUnsignedHtml}\n${signatureBlock}`.trim();
+    return this.appendBlockAsDocumentPage(cleanedUnsignedHtml, signatureBlock);
+  }
+
+  private appendBlockAsDocumentPage(baseHtml: string, blockHtml: string): string {
+    const base = String(baseHtml || '').trim();
+    const block = String(blockHtml || '').trim();
+    if (!block) return base;
+    if (!base) return block;
+
+    const wrapperRange = this.findDocumentWrapperRange(base);
+    if (!wrapperRange) {
+      return `${base}\n${CONTRACT_PAGE_BREAK_MARKER}\n${block}`.trim();
+    }
+
+    const inner = base.slice(wrapperRange.contentStart, wrapperRange.contentEnd);
+    const nextInner = inner.trim()
+      ? `${inner}\n${CONTRACT_PAGE_BREAK_MARKER}\n${block}`
+      : block;
+
+    return `${base.slice(0, wrapperRange.contentStart)}${nextInner}${base.slice(wrapperRange.contentEnd)}`.trim();
+  }
+
+  private hasMeaningfulContractHtml(fragment: string): boolean {
+    const normalized = String(fragment || '')
+      .replace(/<br\s*\/?>/gi, '')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, '')
+      .trim();
+    return Boolean(normalized);
+  }
+
+  private splitContractPages(fragment: string): string[] {
+    const pages = String(fragment || '')
+      .replace(CONTRACT_PAGE_BREAK_REGEX, '<!--CONTRACT_PAGE_BREAK-->')
+      .split('<!--CONTRACT_PAGE_BREAK-->');
+
+    while (pages.length > 1 && !this.hasMeaningfulContractHtml(pages[pages.length - 1])) {
+      pages.pop();
+    }
+    return pages;
+  }
+
+  private findDocumentWrapperRange(html: string): {
+    start: number;
+    contentStart: number;
+    contentEnd: number;
+    end: number;
+    style: string | null;
+  } | null {
+    const source = String(html || '');
+    if (!source) return null;
+
+    const startRegex =
+      /<div\b[^>]*data-contract-document-wrapper\s*=\s*["']true["'][^>]*>/i;
+    const startMatch = startRegex.exec(source);
+    if (!startMatch || startMatch.index == null) return null;
+
+    const start = startMatch.index;
+    const startTag = startMatch[0];
+    const contentStart = start + startTag.length;
+    const tagRegex = /<\/?div\b[^>]*>/gi;
+    tagRegex.lastIndex = contentStart;
+
+    let depth = 1;
+    let contentEnd = -1;
+    let end = -1;
+    let nextTag: RegExpExecArray | null;
+
+    while ((nextTag = tagRegex.exec(source)) !== null) {
+      const token = nextTag[0];
+      const isClosing = /^<\s*\//.test(token);
+      const isSelfClosing = /\/\s*>$/.test(token);
+
+      if (isClosing) depth -= 1;
+      else if (!isSelfClosing) depth += 1;
+
+      if (depth === 0) {
+        contentEnd = nextTag.index;
+        end = tagRegex.lastIndex;
+        break;
+      }
+    }
+
+    if (contentEnd < 0 || end < 0) return null;
+
+    const styleMatch = startTag.match(/\sstyle\s*=\s*("([^"]*)"|'([^']*)')/i);
+    const style = styleMatch ? (styleMatch[2] ?? styleMatch[3] ?? '').trim() : null;
+
+    return {
+      start,
+      contentStart,
+      contentEnd,
+      end,
+      style: style || null,
+    };
+  }
+
+  private expandEditorWrapperForPdf(html: string): string {
+    const source = String(html || '').trim();
+    if (!source) return source;
+
+    const wrapperRange = this.findDocumentWrapperRange(source);
+    if (!wrapperRange) return source;
+
+    const before = source.slice(0, wrapperRange.start).trim();
+    const inner = source.slice(wrapperRange.contentStart, wrapperRange.contentEnd);
+    const after = source.slice(wrapperRange.end).trim();
+
+    const pages: string[] = [];
+    const pushMeaningfulPages = (fragment: string, force = false) => {
+      const split = this.splitContractPages(fragment);
+      split.forEach((page) => {
+        if (force || this.hasMeaningfulContractHtml(page)) pages.push(page);
+      });
+    };
+
+    pushMeaningfulPages(before);
+    pushMeaningfulPages(inner, true);
+    pushMeaningfulPages(after);
+
+    if (!pages.length) return source;
+
+    const pageStyle =
+      wrapperRange.style ||
+      'max-width:794px;min-height:1123px;width:100%;margin:0 auto;box-sizing:border-box;background:#fff;';
+
+    return pages
+      .map((page) => `<div style="${pageStyle}">${page || '<p>&nbsp;</p>'}</div>`)
+      .join(CONTRACT_PAGE_BREAK_MARKER);
   }
 
   private removeLegacySignatureIdentificationBlock(html: string): string {
@@ -3200,6 +3330,14 @@ export class ContractsService {
     return raw;
   }
 
+  private normalizeKnownCorruptedTerms(value: string): string {
+    return String(value || '')
+      .replace(/C\?digo de assinatura/gi, 'Código de assinatura')
+      .replace(/Assinatura eletr\?nica/gi, 'Assinatura eletrônica')
+      .replace(/institui\?\?o/gi, 'instituição')
+      .replace(/signat\?rio/gi, 'signatário');
+  }
+
   private readSignedPdfBase64FromSnapshot(
     snapshot: Prisma.JsonValue | null | undefined,
   ): string | null {
@@ -3218,6 +3356,7 @@ export class ContractsService {
     if (!normalizedHtml) {
       throw new BadRequestException('Conteúdo do contrato vazio para gerar PDF.');
     }
+    const printableHtml = this.expandEditorWrapperForPdf(normalizedHtml);
 
     let browser:
       | {
@@ -3265,8 +3404,8 @@ export class ContractsService {
         ...(executablePath ? { executablePath } : {}),
       });
       const page = await browser.newPage({ locale: 'pt-BR' });
-      const htmlDocument = /<html[\s>]/i.test(normalizedHtml)
-        ? normalizedHtml
+      const htmlDocument = /<html[\s>]/i.test(printableHtml)
+        ? printableHtml
         : `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -3275,7 +3414,7 @@ export class ContractsService {
     html, body { margin: 0; padding: 0; }
   </style>
 </head>
-<body>${normalizedHtml}</body>
+<body>${printableHtml}</body>
 </html>`;
 
       await page.setContent(htmlDocument, { waitUntil: 'networkidle' });
