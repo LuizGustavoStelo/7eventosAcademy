@@ -2313,6 +2313,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       .toLowerCase()
                       .includes(duplicatedExistingTitleMessage.toLowerCase());
                   const hasAnyBankSlipLink = Boolean(bankSlipViewUrl || bankSlipDownloadUrl);
+                  const isSearchingExistingBankSlip =
+                    isPaying && isBankSlipPayment && hasDuplicatedTitleHint && !hasAnyBankSlipLink;
                   const normalizedStatus = String(charge.status || '')
                     .trim()
                     .toUpperCase();
@@ -2374,7 +2376,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       <span className={isOverdue ? 'student-charge-status is-overdue' : 'student-charge-status'}>
                         {normalizeChargeStatus(charge.status)}
                       </span>
-                      {canPay ? (
+                      {canPay && !isSearchingExistingBankSlip ? (
                         <button
                           type="button"
                           onClick={() => void handlePayCharge(charge)}

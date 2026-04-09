@@ -2785,6 +2785,11 @@ export class MisService {
   ): Record<string, unknown> | null {
     const normalizedReference = String(chargeReference || '').trim();
     if (!normalizedReference) return null;
+    const normalizedReferenceLoose = normalizedReference
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .toLowerCase();
 
     const queue: unknown[] = [payload];
     const visited = new Set<unknown>();
@@ -2805,7 +2810,32 @@ export class MisService {
       const identificacao = this.extractFirstValueAsString(objectValue, [
         'identificacaoBoletoEmpresa',
       ]);
-      if (seuNumero === normalizedReference || identificacao === normalizedReference) {
+      const seuNumeroLoose = String(seuNumero || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .toLowerCase();
+      const identificacaoLoose = String(identificacao || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .toLowerCase();
+
+      const strictMatch =
+        seuNumero === normalizedReference || identificacao === normalizedReference;
+      const looseMatch =
+        (normalizedReferenceLoose && seuNumeroLoose === normalizedReferenceLoose) ||
+        (normalizedReferenceLoose && identificacaoLoose === normalizedReferenceLoose) ||
+        (normalizedReferenceLoose &&
+          seuNumeroLoose.includes(normalizedReferenceLoose)) ||
+        (normalizedReferenceLoose &&
+          identificacaoLoose.includes(normalizedReferenceLoose)) ||
+        (normalizedReferenceLoose &&
+          normalizedReferenceLoose.includes(seuNumeroLoose)) ||
+        (normalizedReferenceLoose &&
+          normalizedReferenceLoose.includes(identificacaoLoose));
+
+      if (strictMatch || looseMatch) {
         return objectValue;
       }
 

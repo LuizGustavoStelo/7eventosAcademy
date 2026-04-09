@@ -1790,10 +1790,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                             type="button"
                             className="ghost"
                             onClick={() => void signInstitutionForSelectedTemplate()}
-                            disabled={
-                              signingInstitutionBatch ||
-                              pendingInstitutionInstancesForSelectedTemplate.length === 0
-                            }
+                            disabled={signingInstitutionBatch}
                           >
                             {signingInstitutionBatch
                               ? 'Assinando instituição...'
