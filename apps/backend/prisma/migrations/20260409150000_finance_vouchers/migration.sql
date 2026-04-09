@@ -1,4 +1,4 @@
-﻿CREATE TYPE "finance_voucher_discount_type" AS ENUM ('percent', 'fixed');
+CREATE TYPE "finance_voucher_discount_type" AS ENUM ('percent', 'fixed');
 CREATE TYPE "finance_voucher_applies_to" AS ENUM ('total', 'installment');
 
 CREATE TABLE "finance_vouchers" (
