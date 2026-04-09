@@ -1,11 +1,13 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { MultipartFile } from '@fastify/multipart';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { request as httpsRequest } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Prisma, UploadOwnerType, UserRole } from '@prisma/client';
@@ -102,6 +104,8 @@ const DEFAULT_SICOOB_SCOPES = [
   'boletos_consulta',
   'boletos_alteracao',
 ];
+const DEFAULT_SICOOB_WEBHOOK_URL =
+  'https://academy.7eventos.com/api/mis/v1/public/payments/webhook/sicoob';
 const DEFAULT_STUDENT_BRANDING_LOGO_URL = '/Logo-IPESK.png';
 const DEFAULT_STUDENT_BRANDING_PALETTE: InstitutionBrandingPalette = {
   primaryColor: '#139395',
@@ -130,6 +134,8 @@ const BRANDING_COLOR_FIELDS: Array<keyof InstitutionBrandingPalette> = [
 
 @Injectable()
 export class SuperadminAccountsService {
+  private readonly logger = new Logger(SuperadminAccountsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly secrets: SecretsService,
@@ -302,7 +308,9 @@ export class SuperadminAccountsService {
           tokenUrl: sicoob?.tokenUrl ?? DEFAULT_SICOOB_TOKEN_URL,
           baseUrls,
           sandboxBaseUrls,
-          webhookUrl: sicoob?.webhookUrl ?? '',
+          webhookUrl:
+            sicoob?.webhookUrl ??
+            this.resolveDefaultSicoobWebhookUrl(),
           numeroCliente: sicoob?.numeroCliente ?? '',
           pixKey: sicoob?.pixKey ?? '',
           boletoModalidade: sicoob?.boletoModalidade ?? null,
@@ -386,6 +394,13 @@ export class SuperadminAccountsService {
       },
     });
 
+    if (provider === 'sicoob' && isActive && nextSettings?.sicoob?.webhookUrl?.trim()) {
+      await this.registerSicoobWebhooksOrThrow(
+        nextSettings.sicoob,
+        environment,
+      );
+    }
+
     return {
       success: true,
       finance: {
@@ -395,6 +410,325 @@ export class SuperadminAccountsService {
         updatedAt: saved.updatedAt,
       },
     };
+  }
+
+  private async registerSicoobWebhooksOrThrow(
+    sicoob: SicoobSettings,
+    environment: string,
+  ): Promise<void> {
+    const webhookUrl = String(sicoob.webhookUrl || '').trim();
+    if (!webhookUrl) return;
+
+    try {
+      const parsed = new URL(webhookUrl);
+      if (!['https:', 'http:'].includes(parsed.protocol)) {
+        throw new Error('URL inválida');
+      }
+    } catch {
+      throw new BadRequestException(
+        'URL de webhook Sicoob inválida. Informe uma URL HTTP/HTTPS pública.',
+      );
+    }
+
+    const baseUrls =
+      environment === 'sandbox' ? sicoob.sandboxBaseUrls : sicoob.baseUrls;
+    const token = await this.requestSicoobAccessToken({
+      sicoob,
+      scope:
+        'webhooks_inclusao webhooks_consulta webhook.write webhook.read cob.read cobv.read',
+    });
+
+    const registeredBankingWebhook = await this.tryRegisterSicoobBankingWebhook({
+      sicoob,
+      token,
+      cobrancaBaseUrl: baseUrls.cobrancaBancaria,
+      webhookUrl,
+    });
+    if (!registeredBankingWebhook) {
+      throw new BadRequestException(
+        'Não foi possível cadastrar webhook de Cobrança Bancária no Sicoob. Verifique escopos, URL e contrato no portal.',
+      );
+    }
+
+    const pixKey = String(sicoob.pixKey || '').trim();
+    if (pixKey) {
+      const pixRegistered = await this.tryRegisterSicoobPixWebhook({
+        sicoob,
+        token,
+        pixBaseUrl: baseUrls.pixRecebimentos,
+        webhookUrl,
+        pixKey,
+      });
+      if (!pixRegistered) {
+        this.logger.warn(
+          '[sicoob-webhook] webhook de Pix não foi cadastrado automaticamente; mantenha webhook manual no portal.',
+        );
+      }
+    }
+  }
+
+  private async requestSicoobAccessToken(input: {
+    sicoob: SicoobSettings;
+    scope: string;
+  }): Promise<string> {
+    const body = new URLSearchParams();
+    body.set('grant_type', 'client_credentials');
+    body.set('client_id', input.sicoob.clientId);
+    if (input.scope.trim()) {
+      body.set('scope', input.scope.trim());
+    }
+
+    const response = await this.sicoobRawRequest({
+      sicoob: input.sicoob,
+      url: input.sicoob.tokenUrl,
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+      appendClientIdHeader: false,
+    });
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw new BadRequestException(
+        this.extractSicoobErrorMessage(
+          response.payload,
+          'Falha ao autenticar no Sicoob para cadastro de webhook.',
+        ),
+      );
+    }
+
+    const accessToken = this.extractFirstValueAsString(response.payload, [
+      'access_token',
+    ]);
+    if (!accessToken) {
+      throw new BadRequestException(
+        'Sicoob não retornou access_token para cadastro de webhook.',
+      );
+    }
+    return accessToken;
+  }
+
+  private async tryRegisterSicoobBankingWebhook(input: {
+    sicoob: SicoobSettings;
+    token: string;
+    cobrancaBaseUrl: string;
+    webhookUrl: string;
+  }): Promise<boolean> {
+    const endpointCandidates = [
+      `${input.cobrancaBaseUrl}/webhooks`,
+      `${input.cobrancaBaseUrl}/webhook`,
+    ];
+    const bodyCandidates: Array<Record<string, unknown>> = [
+      {
+        url: input.webhookUrl,
+        codigoTipoMovimento: 7,
+        codigoPeriodoMovimento: 1,
+      },
+      {
+        webhookUrl: input.webhookUrl,
+        codigoTipoMovimento: 7,
+        codigoPeriodoMovimento: 1,
+      },
+    ];
+
+    for (const endpoint of endpointCandidates) {
+      for (const body of bodyCandidates) {
+        try {
+          const response = await this.sicoobRawRequest({
+            sicoob: input.sicoob,
+            url: endpoint,
+            method: 'POST',
+            headers: {
+              accept: 'application/json',
+              authorization: `Bearer ${input.token}`,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify(body),
+            appendClientIdHeader: true,
+          });
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            return true;
+          }
+        } catch {
+          // tenta próximo formato/endpoint
+        }
+      }
+    }
+    return false;
+  }
+
+  private async tryRegisterSicoobPixWebhook(input: {
+    sicoob: SicoobSettings;
+    token: string;
+    pixBaseUrl: string;
+    webhookUrl: string;
+    pixKey: string;
+  }): Promise<boolean> {
+    const endpoint = `${input.pixBaseUrl}/webhook/${encodeURIComponent(input.pixKey)}`;
+    const bodyCandidates: Array<Record<string, unknown>> = [
+      { webhookUrl: input.webhookUrl },
+      { url: input.webhookUrl },
+    ];
+
+    for (const body of bodyCandidates) {
+      try {
+        const response = await this.sicoobRawRequest({
+          sicoob: input.sicoob,
+          url: endpoint,
+          method: 'PUT',
+          headers: {
+            accept: 'application/json',
+            authorization: `Bearer ${input.token}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(body),
+          appendClientIdHeader: true,
+        });
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return true;
+        }
+      } catch {
+        // tenta próximo formato
+      }
+    }
+    return false;
+  }
+
+  private async sicoobRawRequest(input: {
+    sicoob: SicoobSettings;
+    url: string;
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+    headers?: Record<string, string>;
+    body?: string;
+    appendClientIdHeader?: boolean;
+  }): Promise<{ statusCode: number; payload: unknown }> {
+    const parsedUrl = new URL(input.url);
+    const bodyBuffer = input.body ? Buffer.from(input.body, 'utf8') : null;
+    const headers: Record<string, string | number> = {
+      ...input.headers,
+    };
+    if (input.appendClientIdHeader ?? true) {
+      headers.client_id = input.sicoob.clientId;
+    }
+    if (bodyBuffer) {
+      headers['content-length'] = bodyBuffer.length;
+    }
+
+    const result = await new Promise<{
+      statusCode: number;
+      bodyText: string;
+    }>((resolve, reject) => {
+      const request = httpsRequest(
+        {
+          protocol: parsedUrl.protocol,
+          hostname: parsedUrl.hostname,
+          port: parsedUrl.port || undefined,
+          path: `${parsedUrl.pathname}${parsedUrl.search}`,
+          method: input.method,
+          headers,
+          cert: input.sicoob.certificatePem,
+          key: input.sicoob.privateKeyPem,
+          timeout: 30_000,
+        },
+        (response) => {
+          const chunks: Buffer[] = [];
+          response.on('data', (chunk) => {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          });
+          response.on('end', () => {
+            resolve({
+              statusCode: response.statusCode ?? 0,
+              bodyText: Buffer.concat(chunks).toString('utf8'),
+            });
+          });
+        },
+      );
+      request.on('timeout', () => {
+        request.destroy(new Error('Tempo limite excedido ao comunicar com Sicoob.'));
+      });
+      request.on('error', (error) => {
+        reject(
+          new BadRequestException(
+            error instanceof Error
+              ? error.message
+              : 'Falha de rede ao comunicar com Sicoob.',
+          ),
+        );
+      });
+      if (bodyBuffer) request.write(bodyBuffer);
+      request.end();
+    });
+
+    let payload: unknown = null;
+    try {
+      payload = result.bodyText ? JSON.parse(result.bodyText) : null;
+    } catch {
+      payload = result.bodyText || null;
+    }
+
+    return {
+      statusCode: result.statusCode,
+      payload,
+    };
+  }
+
+  private extractFirstValueAsString(payload: unknown, keys: string[]): string | null {
+    if (!payload || !keys.length) return null;
+    const normalizedKeys = keys.map((key) => key.toLowerCase());
+    const queue: unknown[] = [payload];
+    const visited = new Set<unknown>();
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current || typeof current !== 'object') continue;
+      if (visited.has(current)) continue;
+      visited.add(current);
+
+      if (Array.isArray(current)) {
+        current.forEach((item) => queue.push(item));
+        continue;
+      }
+
+      const objectValue = current as Record<string, unknown>;
+      for (const [field, value] of Object.entries(objectValue)) {
+        if (normalizedKeys.includes(field.toLowerCase())) {
+          const stringValue = this.normalizeUnknownToString(value);
+          if (stringValue) return stringValue;
+        }
+        if (value && typeof value === 'object') {
+          queue.push(value);
+        }
+      }
+    }
+    return null;
+  }
+
+  private normalizeUnknownToString(value: unknown): string | null {
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+      return normalized || null;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+    if (typeof value === 'boolean') {
+      return value ? 'true' : 'false';
+    }
+    return null;
+  }
+
+  private extractSicoobErrorMessage(payload: unknown, fallback: string): string {
+    const directMessage = this.extractFirstValueAsString(payload, [
+      'message',
+      'mensagem',
+      'error_description',
+      'erro',
+      'error',
+      'detail',
+    ]);
+    return directMessage || fallback;
   }
 
   async getAccountBrandingConfig(userId: string) {
@@ -793,7 +1127,7 @@ export class SuperadminAccountsService {
         webhookUrl:
           dto.sicoobWebhookUrl?.trim() ||
           currentSicoob?.webhookUrl?.trim() ||
-          '',
+          this.resolveDefaultSicoobWebhookUrl(),
         numeroCliente:
           dto.sicoobNumeroCliente?.trim() ||
           currentSicoob?.numeroCliente?.trim() ||
@@ -1044,6 +1378,24 @@ export class SuperadminAccountsService {
       .filter((value, index, arr) => arr.indexOf(value) === index);
 
     return normalized.length > 0 ? normalized : DEFAULT_SICOOB_SCOPES.slice();
+  }
+
+  private resolveDefaultSicoobWebhookUrl(): string {
+    const baseUrl =
+      String(process.env.APP_PUBLIC_URL || '').trim() ||
+      String(process.env.FRONTEND_PUBLIC_URL || '').trim() ||
+      String(process.env.PUBLIC_BASE_URL || '').trim() ||
+      'https://academy.7eventos.com';
+
+    try {
+      const parsed = new URL(baseUrl);
+      parsed.pathname = '/api/mis/v1/public/payments/webhook/sicoob';
+      parsed.search = '';
+      parsed.hash = '';
+      return parsed.toString();
+    } catch {
+      return DEFAULT_SICOOB_WEBHOOK_URL;
+    }
   }
 
   private decryptSettings(payload?: string | null): FinancialSettings {

@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'node:crypto';
 import { request as httpsRequest } from 'node:https';
 import { Prisma } from '@prisma/client';
@@ -208,12 +209,44 @@ const STUDENT_PALETTE_KEYS: Array<keyof StudentBrandingPalette> = [
 @Injectable()
 export class MisService {
   private readonly logger = new Logger(MisService.name);
+  private isReconcilingSicoobPix = false;
+  private isReconcilingSicoobBoleto = false;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly secrets: SecretsService,
     private readonly financeService: FinanceService,
   ) {}
+
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async reconcileSicoobPixPayments() {
+    if (this.isReconcilingSicoobPix) return;
+    this.isReconcilingSicoobPix = true;
+    try {
+      await this.reconcileSicoobPendingCharges('PIX');
+    } catch (error) {
+      this.logger.warn(
+        `[sicoob-reconcile] pix failed: ${String((error as Error)?.message || error)}`,
+      );
+    } finally {
+      this.isReconcilingSicoobPix = false;
+    }
+  }
+
+  @Cron('0 */8 * * *')
+  async reconcileSicoobBankSlipPayments() {
+    if (this.isReconcilingSicoobBoleto) return;
+    this.isReconcilingSicoobBoleto = true;
+    try {
+      await this.reconcileSicoobPendingCharges('BANK_SLIP');
+    } catch (error) {
+      this.logger.warn(
+        `[sicoob-reconcile] boleto failed: ${String((error as Error)?.message || error)}`,
+      );
+    } finally {
+      this.isReconcilingSicoobBoleto = false;
+    }
+  }
 
   async getAlunoMe(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -1341,6 +1374,142 @@ export class MisService {
       paidAt,
       externalReference,
     };
+  }
+
+  private async reconcileSicoobPendingCharges(
+    method: 'PIX' | 'BANK_SLIP',
+  ): Promise<void> {
+    const prefix = method === 'PIX' ? 'sicoob-pix:' : 'sicoob-boleto:';
+    const limit =
+      Number(process.env.SICOOB_RECONCILE_BATCH_SIZE || '') > 0
+        ? Number(process.env.SICOOB_RECONCILE_BATCH_SIZE)
+        : 400;
+
+    const charges = await this.prisma.monthlyCharge.findMany({
+      where: {
+        status: { in: ['PENDING', 'OVERDUE'] },
+        externalChargeId: { startsWith: prefix },
+      },
+      select: {
+        id: true,
+        status: true,
+        amount: true,
+        externalChargeId: true,
+        ownerAdminId: true,
+        enrollment: {
+          select: {
+            schoolClass: {
+              select: {
+                course: {
+                  select: {
+                    ownerAdminId: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
+      take: limit,
+    });
+
+    if (!charges.length) return;
+
+    const configCache = new Map<string, ResolvedSicoobConfig | null>();
+    let consulted = 0;
+    let statusUpdates = 0;
+
+    for (const charge of charges) {
+      const reference =
+        this.extractSicoobExternalId(charge.externalChargeId, prefix) || '';
+      if (!reference) continue;
+
+      const ownerAdminId =
+        charge.ownerAdminId || charge.enrollment.schoolClass.course.ownerAdminId;
+      if (!ownerAdminId) continue;
+
+      let resolvedConfig: ResolvedSicoobConfig | null;
+      if (configCache.has(ownerAdminId)) {
+        resolvedConfig = configCache.get(ownerAdminId) ?? null;
+      } else {
+        resolvedConfig = await this.resolveSicoobConfigForAccount(ownerAdminId);
+        configCache.set(ownerAdminId, resolvedConfig);
+      }
+      if (!resolvedConfig) continue;
+
+      try {
+        const providerPayload =
+          method === 'PIX'
+            ? await this.tryGetSicoobPixCharge({
+                config: resolvedConfig,
+                txid: reference,
+              })
+            : await this.tryGetSicoobBoletoCharge({
+                config: resolvedConfig,
+                nossoNumero: reference,
+              });
+        consulted += 1;
+        if (!providerPayload) continue;
+
+        const status = this.extractSicoobStatus(providerPayload);
+        const resolution = this.mapSicoobStatusToResolution(
+          status,
+          providerPayload,
+        );
+        if (!resolution) continue;
+
+        if (
+          resolution.chargeStatus === 'paid' ||
+          resolution.transactionStatus === 'success'
+        ) {
+          statusUpdates += 1;
+        }
+
+        await this.applyGatewayChargeResolution({
+          chargeId: charge.id,
+          currentChargeStatus: charge.status,
+          provider: 'sicoob',
+          externalReference: reference,
+          amount: Number(charge.amount),
+          chargeStatus: resolution.chargeStatus,
+          transactionStatus: resolution.transactionStatus,
+          paidAt: this.extractSicoobPaidAt(providerPayload, providerPayload),
+        });
+      } catch (error) {
+        this.logger.warn(
+          `[sicoob-reconcile] ${method.toLowerCase()} charge=${charge.id} ref=${reference} failed: ${String(
+            (error as Error)?.message || error,
+          )}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `[sicoob-reconcile] ${method.toLowerCase()} consulted=${consulted} paidSignals=${statusUpdates} scanned=${charges.length}`,
+    );
+  }
+
+  private async resolveSicoobConfigForAccount(
+    ownerAdminId: string,
+  ): Promise<ResolvedSicoobConfig | null> {
+    const gatewayConfig = await this.prisma.accountFinancialConfig.findUnique({
+      where: { userId: ownerAdminId },
+      select: {
+        provider: true,
+        environment: true,
+        isActive: true,
+        encryptedSettings: true,
+      },
+    });
+
+    if (!gatewayConfig?.isActive) return null;
+    if (this.normalizeFinancialProvider(gatewayConfig.provider) !== 'sicoob') {
+      return null;
+    }
+
+    const settings = this.decryptFinancialSettings(gatewayConfig.encryptedSettings);
+    return this.resolveSicoobConfig(settings, gatewayConfig.environment);
   }
 
   private async tryGetSicoobPixCharge(input: {
