@@ -580,7 +580,9 @@ function hasInstitutionSignaturePending(item: {
   institutionSignaturePending?: boolean;
 }): boolean {
   const normalized = item.status.trim().toUpperCase();
-  if (normalized !== 'SIGNED') return false;
+  if (normalized === 'ARCHIVED' || normalized === 'CANCELED' || normalized === 'EXPIRED') {
+    return false;
+  }
   if (item.institutionSignaturePending === true) return true;
   return !item.institutionSignedAt;
 }

@@ -631,6 +631,22 @@ export class ContractsService {
       throw new NotFoundException('Aluno não encontrado nesta instituição.');
     }
 
+    const institutionSigner = await this.prisma.user.findFirst({
+      where: {
+        id: actor.sub,
+        institutionId,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+    if (!institutionSigner) {
+      throw new NotFoundException(
+        'Usuário responsável pela assinatura institucional não encontrado.',
+      );
+    }
+
     let courseName = '';
     let className = '';
     let coursePaymentModel = '';
@@ -899,8 +915,8 @@ export class ContractsService {
         contract_issue_date: this.formatDatePtBr(now),
         contract_issue_date_long: this.formatDateLongPtBr(now),
         contract_issue_datetime: this.formatDateTimePtBr(now),
-        signed_by_name: '',
-        signed_at: '',
+        signed_by_name: institutionSigner.name,
+        signed_at: this.formatDateTimePtBr(now),
         signature_code: signatureCode,
         aluno_nome: student.name,
         aluno_email: student.email,
@@ -939,8 +955,8 @@ export class ContractsService {
         contrato_data_emissao: this.formatDatePtBr(now),
         contrato_data_emissao_extenso: this.formatDateLongPtBr(now),
         contrato_datahora_emissao: this.formatDateTimePtBr(now),
-        assinado_por_nome: '',
-        assinado_em: '',
+        assinado_por_nome: institutionSigner.name,
+        assinado_em: this.formatDateTimePtBr(now),
         codigo_assinatura: signatureCode,
         contratada_nome: this.resolveContractProviderName(),
         contratada_cnpj: this.resolveContractProviderDocument(),
@@ -948,7 +964,14 @@ export class ContractsService {
         contrato_foro: this.resolveContractForum(),
       },
     );
-    const unsignedContentHash = this.sha256(unsignedHtmlSnapshot);
+    const institutionSignatureBlock = this.buildInstitutionSignatureBlockHtml({
+      signerName: institutionSigner.name,
+      signedAt: now,
+      signatureCode,
+    });
+    const institutionSignedUnsignedHtmlSnapshot =
+      `${unsignedHtmlSnapshot}\n${institutionSignatureBlock}`.trim();
+    const unsignedContentHash = this.sha256(institutionSignedUnsignedHtmlSnapshot);
     const tokenHours = Math.min(
       dto.expiresInHours ?? DEFAULT_SIGNING_TOKEN_HOURS,
       MAX_SIGNING_TOKEN_HOURS,
@@ -994,12 +1017,12 @@ export class ContractsService {
             street: student.studentProfile?.street || null,
             streetNumber: student.studentProfile?.streetNumber || null,
             institutionSignature: {
-              signedAt: null,
-              signedByUserId: null,
-              signedByName: null,
+              signedAt: now.toISOString(),
+              signedByUserId: institutionSigner.id,
+              signedByName: institutionSigner.name,
             },
           } as Prisma.InputJsonValue,
-          unsignedHtmlSnapshot,
+          unsignedHtmlSnapshot: institutionSignedUnsignedHtmlSnapshot,
           unsignedContentHash,
           signatureCode,
           createdByUserId: actor.sub,
@@ -1029,6 +1052,8 @@ export class ContractsService {
           templateVersionId: templateVersion.id,
           studentId: student.id,
           expiresAt: expiresAt.toISOString(),
+          institutionSignedAt: now.toISOString(),
+          institutionSignedByName: institutionSigner.name,
         },
       });
 
@@ -1134,9 +1159,13 @@ export class ContractsService {
       throw new NotFoundException('Contrato não encontrado.');
     }
 
-    if (instance.status !== ContractInstanceStatus.SIGNED) {
+    if (
+      instance.status === ContractInstanceStatus.ARCHIVED ||
+      instance.status === ContractInstanceStatus.CANCELED ||
+      instance.status === ContractInstanceStatus.EXPIRED
+    ) {
       throw new BadRequestException(
-        'A assinatura institucional só pode ser registrada após assinatura do aluno.',
+        'A assinatura institucional não pode ser registrada para este status.',
       );
     }
 
@@ -1165,15 +1194,18 @@ export class ContractsService {
     }
 
     const now = new Date();
-    const baseHtml = instance.signedHtmlSnapshot || instance.unsignedHtmlSnapshot;
+    const isStudentAlreadySigned = instance.status === ContractInstanceStatus.SIGNED;
+    const baseHtml = isStudentAlreadySigned
+      ? instance.signedHtmlSnapshot || instance.unsignedHtmlSnapshot
+      : instance.unsignedHtmlSnapshot;
     const institutionSignatureBlock = this.buildInstitutionSignatureBlockHtml({
       signerName: signer.name,
       signedAt: now,
       signatureCode: instance.signatureCode,
     });
-    const signedHtmlSnapshot = `${baseHtml}\n${institutionSignatureBlock}`.trim();
-    const signedContentHash = this.sha256(signedHtmlSnapshot);
-    const signedPdfHash = this.sha256(`pdf:${signedHtmlSnapshot}`);
+    const institutionSignedHtml = `${baseHtml}\n${institutionSignatureBlock}`.trim();
+    const institutionSignedContentHash = this.sha256(institutionSignedHtml);
+    const institutionSignedPdfHash = this.sha256(`pdf:${institutionSignedHtml}`);
 
     const snapshotBase = this.snapshotToRecord(instance.snapshotStudentData);
     const snapshotStudentData = {
@@ -1190,9 +1222,16 @@ export class ContractsService {
         where: { id: instance.id },
         data: {
           snapshotStudentData,
-          signedHtmlSnapshot,
-          signedContentHash,
-          signedPdfHash,
+          ...(isStudentAlreadySigned
+            ? {
+                signedHtmlSnapshot: institutionSignedHtml,
+                signedContentHash: institutionSignedContentHash,
+                signedPdfHash: institutionSignedPdfHash,
+              }
+            : {
+                unsignedHtmlSnapshot: institutionSignedHtml,
+                unsignedContentHash: institutionSignedContentHash,
+              }),
         },
       });
 
@@ -1206,20 +1245,21 @@ export class ContractsService {
           signedAt: now.toISOString(),
           signedByName: signer.name,
           signatureCode: instance.signatureCode,
-          signedContentHash,
-          signedPdfHash,
+          signedContentHash: institutionSignedContentHash,
+          signedPdfHash: institutionSignedPdfHash,
+          appliedOnStatus: instance.status,
         },
       });
     });
 
     return {
       id: instance.id,
-      status: ContractInstanceStatus.SIGNED,
+      status: instance.status,
       institutionSignedAt: now.toISOString(),
       institutionSignedByName: signer.name,
       institutionSignaturePending: false,
-      signedContentHash,
-      signedPdfHash,
+      signedContentHash: institutionSignedContentHash,
+      signedPdfHash: institutionSignedPdfHash,
     };
   }
 
@@ -1623,6 +1663,7 @@ export class ContractsService {
         id: true,
         institutionId: true,
         status: true,
+        snapshotStudentData: true,
       },
     });
     if (!instance) {
@@ -1631,6 +1672,15 @@ export class ContractsService {
 
     if (instance.status === ContractInstanceStatus.SIGNED) {
       throw new BadRequestException('Este contrato já foi assinado.');
+    }
+
+    const institutionSignature = this.readInstitutionSignature(
+      instance.snapshotStudentData,
+    );
+    if (!institutionSignature.signedAt) {
+      throw new BadRequestException(
+        'A instituição precisa assinar o contrato antes da assinatura do aluno.',
+      );
     }
 
     const token = await this.prisma.contractSigningToken.findFirst({
@@ -1773,6 +1823,15 @@ export class ContractsService {
       },
       orderBy: [{ createdAt: 'desc' }],
     });
+    const institutionSignature = this.readInstitutionSignature(
+      instance.snapshotStudentData,
+    );
+    if (!institutionSignature.signedAt) {
+      throw new BadRequestException(
+        'A instituição precisa assinar o contrato antes da assinatura do aluno.',
+      );
+    }
+
     if (!token || !token.verifiedAt || token.expiresAt <= now) {
       throw new BadRequestException(
         'Validação por PIN obrigatória antes da assinatura.',
