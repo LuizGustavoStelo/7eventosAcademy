@@ -7,6 +7,7 @@ import { PublicStudentRegistrationDto } from '../students/dto/public-student-reg
 import { StudentsService } from '../students/students.service';
 import { CoursesService } from '../courses/courses.service';
 import { PayStudentChargeDto } from './dto/pay-student-charge.dto';
+import { ValidatePublicVoucherDto } from './dto/validate-public-voucher.dto';
 import { MisService } from './mis.service';
 
 /**
@@ -135,5 +136,15 @@ export class MisController {
     return courses.filter(
       (course) => String(course.status || '').toUpperCase() === 'ACTIVE',
     );
+  }
+
+  @Throttle({ 'public-mis': { limit: 25, ttl: 60_000 } })
+  @Public()
+  @Post('public/cursos/:courseId/voucher/validate')
+  async validatePublicVoucher(
+    @Param('courseId') courseId: string,
+    @Body() dto: ValidatePublicVoucherDto,
+  ) {
+    return this.misService.validatePublicVoucher(courseId, dto);
   }
 }

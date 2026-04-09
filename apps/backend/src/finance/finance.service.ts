@@ -9,10 +9,65 @@ import { ContractsService } from '../contracts/contracts.service';
 import { PrismaService } from '../database/prisma.service';
 import { CreateChargeDto } from './dto/create-charge.dto';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { CreateVoucherDto } from './dto/create-voucher.dto';
 import { UpdateChargeStatusDto } from './dto/update-charge-status.dto';
+import { UpdateVoucherStatusDto } from './dto/update-voucher-status.dto';
 
 type ChargeStatusInput = 'pending' | 'paid' | 'overdue' | 'canceled';
 type TransactionStatusInput = 'pending' | 'success' | 'failed' | 'refunded';
+type VoucherDiscountTypeInput = 'PERCENT' | 'FIXED';
+type VoucherAppliesToInput = 'TOTAL' | 'INSTALLMENT';
+type VoucherPaymentOptionTypeInput = 'CASH' | 'INSTALLMENTS';
+
+export type VoucherPaymentOptionShape = {
+  id: string;
+  title: string;
+  method: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD';
+  type: VoucherPaymentOptionTypeInput;
+  totalAmount: number;
+  installmentCount: number | null;
+  installmentAmount: number | null;
+  dueDay: number | null;
+  installmentStartDate: string | null;
+  note: string | null;
+  isPromotional: boolean;
+  promotionalSlots: number | null;
+  promotionalTotalAmount: number | null;
+  promotionalInstallmentAmount: number | null;
+  promotionalApplied?: boolean;
+  active: boolean;
+  discountEnabled: boolean;
+  discountTotalAmount: number | null;
+  discountInstallmentAmount: number | null;
+  discountType: 'FIXED' | 'PERCENT' | null;
+  discountValue: number | null;
+  discountDeadlineDay: number | null;
+  discountRequiresActiveCrf: boolean;
+  discountAppliesTo: 'INSTALLMENT' | 'TOTAL' | null;
+  promotionalDiscountEnabled: boolean;
+  promotionalDiscountTotalAmount: number | null;
+  promotionalDiscountInstallmentAmount: number | null;
+  promotionalDiscountDeadlineDay: number | null;
+  promotionalDiscountRequiresActiveCrf: boolean;
+  appliedVoucher?: AppliedVoucherSnapshot | null;
+};
+
+type VoucherCourseOption = {
+  id: string;
+  title: string;
+  method: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD';
+  type: VoucherPaymentOptionTypeInput;
+};
+
+type AppliedVoucherSnapshot = {
+  id: string;
+  code: string;
+  title: string | null;
+  discountType: VoucherDiscountTypeInput;
+  discountValue: number;
+  appliesTo: VoucherAppliesToInput;
+  discountLabel: string;
+};
 
 @Injectable()
 export class FinanceService {
@@ -563,6 +618,387 @@ export class FinanceService {
     };
   }
 
+  async listVoucherCourses(user: JwtPayload) {
+    const courses = await this.prisma.course.findMany({
+      where: {
+        status: 'ACTIVE',
+        ...this.buildCourseWhere(user),
+      },
+      select: {
+        id: true,
+        name: true,
+        paymentModel: true,
+        paymentOptions: true,
+        price: true,
+        installmentMonths: true,
+        installmentValue: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return courses
+      .map((course) => {
+        const paymentOptions = this.extractVoucherCoursePaymentOptions(course);
+        return {
+          id: course.id,
+          name: course.name,
+          paymentOptions,
+        };
+      })
+      .filter((course) => course.paymentOptions.length > 0);
+  }
+
+  async listVouchers(user: JwtPayload) {
+    const vouchers = await this.prisma.financeVoucher.findMany({
+      where: this.buildVoucherWhere(user),
+      include: {
+        course: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ active: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    return vouchers.map((voucher) => ({
+      id: voucher.id,
+      courseId: voucher.courseId,
+      courseName: voucher.course.name,
+      code: voucher.code,
+      title: voucher.title,
+      discountType: voucher.discountType,
+      discountValue: Number(voucher.discountValue),
+      appliesTo: voucher.appliesTo,
+      discountLabel: this.formatVoucherDiscountLabel(
+        voucher.discountType,
+        Number(voucher.discountValue),
+      ),
+      allowedPaymentOptionIds: this.parseAllowedPaymentOptionIds(
+        voucher.allowedPaymentOptionIds,
+      ),
+      active: voucher.active,
+      createdAt: voucher.createdAt,
+      updatedAt: voucher.updatedAt,
+    }));
+  }
+
+  async createVoucher(dto: CreateVoucherDto, user: JwtPayload) {
+    const course = await this.prisma.course.findFirst({
+      where: {
+        id: dto.courseId,
+        status: 'ACTIVE',
+        ...this.buildCourseWhere(user),
+      },
+      select: {
+        id: true,
+        institutionId: true,
+        paymentModel: true,
+        paymentOptions: true,
+        price: true,
+        installmentMonths: true,
+        installmentValue: true,
+      },
+    });
+
+    if (!course) {
+      throw new NotFoundException('Curso não encontrado para criar voucher.');
+    }
+
+    const normalizedAllowedOptionIds = this.normalizePaymentOptionIdList(
+      dto.allowedPaymentOptionIds,
+    );
+    if (normalizedAllowedOptionIds.length === 0) {
+      throw new BadRequestException(
+        'Selecione pelo menos uma opção de pagamento para o voucher.',
+      );
+    }
+
+    const coursePaymentOptions = this.extractVoucherCoursePaymentOptions(course);
+    if (coursePaymentOptions.length === 0) {
+      throw new BadRequestException(
+        'Este curso não possui opções de pagamento ativas para vincular voucher.',
+      );
+    }
+
+    const availableOptionIds = new Set(coursePaymentOptions.map((item) => item.id));
+    const invalidOptionId = normalizedAllowedOptionIds.find(
+      (item) => !availableOptionIds.has(item),
+    );
+    if (invalidOptionId) {
+      throw new BadRequestException(
+        'Uma ou mais opções de pagamento selecionadas não são válidas para este curso.',
+      );
+    }
+
+    const discountType = this.normalizeVoucherDiscountType(dto.discountType);
+    const appliesTo = this.normalizeVoucherAppliesTo(dto.appliesTo);
+    const discountValue = this.toMoneyValue(dto.discountValue);
+    if (discountValue <= 0) {
+      throw new BadRequestException(
+        'Informe um valor de desconto maior que zero para o voucher.',
+      );
+    }
+    if (discountType === 'PERCENT' && discountValue > 100) {
+      throw new BadRequestException(
+        'Desconto em percentual deve estar entre 0,01% e 100%.',
+      );
+    }
+
+    if (appliesTo === 'INSTALLMENT') {
+      const hasInstallmentOption = normalizedAllowedOptionIds.some((optionId) => {
+        const option = coursePaymentOptions.find((item) => item.id === optionId);
+        return option?.type === 'INSTALLMENTS';
+      });
+      if (!hasInstallmentOption) {
+        throw new BadRequestException(
+          'Para desconto em mensalidade, selecione ao menos uma opção parcelada.',
+        );
+      }
+    }
+
+    const requestedCode = String(dto.code || '').trim();
+    const normalizedCode = requestedCode
+      ? this.normalizeVoucherCode(requestedCode)
+      : await this.generateVoucherCode(course.institutionId);
+
+    const createdVoucher = await this.prisma.financeVoucher.create({
+      data: {
+        institutionId: course.institutionId,
+        ownerAdminId: this.resolveVoucherOwnerAdminId(user),
+        courseId: course.id,
+        code: normalizedCode,
+        title: String(dto.title || '').trim() || null,
+        discountType,
+        discountValue,
+        appliesTo,
+        allowedPaymentOptionIds: normalizedAllowedOptionIds as Prisma.InputJsonValue,
+        active: dto.active !== false,
+      },
+      include: {
+        course: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return {
+      id: createdVoucher.id,
+      courseId: createdVoucher.courseId,
+      courseName: createdVoucher.course.name,
+      code: createdVoucher.code,
+      title: createdVoucher.title,
+      discountType: createdVoucher.discountType,
+      discountValue: Number(createdVoucher.discountValue),
+      appliesTo: createdVoucher.appliesTo,
+      discountLabel: this.formatVoucherDiscountLabel(
+        createdVoucher.discountType,
+        Number(createdVoucher.discountValue),
+      ),
+      allowedPaymentOptionIds: this.parseAllowedPaymentOptionIds(
+        createdVoucher.allowedPaymentOptionIds,
+      ),
+      active: createdVoucher.active,
+      createdAt: createdVoucher.createdAt,
+      updatedAt: createdVoucher.updatedAt,
+    };
+  }
+
+  async updateVoucherStatus(
+    voucherId: string,
+    dto: UpdateVoucherStatusDto,
+    user: JwtPayload,
+  ) {
+    const voucher = await this.prisma.financeVoucher.findFirst({
+      where: {
+        id: voucherId,
+        ...this.buildVoucherWhere(user),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!voucher) {
+      throw new NotFoundException('Voucher não encontrado.');
+    }
+
+    const updatedVoucher = await this.prisma.financeVoucher.update({
+      where: { id: voucherId },
+      data: {
+        active: dto.active,
+      },
+      include: {
+        course: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return {
+      id: updatedVoucher.id,
+      courseId: updatedVoucher.courseId,
+      courseName: updatedVoucher.course.name,
+      code: updatedVoucher.code,
+      title: updatedVoucher.title,
+      discountType: updatedVoucher.discountType,
+      discountValue: Number(updatedVoucher.discountValue),
+      appliesTo: updatedVoucher.appliesTo,
+      discountLabel: this.formatVoucherDiscountLabel(
+        updatedVoucher.discountType,
+        Number(updatedVoucher.discountValue),
+      ),
+      allowedPaymentOptionIds: this.parseAllowedPaymentOptionIds(
+        updatedVoucher.allowedPaymentOptionIds,
+      ),
+      active: updatedVoucher.active,
+      createdAt: updatedVoucher.createdAt,
+      updatedAt: updatedVoucher.updatedAt,
+    };
+  }
+
+  async validatePublicVoucherForCourse(courseId: string, code: string) {
+    const normalizedCode = this.normalizeVoucherCode(code);
+    const course = await this.prisma.course.findFirst({
+      where: {
+        id: courseId,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+        institutionId: true,
+        paymentModel: true,
+        paymentOptions: true,
+        price: true,
+        installmentMonths: true,
+        installmentValue: true,
+      },
+    });
+
+    if (!course) {
+      throw new NotFoundException('Curso não encontrado para validar voucher.');
+    }
+
+    const voucher = await this.prisma.financeVoucher.findFirst({
+      where: {
+        institutionId: course.institutionId,
+        courseId: course.id,
+        active: true,
+        code: normalizedCode,
+      },
+      select: {
+        id: true,
+        code: true,
+        title: true,
+        discountType: true,
+        discountValue: true,
+        appliesTo: true,
+        allowedPaymentOptionIds: true,
+      },
+    });
+
+    if (!voucher) {
+      throw new BadRequestException('Voucher de desconto inválido para este curso.');
+    }
+
+    const paymentOptions = this.extractVoucherCoursePaymentOptions(course);
+    const affectedPaymentOptionIds = paymentOptions
+      .filter((option) =>
+        this.isVoucherApplicableToOption({
+          allowedPaymentOptionIds: voucher.allowedPaymentOptionIds,
+          appliesTo: voucher.appliesTo,
+          optionId: option.id,
+          optionType: option.type,
+        }),
+      )
+      .map((option) => option.id);
+
+    if (affectedPaymentOptionIds.length === 0) {
+      throw new BadRequestException(
+        'Voucher válido, mas não é aplicável às formas de pagamento deste curso.',
+      );
+    }
+
+    return {
+      id: voucher.id,
+      code: voucher.code,
+      title: voucher.title,
+      discountType: voucher.discountType,
+      discountValue: Number(voucher.discountValue),
+      appliesTo: voucher.appliesTo,
+      discountLabel: this.formatVoucherDiscountLabel(
+        voucher.discountType,
+        Number(voucher.discountValue),
+      ),
+      allowedPaymentOptionIds: this.parseAllowedPaymentOptionIds(
+        voucher.allowedPaymentOptionIds,
+      ),
+      affectedPaymentOptionIds,
+    };
+  }
+
+  async applyVoucherOnPaymentOption(input: {
+    tx?: Prisma.TransactionClient;
+    institutionId: string;
+    courseId: string;
+    voucherCode: string;
+    paymentOption: VoucherPaymentOptionShape;
+  }): Promise<VoucherPaymentOptionShape> {
+    const normalizedCode = this.normalizeVoucherCode(input.voucherCode);
+    const voucher = await this.findActiveVoucherForCourse({
+      tx: input.tx,
+      institutionId: input.institutionId,
+      courseId: input.courseId,
+      code: normalizedCode,
+    });
+
+    if (!voucher) {
+      throw new BadRequestException('Voucher de desconto inválido para este curso.');
+    }
+
+    if (
+      !this.isVoucherApplicableToOption({
+        allowedPaymentOptionIds: voucher.allowedPaymentOptionIds,
+        appliesTo: voucher.appliesTo,
+        optionId: input.paymentOption.id,
+        optionType: input.paymentOption.type,
+      })
+    ) {
+      throw new BadRequestException(
+        'Voucher não é válido para a forma de pagamento selecionada.',
+      );
+    }
+
+    const adjusted = this.applyVoucherValuesToPaymentOption(input.paymentOption, {
+      discountType: voucher.discountType,
+      discountValue: Number(voucher.discountValue),
+      appliesTo: voucher.appliesTo,
+    });
+
+    return {
+      ...adjusted,
+      appliedVoucher: {
+        id: voucher.id,
+        code: voucher.code,
+        title: voucher.title,
+        discountType: voucher.discountType,
+        discountValue: Number(voucher.discountValue),
+        appliesTo: voucher.appliesTo,
+        discountLabel: this.formatVoucherDiscountLabel(
+          voucher.discountType,
+          Number(voucher.discountValue),
+        ),
+      },
+    };
+  }
+
   private async tryReleaseAutomaticContractsAfterEnrollmentFeePayment(
     chargeId: string,
   ) {
@@ -922,6 +1358,397 @@ export class FinanceService {
       return `Mensalidade 1/${selectedOption?.installmentCount}`;
     }
     return 'Cobrança';
+  }
+
+  private buildCourseWhere(user: JwtPayload): Prisma.CourseWhereInput {
+    if (user.activeInstitutionId) {
+      return {
+        institutionId: user.activeInstitutionId,
+      };
+    }
+
+    if (user.role === 'superadmin') {
+      return {};
+    }
+
+    return {
+      ownerAdminId: user.sub,
+    };
+  }
+
+  private buildVoucherWhere(user: JwtPayload): Prisma.FinanceVoucherWhereInput {
+    if (user.activeInstitutionId) {
+      return {
+        institutionId: user.activeInstitutionId,
+      };
+    }
+
+    if (user.role === 'superadmin') {
+      return {};
+    }
+
+    return {
+      OR: [{ ownerAdminId: user.sub }, { course: { ownerAdminId: user.sub } }],
+    };
+  }
+
+  private resolveVoucherOwnerAdminId(user: JwtPayload): string | null {
+    if (user.role === 'admin') {
+      return user.sub;
+    }
+
+    return null;
+  }
+
+  private normalizeVoucherCode(code: string): string {
+    const normalized = String(code || '')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '')
+      .replace(/[^A-Z0-9_-]/g, '');
+
+    if (!normalized) {
+      throw new BadRequestException('Informe um código de voucher válido.');
+    }
+
+    if (normalized.length > 40) {
+      throw new BadRequestException(
+        'Código do voucher deve ter no máximo 40 caracteres.',
+      );
+    }
+
+    return normalized;
+  }
+
+  private async generateVoucherCode(institutionId: string) {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      let generated = '';
+      for (let index = 0; index < 8; index += 1) {
+        generated += alphabet[Math.floor(Math.random() * alphabet.length)] ?? 'A';
+      }
+
+      const existing = await this.prisma.financeVoucher.findFirst({
+        where: {
+          institutionId,
+          code: generated,
+        },
+        select: { id: true },
+      });
+      if (!existing) {
+        return generated;
+      }
+    }
+
+    throw new BadRequestException(
+      'Não foi possível gerar um código único de voucher. Tente novamente.',
+    );
+  }
+
+  private normalizeVoucherDiscountType(
+    value: string,
+  ): VoucherDiscountTypeInput {
+    return String(value || '').trim().toUpperCase() === 'PERCENT'
+      ? 'PERCENT'
+      : 'FIXED';
+  }
+
+  private normalizeVoucherAppliesTo(value: string): VoucherAppliesToInput {
+    return String(value || '').trim().toUpperCase() === 'INSTALLMENT'
+      ? 'INSTALLMENT'
+      : 'TOTAL';
+  }
+
+  private normalizePaymentOptionIdList(ids: string[]) {
+    return Array.from(
+      new Set(
+        (Array.isArray(ids) ? ids : [])
+          .map((item) => String(item || '').trim())
+          .filter(Boolean),
+      ),
+    );
+  }
+
+  private parseAllowedPaymentOptionIds(raw: Prisma.JsonValue | null | undefined) {
+    if (!Array.isArray(raw)) return [] as string[];
+    return this.normalizePaymentOptionIdList(
+      raw.map((item) => String(item || '').trim()),
+    );
+  }
+
+  private isVoucherApplicableToOption(input: {
+    allowedPaymentOptionIds: Prisma.JsonValue | null | undefined;
+    appliesTo: VoucherAppliesToInput;
+    optionId: string;
+    optionType: VoucherPaymentOptionTypeInput;
+  }) {
+    const allowedIds = this.parseAllowedPaymentOptionIds(
+      input.allowedPaymentOptionIds,
+    );
+    if (allowedIds.length > 0 && !allowedIds.includes(input.optionId)) {
+      return false;
+    }
+
+    if (input.appliesTo === 'INSTALLMENT' && input.optionType !== 'INSTALLMENTS') {
+      return false;
+    }
+
+    return true;
+  }
+
+  private extractVoucherCoursePaymentOptions(course: {
+    paymentOptions: Prisma.JsonValue | null;
+    paymentModel: string;
+    price: Prisma.Decimal | number | null;
+    installmentMonths: number | null;
+    installmentValue: Prisma.Decimal | number | null;
+  }) {
+    const fromJson = this.parseVoucherCoursePaymentOptions(course.paymentOptions);
+    if (fromJson.length > 0) {
+      return fromJson;
+    }
+
+    const paymentModel = String(course.paymentModel || '')
+      .trim()
+      .toUpperCase();
+    if (paymentModel === 'INSTALLMENTS') {
+      const months = Math.max(1, Number(course.installmentMonths ?? 1));
+      return [
+        {
+          id: 'legacy-installments',
+          title: `${months}x (Boleto)`,
+          method: 'BANK_SLIP' as const,
+          type: 'INSTALLMENTS' as const,
+        },
+      ];
+    }
+
+    return [
+      {
+        id: 'legacy-cash',
+        title: 'À vista (Pix)',
+        method: 'PIX' as const,
+        type: 'CASH' as const,
+      },
+    ];
+  }
+
+  private parseVoucherCoursePaymentOptions(raw: Prisma.JsonValue | null | undefined) {
+    if (!Array.isArray(raw)) return [] as VoucherCourseOption[];
+
+    return raw
+      .map((item, index) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          return null;
+        }
+        const option = item as Record<string, unknown>;
+        if (option.active === false) {
+          return null;
+        }
+        const type =
+          String(option.type || '').trim().toUpperCase() === 'INSTALLMENTS'
+            ? 'INSTALLMENTS'
+            : 'CASH';
+        const methodRaw = String(option.method || '').trim().toUpperCase();
+        const method =
+          methodRaw === 'BANK_SLIP'
+            ? 'BANK_SLIP'
+            : methodRaw === 'CREDIT_CARD'
+              ? 'CREDIT_CARD'
+              : 'PIX';
+        const id = String(option.id || '').trim() || `payment-option-${index + 1}`;
+        const title =
+          String(option.title || '').trim() ||
+          (type === 'INSTALLMENTS' ? 'Parcelado' : 'À vista');
+        return {
+          id,
+          title,
+          method,
+          type,
+        } as VoucherCourseOption;
+      })
+      .filter((item): item is VoucherCourseOption => item !== null);
+  }
+
+  private formatVoucherDiscountLabel(
+    discountType: VoucherDiscountTypeInput,
+    discountValue: number,
+  ) {
+    if (discountType === 'PERCENT') {
+      return `${this.toMoneyValue(discountValue).toFixed(2).replace(/\.00$/, '')}% de desconto`;
+    }
+    return `${this.formatCurrencyPtBr(this.toMoneyValue(discountValue))} de desconto`;
+  }
+
+  private applyVoucherValuesToPaymentOption(
+    paymentOption: VoucherPaymentOptionShape,
+    voucher: {
+      discountType: VoucherDiscountTypeInput;
+      discountValue: number;
+      appliesTo: VoucherAppliesToInput;
+    },
+  ): VoucherPaymentOptionShape {
+    const next = {
+      ...paymentOption,
+      appliedVoucher: paymentOption.appliedVoucher ?? null,
+    };
+    const safeDiscount = this.toMoneyValue(voucher.discountValue);
+    const percentRate = voucher.discountType === 'PERCENT' ? safeDiscount / 100 : 0;
+
+    const applyDiscount = (baseValue: number) => {
+      const safeBase = this.toMoneyValue(baseValue);
+      if (safeBase <= 0) return 0;
+      const discount =
+        voucher.discountType === 'PERCENT'
+          ? safeBase * percentRate
+          : safeDiscount;
+      return this.toMoneyValue(Math.max(0, safeBase - discount));
+    };
+
+    const installmentCount = Math.max(1, Number(next.installmentCount ?? 1));
+    const currentTotal = this.toMoneyValue(next.totalAmount);
+    const currentInstallment = this.toMoneyValue(
+      next.installmentAmount ?? currentTotal / installmentCount,
+    );
+
+    if (voucher.appliesTo === 'INSTALLMENT' && next.type === 'INSTALLMENTS') {
+      const adjustedInstallment = applyDiscount(currentInstallment);
+      next.installmentAmount = adjustedInstallment;
+      next.totalAmount = this.toMoneyValue(adjustedInstallment * installmentCount);
+
+      if ((next.discountInstallmentAmount ?? 0) > 0) {
+        const discountInstallment = applyDiscount(
+          Number(next.discountInstallmentAmount ?? 0),
+        );
+        next.discountInstallmentAmount = discountInstallment;
+        next.discountTotalAmount = this.toMoneyValue(
+          discountInstallment * installmentCount,
+        );
+      } else if ((next.discountTotalAmount ?? 0) > 0) {
+        const adjustedDiscountTotal = applyDiscount(
+          Number(next.discountTotalAmount ?? 0),
+        );
+        next.discountTotalAmount = adjustedDiscountTotal;
+        next.discountInstallmentAmount = this.toMoneyValue(
+          adjustedDiscountTotal / installmentCount,
+        );
+      }
+
+      if ((next.promotionalInstallmentAmount ?? 0) > 0) {
+        const adjustedPromotionalInstallment = applyDiscount(
+          Number(next.promotionalInstallmentAmount ?? 0),
+        );
+        next.promotionalInstallmentAmount = adjustedPromotionalInstallment;
+        next.promotionalTotalAmount = this.toMoneyValue(
+          adjustedPromotionalInstallment * installmentCount,
+        );
+      } else if ((next.promotionalTotalAmount ?? 0) > 0) {
+        const adjustedPromotionalTotal = applyDiscount(
+          Number(next.promotionalTotalAmount ?? 0),
+        );
+        next.promotionalTotalAmount = adjustedPromotionalTotal;
+        next.promotionalInstallmentAmount = this.toMoneyValue(
+          adjustedPromotionalTotal / installmentCount,
+        );
+      }
+
+      if ((next.promotionalDiscountInstallmentAmount ?? 0) > 0) {
+        const adjustedPromotionalDiscountInstallment = applyDiscount(
+          Number(next.promotionalDiscountInstallmentAmount ?? 0),
+        );
+        next.promotionalDiscountInstallmentAmount =
+          adjustedPromotionalDiscountInstallment;
+        next.promotionalDiscountTotalAmount = this.toMoneyValue(
+          adjustedPromotionalDiscountInstallment * installmentCount,
+        );
+      } else if ((next.promotionalDiscountTotalAmount ?? 0) > 0) {
+        const adjustedPromotionalDiscountTotal = applyDiscount(
+          Number(next.promotionalDiscountTotalAmount ?? 0),
+        );
+        next.promotionalDiscountTotalAmount = adjustedPromotionalDiscountTotal;
+        next.promotionalDiscountInstallmentAmount = this.toMoneyValue(
+          adjustedPromotionalDiscountTotal / installmentCount,
+        );
+      }
+    } else {
+      next.totalAmount = applyDiscount(currentTotal);
+      if (next.type === 'INSTALLMENTS') {
+        next.installmentAmount = this.toMoneyValue(next.totalAmount / installmentCount);
+      }
+
+      if ((next.discountTotalAmount ?? 0) > 0) {
+        next.discountTotalAmount = applyDiscount(Number(next.discountTotalAmount ?? 0));
+      }
+      if (next.type === 'INSTALLMENTS') {
+        next.discountInstallmentAmount =
+          (next.discountTotalAmount ?? 0) > 0
+            ? this.toMoneyValue(Number(next.discountTotalAmount ?? 0) / installmentCount)
+            : null;
+      }
+
+      if ((next.promotionalTotalAmount ?? 0) > 0) {
+        next.promotionalTotalAmount = applyDiscount(
+          Number(next.promotionalTotalAmount ?? 0),
+        );
+      }
+      if (next.type === 'INSTALLMENTS') {
+        next.promotionalInstallmentAmount =
+          (next.promotionalTotalAmount ?? 0) > 0
+            ? this.toMoneyValue(
+                Number(next.promotionalTotalAmount ?? 0) / installmentCount,
+              )
+            : null;
+      }
+
+      if ((next.promotionalDiscountTotalAmount ?? 0) > 0) {
+        next.promotionalDiscountTotalAmount = applyDiscount(
+          Number(next.promotionalDiscountTotalAmount ?? 0),
+        );
+      }
+      if (next.type === 'INSTALLMENTS') {
+        next.promotionalDiscountInstallmentAmount =
+          (next.promotionalDiscountTotalAmount ?? 0) > 0
+            ? this.toMoneyValue(
+                Number(next.promotionalDiscountTotalAmount ?? 0) / installmentCount,
+              )
+            : null;
+      }
+    }
+
+    return next;
+  }
+
+  private async findActiveVoucherForCourse(input: {
+    tx?: Prisma.TransactionClient;
+    institutionId: string;
+    courseId: string;
+    code: string;
+  }) {
+    const db = input.tx ?? this.prisma;
+    return db.financeVoucher.findFirst({
+      where: {
+        institutionId: input.institutionId,
+        courseId: input.courseId,
+        active: true,
+        code: input.code,
+      },
+      select: {
+        id: true,
+        code: true,
+        title: true,
+        discountType: true,
+        discountValue: true,
+        appliesTo: true,
+        allowedPaymentOptionIds: true,
+      },
+    });
+  }
+
+  private formatCurrencyPtBr(value: number): string {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(this.toMoneyValue(value));
   }
 
   private toPrismaChargeStatus(status: string) {

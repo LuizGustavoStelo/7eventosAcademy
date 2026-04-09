@@ -4059,6 +4059,63 @@ table button:disabled {
   grid-template-columns: 1fr;
 }
 
+.native-finance-vouchers {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.native-finance-vouchers-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.native-finance-vouchers-header h3 {
+  margin: 0;
+  color: #1f3a65;
+  font-size: 1rem;
+}
+
+.native-finance-vouchers-header p {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.native-finance-vouchers-header button {
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(120deg, #0f7f82, #139395);
+  color: #fff;
+  font-weight: 700;
+  padding: 0.5rem 0.85rem;
+  cursor: pointer;
+}
+
+.native-finance-voucher-options {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.native-finance-voucher-options legend {
+  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0 0.2rem;
+}
+
+.native-finance-voucher-option-item {
+  display: flex;
+  align-items: center;
+  gap: 0.48rem;
+  font-size: 0.8rem;
+  color: #334155;
+}
+
 .native-import-body {
   padding: 0.9rem 1rem;
   display: grid;
@@ -8680,6 +8737,60 @@ table button {
   padding: 0.75rem;
   display: grid;
   gap: 0.65rem;
+}
+
+.native-course-voucher-validator {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.62rem;
+}
+
+.native-course-voucher-validator header h4 {
+  margin: 0;
+  color: #1f3a65;
+  font-size: 0.96rem;
+}
+
+.native-course-voucher-validator header p {
+  margin: 0.22rem 0 0;
+  color: #5a6f8a;
+  font-size: 0.8rem;
+}
+
+.native-course-voucher-validator-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.48rem;
+}
+
+.native-course-voucher-validator-row input {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.native-course-voucher-validator-row button {
+  border: 0;
+  border-radius: 9px;
+  background: linear-gradient(120deg, #0f7f82, #139395);
+  color: #fff;
+  font-weight: 700;
+  padding: 0.44rem 0.72rem;
+  cursor: pointer;
+}
+
+.native-course-voucher-validator-row button.ghost {
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: #fff;
+  color: #334155;
+}
+
+.native-course-voucher-validator-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .native-course-payment-selector header h4 {

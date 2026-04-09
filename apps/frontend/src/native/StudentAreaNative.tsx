@@ -143,6 +143,14 @@ type StudentCharge = {
   description?: string | null;
   paymentMethod?: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD' | string;
   paymentOptionTitle?: string | null;
+  appliedVoucher?: {
+    code: string;
+    title?: string | null;
+    discountType?: 'PERCENT' | 'FIXED' | string;
+    discountValue?: number | null;
+    appliesTo?: 'TOTAL' | 'INSTALLMENT' | string;
+    discountLabel?: string | null;
+  } | null;
   canPay?: boolean;
   externalChargeId: string | null;
   className: string;
@@ -1533,6 +1541,32 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     };
   }, [cobrancas]);
 
+  const activeVoucher = useMemo(() => {
+    const voucher = cobrancas.find((item) => item.appliedVoucher)?.appliedVoucher;
+    if (!voucher) return null;
+    const label = String(voucher.discountLabel || '').trim();
+    if (label) {
+      return {
+        ...voucher,
+        label,
+      };
+    }
+    const discountType = String(voucher.discountType || '').trim().toUpperCase();
+    const discountValue = Number(voucher.discountValue || 0);
+    if (!Number.isFinite(discountValue) || discountValue <= 0) return null;
+    const generatedLabel =
+      discountType === 'PERCENT'
+        ? `${discountValue.toFixed(2).replace(/\.00$/, '')}% de desconto`
+        : formatCurrency(discountValue);
+    return {
+      ...voucher,
+      label:
+        discountType === 'PERCENT'
+          ? generatedLabel
+          : `${generatedLabel} de desconto`,
+    };
+  }, [cobrancas]);
+
   const nextChargeLabel = financeMetrics.nextCharge
     ? formatDayMonth(financeMetrics.nextCharge.dueDate)
     : 'Sem cobrança';
@@ -2259,14 +2293,26 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               </p>
             </article>
             <article className={`student-page-card ${hasOverdueCharges ? 'is-overdue' : ''}`}>
-              <h4>Mensalidades vencidas</h4>
-              <strong className="student-page-big">{financeMetrics.overdue.length}</strong>
-              <p>
-                Total vencido:{' '}
-                <span className={`${financeSensitiveClass} ${hasOverdueCharges ? 'is-overdue' : ''}`}>
-                  {formatCurrency(financeMetrics.overdueAmount)}
-                </span>
-              </p>
+              <h4>{activeVoucher ? 'Voucher ativo' : 'Mensalidades vencidas'}</h4>
+              {activeVoucher ? (
+                <>
+                  <strong className="student-page-big">{activeVoucher.label}</strong>
+                  <p>
+                    Código aplicado:{' '}
+                    <span className={financeSensitiveClass}>{activeVoucher.code}</span>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <strong className="student-page-big">{financeMetrics.overdue.length}</strong>
+                  <p>
+                    Total vencido:{' '}
+                    <span className={`${financeSensitiveClass} ${hasOverdueCharges ? 'is-overdue' : ''}`}>
+                      {formatCurrency(financeMetrics.overdueAmount)}
+                    </span>
+                  </p>
+                </>
+              )}
             </article>
             <article className={`student-page-card ${nextChargeToneClass}`}>
               <h4>Próxima mensalidade</h4>

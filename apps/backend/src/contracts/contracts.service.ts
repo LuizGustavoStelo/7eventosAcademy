@@ -36,6 +36,14 @@ type ContractRequestContext = {
   userAgent?: string | null;
 };
 
+type ContractDownloadPayload = {
+  instanceId: string;
+  signatureCode: string;
+  title: string;
+  status: ContractInstanceStatus;
+  pdfBuffer: Buffer;
+};
+
 type ContractSendContext = {
   publicOrigin?: string | null;
 };
@@ -1268,7 +1276,12 @@ export class ContractsService {
     });
     const institutionSignedHtml = `${baseHtml}\n${institutionSignatureBlock}`.trim();
     const institutionSignedContentHash = this.sha256(institutionSignedHtml);
-    const institutionSignedPdfHash = this.sha256(`pdf:${institutionSignedHtml}`);
+    const institutionSignedPdfBuffer = isStudentAlreadySigned
+      ? await this.renderContractPdfBuffer(institutionSignedHtml)
+      : null;
+    const institutionSignedPdfHash = institutionSignedPdfBuffer
+      ? this.sha256(institutionSignedPdfBuffer)
+      : this.sha256(`pdf:${institutionSignedHtml}`);
 
     const snapshotBase = this.snapshotToRecord(instance.snapshotStudentData);
     const snapshotStudentData = {
@@ -1278,6 +1291,15 @@ export class ContractsService {
         signedByUserId: signer.id,
         signedByName: signer.name,
       },
+      ...(institutionSignedPdfBuffer
+        ? {
+            artifacts: {
+              ...(snapshotBase?.artifacts as Record<string, unknown> | undefined),
+              signedPdfBase64: institutionSignedPdfBuffer.toString('base64'),
+              signedPdfGeneratedAt: now.toISOString(),
+            },
+          }
+        : {}),
     } as Prisma.InputJsonValue;
 
     await this.prisma.$transaction(async (tx) => {
@@ -1409,7 +1431,10 @@ export class ContractsService {
     };
   }
 
-  async getInstanceDownload(instanceId: string, actor: ContractActor) {
+  async getInstanceDownload(
+    instanceId: string,
+    actor: ContractActor,
+  ): Promise<ContractDownloadPayload> {
     const institutionId = this.requireActiveInstitutionId(actor);
     const instance = await this.prisma.contractInstance.findFirst({
       where: {
@@ -1421,6 +1446,7 @@ export class ContractsService {
         status: true,
         signatureCode: true,
         snapshotTemplateTitle: true,
+        snapshotStudentData: true,
         unsignedHtmlSnapshot: true,
         signedHtmlSnapshot: true,
       },
@@ -1435,16 +1461,27 @@ export class ContractsService {
         ? instance.signedHtmlSnapshot
         : instance.unsignedHtmlSnapshot;
 
+    const storedSignedPdfBase64 =
+      instance.status === ContractInstanceStatus.SIGNED
+        ? this.readSignedPdfBase64FromSnapshot(instance.snapshotStudentData)
+        : null;
+    const pdfBuffer = storedSignedPdfBase64
+      ? Buffer.from(storedSignedPdfBase64, 'base64')
+      : await this.renderContractPdfBuffer(htmlContent);
+
     return {
       instanceId: instance.id,
       signatureCode: instance.signatureCode,
       title: instance.snapshotTemplateTitle,
       status: instance.status,
-      htmlContent,
+      pdfBuffer,
     };
   }
 
-  async getMyInstanceDownload(instanceId: string, actor: ContractActor) {
+  async getMyInstanceDownload(
+    instanceId: string,
+    actor: ContractActor,
+  ): Promise<ContractDownloadPayload> {
     const instance = await this.prisma.contractInstance.findFirst({
       where: {
         id: instanceId,
@@ -1455,6 +1492,7 @@ export class ContractsService {
         status: true,
         signatureCode: true,
         snapshotTemplateTitle: true,
+        snapshotStudentData: true,
         unsignedHtmlSnapshot: true,
         signedHtmlSnapshot: true,
       },
@@ -1469,12 +1507,20 @@ export class ContractsService {
         ? instance.signedHtmlSnapshot
         : instance.unsignedHtmlSnapshot;
 
+    const storedSignedPdfBase64 =
+      instance.status === ContractInstanceStatus.SIGNED
+        ? this.readSignedPdfBase64FromSnapshot(instance.snapshotStudentData)
+        : null;
+    const pdfBuffer = storedSignedPdfBase64
+      ? Buffer.from(storedSignedPdfBase64, 'base64')
+      : await this.renderContractPdfBuffer(htmlContent);
+
     return {
       instanceId: instance.id,
       signatureCode: instance.signatureCode,
       title: instance.snapshotTemplateTitle,
       status: instance.status,
-      htmlContent,
+      pdfBuffer,
     };
   }
 
@@ -1918,8 +1964,18 @@ export class ContractsService {
       signatureData,
     });
     const signedContentHash = this.sha256(signedHtmlSnapshot);
-    const signedPdfHash = this.sha256(`pdf:${signedHtmlSnapshot}`);
+    const signedPdfBuffer = await this.renderContractPdfBuffer(signedHtmlSnapshot);
+    const signedPdfHash = this.sha256(signedPdfBuffer);
     const signatureImageHash = this.sha256(signatureData);
+    const snapshotBase = this.snapshotToRecord(instance.snapshotStudentData);
+    const snapshotStudentData = {
+      ...snapshotBase,
+      artifacts: {
+        ...(snapshotBase?.artifacts as Record<string, unknown> | undefined),
+        signedPdfBase64: signedPdfBuffer.toString('base64'),
+        signedPdfGeneratedAt: now.toISOString(),
+      },
+    } as Prisma.InputJsonValue;
 
     await this.prisma.$transaction(async (tx) => {
       await tx.contractInstance.update({
@@ -1930,6 +1986,7 @@ export class ContractsService {
           signedHtmlSnapshot,
           signedContentHash,
           signedPdfHash,
+          snapshotStudentData,
           acceptedTermsText,
           acceptedTermsVersion,
           acceptedAt: now,
@@ -1975,6 +2032,16 @@ export class ContractsService {
             mimeType: 'text/html',
             sizeBytes: Buffer.byteLength(signedHtmlSnapshot, 'utf-8'),
             sha256: signedContentHash,
+          },
+          {
+            institutionId: instance.institutionId,
+            contractInstanceId: instance.id,
+            artifactType: 'signed_pdf',
+            storageProvider: 'db',
+            storageKey: `contract-instance/${instance.id}/signed-pdf`,
+            mimeType: 'application/pdf',
+            sizeBytes: signedPdfBuffer.length,
+            sha256: signedPdfHash,
           },
         ],
         skipDuplicates: true,
@@ -2859,6 +2926,103 @@ export class ContractsService {
     if (approxBytes <= 0 || approxBytes > 600 * 1024) return null;
     return raw;
   }
+
+  private readSignedPdfBase64FromSnapshot(
+    snapshot: Prisma.JsonValue | null | undefined,
+  ): string | null {
+    const record = this.snapshotToRecord(snapshot ?? null);
+    const artifacts = this.snapshotToRecord(
+      (record?.artifacts as Prisma.JsonValue | null | undefined) ?? null,
+    );
+    const raw = artifacts?.signedPdfBase64;
+    if (typeof raw !== 'string') return null;
+    const normalized = raw.trim();
+    return normalized || null;
+  }
+
+  private async renderContractPdfBuffer(htmlContent: string): Promise<Buffer> {
+    const normalizedHtml = String(htmlContent || '').trim();
+    if (!normalizedHtml) {
+      throw new BadRequestException('Conteúdo do contrato vazio para gerar PDF.');
+    }
+
+    let browser:
+      | {
+          newPage: (options?: unknown) => Promise<{
+            setContent: (content: string, options?: unknown) => Promise<void>;
+            pdf: (options?: unknown) => Promise<Uint8Array>;
+          }>;
+          close: () => Promise<void>;
+        }
+      | null = null;
+
+    try {
+      const importPlaywright = new Function(
+        'moduleName',
+        'return import(moduleName)',
+      ) as (moduleName: string) => Promise<{
+        chromium: {
+          launch: (options?: unknown) => Promise<{
+            newPage: (options?: unknown) => Promise<{
+              setContent: (content: string, options?: unknown) => Promise<void>;
+              pdf: (options?: unknown) => Promise<Uint8Array>;
+            }>;
+            close: () => Promise<void>;
+          }>;
+        };
+      }>;
+      const playwright = await importPlaywright('playwright-core');
+      const configuredExecutable = String(
+        this.configService.get<string>('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH') ||
+          '',
+      ).trim();
+      const executablePath =
+        configuredExecutable ||
+        ['/usr/bin/chromium-browser', '/usr/bin/chromium'].find((candidate) => {
+          try {
+            return require('fs').existsSync(candidate);
+          } catch {
+            return false;
+          }
+        });
+
+      browser = await playwright.chromium.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        ...(executablePath ? { executablePath } : {}),
+      });
+      const page = await browser.newPage({ locale: 'pt-BR' });
+      const htmlDocument = /<html[\s>]/i.test(normalizedHtml)
+        ? normalizedHtml
+        : `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    html, body { margin: 0; padding: 0; }
+  </style>
+</head>
+<body>${normalizedHtml}</body>
+</html>`;
+
+      await page.setContent(htmlDocument, { waitUntil: 'networkidle' });
+      const pdfBytes = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        preferCSSPageSize: true,
+      });
+      return Buffer.from(pdfBytes);
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Não foi possível gerar o PDF do contrato: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
+      );
+    } finally {
+      if (browser) {
+        await browser.close().catch(() => undefined);
+      }
+    }
+  }
+
   private buildSigningLink(
     rawToken: string,
     instanceId: string,
@@ -2983,7 +3147,7 @@ export class ContractsService {
     });
   }
 
-  private sha256(value: string) {
+  private sha256(value: string | Buffer) {
     return createHash('sha256').update(value).digest('hex');
   }
 

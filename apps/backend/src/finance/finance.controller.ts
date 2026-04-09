@@ -12,7 +12,9 @@ import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { JwtPayload } from '../auth/types/app-role.type';
 import { CreateChargeDto } from './dto/create-charge.dto';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { CreateVoucherDto } from './dto/create-voucher.dto';
 import { UpdateChargeStatusDto } from './dto/update-charge-status.dto';
+import { UpdateVoucherStatusDto } from './dto/update-voucher-status.dto';
 import { FinanceService } from './finance.service';
 
 type AuthenticatedRequest = FastifyRequest & {
@@ -73,5 +75,36 @@ export class FinanceController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.financeService.createTransaction(dto, request.user);
+  }
+
+  @RequirePermissions('finance.read')
+  @Get('voucher-courses')
+  async getVoucherCourses(@Req() request: AuthenticatedRequest) {
+    return this.financeService.listVoucherCourses(request.user);
+  }
+
+  @RequirePermissions('finance.read')
+  @Get('vouchers')
+  async listVouchers(@Req() request: AuthenticatedRequest) {
+    return this.financeService.listVouchers(request.user);
+  }
+
+  @RequirePermissions('finance.write')
+  @Post('vouchers')
+  async createVoucher(
+    @Body() dto: CreateVoucherDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.financeService.createVoucher(dto, request.user);
+  }
+
+  @RequirePermissions('finance.write')
+  @Patch('vouchers/:voucherId/status')
+  async updateVoucherStatus(
+    @Param('voucherId') voucherId: string,
+    @Body() dto: UpdateVoucherStatusDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.financeService.updateVoucherStatus(voucherId, dto, request.user);
   }
 }

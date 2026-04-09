@@ -257,6 +257,8 @@ export class StudentsService {
           uniqueCourseIds.length === 1
             ? dto.selectedPaymentOptionId
             : undefined,
+        voucherCode:
+          uniqueCourseIds.length === 1 ? dto.selectedVoucherCode : undefined,
         actor,
       });
     }
@@ -974,6 +976,7 @@ export class StudentsService {
     studentId: string;
     courseIds: string[];
     paymentOptionId?: string;
+    voucherCode?: string;
     actor?: StudentActor;
   }) {
     if (input.courseIds.length === 0) return;
@@ -1009,6 +1012,7 @@ export class StudentsService {
             classId,
             studentId: input.studentId,
             paymentOptionId: input.paymentOptionId,
+            voucherCode: input.voucherCode,
           },
           {
             actorUserId: input.actor?.sub,

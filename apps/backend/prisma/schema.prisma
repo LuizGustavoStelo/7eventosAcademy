@@ -73,6 +73,20 @@ enum CoursePaymentModel {
   @@map("course_payment_model")
 }
 
+enum FinanceVoucherDiscountType {
+  PERCENT @map("percent")
+  FIXED   @map("fixed")
+
+  @@map("finance_voucher_discount_type")
+}
+
+enum FinanceVoucherAppliesTo {
+  TOTAL       @map("total")
+  INSTALLMENT @map("installment")
+
+  @@map("finance_voucher_applies_to")
+}
+
 enum UploadOwnerType {
   COURSE     @map("course")
   USER       @map("user")
@@ -162,6 +176,7 @@ model User {
   studentContractInstances ContractInstance[] @relation("contract_instance_student")
   createdContractInstances ContractInstance[] @relation("contract_instance_created_by")
   contractAuditEntries ContractAuditLog[] @relation("contract_audit_actor")
+  ownedFinanceVouchers FinanceVoucher[] @relation("finance_voucher_owner")
 
   @@index([ownerAdminId], map: "users_owner_admin_idx")
   @@index([institutionId], map: "users_institution_idx")
@@ -190,6 +205,7 @@ model Institution {
   contractSigningTokens ContractSigningToken[]
   contractAuditLogs ContractAuditLog[]
   contractArtifacts ContractArtifact[]
+  financeVouchers FinanceVoucher[]
 
   @@index([status], map: "institutions_status_idx")
   @@map("institutions")
@@ -305,6 +321,7 @@ model Course {
   classes           SchoolClass[]
   studentCourses    StudentCourse[]
   contractInstances ContractInstance[]
+  financeVouchers   FinanceVoucher[]
 
   @@index([ownerAdminId], map: "courses_owner_admin_idx")
   @@index([institutionId], map: "courses_institution_idx")
@@ -618,6 +635,31 @@ model ContractArtifact {
   @@index([institutionId], map: "contract_artifacts_institution_idx")
   @@index([contractInstanceId], map: "contract_artifacts_instance_idx")
   @@map("contract_artifacts")
+}
+
+model FinanceVoucher {
+  id                      String                    @id @default(uuid()) @db.Uuid
+  institutionId           String                    @map("institution_id") @db.Uuid
+  ownerAdminId            String?                   @map("owner_admin_id") @db.Uuid
+  courseId                String                    @map("course_id") @db.Uuid
+  code                    String
+  title                   String?
+  discountType            FinanceVoucherDiscountType @map("discount_type")
+  discountValue           Decimal                   @map("discount_value") @db.Decimal(12, 2)
+  appliesTo               FinanceVoucherAppliesTo   @map("applies_to")
+  allowedPaymentOptionIds Json?                     @map("allowed_payment_option_ids")
+  active                  Boolean                   @default(true)
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+  institution             Institution               @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  ownerAdmin              User?                     @relation("finance_voucher_owner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
+  course                  Course                    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([institutionId, code], map: "finance_vouchers_institution_code_key")
+  @@index([institutionId], map: "finance_vouchers_institution_idx")
+  @@index([ownerAdminId], map: "finance_vouchers_owner_admin_idx")
+  @@index([courseId, active], map: "finance_vouchers_course_active_idx")
+  @@map("finance_vouchers")
 }
 
 model MonthlyCharge {

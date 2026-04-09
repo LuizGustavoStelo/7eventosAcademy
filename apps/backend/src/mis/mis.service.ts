@@ -13,6 +13,7 @@ import { PrismaService } from '../database/prisma.service';
 import { FinanceService } from '../finance/finance.service';
 import { SecretsService } from '../security/secrets/secrets.service';
 import { PayStudentChargeDto } from './dto/pay-student-charge.dto';
+import { ValidatePublicVoucherDto } from './dto/validate-public-voucher.dto';
 
 type StudentBrandingPalette = {
   primaryColor: string;
@@ -514,6 +515,13 @@ export class MisService {
     return { me, matriculas, materiais, avisos, cobrancas, agenda };
   }
 
+  async validatePublicVoucher(courseId: string, dto: ValidatePublicVoucherDto) {
+    return this.financeService.validatePublicVoucherForCourse(
+      courseId,
+      dto.code,
+    );
+  }
+
   private async fetchActiveEnrollments(userId: string) {
     return this.prisma.enrollment.findMany({
       where: { studentId: userId, status: 'ACTIVE' },
@@ -759,6 +767,9 @@ export class MisService {
         charge.enrollment.selectedPaymentOption,
       ),
       paymentOptionTitle: this.resolveEnrollmentPaymentOptionTitle(
+        charge.enrollment.selectedPaymentOption,
+      ),
+      appliedVoucher: this.resolveEnrollmentAppliedVoucher(
         charge.enrollment.selectedPaymentOption,
       ),
       canPay: charge.status === 'PENDING' || charge.status === 'OVERDUE',
@@ -3960,6 +3971,56 @@ export class MisService {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     const title = String((raw as Record<string, unknown>).title || '').trim();
     return title || null;
+  }
+
+  private resolveEnrollmentAppliedVoucher(
+    raw: Prisma.JsonValue | null | undefined,
+  ) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const payload = raw as Record<string, unknown>;
+    const voucherRaw = payload.appliedVoucher;
+    if (!voucherRaw || typeof voucherRaw !== 'object' || Array.isArray(voucherRaw)) {
+      return null;
+    }
+
+    const voucher = voucherRaw as Record<string, unknown>;
+    const code = String(voucher.code || '').trim();
+    const discountTypeRaw = String(voucher.discountType || '')
+      .trim()
+      .toUpperCase();
+    const discountType =
+      discountTypeRaw === 'PERCENT'
+        ? 'PERCENT'
+        : discountTypeRaw === 'FIXED'
+          ? 'FIXED'
+          : '';
+    const discountValue = this.toMoneyValue(voucher.discountValue);
+    if (!code || !discountType || discountValue <= 0) {
+      return null;
+    }
+
+    const appliesToRaw = String(voucher.appliesTo || '')
+      .trim()
+      .toUpperCase();
+    const appliesTo = appliesToRaw === 'INSTALLMENT' ? 'INSTALLMENT' : 'TOTAL';
+    const discountLabelRaw = String(voucher.discountLabel || '').trim();
+    const discountLabel =
+      discountLabelRaw ||
+      (discountType === 'PERCENT'
+        ? `${discountValue.toFixed(2).replace(/\.00$/, '')}% de desconto`
+        : `${new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+          }).format(discountValue)} de desconto`);
+
+    return {
+      code,
+      title: String(voucher.title || '').trim() || null,
+      discountType,
+      discountValue,
+      appliesTo,
+      discountLabel,
+    };
   }
 
   private buildManualPaymentResponse(

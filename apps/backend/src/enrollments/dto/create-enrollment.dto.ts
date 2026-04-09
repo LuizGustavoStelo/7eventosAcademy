@@ -11,4 +11,9 @@ export class CreateEnrollmentDto {
   @IsString()
   @MaxLength(120)
   paymentOptionId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  voucherCode?: string;
 }

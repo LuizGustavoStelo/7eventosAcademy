@@ -40,6 +40,14 @@ type CourseCatalogItem = {
     promotionalDiscountInstallmentAmount?: number | null;
     promotionalDiscountDeadlineDay?: number | null;
     promotionalDiscountRequiresActiveCrf?: boolean | null;
+    appliedVoucher?: {
+      code?: string | null;
+      title?: string | null;
+      discountType?: 'PERCENT' | 'FIXED' | string;
+      discountValue?: number | null;
+      appliesTo?: 'TOTAL' | 'INSTALLMENT' | string;
+      discountLabel?: string | null;
+    } | null;
     active?: boolean | null;
   }> | null;
   modality?: string | null;
@@ -74,6 +82,7 @@ type RegistrationPayload = {
   state?: string;
   courseIds?: string[];
   selectedPaymentOptionId?: string;
+  selectedVoucherCode?: string;
 };
 
 type ViaCepResponse = {
@@ -94,6 +103,18 @@ type PasswordStrength = {
 type PaymentOptionDetailLine = {
   text: string;
   tone: 'default' | 'highlight' | 'secondary';
+};
+
+type VoucherValidationResponse = {
+  id: string;
+  code: string;
+  title?: string | null;
+  discountType: 'PERCENT' | 'FIXED';
+  discountValue: number;
+  appliesTo: 'TOTAL' | 'INSTALLMENT';
+  discountLabel: string;
+  allowedPaymentOptionIds: string[];
+  affectedPaymentOptionIds: string[];
 };
 
 const steps = [
@@ -415,6 +436,14 @@ function paymentOptionDetailLines(option: PaymentOptionItem): PaymentOptionDetai
     Number(option.discountDeadlineDay || 0) > 0 &&
     Boolean(paymentOptionDiscountSummary(option));
 
+  const voucherLabel = String(option.appliedVoucher?.discountLabel || '').trim();
+  if (voucherLabel) {
+    lines.push({
+      text: `Voucher aplicado: ${voucherLabel}.`,
+      tone: 'highlight',
+    });
+  }
+
   if (dueDay > 0) {
     lines.push({ text: `Vencimento padrão: dia ${dueDay}.`, tone: 'default' });
   }
@@ -494,6 +523,161 @@ function paymentOptionDetailLines(option: PaymentOptionItem): PaymentOptionDetai
   return lines;
 }
 
+function isVoucherApplicableToOption(
+  option: PaymentOptionItem,
+  voucher: VoucherValidationResponse,
+) {
+  const optionId = String(option.id || '').trim();
+  if (!optionId) return false;
+  if (
+    Array.isArray(voucher.affectedPaymentOptionIds) &&
+    voucher.affectedPaymentOptionIds.length > 0
+  ) {
+    return voucher.affectedPaymentOptionIds.includes(optionId);
+  }
+
+  const allowed = Array.isArray(voucher.allowedPaymentOptionIds)
+    ? voucher.allowedPaymentOptionIds
+    : [];
+  if (allowed.length > 0 && !allowed.includes(optionId)) return false;
+  if (
+    String(voucher.appliesTo || '').toUpperCase() === 'INSTALLMENT' &&
+    String(option.type || '').toUpperCase() !== 'INSTALLMENTS'
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function applyVoucherToPaymentOption(
+  option: PaymentOptionItem,
+  voucher: VoucherValidationResponse,
+): PaymentOptionItem {
+  if (!isVoucherApplicableToOption(option, voucher)) {
+    return option;
+  }
+
+  const appliesToInstallment =
+    String(voucher.appliesTo || '').toUpperCase() === 'INSTALLMENT';
+  const isPercent = String(voucher.discountType || '').toUpperCase() === 'PERCENT';
+  const discountValue = Math.max(0, Number(voucher.discountValue || 0));
+  const installmentCount = Math.max(1, Number(option.installmentCount || 1));
+
+  const applyDiscount = (value: number) => {
+    const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
+    const discount = isPercent ? safeValue * (discountValue / 100) : discountValue;
+    const adjusted = Math.max(0, safeValue - discount);
+    return Number(adjusted.toFixed(2));
+  };
+
+  const nextOption: PaymentOptionItem = {
+    ...option,
+    appliedVoucher: {
+      code: voucher.code,
+      title: voucher.title || null,
+      discountType: voucher.discountType,
+      discountValue: discountValue,
+      appliesTo: voucher.appliesTo,
+      discountLabel: voucher.discountLabel,
+    },
+  };
+
+  if (appliesToInstallment && String(option.type || '').toUpperCase() === 'INSTALLMENTS') {
+    const baseInstallment = resolveOptionInstallmentAmount(option);
+    const adjustedInstallment = applyDiscount(baseInstallment);
+    nextOption.installmentAmount = adjustedInstallment;
+    nextOption.totalAmount = Number((adjustedInstallment * installmentCount).toFixed(2));
+
+    if (Number(option.discountInstallmentAmount || 0) > 0) {
+      const discountedInstallment = applyDiscount(Number(option.discountInstallmentAmount || 0));
+      nextOption.discountInstallmentAmount = discountedInstallment;
+      nextOption.discountTotalAmount = Number((discountedInstallment * installmentCount).toFixed(2));
+    } else if (Number(option.discountTotalAmount || 0) > 0) {
+      const discountedTotal = applyDiscount(Number(option.discountTotalAmount || 0));
+      nextOption.discountTotalAmount = discountedTotal;
+      nextOption.discountInstallmentAmount = Number((discountedTotal / installmentCount).toFixed(2));
+    }
+
+    if (Number(option.promotionalInstallmentAmount || 0) > 0) {
+      const promotionalInstallment = applyDiscount(
+        Number(option.promotionalInstallmentAmount || 0),
+      );
+      nextOption.promotionalInstallmentAmount = promotionalInstallment;
+      nextOption.promotionalTotalAmount = Number((promotionalInstallment * installmentCount).toFixed(2));
+    } else if (Number(option.promotionalTotalAmount || 0) > 0) {
+      const promotionalTotal = applyDiscount(Number(option.promotionalTotalAmount || 0));
+      nextOption.promotionalTotalAmount = promotionalTotal;
+      nextOption.promotionalInstallmentAmount = Number((promotionalTotal / installmentCount).toFixed(2));
+    }
+
+    if (Number(option.promotionalDiscountInstallmentAmount || 0) > 0) {
+      const promotionalDiscountInstallment = applyDiscount(
+        Number(option.promotionalDiscountInstallmentAmount || 0),
+      );
+      nextOption.promotionalDiscountInstallmentAmount = promotionalDiscountInstallment;
+      nextOption.promotionalDiscountTotalAmount = Number(
+        (promotionalDiscountInstallment * installmentCount).toFixed(2),
+      );
+    } else if (Number(option.promotionalDiscountTotalAmount || 0) > 0) {
+      const promotionalDiscountTotal = applyDiscount(
+        Number(option.promotionalDiscountTotalAmount || 0),
+      );
+      nextOption.promotionalDiscountTotalAmount = promotionalDiscountTotal;
+      nextOption.promotionalDiscountInstallmentAmount = Number(
+        (promotionalDiscountTotal / installmentCount).toFixed(2),
+      );
+    }
+
+    return nextOption;
+  }
+
+  const currentTotal = resolveOptionTotalAmount(option);
+  const adjustedTotal = applyDiscount(currentTotal);
+  nextOption.totalAmount = adjustedTotal;
+  if (String(option.type || '').toUpperCase() === 'INSTALLMENTS') {
+    nextOption.installmentAmount = Number((adjustedTotal / installmentCount).toFixed(2));
+  }
+
+  if (Number(option.discountTotalAmount || 0) > 0) {
+    nextOption.discountTotalAmount = applyDiscount(Number(option.discountTotalAmount || 0));
+  }
+  if (String(option.type || '').toUpperCase() === 'INSTALLMENTS') {
+    nextOption.discountInstallmentAmount =
+      Number(nextOption.discountTotalAmount || 0) > 0
+        ? Number((Number(nextOption.discountTotalAmount || 0) / installmentCount).toFixed(2))
+        : null;
+  }
+
+  if (Number(option.promotionalTotalAmount || 0) > 0) {
+    nextOption.promotionalTotalAmount = applyDiscount(Number(option.promotionalTotalAmount || 0));
+  }
+  if (String(option.type || '').toUpperCase() === 'INSTALLMENTS') {
+    nextOption.promotionalInstallmentAmount =
+      Number(nextOption.promotionalTotalAmount || 0) > 0
+        ? Number((Number(nextOption.promotionalTotalAmount || 0) / installmentCount).toFixed(2))
+        : null;
+  }
+
+  if (Number(option.promotionalDiscountTotalAmount || 0) > 0) {
+    nextOption.promotionalDiscountTotalAmount = applyDiscount(
+      Number(option.promotionalDiscountTotalAmount || 0),
+    );
+  }
+  if (String(option.type || '').toUpperCase() === 'INSTALLMENTS') {
+    nextOption.promotionalDiscountInstallmentAmount =
+      Number(nextOption.promotionalDiscountTotalAmount || 0) > 0
+        ? Number(
+            (
+              Number(nextOption.promotionalDiscountTotalAmount || 0) /
+              installmentCount
+            ).toFixed(2),
+          )
+        : null;
+  }
+
+  return nextOption;
+}
+
 async function requestWithRetry(input: string, init?: RequestInit) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const response = await fetch(input, init);
@@ -562,6 +746,11 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedPaymentOptionId, setSelectedPaymentOptionId] = useState('');
   const [expandedPaymentOptions, setExpandedPaymentOptions] = useState<Record<string, boolean>>({});
+  const [voucherCode, setVoucherCode] = useState('');
+  const [voucherValidating, setVoucherValidating] = useState(false);
+  const [voucherError, setVoucherError] = useState('');
+  const [voucherFeedback, setVoucherFeedback] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState<VoucherValidationResponse | null>(null);
 
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
@@ -573,9 +762,23 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     () => courses.find((course) => course.id === selectedCourseId) ?? null,
     [courses, selectedCourseId],
   );
-  const selectedCoursePaymentOptions = useMemo(
+  const selectedCourseBasePaymentOptions = useMemo(
     () => (selectedCourse ? getActivePaymentOptions(selectedCourse) : []),
     [selectedCourse],
+  );
+  const selectedCoursePaymentOptions = useMemo(
+    () =>
+      selectedCourseBasePaymentOptions.map((option) =>
+        appliedVoucher ? applyVoucherToPaymentOption(option, appliedVoucher) : option,
+      ),
+    [selectedCourseBasePaymentOptions, appliedVoucher],
+  );
+  const selectedPaymentOption = useMemo(
+    () =>
+      selectedCoursePaymentOptions.find(
+        (option) => String(option.id || '') === selectedPaymentOptionId,
+      ) ?? null,
+    [selectedCoursePaymentOptions, selectedPaymentOptionId],
   );
 
   useEffect(() => {
@@ -594,6 +797,13 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       setSelectedPaymentOptionId(String(selectedCoursePaymentOptions[0]?.id || ''));
     }
   }, [selectedCourseId, selectedCoursePaymentOptions, selectedPaymentOptionId]);
+
+  useEffect(() => {
+    setVoucherCode('');
+    setVoucherError('');
+    setVoucherFeedback('');
+    setAppliedVoucher(null);
+  }, [selectedCourseId]);
 
   useEffect(() => {
     const zipDigits = onlyDigits(zipCode);
@@ -687,6 +897,63 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     void loadCourses();
   }, []);
 
+  const clearAppliedVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherError('');
+    setVoucherFeedback('');
+  };
+
+  const validateVoucher = async () => {
+    const normalizedCourseId = String(selectedCourseId || '').trim();
+    const normalizedCode = String(voucherCode || '').trim().toUpperCase();
+    setVoucherError('');
+    setVoucherFeedback('');
+
+    if (!normalizedCourseId) {
+      setVoucherError('Selecione um curso antes de validar o voucher.');
+      return;
+    }
+
+    if (!normalizedCode) {
+      setVoucherError('Informe o código do voucher para validar.');
+      return;
+    }
+
+    setVoucherValidating(true);
+    try {
+      const response = await requestWithRetry(
+        `${API_BASE_URL}/mis/v1/public/cursos/${normalizedCourseId}/voucher/validate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: normalizedCode }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(await readError(response));
+      }
+
+      const payload = (await response.json()) as VoucherValidationResponse;
+      setAppliedVoucher(payload);
+      setVoucherCode(payload.code || normalizedCode);
+      if (error === 'Valide o voucher de desconto antes de concluir a matrícula.') {
+        setError('');
+      }
+      setVoucherFeedback(
+        `Voucher ativo: ${payload.discountLabel || 'desconto aplicado'}.`,
+      );
+    } catch (validationError) {
+      clearAppliedVoucher();
+      setVoucherError(
+        validationError instanceof Error
+          ? validationError.message
+          : 'Não foi possível validar o voucher informado.',
+      );
+    } finally {
+      setVoucherValidating(false);
+    }
+  };
+
   const buildPortalLink = () => {
     return STUDENT_PORTAL_LOGIN_URL;
   };
@@ -747,6 +1014,16 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const validateStepFour = () => {
     if (coursesLoading) return 'Aguarde o carregamento dos cursos.';
     if (!selectedCourseId) return 'Selecione um curso para concluir o cadastro.';
+    if (voucherCode.trim() && !appliedVoucher) {
+      return 'Valide o voucher de desconto antes de concluir a matrícula.';
+    }
+    if (
+      appliedVoucher &&
+      selectedPaymentOption &&
+      !isVoucherApplicableToOption(selectedPaymentOption, appliedVoucher)
+    ) {
+      return 'Selecione uma forma de pagamento compatível com o voucher aplicado.';
+    }
     if (selectedCoursePaymentOptions.length > 0 && !selectedPaymentOptionId) {
       return 'Selecione a forma de pagamento para concluir a matrícula.';
     }
@@ -807,6 +1084,10 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     setZipLookupError('');
     setSelectedCourseId('');
     setSelectedPaymentOptionId('');
+    setVoucherCode('');
+    setVoucherError('');
+    setVoucherFeedback('');
+    setAppliedVoucher(null);
     setCurrentStep(0);
   };
 
@@ -851,6 +1132,12 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       state: state.trim().toUpperCase(),
       courseIds: selectedCourseId ? [selectedCourseId] : undefined,
       selectedPaymentOptionId: selectedPaymentOptionId || undefined,
+      selectedVoucherCode:
+        appliedVoucher &&
+        selectedPaymentOption &&
+        isVoucherApplicableToOption(selectedPaymentOption, appliedVoucher)
+          ? appliedVoucher.code
+          : undefined,
     };
 
     setLoading(true);
@@ -1333,6 +1620,60 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                       );
                     })}
                   </div>
+                ) : null}
+
+                {selectedCourse ? (
+                  <section className="native-course-voucher-validator">
+                    <header>
+                      <h4>Voucher de desconto</h4>
+                      <p>Se você recebeu um voucher, valide o código antes de escolher o pagamento.</p>
+                    </header>
+                    <div className="native-course-voucher-validator-row">
+                      <input
+                        type="text"
+                        value={voucherCode}
+                        onChange={(event) => {
+                          setVoucherCode(
+                            event.target.value
+                              .toUpperCase()
+                              .replace(/\s+/g, '')
+                              .replace(/[^A-Z0-9_-]/g, ''),
+                          );
+                          setVoucherError('');
+                          setVoucherFeedback('');
+                          if (appliedVoucher) {
+                            setAppliedVoucher(null);
+                          }
+                        }}
+                        maxLength={40}
+                        placeholder="Ex.: BEMVINDO15"
+                        disabled={loading || voucherValidating}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void validateVoucher();
+                        }}
+                        disabled={loading || voucherValidating || !voucherCode.trim()}
+                      >
+                        {voucherValidating ? 'Validando...' : 'Validar voucher'}
+                      </button>
+                      {appliedVoucher ? (
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={clearAppliedVoucher}
+                          disabled={loading || voucherValidating}
+                        >
+                          Remover voucher
+                        </button>
+                      ) : null}
+                    </div>
+                    {voucherError ? <p className="native-error">{voucherError}</p> : null}
+                    {!voucherError && voucherFeedback ? (
+                      <p className="native-success">{voucherFeedback}</p>
+                    ) : null}
+                  </section>
                 ) : null}
 
                 {selectedCourse && selectedCoursePaymentOptions.length > 0 ? (

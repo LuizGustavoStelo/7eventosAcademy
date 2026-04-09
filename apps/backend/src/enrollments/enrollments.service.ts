@@ -6,6 +6,10 @@ import {
 import { Prisma, StudentCourseStatus, UserRole } from '@prisma/client';
 import { ContractsService } from '../contracts/contracts.service';
 import { PrismaService } from '../database/prisma.service';
+import {
+  FinanceService,
+  VoucherPaymentOptionShape,
+} from '../finance/finance.service';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 
 type EnrollmentContext = {
@@ -47,6 +51,15 @@ type EnrollmentPaymentOption = {
   promotionalDiscountInstallmentAmount: number | null;
   promotionalDiscountDeadlineDay: number | null;
   promotionalDiscountRequiresActiveCrf: boolean;
+  appliedVoucher?: {
+    id: string;
+    code: string;
+    title: string | null;
+    discountType: 'PERCENT' | 'FIXED';
+    discountValue: number;
+    appliesTo: 'TOTAL' | 'INSTALLMENT';
+    discountLabel: string;
+  } | null;
 };
 
 @Injectable()
@@ -54,6 +67,7 @@ export class EnrollmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly contractsService: ContractsService,
+    private readonly financeService: FinanceService,
   ) {}
 
   async create(
@@ -158,6 +172,7 @@ export class EnrollmentsService {
           institutionId: schoolClass.institutionId,
           courseId: schoolClass.course.id,
           requestedPaymentOptionId: dto.paymentOptionId,
+          requestedVoucherCode: dto.voucherCode,
           course: schoolClass.course,
         });
 
@@ -601,6 +616,7 @@ export class EnrollmentsService {
     institutionId: string;
     courseId: string;
     requestedPaymentOptionId?: string;
+    requestedVoucherCode?: string;
     course: {
       paymentModel: string;
       paymentOptions: Prisma.JsonValue | null;
@@ -633,7 +649,17 @@ export class EnrollmentsService {
         courseId: input.courseId,
         option: requestedOption,
       });
-      return this.resolveOptionWithPromotion(requestedOption, promotionalApplied);
+      const optionWithPromotion = this.resolveOptionWithPromotion(
+        requestedOption,
+        promotionalApplied,
+      );
+      return this.applyVoucherToResolvedOption({
+        tx: input.tx,
+        institutionId: input.institutionId,
+        courseId: input.courseId,
+        requestedVoucherCode: input.requestedVoucherCode,
+        option: optionWithPromotion,
+      });
     }
 
     const resolvedOptions: EnrollmentPaymentOption[] = [];
@@ -653,7 +679,43 @@ export class EnrollmentsService {
       return left - right;
     });
 
-    return resolvedOptions[0];
+    const selectedOption = resolvedOptions[0];
+    if (!selectedOption) {
+      throw new BadRequestException(
+        'Não foi possível resolver uma forma de pagamento para esta matrícula.',
+      );
+    }
+
+    return this.applyVoucherToResolvedOption({
+      tx: input.tx,
+      institutionId: input.institutionId,
+      courseId: input.courseId,
+      requestedVoucherCode: input.requestedVoucherCode,
+      option: selectedOption,
+    });
+  }
+
+  private async applyVoucherToResolvedOption(input: {
+    tx: Prisma.TransactionClient;
+    institutionId: string;
+    courseId: string;
+    requestedVoucherCode?: string;
+    option: EnrollmentPaymentOption;
+  }) {
+    const voucherCode = String(input.requestedVoucherCode || '').trim();
+    if (!voucherCode) {
+      return input.option;
+    }
+
+    const adjustedOption = await this.financeService.applyVoucherOnPaymentOption({
+      tx: input.tx,
+      institutionId: input.institutionId,
+      courseId: input.courseId,
+      voucherCode,
+      paymentOption: input.option as VoucherPaymentOptionShape,
+    });
+
+    return adjustedOption as EnrollmentPaymentOption;
   }
 
   private async isPromotionalOptionAvailable(input: {

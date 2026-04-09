@@ -217,12 +217,12 @@ export class ContractsController {
       /[^a-zA-Z0-9_-]/g,
       '',
     );
-    reply.header('Content-Type', 'text/html; charset=utf-8');
+    reply.header('Content-Type', 'application/pdf');
     reply.header(
       'Content-Disposition',
-      `attachment; filename="contrato-${safeCode}.html"`,
+      `attachment; filename="contrato-${safeCode}.pdf"`,
     );
-    return payload.htmlContent;
+    return payload.pdfBuffer;
   }
 
   @Roles('user', 'admin', 'superadmin')
@@ -240,12 +240,12 @@ export class ContractsController {
       /[^a-zA-Z0-9_-]/g,
       '',
     );
-    reply.header('Content-Type', 'text/html; charset=utf-8');
+    reply.header('Content-Type', 'application/pdf');
     reply.header(
       'Content-Disposition',
-      `attachment; filename="contrato-${safeCode}.html"`,
+      `attachment; filename="contrato-${safeCode}.pdf"`,
     );
-    return payload.htmlContent;
+    return payload.pdfBuffer;
   }
 
   @Roles('user', 'admin', 'superadmin')
