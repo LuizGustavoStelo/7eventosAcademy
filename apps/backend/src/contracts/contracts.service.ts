@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   ContractInstanceStatus,
+  InstitutionMemberStatus,
   ContractTemplateStatus,
   Prisma,
   PrismaClient,
@@ -85,7 +86,7 @@ const MAX_PIN_ATTEMPTS = 5;
 const PIN_BLOCK_MINUTES = 15;
 const DEFAULT_SIGNATURE_TERMS_VERSION = 'v1';
 const DEFAULT_SIGNATURE_TERMS_TEXT =
-  'Declaro que li e aceito os termos da assinatura eletrônica.';
+  'Declaro que li e aceito os termos da assinatura eletrÃ´nica.';
 
 @Injectable()
 export class ContractsService {
@@ -197,7 +198,7 @@ export class ContractsService {
     });
 
     if (!existing) {
-      throw new NotFoundException('Modelo de contrato não encontrado.');
+      throw new NotFoundException('Modelo de contrato nÃ£o encontrado.');
     }
 
     if (existing.status === ContractTemplateStatus.PUBLISHED) {
@@ -292,11 +293,11 @@ export class ContractsService {
     });
 
     if (!existing) {
-      throw new NotFoundException('Modelo de contrato não encontrado.');
+      throw new NotFoundException('Modelo de contrato nÃ£o encontrado.');
     }
 
     if (existing.status === ContractTemplateStatus.ARCHIVED) {
-      throw new BadRequestException('Modelo arquivado não pode ser publicado.');
+      throw new BadRequestException('Modelo arquivado nÃ£o pode ser publicado.');
     }
 
     if (existing.status === ContractTemplateStatus.PUBLISHED) {
@@ -311,7 +312,7 @@ export class ContractsService {
     );
     if (!title || !htmlContent) {
       throw new BadRequestException(
-        'Título e conteúdo são obrigatórios para publicar.',
+        'TÃ­tulo e conteÃºdo sÃ£o obrigatÃ³rios para publicar.',
       );
     }
 
@@ -400,21 +401,7 @@ export class ContractsService {
       throw new BadRequestException('A assinatura institucional deste modelo ja foi registrada.');
     }
 
-    const signer = await this.prisma.user.findFirst({
-      where: {
-        id: actor.sub,
-        institutionId,
-      },
-      select: {
-        id: true,
-        name: true,
-      },
-    });
-    if (!signer) {
-      throw new NotFoundException(
-        'Usuario responsavel pela assinatura institucional nao encontrado.',
-      );
-    }
+    const signer = await this.resolveInstitutionSigner(actor.sub, institutionId);
 
     const signedAt = new Date();
     return this.prisma.contractTemplate.update({
@@ -441,7 +428,7 @@ export class ContractsService {
 
     if (!this.isContractDeletionEnabled()) {
       throw new BadRequestException(
-        'A exclusão de contratos está desativada nesta instituição.',
+        'A exclusÃ£o de contratos estÃ¡ desativada nesta instituiÃ§Ã£o.',
       );
     }
 
@@ -458,7 +445,7 @@ export class ContractsService {
     });
 
     if (!existing) {
-      throw new NotFoundException('Modelo de contrato não encontrado.');
+      throw new NotFoundException('Modelo de contrato nÃ£o encontrado.');
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -597,7 +584,7 @@ export class ContractsService {
     });
 
     if (!instance) {
-      throw new NotFoundException('Contrato não encontrado.');
+      throw new NotFoundException('Contrato nÃ£o encontrado.');
     }
 
     const institutionSignature = this.readInstitutionSignature(
@@ -656,7 +643,7 @@ export class ContractsService {
       },
     });
     if (!template) {
-      throw new NotFoundException('Modelo de contrato não encontrado.');
+      throw new NotFoundException('Modelo de contrato nÃ£o encontrado.');
     }
 
     if (
@@ -683,7 +670,7 @@ export class ContractsService {
     });
     if (!templateVersion) {
       throw new NotFoundException(
-        'Versão publicada do modelo não foi encontrada.',
+        'VersÃ£o publicada do modelo nÃ£o foi encontrada.',
       );
     }
 
@@ -717,7 +704,7 @@ export class ContractsService {
       },
     });
     if (!student) {
-      throw new NotFoundException('Aluno não encontrado nesta instituição.');
+      throw new NotFoundException('Aluno nÃ£o encontrado nesta instituiÃ§Ã£o.');
     }
 
     const institutionSignerName =
@@ -748,7 +735,7 @@ export class ContractsService {
         },
       });
       if (!course) {
-        throw new NotFoundException('Curso informado não encontrado.');
+        throw new NotFoundException('Curso informado nÃ£o encontrado.');
       }
       courseName = course.name;
       coursePaymentModel = String(course.paymentModel || '');
@@ -764,7 +751,7 @@ export class ContractsService {
         select: { id: true, name: true },
       });
       if (!schoolClass) {
-        throw new NotFoundException('Turma informada não encontrada.');
+        throw new NotFoundException('Turma informada nÃ£o encontrada.');
       }
       className = schoolClass.name;
     }
@@ -801,7 +788,7 @@ export class ContractsService {
       });
       if (!enrollment) {
         throw new NotFoundException(
-          'Matrícula informada não encontrada para este aluno.',
+          'MatrÃ­cula informada nÃ£o encontrada para este aluno.',
         );
       }
       if (!className) {
@@ -919,7 +906,7 @@ export class ContractsService {
     const formsAndValuesSummaryLines = [
       `Forma de pagamento: ${paymentMethodLabel}`,
       `Valor total: ${this.formatCurrencyPtBr(financialTotal)}`,
-      `Taxa de matrícula: ${this.formatCurrencyPtBr(courseEnrollmentFee)}`,
+      `Taxa de matrÃ­cula: ${this.formatCurrencyPtBr(courseEnrollmentFee)}`,
       `Quantidade de parcelas: ${installmentCountForSummary}`,
       `Valor da parcela: ${this.formatCurrencyPtBr(installmentValueForSummary)}`,
     ];
@@ -928,7 +915,7 @@ export class ContractsService {
       formsAndValuesSummaryLines.push(
         `Valor total com desconto${
           selectedOptionDiscountDeadlineDay > 0
-            ? ` até dia ${selectedOptionDiscountDeadlineDay}`
+            ? ` atÃ© dia ${selectedOptionDiscountDeadlineDay}`
             : ''
         }: ${this.formatCurrencyPtBr(selectedOptionDiscountTotalAmount)}`,
       );
@@ -941,7 +928,7 @@ export class ContractsService {
       formsAndValuesSummaryLines.push(
         `Parcela com desconto${
           selectedOptionDiscountDeadlineDay > 0
-            ? ` até dia ${selectedOptionDiscountDeadlineDay}`
+            ? ` atÃ© dia ${selectedOptionDiscountDeadlineDay}`
             : ''
         }: ${this.formatCurrencyPtBr(selectedOptionDiscountInstallmentAmount)}`,
       );
@@ -952,7 +939,7 @@ export class ContractsService {
     }
 
     if (selectedPaymentOption?.note) {
-      formsAndValuesSummaryLines.push(`Observação: ${selectedPaymentOption.note}`);
+      formsAndValuesSummaryLines.push(`ObservaÃ§Ã£o: ${selectedPaymentOption.note}`);
     }
 
     const formsAndValuesSummary = formsAndValuesSummaryLines.join(' | ');
@@ -1187,7 +1174,7 @@ export class ContractsService {
 
     if (!this.isContractDeletionEnabled()) {
       throw new BadRequestException(
-        'A exclusão de contratos está desativada nesta instituição.',
+        'A exclusÃ£o de contratos estÃ¡ desativada nesta instituiÃ§Ã£o.',
       );
     }
 
@@ -1202,7 +1189,7 @@ export class ContractsService {
     });
 
     if (!existing) {
-      throw new NotFoundException('Contrato não encontrado.');
+      throw new NotFoundException('Contrato nÃ£o encontrado.');
     }
 
     await this.prisma.contractInstance.delete({
@@ -1234,7 +1221,7 @@ export class ContractsService {
     });
 
     if (!instance) {
-      throw new NotFoundException('Contrato não encontrado.');
+      throw new NotFoundException('Contrato nÃ£o encontrado.');
     }
 
     if (
@@ -1243,7 +1230,7 @@ export class ContractsService {
       instance.status === ContractInstanceStatus.EXPIRED
     ) {
       throw new BadRequestException(
-        'A assinatura institucional não pode ser registrada para este status.',
+        'A assinatura institucional nÃ£o pode ser registrada para este status.',
       );
     }
 
@@ -1251,25 +1238,10 @@ export class ContractsService {
       instance.snapshotStudentData,
     );
     if (institutionSignature.signedAt) {
-      throw new BadRequestException('Assinatura institucional já registrada.');
+      throw new BadRequestException('Assinatura institucional jÃ¡ registrada.');
     }
 
-    const signer = await this.prisma.user.findFirst({
-      where: {
-        id: actor.sub,
-        institutionId,
-      },
-      select: {
-        id: true,
-        name: true,
-      },
-    });
-
-    if (!signer) {
-      throw new NotFoundException(
-        'Usuário responsável pela assinatura institucional não encontrado.',
-      );
-    }
+    const signer = await this.resolveInstitutionSigner(actor.sub, institutionId);
 
     const now = new Date();
     const isStudentAlreadySigned = instance.status === ContractInstanceStatus.SIGNED;
@@ -1392,7 +1364,7 @@ export class ContractsService {
     const now = new Date();
     const tokenHash = this.sha256(String(rawToken || '').trim());
     if (!tokenHash) {
-      throw new BadRequestException('Token de assinatura inválido.');
+      throw new BadRequestException('Token de assinatura invÃ¡lido.');
     }
 
     const token = await this.prisma.contractSigningToken.findFirst({
@@ -1412,7 +1384,7 @@ export class ContractsService {
     });
 
     if (!token) {
-      throw new BadRequestException('Token de assinatura inválido ou expirado.');
+      throw new BadRequestException('Token de assinatura invÃ¡lido ou expirado.');
     }
 
     return {
@@ -1442,7 +1414,7 @@ export class ContractsService {
     });
 
     if (!instance) {
-      throw new NotFoundException('Contrato não encontrado.');
+      throw new NotFoundException('Contrato nÃ£o encontrado.');
     }
 
     const htmlContent =
@@ -1476,7 +1448,7 @@ export class ContractsService {
     });
 
     if (!instance) {
-      throw new NotFoundException('Contrato não encontrado.');
+      throw new NotFoundException('Contrato nÃ£o encontrado.');
     }
 
     const htmlContent =
@@ -1517,7 +1489,7 @@ export class ContractsService {
     });
 
     if (!instance) {
-      throw new NotFoundException('Contrato não encontrado.');
+      throw new NotFoundException('Contrato nÃ£o encontrado.');
     }
 
     if (
@@ -1563,7 +1535,7 @@ export class ContractsService {
     });
 
     if (!refreshed) {
-      throw new NotFoundException('Contrato não encontrado.');
+      throw new NotFoundException('Contrato nÃ£o encontrado.');
     }
 
     const institutionSignature = this.readInstitutionSignature(
@@ -1616,13 +1588,13 @@ export class ContractsService {
       },
     });
     if (!instance) {
-      throw new NotFoundException('Contrato não encontrado.');
+      throw new NotFoundException('Contrato nÃ£o encontrado.');
     }
     if (instance.status === ContractInstanceStatus.SIGNED) {
-      throw new BadRequestException('Este contrato já foi assinado.');
+      throw new BadRequestException('Este contrato jÃ¡ foi assinado.');
     }
     if (instance.status === ContractInstanceStatus.ARCHIVED) {
-      throw new BadRequestException('Este contrato está arquivado.');
+      throw new BadRequestException('Este contrato estÃ¡ arquivado.');
     }
     if (instance.status === ContractInstanceStatus.CANCELED) {
       throw new BadRequestException('Este contrato foi cancelado.');
@@ -1630,7 +1602,7 @@ export class ContractsService {
 
     const channel = dto.channel ?? 'email';
     if (channel !== 'email') {
-      throw new BadRequestException('Canal de OTP não suportado.');
+      throw new BadRequestException('Canal de OTP nÃ£o suportado.');
     }
 
     const pinCode = String(randomInt(0, 1_000_000)).padStart(6, '0');
@@ -1745,11 +1717,11 @@ export class ContractsService {
       },
     });
     if (!instance) {
-      throw new NotFoundException('Contrato não encontrado.');
+      throw new NotFoundException('Contrato nÃ£o encontrado.');
     }
 
     if (instance.status === ContractInstanceStatus.SIGNED) {
-      throw new BadRequestException('Este contrato já foi assinado.');
+      throw new BadRequestException('Este contrato jÃ¡ foi assinado.');
     }
 
     const institutionSignature = this.readInstitutionSignature(
@@ -1757,7 +1729,7 @@ export class ContractsService {
     );
     if (!institutionSignature.signedAt) {
       throw new BadRequestException(
-        'A instituição precisa assinar o contrato antes da assinatura do aluno.',
+        'A instituiÃ§Ã£o precisa assinar o contrato antes da assinatura do aluno.',
       );
     }
 
@@ -1772,18 +1744,18 @@ export class ContractsService {
 
     if (!token) {
       throw new BadRequestException(
-        'Token de assinatura inválido ou expirado. Solicite novo código.',
+        'Token de assinatura invÃ¡lido ou expirado. Solicite novo cÃ³digo.',
       );
     }
 
     if (token.pinBlockedUntil && token.pinBlockedUntil > now) {
       throw new BadRequestException(
-        'Validação temporariamente bloqueada por tentativas inválidas.',
+        'ValidaÃ§Ã£o temporariamente bloqueada por tentativas invÃ¡lidas.',
       );
     }
 
     if (!token.pinHash || !token.pinExpiresAt || token.pinExpiresAt <= now) {
-      throw new BadRequestException('PIN inválido ou expirado.');
+      throw new BadRequestException('PIN invÃ¡lido ou expirado.');
     }
 
     const validPin = await compare(pin, token.pinHash);
@@ -1817,7 +1789,7 @@ export class ContractsService {
         });
       });
 
-      throw new BadRequestException('PIN inválido.');
+      throw new BadRequestException('PIN invÃ¡lido.');
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -1867,7 +1839,7 @@ export class ContractsService {
   ) {
     if (!dto.acceptTerms) {
       throw new BadRequestException(
-        'É necessário aceitar os termos antes de assinar.',
+        'Ã‰ necessÃ¡rio aceitar os termos antes de assinar.',
       );
     }
 
@@ -1887,11 +1859,11 @@ export class ContractsService {
       },
     });
     if (!instance) {
-      throw new NotFoundException('Contrato não encontrado.');
+      throw new NotFoundException('Contrato nÃ£o encontrado.');
     }
 
     if (instance.status === ContractInstanceStatus.SIGNED) {
-      throw new BadRequestException('Este contrato já foi assinado.');
+      throw new BadRequestException('Este contrato jÃ¡ foi assinado.');
     }
 
     const token = await this.prisma.contractSigningToken.findFirst({
@@ -1906,20 +1878,20 @@ export class ContractsService {
     );
     if (!institutionSignature.signedAt) {
       throw new BadRequestException(
-        'A instituição precisa assinar o contrato antes da assinatura do aluno.',
+        'A instituiÃ§Ã£o precisa assinar o contrato antes da assinatura do aluno.',
       );
     }
 
     if (!token || !token.verifiedAt || token.expiresAt <= now) {
       throw new BadRequestException(
-        'Validação por PIN obrigatória antes da assinatura.',
+        'ValidaÃ§Ã£o por PIN obrigatÃ³ria antes da assinatura.',
       );
     }
 
     const signerName = dto.signerName?.trim() || instance.student.name;
     const signatureData = this.normalizeSignatureDataUrl(dto.signatureData);
     if (!signatureData) {
-      throw new BadRequestException('Assinatura desenhada inválida.');
+      throw new BadRequestException('Assinatura desenhada invÃ¡lida.');
     }
     const acceptedTermsText =
       dto.acceptedTermsText?.trim() || DEFAULT_SIGNATURE_TERMS_TEXT;
@@ -2365,7 +2337,7 @@ export class ContractsService {
           { publicOrigin: input.publicOrigin ?? null },
         );
       } catch {
-        // O envio automático não deve quebrar a matrícula se houver falha.
+        // O envio automÃ¡tico nÃ£o deve quebrar a matrÃ­cula se houver falha.
       }
     }
   }
@@ -2374,11 +2346,43 @@ export class ContractsService {
     const institutionId = actor.activeInstitutionId ?? null;
     if (!institutionId) {
       throw new BadRequestException(
-        'Selecione uma instituição ativa para acessar contratos.',
+        'Selecione uma instituiÃ§Ã£o ativa para acessar contratos.',
       );
     }
 
     return institutionId;
+  }
+
+  private async resolveInstitutionSigner(userId: string, institutionId: string) {
+    const signer = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        institutionId: true,
+        institutionMembers: {
+          where: {
+            institutionId,
+            status: InstitutionMemberStatus.ACTIVE,
+          },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+
+    const belongsToInstitution = Boolean(
+      signer &&
+        (signer.institutionId === institutionId || signer.institutionMembers.length > 0),
+    );
+
+    if (!signer || !belongsToInstitution) {
+      throw new NotFoundException(
+        'Usuário responsável pela assinatura institucional não encontrado.',
+      );
+    }
+
+    return signer;
   }
 
   private isContractDeletionEnabled(): boolean {
@@ -2408,7 +2412,7 @@ export class ContractsService {
     };
     const mapped = map[normalized];
     if (!mapped) {
-      throw new BadRequestException('Status de contrato inválido.');
+      throw new BadRequestException('Status de contrato invÃ¡lido.');
     }
     return mapped;
   }
@@ -2587,14 +2591,14 @@ export class ContractsService {
         : 0;
       const discountLabel = hasDiscountInstallment
         ? `${this.formatCurrencyPtBr(discountValue)}${
-            hasDeadline ? ` até dia ${discountDeadlineDay}` : ''
+            hasDeadline ? ` atÃ© dia ${discountDeadlineDay}` : ''
           }${crfLabel}`
         : null;
       const detailsLabel = hasDiscountInstallment
-        ? `${hasDeadline ? `Até dia ${discountDeadlineDay}` : 'Pagamento antecipado'}: ${this.formatCurrencyPtBr(
+        ? `${hasDeadline ? `AtÃ© dia ${discountDeadlineDay}` : 'Pagamento antecipado'}: ${this.formatCurrencyPtBr(
             discountValue,
           )}. ${
-            hasDeadline ? `Após dia ${discountDeadlineDay}` : 'Valor regular'
+            hasDeadline ? `ApÃ³s dia ${discountDeadlineDay}` : 'Valor regular'
           }: ${this.formatCurrencyPtBr(amountValue)}${crfLabel}.`
         : null;
 
@@ -2627,9 +2631,9 @@ export class ContractsService {
       return 'Parcelado';
     }
     if (normalized === 'CASH') {
-      return 'À vista';
+      return 'Ã€ vista';
     }
-    return installmentsCount > 1 ? 'Parcelado' : 'À vista';
+    return installmentsCount > 1 ? 'Parcelado' : 'Ã€ vista';
   }
 
   private buildInstallmentsTableHtml(
@@ -2665,7 +2669,7 @@ export class ContractsService {
           <th style="text-align:left;border:1px solid #d1d5db;padding:6px;">Status</th>
           ${
             hasDetails
-              ? '<th style="text-align:left;border:1px solid #d1d5db;padding:6px;">Observações</th>'
+              ? '<th style="text-align:left;border:1px solid #d1d5db;padding:6px;">ObservaÃ§Ãµes</th>'
               : ''
           }
         </tr>
@@ -2676,17 +2680,17 @@ export class ContractsService {
 
   private resolveContractCity(): string {
     const value = String(
-      this.configService.get<string>('CONTRACT_DEFAULT_CITY') || 'Goiânia',
+      this.configService.get<string>('CONTRACT_DEFAULT_CITY') || 'GoiÃ¢nia',
     ).trim();
-    return value || 'Goiânia';
+    return value || 'GoiÃ¢nia';
   }
 
   private resolveContractProviderName(): string {
     const value = String(
       this.configService.get<string>('CONTRACT_PROVIDER_NAME') ||
-        'INSTITUTO PROJEÇÃO',
+        'INSTITUTO PROJEÃ‡ÃƒO',
     ).trim();
-    return value || 'INSTITUTO PROJEÇÃO';
+    return value || 'INSTITUTO PROJEÃ‡ÃƒO';
   }
 
   private resolveContractProviderDocument(): string {
@@ -2700,7 +2704,7 @@ export class ContractsService {
   private resolveContractProviderAddress(): string {
     const value = String(
       this.configService.get<string>('CONTRACT_PROVIDER_ADDRESS') ||
-        'Av. T1, nº 2266, edifício Alpha, Setor Bueno, Goiânia - GO, CEP 74.210-045',
+        'Av. T1, nÂº 2266, edifÃ­cio Alpha, Setor Bueno, GoiÃ¢nia - GO, CEP 74.210-045',
     ).trim();
     return value;
   }
@@ -2708,9 +2712,9 @@ export class ContractsService {
   private resolveContractForum(): string {
     const value = String(
       this.configService.get<string>('CONTRACT_FORUM') ||
-        'Comarca de Goiânia/GO',
+        'Comarca de GoiÃ¢nia/GO',
     ).trim();
-    return value || 'Comarca de Goiânia/GO';
+    return value || 'Comarca de GoiÃ¢nia/GO';
   }
 
   private snapshotToRecord(
@@ -2781,7 +2785,7 @@ export class ContractsService {
           <strong>Data/hora:</strong> ${this.escapeHtml(signedAtLabel)}
         </p>
         <p style="margin:0;font-family:Arial,sans-serif;">
-          <strong>Código de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
+          <strong>CÃ³digo de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
         </p>
       </section>
     `;
@@ -2807,7 +2811,7 @@ export class ContractsService {
 
     const signatureBlock = `
       <section style="margin-top:24px;padding:16px;border:1px solid #d1d5db;border-radius:8px;">
-        <h4 style="margin:0 0 8px;font-family:Arial,sans-serif;">Assinatura eletrônica</h4>
+        <h4 style="margin:0 0 8px;font-family:Arial,sans-serif;">Assinatura eletrÃ´nica</h4>
         <p style="margin:0 0 6px;font-family:Arial,sans-serif;">
           <strong>Assinado por:</strong> ${this.escapeHtml(params.signerName)}
         </p>
@@ -2815,12 +2819,12 @@ export class ContractsService {
           <strong>Data/hora:</strong> ${this.escapeHtml(signedAtLabel)}
         </p>
         <p style="margin:0;font-family:Arial,sans-serif;">
-          <strong>Código de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
+          <strong>CÃ³digo de assinatura:</strong> ${this.escapeHtml(params.signatureCode)}
         </p>
         <div style="margin-top:12px;">
           <p style="margin:0 0 6px;font-family:Arial,sans-serif;"><strong>Assinatura:</strong></p>
           <img
-            alt="Assinatura desenhada do signatário"
+            alt="Assinatura desenhada do signatÃ¡rio"
             src="${this.escapeHtml(params.signatureData)}"
             style="display:block;max-width:360px;width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;background:#fff;"
           />
@@ -2913,7 +2917,7 @@ export class ContractsService {
     }
 
     throw new InternalServerErrorException(
-      'Não foi possível gerar código de assinatura único.',
+      'NÃ£o foi possÃ­vel gerar cÃ³digo de assinatura Ãºnico.',
     );
   }
 
@@ -3002,3 +3006,4 @@ export class ContractsService {
     return `${visibleStart}${hidden}${visibleEnd}@${domainPart}`;
   }
 }
+

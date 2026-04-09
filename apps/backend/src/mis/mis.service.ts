@@ -820,21 +820,22 @@ export class MisService {
 
       const enrollmentFeeCharge =
         enrollmentFee > 0
-          ? ordered.find((item) => {
-              const amount = this.toMoneyValue(Number(item.amount));
-              if (amount !== enrollmentFee) return false;
-              const dueDay = new Date(
-                item.dueDate.getFullYear(),
-                item.dueDate.getMonth(),
-                item.dueDate.getDate(),
-              ).getTime();
-              const enrollmentDay = new Date(
-                first.enrollment.createdAt.getFullYear(),
-                first.enrollment.createdAt.getMonth(),
-                first.enrollment.createdAt.getDate(),
-              ).getTime();
-              return dueDay === enrollmentDay;
-            }) ?? null
+          ? (() => {
+              const candidates = ordered.filter((item) => {
+                const amount = this.toMoneyValue(Number(item.amount));
+                return amount === enrollmentFee;
+              });
+              if (candidates.length === 0) return null;
+              if (candidates.length === 1) return candidates[0];
+
+              const enrollmentTime = first.enrollment.createdAt.getTime();
+              return candidates.sort((a, b) => {
+                const distanceA = Math.abs(a.dueDate.getTime() - enrollmentTime);
+                const distanceB = Math.abs(b.dueDate.getTime() - enrollmentTime);
+                if (distanceA !== distanceB) return distanceA - distanceB;
+                return a.createdAt.getTime() - b.createdAt.getTime();
+              })[0];
+            })()
           : null;
 
       if (enrollmentFeeCharge) {
