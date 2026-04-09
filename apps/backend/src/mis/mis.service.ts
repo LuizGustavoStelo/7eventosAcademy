@@ -2351,10 +2351,6 @@ export class MisService {
       tipoJurosMora: 0,
       numeroParcela: 1,
       aceite: false,
-      codigoNegativacao: 0,
-      numeroDiasNegativacao: 0,
-      codigoProtesto: 0,
-      numeroDiasProtesto: 0,
       pagador: {
         numeroCpfCnpj: cpfCnpj,
         nome: studentName.slice(0, 100),
