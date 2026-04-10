@@ -464,21 +464,65 @@ export class EnrollmentsService {
         now.getMonth(),
         now.getDate(),
       );
-      const base = input.selectedPaymentOption.installmentStartDate
-        ? new Date(input.classStartDate)
-        : new Date(input.enrollmentCreatedAt);
-      if (input.selectedPaymentOption.installmentStartDate) {
-        const scheduled = new Date(input.selectedPaymentOption.installmentStartDate);
-        if (!Number.isNaN(scheduled.getTime())) {
-          base.setTime(scheduled.getTime());
-        }
-      }
+      const scheduledBase = input.selectedPaymentOption.installmentStartDate
+        ? new Date(input.selectedPaymentOption.installmentStartDate)
+        : null;
+      const hasScheduledStart =
+        scheduledBase !== null && !Number.isNaN(scheduledBase.getTime());
       const result: Array<{
         dueDate: Date;
         amount: number;
         status: 'PENDING' | 'OVERDUE';
       }> = [];
+      const resolveInstallmentAmount = (installmentIndex: number) => {
+        const appliedVoucher = input.selectedPaymentOption?.appliedVoucher;
+        const appliesVoucherToSingleInstallment =
+          String(appliedVoucher?.appliesTo || '').toUpperCase() === 'INSTALLMENT' &&
+          String(appliedVoucher?.installmentScope || '').toUpperCase() === 'SINGLE' &&
+          installmentIndex === 0;
+        return appliesVoucherToSingleInstallment
+          ? this.toMoneyValue(
+              appliedVoucher?.discountedInstallmentAmount ??
+                input.selectedPaymentOption?.installmentAmount ??
+                value,
+            )
+          : value;
+      };
 
+      if (hasScheduledStart) {
+        const firstDueDate = new Date(input.enrollmentCreatedAt);
+        const dueDateStart = new Date(
+          firstDueDate.getFullYear(),
+          firstDueDate.getMonth(),
+          firstDueDate.getDate(),
+        );
+        result.push({
+          dueDate: firstDueDate,
+          amount: resolveInstallmentAmount(0),
+          status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+        });
+
+        for (let index = 1; index < months; index += 1) {
+          const dueDate = this.buildChargeDueDate(
+            scheduledBase,
+            index - 1,
+            input.selectedPaymentOption.dueDay ?? undefined,
+          );
+          const dueDateStart = new Date(
+            dueDate.getFullYear(),
+            dueDate.getMonth(),
+            dueDate.getDate(),
+          );
+          result.push({
+            dueDate,
+            amount: resolveInstallmentAmount(index),
+            status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+          });
+        }
+        return result;
+      }
+
+      const base = new Date(input.enrollmentCreatedAt);
       for (let index = 0; index < months; index += 1) {
         const dueDate = this.buildChargeDueDate(
           base,
@@ -490,21 +534,9 @@ export class EnrollmentsService {
           dueDate.getMonth(),
           dueDate.getDate(),
         );
-        const appliedVoucher = input.selectedPaymentOption.appliedVoucher;
-        const appliesVoucherToSingleInstallment =
-          String(appliedVoucher?.appliesTo || '').toUpperCase() === 'INSTALLMENT' &&
-          String(appliedVoucher?.installmentScope || '').toUpperCase() === 'SINGLE' &&
-          index === 0;
-        const chargeAmount = appliesVoucherToSingleInstallment
-          ? this.toMoneyValue(
-              appliedVoucher?.discountedInstallmentAmount ??
-                input.selectedPaymentOption.installmentAmount ??
-                value,
-            )
-          : value;
         result.push({
           dueDate,
-          amount: chargeAmount,
+          amount: resolveInstallmentAmount(index),
           status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
         });
       }
@@ -569,7 +601,6 @@ export class EnrollmentsService {
     const enrollmentGraceDueDate = this.addHours(input.enrollmentCreatedAt, 48);
     const chargesWithGrace =
       input.selectedPaymentOption?.type === 'INSTALLMENTS' &&
-      !input.selectedPaymentOption.installmentStartDate &&
       charges.length > 0
         ? charges.map((item, index) => {
             if (index !== 0) return item;

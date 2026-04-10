@@ -183,6 +183,7 @@ model User {
   studentContractInstances ContractInstance[] @relation("contract_instance_student")
   createdContractInstances ContractInstance[] @relation("contract_instance_created_by")
   contractAuditEntries ContractAuditLog[] @relation("contract_audit_actor")
+  institutionAuditEntries InstitutionAuditLog[] @relation("institution_audit_actor")
   ownedFinanceVouchers FinanceVoucher[] @relation("finance_voucher_owner")
 
   @@index([ownerAdminId], map: "users_owner_admin_idx")
@@ -197,6 +198,10 @@ model Institution {
   status       InstitutionStatus    @default(ACTIVE)
   brandingLogoUrl String?           @map("branding_logo_url")
   brandingPalette Json?             @map("branding_palette")
+  supportContactEmail String?       @map("support_contact_email")
+  supportContactPhone String?       @map("support_contact_phone")
+  commercialContactEmail String?    @map("commercial_contact_email")
+  commercialContactPhone String?    @map("commercial_contact_phone")
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
   members      InstitutionMember[]
@@ -213,6 +218,7 @@ model Institution {
   contractAuditLogs ContractAuditLog[]
   contractArtifacts ContractArtifact[]
   financeVouchers FinanceVoucher[]
+  auditLogs      InstitutionAuditLog[]
 
   @@index([status], map: "institutions_status_idx")
   @@map("institutions")
@@ -286,6 +292,24 @@ model MemberRole {
   @@id([memberId, roleId])
   @@index([roleId], map: "member_roles_role_idx")
   @@map("member_roles")
+}
+
+model InstitutionAuditLog {
+  id           String      @id @default(uuid()) @db.Uuid
+  institutionId String     @map("institution_id") @db.Uuid
+  actorUserId  String?     @map("actor_user_id") @db.Uuid
+  action       String
+  resourceType String      @map("resource_type")
+  resourceId   String?     @map("resource_id") @db.Uuid
+  metadata     Json?
+  createdAt    DateTime    @default(now()) @map("created_at")
+  institution  Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  actorUser    User?       @relation("institution_audit_actor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([institutionId, createdAt], map: "institution_audit_logs_institution_created_idx")
+  @@index([actorUserId, createdAt], map: "institution_audit_logs_actor_created_idx")
+  @@index([resourceType, createdAt], map: "institution_audit_logs_resource_type_created_idx")
+  @@map("institution_audit_logs")
 }
 
 model AccountFinancialConfig {

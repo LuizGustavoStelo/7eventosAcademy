@@ -7364,6 +7364,12 @@ table button {
   box-shadow: 0 10px 20px rgba(16, 124, 127, 0.22);
 }
 
+.student-template-support-actions button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .student-template-lower-grid {
   margin-top: 1rem;
   display: grid;
@@ -7611,6 +7617,48 @@ table button {
   line-height: 1.5;
 }
 
+.student-page-card-contact-assist {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.student-page-card-contact-assist h4 {
+  color: #92400e;
+}
+
+.student-page-contact-actions {
+  margin-top: 0.72rem;
+  display: flex;
+  align-items: center;
+  gap: 0.62rem;
+  flex-wrap: wrap;
+}
+
+.student-page-contact-actions button {
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0f7f81, #159b9e);
+  color: #fff;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.42rem 0.74rem;
+  cursor: pointer;
+}
+
+.student-page-contact-actions button:disabled {
+  opacity: 0.68;
+  cursor: not-allowed;
+}
+
+.student-page-contact-actions small {
+  color: #7c6229;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
 .student-page-chip-row {
   display: flex;
   align-items: center;
@@ -7775,6 +7823,10 @@ table button {
   color: #b91c1c;
 }
 
+.student-charge-feedback.is-warning {
+  color: #9a3412;
+}
+
 .student-charge-inline-actions {
   margin-top: 0.35rem;
   display: flex;
@@ -7823,6 +7875,10 @@ table button {
   background: linear-gradient(90deg, #127f81, #169c9f);
   color: #fff;
   cursor: pointer;
+}
+
+.student-charge-actions > button.student-charge-commercial-action {
+  background: linear-gradient(90deg, #9a3412, #c2410c);
 }
 
 .student-charge-actions > button:disabled {
@@ -9966,4 +10022,34 @@ table button {
   .student-contract-signature-canvas {
     height: 170px;
   }
+}
+.native-users-admin .native-users-permissions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.native-users-admin .native-users-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border-color, #d9e2e7);
+  border-radius: 0.55rem;
+  background: var(--surface-soft-color, #f6f8f9);
+}
+
+.native-users-admin .native-users-check span {
+  font-size: 0.86rem;
+}
+
+.native-users-admin .native-users-actions {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.native-users-admin .native-users-actions select {
+  min-width: 112px;
 }

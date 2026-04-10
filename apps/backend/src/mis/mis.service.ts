@@ -130,20 +130,30 @@ type WebhookProcessingResult = {
 type StudentChargePaymentContext = {
   id: string;
   amount: Prisma.Decimal;
+  createdAt: Date;
   dueDate: Date;
   status: string;
   externalChargeId: string | null;
   ownerAdminId: string | null;
   enrollment: {
     id: string;
+    createdAt: Date;
     selectedPaymentOption: Prisma.JsonValue | null;
     schoolClass: {
       name: string;
       course: {
         name: string;
         ownerAdminId: string;
+        enrollmentFee: Prisma.Decimal | null;
       };
     };
+    monthlyCharges: Array<{
+      id: string;
+      amount: Prisma.Decimal;
+      dueDate: Date;
+      createdAt: Date;
+      status: string;
+    }>;
     student: {
       name: string;
       email: string;
@@ -160,6 +170,15 @@ type StudentChargePaymentContext = {
       } | null;
     };
   };
+};
+
+type StudentChargePricing = {
+  originalAmount: number;
+  payableAmount: number;
+  discountAmount: number;
+  discountApplied: boolean;
+  discountDeadlineDay: number | null;
+  discountDeadlineDate: Date | null;
 };
 
 const DEFAULT_STUDENT_LOGO_URL = '/Logo-IPESK.png';
@@ -263,6 +282,10 @@ export class MisService {
             slug: true,
             brandingLogoUrl: true,
             brandingPalette: true,
+            supportContactEmail: true,
+            supportContactPhone: true,
+            commercialContactEmail: true,
+            commercialContactPhone: true,
             updatedAt: true,
           },
         },
@@ -278,6 +301,10 @@ export class MisService {
                 slug: true,
                 brandingLogoUrl: true,
                 brandingPalette: true,
+                supportContactEmail: true,
+                supportContactPhone: true,
+                commercialContactEmail: true,
+                commercialContactPhone: true,
                 updatedAt: true,
               },
             },
@@ -312,6 +339,12 @@ export class MisService {
             id: institution.id,
             name: institution.name,
             slug: institution.slug,
+            contacts: {
+              supportEmail: institution.supportContactEmail?.trim() || null,
+              supportPhone: institution.supportContactPhone?.trim() || null,
+              commercialEmail: institution.commercialContactEmail?.trim() || null,
+              commercialPhone: institution.commercialContactPhone?.trim() || null,
+            },
           }
         : null,
       branding,
@@ -368,6 +401,8 @@ export class MisService {
     const method = this.resolveEnrollmentPaymentMethod(
       charge.enrollment.selectedPaymentOption,
     );
+    const chargePricing = this.resolveStudentChargePricingForPayment(charge);
+    const payableAmount = chargePricing.payableAmount;
     const ownerAdminId =
       charge.ownerAdminId || charge.enrollment.schoolClass.course.ownerAdminId;
 
@@ -398,6 +433,7 @@ export class MisService {
     if (provider === 'sicoob') {
       return this.createSicoobPayment({
         charge,
+        amount: payableAmount,
         method,
         provider,
         environment: config.environment,
@@ -419,6 +455,7 @@ export class MisService {
       return this.createAsaasPayment({
         apiKey,
         charge,
+        amount: payableAmount,
         method,
         environment: config.environment,
         provider,
@@ -429,6 +466,7 @@ export class MisService {
       return this.createStripePayment({
         apiKey,
         charge,
+        amount: payableAmount,
         method,
         returnUrl: input.returnUrl,
         provider,
@@ -728,6 +766,7 @@ export class MisService {
                   select: {
                     name: true,
                     enrollmentFee: true,
+                    ownerAdminId: true,
                   },
                 },
               },
@@ -751,42 +790,349 @@ export class MisService {
       take: 30,
     });
     const descriptionByChargeId = this.buildStudentChargeDescriptionMap(charges);
+    const pricingByChargeId = this.buildStudentChargePricingMap(charges);
+    const ownerAdminIds = [
+      ...new Set(
+        charges
+          .map((charge) => charge.enrollment.schoolClass.course.ownerAdminId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ];
+    const financialConfigs =
+      ownerAdminIds.length > 0
+        ? await this.prisma.accountFinancialConfig.findMany({
+            where: {
+              userId: {
+                in: ownerAdminIds,
+              },
+            },
+            select: {
+              userId: true,
+              provider: true,
+              isActive: true,
+            },
+          })
+        : [];
+    const financialConfigByOwnerAdminId = new Map(
+      financialConfigs.map((item) => [item.userId, item]),
+    );
 
-    return charges.map((charge) => ({
-      id: charge.id,
-      enrollmentId: charge.enrollmentId,
-      dueDate: charge.dueDate,
-      amount: Number(charge.amount),
-      status: charge.status,
-      description:
-        descriptionByChargeId.get(charge.id) ??
-        this.buildStudentChargeDefaultDescription(
+    return this.mapStudentChargesForResponse(
+      charges,
+      descriptionByChargeId,
+      pricingByChargeId,
+      financialConfigByOwnerAdminId,
+    );
+  }
+
+  private mapStudentChargesForResponse(
+    charges: Array<{
+      id: string;
+      enrollmentId: string;
+      dueDate: Date;
+      amount: Prisma.Decimal;
+      status: string;
+      externalChargeId: string | null;
+      enrollment: {
+        selectedPaymentOption: Prisma.JsonValue | null;
+        schoolClass: {
+          name: string;
+          course: {
+            name: string;
+            ownerAdminId: string;
+          };
+        };
+      };
+      paymentTransactions: Array<{
+        id: string;
+        provider: string;
+        status: string;
+        amount: Prisma.Decimal;
+        paidAt: Date | null;
+        createdAt: Date;
+      }>;
+    }>,
+    descriptionByChargeId: Map<string, string>,
+    pricingByChargeId: Map<string, StudentChargePricing>,
+    financialConfigByOwnerAdminId: Map<
+      string,
+      {
+        userId: string;
+        provider: string;
+        isActive: boolean;
+      }
+    >,
+  ) {
+    return charges.map((charge) => {
+      const ownerAdminId = charge.enrollment.schoolClass.course.ownerAdminId;
+      const financialConfig = financialConfigByOwnerAdminId.get(ownerAdminId);
+      const gatewayProvider = this.normalizeFinancialProvider(
+        financialConfig?.provider,
+      );
+      const gatewayIsActive = Boolean(financialConfig?.isActive);
+      const paymentMethod = this.resolveEnrollmentPaymentMethod(
+        charge.enrollment.selectedPaymentOption,
+      );
+      const creditCardUnsupported =
+        paymentMethod === 'CREDIT_CARD' &&
+        gatewayProvider === 'sicoob' &&
+        gatewayIsActive;
+      const pricing = pricingByChargeId.get(charge.id) ?? {
+        originalAmount: this.toMoneyValue(Number(charge.amount)),
+        payableAmount: this.toMoneyValue(Number(charge.amount)),
+        discountAmount: 0,
+        discountApplied: false,
+        discountDeadlineDay: null,
+        discountDeadlineDate: null,
+      };
+
+      return {
+        id: charge.id,
+        enrollmentId: charge.enrollmentId,
+        dueDate: charge.dueDate,
+        amount: pricing.payableAmount,
+        originalAmount: pricing.originalAmount,
+        discountAmount: pricing.discountAmount,
+        discountApplied: pricing.discountApplied,
+        discountDeadlineDay: pricing.discountDeadlineDay,
+        discountDeadlineDate: pricing.discountDeadlineDate
+          ? pricing.discountDeadlineDate.toISOString()
+          : null,
+        status: charge.status,
+        description:
+          descriptionByChargeId.get(charge.id) ??
+          this.buildStudentChargeDefaultDescription(
+            charge.enrollment.selectedPaymentOption,
+          ),
+        paymentMethod,
+        paymentOptionTitle: this.resolveEnrollmentPaymentOptionTitle(
           charge.enrollment.selectedPaymentOption,
         ),
-      paymentMethod: this.resolveEnrollmentPaymentMethod(
-        charge.enrollment.selectedPaymentOption,
-      ),
-      paymentOptionTitle: this.resolveEnrollmentPaymentOptionTitle(
-        charge.enrollment.selectedPaymentOption,
-      ),
-      appliedVoucher: this.resolveEnrollmentAppliedVoucher(
-        charge.enrollment.selectedPaymentOption,
-      ),
-      canPay: charge.status === 'PENDING' || charge.status === 'OVERDUE',
-      externalChargeId: charge.externalChargeId,
-      className: charge.enrollment.schoolClass.name,
-      courseName: charge.enrollment.schoolClass.course.name,
-      lastTransaction: charge.paymentTransactions[0]
-        ? {
-            id: charge.paymentTransactions[0].id,
-            provider: charge.paymentTransactions[0].provider,
-            status: charge.paymentTransactions[0].status,
-            amount: Number(charge.paymentTransactions[0].amount),
-            paidAt: charge.paymentTransactions[0].paidAt,
-            createdAt: charge.paymentTransactions[0].createdAt,
-          }
-        : null,
+        appliedVoucher: this.resolveEnrollmentAppliedVoucher(
+          charge.enrollment.selectedPaymentOption,
+        ),
+        canPay:
+          (charge.status === 'PENDING' || charge.status === 'OVERDUE') &&
+          !creditCardUnsupported,
+        gatewayProvider,
+        gatewayIsActive,
+        creditCardUnsupported,
+        externalChargeId: charge.externalChargeId,
+        className: charge.enrollment.schoolClass.name,
+        courseName: charge.enrollment.schoolClass.course.name,
+        lastTransaction: charge.paymentTransactions[0]
+          ? {
+              id: charge.paymentTransactions[0].id,
+              provider: charge.paymentTransactions[0].provider,
+              status: charge.paymentTransactions[0].status,
+              amount: Number(charge.paymentTransactions[0].amount),
+              paidAt: charge.paymentTransactions[0].paidAt,
+              createdAt: charge.paymentTransactions[0].createdAt,
+            }
+          : null,
+      };
+    });
+  }
+
+  private resolveStudentChargePricingForPayment(
+    charge: StudentChargePaymentContext,
+  ): StudentChargePricing {
+    const groupedCharges = charge.enrollment.monthlyCharges.map((item) => ({
+      id: item.id,
+      enrollmentId: charge.enrollment.id,
+      amount: item.amount,
+      dueDate: item.dueDate,
+      createdAt: item.createdAt,
+      status: item.status,
+      enrollment: {
+        createdAt: charge.enrollment.createdAt,
+        selectedPaymentOption: charge.enrollment.selectedPaymentOption,
+        schoolClass: {
+          course: {
+            enrollmentFee: charge.enrollment.schoolClass.course.enrollmentFee,
+          },
+        },
+      },
     }));
+    const pricingByChargeId = this.buildStudentChargePricingMap(groupedCharges);
+    return (
+      pricingByChargeId.get(charge.id) ?? {
+        originalAmount: this.toMoneyValue(Number(charge.amount)),
+        payableAmount: this.toMoneyValue(Number(charge.amount)),
+        discountAmount: 0,
+        discountApplied: false,
+        discountDeadlineDay: null,
+        discountDeadlineDate: null,
+      }
+    );
+  }
+
+  private buildStudentChargePricingMap(
+    charges: Array<{
+      id: string;
+      enrollmentId: string;
+      amount: Prisma.Decimal;
+      dueDate: Date;
+      createdAt: Date;
+      status: string;
+      enrollment: {
+        createdAt: Date;
+        selectedPaymentOption: Prisma.JsonValue | null;
+        schoolClass: {
+          course: {
+            enrollmentFee: Prisma.Decimal | null;
+          };
+        };
+      };
+    }>,
+  ) {
+    const pricingById = new Map<string, StudentChargePricing>();
+    const byEnrollment = new Map<string, typeof charges>();
+
+    for (const charge of charges) {
+      const list = byEnrollment.get(charge.enrollmentId) ?? [];
+      list.push(charge);
+      byEnrollment.set(charge.enrollmentId, list);
+    }
+
+    const now = new Date();
+    byEnrollment.forEach((items) => {
+      const ordered = [...items].sort(
+        (a, b) =>
+          a.dueDate.getTime() - b.dueDate.getTime() ||
+          a.createdAt.getTime() - b.createdAt.getTime(),
+      );
+      const first = ordered[0];
+      if (!first) return;
+
+      const enrollmentFeeAmount = this.toMoneyValue(
+        Number(first.enrollment.schoolClass.course.enrollmentFee ?? 0),
+      );
+      const enrollmentFeeCharge = this.findEnrollmentFeeChargeInOrderedGroup(
+        ordered,
+        enrollmentFeeAmount,
+        first.enrollment.createdAt,
+      );
+      const selectedOption = this.parseStudentSelectedPaymentOption(
+        first.enrollment.selectedPaymentOption,
+      );
+      const installmentCharges = ordered.filter(
+        (item) => !enrollmentFeeCharge || enrollmentFeeCharge.id !== item.id,
+      );
+      const installmentPositionByChargeId = new Map<string, number>();
+      installmentCharges.forEach((item, index) => {
+        installmentPositionByChargeId.set(item.id, index + 1);
+      });
+
+      ordered.forEach((item) => {
+        const originalAmount = this.toMoneyValue(Number(item.amount));
+        const defaultPricing: StudentChargePricing = {
+          originalAmount,
+          payableAmount: originalAmount,
+          discountAmount: 0,
+          discountApplied: false,
+          discountDeadlineDay: null,
+          discountDeadlineDate: null,
+        };
+
+        const isInstallmentCharge =
+          !enrollmentFeeCharge || enrollmentFeeCharge.id !== item.id;
+        const installmentPosition = installmentPositionByChargeId.get(item.id) ?? 0;
+        const isInsideConfiguredInstallments =
+          selectedOption.installmentCount <= 0 ||
+          installmentPosition <= selectedOption.installmentCount;
+        if (
+          !isInstallmentCharge ||
+          !isInsideConfiguredInstallments ||
+          item.status !== 'PENDING' ||
+          selectedOption.type !== 'INSTALLMENTS' ||
+          !selectedOption.discountEnabled ||
+          selectedOption.discountInstallmentAmount <= 0 ||
+          !selectedOption.discountDeadlineDay
+        ) {
+          pricingById.set(item.id, defaultPricing);
+          return;
+        }
+
+        const dueDate = new Date(item.dueDate);
+        if (Number.isNaN(dueDate.getTime())) {
+          pricingById.set(item.id, defaultPricing);
+          return;
+        }
+
+        const maxDay = new Date(
+          dueDate.getFullYear(),
+          dueDate.getMonth() + 1,
+          0,
+        ).getDate();
+        const dueDay = dueDate.getDate();
+        const discountDay = Math.min(
+          maxDay,
+          dueDay,
+          Math.max(1, selectedOption.discountDeadlineDay),
+        );
+        const discountDeadlineDate = new Date(
+          dueDate.getFullYear(),
+          dueDate.getMonth(),
+          discountDay,
+          23,
+          59,
+          59,
+          999,
+        );
+        if (now.getTime() > discountDeadlineDate.getTime()) {
+          pricingById.set(item.id, defaultPricing);
+          return;
+        }
+
+        const discountedAmount = this.toMoneyValue(
+          Math.min(originalAmount, selectedOption.discountInstallmentAmount),
+        );
+        if (discountedAmount <= 0 || discountedAmount >= originalAmount) {
+          pricingById.set(item.id, defaultPricing);
+          return;
+        }
+
+        pricingById.set(item.id, {
+          originalAmount,
+          payableAmount: discountedAmount,
+          discountAmount: this.toMoneyValue(originalAmount - discountedAmount),
+          discountApplied: true,
+          discountDeadlineDay: selectedOption.discountDeadlineDay,
+          discountDeadlineDate,
+        });
+      });
+    });
+
+    return pricingById;
+  }
+
+  private findEnrollmentFeeChargeInOrderedGroup(
+    ordered: Array<{
+      id: string;
+      amount: Prisma.Decimal;
+      dueDate: Date;
+      createdAt: Date;
+    }>,
+    enrollmentFeeAmount: number,
+    enrollmentCreatedAt: Date,
+  ) {
+    if (enrollmentFeeAmount <= 0) return null;
+
+    const candidates = ordered.filter((item) => {
+      const amount = this.toMoneyValue(Number(item.amount));
+      return amount === enrollmentFeeAmount;
+    });
+    if (candidates.length === 0) return null;
+    if (candidates.length === 1) return candidates[0];
+
+    const enrollmentTime = enrollmentCreatedAt.getTime();
+    return candidates.sort((a, b) => {
+      const distanceA = Math.abs(a.dueDate.getTime() - enrollmentTime);
+      const distanceB = Math.abs(b.dueDate.getTime() - enrollmentTime);
+      if (distanceA !== distanceB) return distanceA - distanceB;
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    })[0];
   }
 
   private buildStudentChargeDescriptionMap(
@@ -829,25 +1175,11 @@ export class MisService {
         Number(first.enrollment.schoolClass.course.enrollmentFee ?? 0),
       );
 
-      const enrollmentFeeCharge =
-        enrollmentFee > 0
-          ? (() => {
-              const candidates = ordered.filter((item) => {
-                const amount = this.toMoneyValue(Number(item.amount));
-                return amount === enrollmentFee;
-              });
-              if (candidates.length === 0) return null;
-              if (candidates.length === 1) return candidates[0];
-
-              const enrollmentTime = first.enrollment.createdAt.getTime();
-              return candidates.sort((a, b) => {
-                const distanceA = Math.abs(a.dueDate.getTime() - enrollmentTime);
-                const distanceB = Math.abs(b.dueDate.getTime() - enrollmentTime);
-                if (distanceA !== distanceB) return distanceA - distanceB;
-                return a.createdAt.getTime() - b.createdAt.getTime();
-              })[0];
-            })()
-          : null;
+      const enrollmentFeeCharge = this.findEnrollmentFeeChargeInOrderedGroup(
+        ordered,
+        enrollmentFee,
+        first.enrollment.createdAt,
+      );
 
       if (enrollmentFeeCharge) {
         descriptionById.set(enrollmentFeeCharge.id, 'Matrícula');
@@ -894,9 +1226,18 @@ export class MisService {
   ): {
     type: 'CASH' | 'INSTALLMENTS';
     installmentCount: number;
+    discountEnabled: boolean;
+    discountInstallmentAmount: number;
+    discountDeadlineDay: number | null;
   } {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-      return { type: 'INSTALLMENTS', installmentCount: 0 };
+      return {
+        type: 'INSTALLMENTS',
+        installmentCount: 0,
+        discountEnabled: false,
+        discountInstallmentAmount: 0,
+        discountDeadlineDay: null,
+      };
     }
 
     const record = raw as Record<string, unknown>;
@@ -905,6 +1246,15 @@ export class MisService {
         ? 'INSTALLMENTS'
         : 'CASH';
     const installmentCount = Number(record.installmentCount ?? 0);
+    const discountEnabled = Boolean(record.discountEnabled);
+    const discountInstallmentAmount = this.toMoneyValue(
+      record.discountInstallmentAmount,
+    );
+    const discountDeadlineDayRaw = Number(record.discountDeadlineDay ?? 0);
+    const discountDeadlineDay =
+      Number.isFinite(discountDeadlineDayRaw) && discountDeadlineDayRaw > 0
+        ? Math.min(31, Math.max(1, Math.trunc(discountDeadlineDayRaw)))
+        : null;
 
     return {
       type,
@@ -912,6 +1262,9 @@ export class MisService {
         Number.isFinite(installmentCount) && installmentCount > 0
           ? installmentCount
           : 0,
+      discountEnabled,
+      discountInstallmentAmount,
+      discountDeadlineDay,
     };
   }
 
@@ -2163,6 +2516,7 @@ export class MisService {
       select: {
         id: true,
         amount: true,
+        createdAt: true,
         dueDate: true,
         status: true,
         externalChargeId: true,
@@ -2170,6 +2524,7 @@ export class MisService {
         enrollment: {
           select: {
             id: true,
+            createdAt: true,
             selectedPaymentOption: true,
             schoolClass: {
               select: {
@@ -2178,9 +2533,20 @@ export class MisService {
                   select: {
                     name: true,
                     ownerAdminId: true,
+                    enrollmentFee: true,
                   },
                 },
               },
+            },
+            monthlyCharges: {
+              select: {
+                id: true,
+                amount: true,
+                dueDate: true,
+                createdAt: true,
+                status: true,
+              },
+              orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
             },
             student: {
               select: {
@@ -2216,6 +2582,7 @@ export class MisService {
       select: {
         id: true,
         amount: true,
+        createdAt: true,
         dueDate: true,
         status: true,
         externalChargeId: true,
@@ -2223,6 +2590,7 @@ export class MisService {
         enrollment: {
           select: {
             id: true,
+            createdAt: true,
             selectedPaymentOption: true,
             schoolClass: {
               select: {
@@ -2231,9 +2599,20 @@ export class MisService {
                   select: {
                     name: true,
                     ownerAdminId: true,
+                    enrollmentFee: true,
                   },
                 },
               },
+            },
+            monthlyCharges: {
+              select: {
+                id: true,
+                amount: true,
+                dueDate: true,
+                createdAt: true,
+                status: true,
+              },
+              orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
             },
             student: {
               select: {
@@ -2274,6 +2653,7 @@ export class MisService {
       select: {
         id: true,
         amount: true,
+        createdAt: true,
         dueDate: true,
         status: true,
         externalChargeId: true,
@@ -2281,6 +2661,7 @@ export class MisService {
         enrollment: {
           select: {
             id: true,
+            createdAt: true,
             selectedPaymentOption: true,
             schoolClass: {
               select: {
@@ -2289,9 +2670,20 @@ export class MisService {
                   select: {
                     name: true,
                     ownerAdminId: true,
+                    enrollmentFee: true,
                   },
                 },
               },
+            },
+            monthlyCharges: {
+              select: {
+                id: true,
+                amount: true,
+                dueDate: true,
+                createdAt: true,
+                status: true,
+              },
+              orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
             },
             student: {
               select: {
@@ -2320,6 +2712,7 @@ export class MisService {
 
   private async createSicoobPayment(input: {
     charge: StudentChargePaymentContext;
+    amount: number;
     method: EnrollmentPaymentMethod;
     provider: FinancialProvider;
     environment: string;
@@ -2355,6 +2748,7 @@ export class MisService {
       }
       return this.createSicoobPixPayment({
         charge: input.charge,
+        amount: input.amount,
         provider: input.provider,
         config,
       });
@@ -2362,6 +2756,7 @@ export class MisService {
 
     return this.createSicoobBankSlipPayment({
       charge: input.charge,
+      amount: input.amount,
       provider: input.provider,
       config,
     });
@@ -2369,6 +2764,7 @@ export class MisService {
 
   private async createSicoobPixPayment(input: {
     charge: StudentChargePaymentContext;
+    amount: number;
     provider: FinancialProvider;
     config: ResolvedSicoobConfig;
   }): Promise<StudentChargePaymentResponse> {
@@ -2396,7 +2792,7 @@ export class MisService {
     const pixPayload: Record<string, unknown> = {
       calendario: { expiracao: 86_400 },
       valor: {
-        original: this.formatAmountForGateway(Number(input.charge.amount)),
+        original: this.formatAmountForGateway(input.amount),
       },
       chave: input.config.pixKey,
       solicitacaoPagador: `${input.charge.enrollment.schoolClass.course.name} - ${input.charge.enrollment.schoolClass.name}`.slice(
@@ -2436,7 +2832,7 @@ export class MisService {
     await this.ensurePendingTransactionRecord({
       chargeId: input.charge.id,
       provider: input.provider,
-      amount: Number(input.charge.amount),
+      amount: input.amount,
       externalTransactionId: externalChargeId,
     });
 
@@ -2472,6 +2868,7 @@ export class MisService {
 
   private async createSicoobBankSlipPayment(input: {
     charge: StudentChargePaymentContext;
+    amount: number;
     provider: FinancialProvider;
     config: ResolvedSicoobConfig;
   }): Promise<StudentChargePaymentResponse> {
@@ -2527,7 +2924,7 @@ export class MisService {
       identificacaoBoletoEmpresa: input.charge.id.slice(0, 20),
       identificacaoEmissaoBoleto: 1,
       identificacaoDistribuicaoBoleto: 1,
-      valor: Number(input.charge.amount),
+      valor: input.amount,
       dataVencimento: dueDate,
       dataLimitePagamento: dueDate,
       tipoDesconto: 0,
@@ -2760,7 +3157,7 @@ export class MisService {
     await this.ensurePendingTransactionRecord({
       chargeId: input.charge.id,
       provider: input.provider,
-      amount: Number(input.charge.amount),
+      amount: input.amount,
       externalTransactionId: externalChargeId,
     });
 
@@ -3492,6 +3889,7 @@ export class MisService {
   private async createAsaasPayment(input: {
     apiKey: string;
     charge: StudentChargePaymentContext;
+    amount: number;
     method: EnrollmentPaymentMethod;
     provider: FinancialProvider;
     environment: string;
@@ -3517,7 +3915,7 @@ export class MisService {
       const paymentPayload = {
         customer: customerId,
         billingType: this.mapMethodToAsaasBillingType(input.method),
-        value: Number(input.charge.amount),
+        value: input.amount,
         dueDate: this.toYyyyMmDd(input.charge.dueDate),
         description: `${input.charge.enrollment.schoolClass.course.name} • ${input.charge.enrollment.schoolClass.name}`,
         externalReference: input.charge.id,
@@ -3547,7 +3945,7 @@ export class MisService {
     await this.ensurePendingTransactionRecord({
       chargeId: input.charge.id,
       provider: input.provider,
-      amount: Number(input.charge.amount),
+      amount: input.amount,
       externalTransactionId: transactionReference,
     });
 
@@ -3596,6 +3994,7 @@ export class MisService {
   private async createStripePayment(input: {
     apiKey: string;
     charge: StudentChargePaymentContext;
+    amount: number;
     method: EnrollmentPaymentMethod;
     returnUrl?: string;
     provider: FinancialProvider;
@@ -3603,7 +4002,7 @@ export class MisService {
     const methodType = this.mapMethodToStripePaymentMethod(input.method);
     const amountCents = Math.max(
       1,
-      Math.round(Number(input.charge.amount || 0) * 100),
+      Math.round(Number(input.amount || 0) * 100),
     );
     const normalizedReturnUrl = this.normalizeReturnUrl(input.returnUrl);
     const successUrl = normalizedReturnUrl;
@@ -3650,7 +4049,7 @@ export class MisService {
     await this.ensurePendingTransactionRecord({
       chargeId: input.charge.id,
       provider: input.provider,
-      amount: Number(input.charge.amount),
+      amount: input.amount,
       externalTransactionId: `stripe:${externalChargeId}`,
     });
 

@@ -2285,9 +2285,46 @@ export class ContractsService {
       ) {
         return result;
       }
-      const base = selectedOption.installmentStartDate
+      const scheduledBase = selectedOption.installmentStartDate
         ? new Date(selectedOption.installmentStartDate)
-        : new Date(input.classStartDate);
+        : null;
+      const hasScheduledStart =
+        scheduledBase !== null && !Number.isNaN(scheduledBase.getTime());
+
+      if (hasScheduledStart) {
+        const firstDueDate = new Date(input.signedAt);
+        const dueDateStart = new Date(
+          firstDueDate.getFullYear(),
+          firstDueDate.getMonth(),
+          firstDueDate.getDate(),
+        );
+        result.push({
+          dueDate: firstDueDate,
+          amount: this.toMoneyValue(value),
+          status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+        });
+
+        for (let index = 1; index < months; index += 1) {
+          const dueDate = this.buildChargeDueDate(
+            scheduledBase,
+            index - 1,
+            selectedOption.dueDay ?? undefined,
+          );
+          const dueDateStart = new Date(
+            dueDate.getFullYear(),
+            dueDate.getMonth(),
+            dueDate.getDate(),
+          );
+          result.push({
+            dueDate,
+            amount: this.toMoneyValue(value),
+            status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+          });
+        }
+        return result;
+      }
+
+      const base = new Date(input.classStartDate);
       if (Number.isNaN(base.getTime())) return result;
 
       for (let index = 0; index < months; index += 1) {

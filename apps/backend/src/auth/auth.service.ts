@@ -20,6 +20,7 @@ import { RequestPasswordResetCodeDto } from './dto/request-password-reset-code.d
 import { ResetPasswordWithCodeDto } from './dto/reset-password-with-code.dto';
 import { ResendVerificationCodeDto } from './dto/resend-verification-code.dto';
 import { RegisterDto } from './dto/register.dto';
+import { UpdateInstitutionContactsDto } from './dto/update-institution-contacts.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
 import { VerifyPasswordResetCodeDto } from './dto/verify-password-reset-code.dto';
@@ -50,6 +51,12 @@ type AuthUserPayload = {
         id: string;
         name: string;
         slug: string;
+        contacts: {
+          supportEmail: string | null;
+          supportPhone: string | null;
+          commercialEmail: string | null;
+          commercialPhone: string | null;
+        };
       }
     | null;
   branding:
@@ -1284,6 +1291,76 @@ export class AuthService {
     return this.buildUserPayload(updated);
   }
 
+  async getInstitutionContacts(
+    userId: string,
+    role: AppRole,
+    activeInstitutionId?: string | null,
+  ) {
+    const institution = await this.findInstitutionForContactsManagement(
+      userId,
+      role,
+      activeInstitutionId,
+    );
+
+    return {
+      institutionId: institution.id,
+      institutionName: institution.name,
+      institutionSlug: institution.slug,
+      contacts: this.mapInstitutionContacts({
+        supportContactEmail: institution.supportContactEmail,
+        supportContactPhone: institution.supportContactPhone,
+        commercialContactEmail: institution.commercialContactEmail,
+        commercialContactPhone: institution.commercialContactPhone,
+      }),
+      updatedAt: institution.updatedAt,
+    };
+  }
+
+  async updateInstitutionContacts(
+    userId: string,
+    role: AppRole,
+    activeInstitutionId: string | null | undefined,
+    dto: UpdateInstitutionContactsDto,
+  ) {
+    const institution = await this.findInstitutionForContactsManagement(
+      userId,
+      role,
+      activeInstitutionId,
+    );
+
+    const payload = {
+      supportContactEmail: this.normalizeNullableEmail(dto.supportEmail),
+      supportContactPhone: this.normalizeNullablePhone(dto.supportPhone),
+      commercialContactEmail: this.normalizeNullableEmail(dto.commercialEmail),
+      commercialContactPhone: this.normalizeNullablePhone(dto.commercialPhone),
+    };
+
+    const updated = await this.prisma.institution.update({
+      where: { id: institution.id },
+      data: payload,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        supportContactEmail: true,
+        supportContactPhone: true,
+        commercialContactEmail: true,
+        commercialContactPhone: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      success: true,
+      institutionId: updated.id,
+      institutionName: updated.name,
+      institutionSlug: updated.slug,
+      contacts: this.mapInstitutionContacts(updated),
+      updatedAt: updated.updatedAt,
+      message: 'Contatos institucionais atualizados com sucesso.',
+    };
+  }
+
   async uploadMyAvatar(
     userId: string,
     file: MultipartFile,
@@ -1666,6 +1743,10 @@ export class AuthService {
             slug: string;
             brandingLogoUrl: string | null;
             brandingPalette: Prisma.JsonValue | null;
+            supportContactEmail: string | null;
+            supportContactPhone: string | null;
+            commercialContactEmail: string | null;
+            commercialContactPhone: string | null;
           };
         }
       | null;
@@ -1686,6 +1767,10 @@ export class AuthService {
               slug: true,
               brandingLogoUrl: true,
               brandingPalette: true,
+              supportContactEmail: true,
+              supportContactPhone: true,
+              commercialContactEmail: true,
+              commercialContactPhone: true,
             },
           },
         },
@@ -1707,6 +1792,10 @@ export class AuthService {
               slug: true,
               brandingLogoUrl: true,
               brandingPalette: true,
+              supportContactEmail: true,
+              supportContactPhone: true,
+              commercialContactEmail: true,
+              commercialContactPhone: true,
             },
           },
         },
@@ -1732,6 +1821,12 @@ export class AuthService {
             id: institution.id,
             name: institution.name,
             slug: institution.slug,
+            contacts: this.mapInstitutionContacts({
+              supportContactEmail: institution.supportContactEmail,
+              supportContactPhone: institution.supportContactPhone,
+              commercialContactEmail: institution.commercialContactEmail,
+              commercialContactPhone: institution.commercialContactPhone,
+            }),
           }
         : null,
       branding,
@@ -1792,6 +1887,78 @@ export class AuthService {
 
   private isHexColor(value: string) {
     return /^#([0-9a-fA-F]{6})$/.test(value);
+  }
+
+  private async findInstitutionForContactsManagement(
+    userId: string,
+    role: AppRole,
+    activeInstitutionId?: string | null,
+  ) {
+    if (role === 'user') {
+      throw new ForbiddenException(
+        'Apenas administradores da instituição podem editar contatos.',
+      );
+    }
+
+    if (!activeInstitutionId) {
+      throw new ForbiddenException(
+        'Nenhuma instituição ativa encontrada para esta sessão.',
+      );
+    }
+
+    const membership = await this.prisma.institutionMember.findFirst({
+      where: {
+        userId,
+        institutionId: activeInstitutionId,
+        status: 'ACTIVE',
+      },
+      select: {
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            supportContactEmail: true,
+            supportContactPhone: true,
+            commercialContactEmail: true,
+            commercialContactPhone: true,
+            updatedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!membership?.institution) {
+      throw new ForbiddenException(
+        'Você não possui vínculo ativo com a instituição selecionada.',
+      );
+    }
+
+    return membership.institution;
+  }
+
+  private mapInstitutionContacts(input: {
+    supportContactEmail?: string | null;
+    supportContactPhone?: string | null;
+    commercialContactEmail?: string | null;
+    commercialContactPhone?: string | null;
+  }) {
+    return {
+      supportEmail: input.supportContactEmail?.trim() || null,
+      supportPhone: input.supportContactPhone?.trim() || null,
+      commercialEmail: input.commercialContactEmail?.trim() || null,
+      commercialPhone: input.commercialContactPhone?.trim() || null,
+    };
+  }
+
+  private normalizeNullableEmail(value: string | undefined) {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    return normalized || null;
+  }
+
+  private normalizeNullablePhone(value: string | undefined) {
+    const normalized = String(value ?? '').trim();
+    return normalized || null;
   }
 
   private mapRole(role: string): AppRole {

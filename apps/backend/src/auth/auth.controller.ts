@@ -18,6 +18,7 @@ import { ResetPasswordWithCodeDto } from './dto/reset-password-with-code.dto';
 import { ResendVerificationCodeDto } from './dto/resend-verification-code.dto';
 import { RegisterDto } from './dto/register.dto';
 import { SwitchInstitutionDto } from './dto/switch-institution.dto';
+import { UpdateInstitutionContactsDto } from './dto/update-institution-contacts.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
 import { VerifyPasswordResetCodeDto } from './dto/verify-password-reset-code.dto';
@@ -106,6 +107,28 @@ export class AuthController {
     @Body() dto: UpdateMeDto,
   ) {
     return this.authService.updateMe(request.user.sub, dto);
+  }
+
+  @Get('institution-contacts')
+  async getInstitutionContacts(@Req() request: AuthenticatedRequest) {
+    return this.authService.getInstitutionContacts(
+      request.user.sub,
+      request.user.role,
+      request.user.activeInstitutionId ?? null,
+    );
+  }
+
+  @Patch('institution-contacts')
+  async updateInstitutionContacts(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: UpdateInstitutionContactsDto,
+  ) {
+    return this.authService.updateInstitutionContacts(
+      request.user.sub,
+      request.user.role,
+      request.user.activeInstitutionId ?? null,
+      dto,
+    );
   }
 
   @Post('me/avatar')

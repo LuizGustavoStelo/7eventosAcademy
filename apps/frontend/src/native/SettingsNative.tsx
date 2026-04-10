@@ -8,6 +8,17 @@ type SettingsUser = {
   email: string;
   role: 'user' | 'admin' | 'superadmin';
   avatarUrl?: string | null;
+  institution?: {
+    id: string;
+    name: string;
+    slug: string;
+    contacts?: {
+      supportEmail: string | null;
+      supportPhone: string | null;
+      commercialEmail: string | null;
+      commercialPhone: string | null;
+    };
+  } | null;
 };
 
 type GatewayConfig = {
@@ -21,6 +32,13 @@ type GatewayConfig = {
 type SettingsFormState = {
   name: string;
   email: string;
+};
+
+type InstitutionContactsFormState = {
+  supportEmail: string;
+  supportPhone: string;
+  commercialEmail: string;
+  commercialPhone: string;
 };
 
 type SettingsNativeProps = {
@@ -44,13 +62,21 @@ export function SettingsNative({
 }: SettingsNativeProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingContacts, setSavingContacts] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
   const [formError, setFormError] = useState('');
+  const [contactsError, setContactsError] = useState('');
   const [user, setUser] = useState<SettingsUser | null>(null);
   const [gateway, setGateway] = useState<GatewayConfig | null>(null);
   const [form, setForm] = useState<SettingsFormState>({ name: '', email: '' });
+  const [contactsForm, setContactsForm] = useState<InstitutionContactsFormState>({
+    supportEmail: '',
+    supportPhone: '',
+    commercialEmail: '',
+    commercialPhone: '',
+  });
 
   const loadData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -63,6 +89,12 @@ export function SettingsNative({
 
       setUser(me);
       setForm({ name: me.name || '', email: me.email || '' });
+      setContactsForm({
+        supportEmail: me.institution?.contacts?.supportEmail || '',
+        supportPhone: me.institution?.contacts?.supportPhone || '',
+        commercialEmail: me.institution?.contacts?.commercialEmail || '',
+        commercialPhone: me.institution?.contacts?.commercialPhone || '',
+      });
       setGateway(gatewayConfig);
       onProfileUpdated(me);
     } catch (loadError) {
@@ -112,6 +144,65 @@ export function SettingsNative({
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveInstitutionContacts = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setContactsError('');
+    setFeedback('');
+    setError('');
+
+    setSavingContacts(true);
+    try {
+      const response = await apiRequest<{
+        contacts: {
+          supportEmail: string | null;
+          supportPhone: string | null;
+          commercialEmail: string | null;
+          commercialPhone: string | null;
+        };
+      }>(token, '/auth/institution-contacts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supportEmail: contactsForm.supportEmail.trim(),
+          supportPhone: contactsForm.supportPhone.trim(),
+          commercialEmail: contactsForm.commercialEmail.trim(),
+          commercialPhone: contactsForm.commercialPhone.trim(),
+        }),
+      });
+
+      setContactsForm({
+        supportEmail: response.contacts.supportEmail || '',
+        supportPhone: response.contacts.supportPhone || '',
+        commercialEmail: response.contacts.commercialEmail || '',
+        commercialPhone: response.contacts.commercialPhone || '',
+      });
+
+      setUser((current) =>
+        current
+          ? {
+              ...current,
+              institution: current.institution
+                ? {
+                    ...current.institution,
+                    contacts: response.contacts,
+                  }
+                : current.institution,
+            }
+          : current,
+      );
+
+      setFeedback('Contatos institucionais atualizados com sucesso.');
+    } catch (saveError) {
+      setContactsError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'Falha ao atualizar contatos institucionais.',
+      );
+    } finally {
+      setSavingContacts(false);
     }
   };
 
@@ -328,6 +419,105 @@ export function SettingsNative({
                 </span>
               </div>
             </section>
+
+            {(user?.role === 'admin' || user?.role === 'superadmin') &&
+            Boolean(user?.institution?.id) ? (
+              <section className="native-panel">
+                <header className="native-panel-header">
+                  <h3>Contatos da instituição</h3>
+                </header>
+
+                <form
+                  className="native-form-grid native-settings-contacts-form"
+                  onSubmit={saveInstitutionContacts}
+                >
+                  <p className="native-info" style={{ margin: 0 }}>
+                    Esses contatos serão usados na Área do Aluno para suporte e
+                    solicitação de cobrança no crédito.
+                  </p>
+
+                  <label>
+                    Suporte (WhatsApp/telefone)
+                    <input
+                      value={contactsForm.supportPhone}
+                      onChange={(event) =>
+                        setContactsForm((current) => ({
+                          ...current,
+                          supportPhone: event.target.value,
+                        }))
+                      }
+                      placeholder="+55 (65) 99999-9999"
+                    />
+                  </label>
+
+                  <label>
+                    Suporte (e-mail)
+                    <input
+                      type="email"
+                      value={contactsForm.supportEmail}
+                      onChange={(event) =>
+                        setContactsForm((current) => ({
+                          ...current,
+                          supportEmail: event.target.value,
+                        }))
+                      }
+                      placeholder="suporte@instituicao.com"
+                    />
+                  </label>
+
+                  <label>
+                    Comercial (WhatsApp/telefone)
+                    <input
+                      value={contactsForm.commercialPhone}
+                      onChange={(event) =>
+                        setContactsForm((current) => ({
+                          ...current,
+                          commercialPhone: event.target.value,
+                        }))
+                      }
+                      placeholder="+55 (65) 98888-8888"
+                    />
+                  </label>
+
+                  <label>
+                    Comercial (e-mail)
+                    <input
+                      type="email"
+                      value={contactsForm.commercialEmail}
+                      onChange={(event) =>
+                        setContactsForm((current) => ({
+                          ...current,
+                          commercialEmail: event.target.value,
+                        }))
+                      }
+                      placeholder="comercial@instituicao.com"
+                    />
+                  </label>
+
+                  {contactsError ? <p className="native-error">{contactsError}</p> : null}
+
+                  <div className="native-modal-actions">
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() =>
+                        setContactsForm({
+                          supportEmail: user?.institution?.contacts?.supportEmail || '',
+                          supportPhone: user?.institution?.contacts?.supportPhone || '',
+                          commercialEmail: user?.institution?.contacts?.commercialEmail || '',
+                          commercialPhone: user?.institution?.contacts?.commercialPhone || '',
+                        })
+                      }
+                    >
+                      Descartar
+                    </button>
+                    <button type="submit" disabled={savingContacts}>
+                      {savingContacts ? 'Salvando...' : 'Salvar contatos'}
+                    </button>
+                  </div>
+                </form>
+              </section>
+            ) : null}
           </aside>
         </div>
       ) : null}

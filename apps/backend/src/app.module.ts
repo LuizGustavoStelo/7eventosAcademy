@@ -19,6 +19,7 @@ import { UploadsModule } from './uploads/uploads.module';
 import { WordpressIntegrationModule } from './wordpress-integration/wordpress-integration.module';
 import { MisModule } from './mis/mis.module';
 import { SuperadminAccountsModule } from './superadmin-accounts/superadmin-accounts.module';
+import { InstitutionUsersModule } from './institution-users/institution-users.module';
 
 function readThrottleEnv(name: string, fallback: number): number {
   const parsed = Number(process.env[name] ?? '');
@@ -62,6 +63,7 @@ function readThrottleEnv(name: string, fallback: number): number {
     WordpressIntegrationModule,
     MisModule,
     SuperadminAccountsModule,
+    InstitutionUsersModule,
   ],
   controllers: [AppController],
   providers: [

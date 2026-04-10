@@ -15,6 +15,12 @@ type StudentInstitution = {
   id: string;
   name: string;
   slug: string;
+  contacts?: {
+    supportEmail: string | null;
+    supportPhone: string | null;
+    commercialEmail: string | null;
+    commercialPhone: string | null;
+  };
 };
 
 type StudentBrandingPalette = {
@@ -142,6 +148,9 @@ type StudentCharge = {
   status: string;
   description?: string | null;
   paymentMethod?: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD' | string;
+  gatewayProvider?: 'manual' | 'sicoob' | 'asaas' | 'stripe' | string | null;
+  gatewayIsActive?: boolean;
+  creditCardUnsupported?: boolean;
   paymentOptionTitle?: string | null;
   appliedVoucher?: {
     code: string;
@@ -659,6 +668,26 @@ function paymentMethodLabel(value: string | null | undefined) {
   if (normalized === 'CREDIT_CARD') return 'Cartão de crédito';
   if (normalized === 'PIX') return 'Pix';
   return 'Pagamento';
+}
+
+function normalizePhoneForWhatsApp(value: string | null | undefined) {
+  const digits = String(value || '').replace(/\D+/g, '');
+  if (!digits) return null;
+  if (digits.length >= 12) return digits;
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  return digits;
+}
+
+function createWhatsAppContactUrl(phone: string | null | undefined, message: string) {
+  const normalizedPhone = normalizePhoneForWhatsApp(phone);
+  if (!normalizedPhone) return null;
+  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+}
+
+function createEmailContactUrl(email: string | null | undefined, subject: string, body: string) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return null;
+  return `mailto:${encodeURIComponent(normalizedEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 function hasPendingContractSignature(item: StudentContractNoticeItem): boolean {
@@ -1607,6 +1636,116 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     return state ? `${city} - ${state}` : city;
   }, [me?.studentProfile?.city, me?.studentProfile?.state]);
 
+  const supportContactMessage = useMemo(() => {
+    const studentName = firstAndLastName(me?.name || user.name);
+    const institutionName = me?.institution?.name || 'a instituição';
+    return [
+      'Olá! Tudo bem?',
+      '',
+      `Meu nome é ${studentName} e acessei agora a Área do Aluno da ${institutionName}.`,
+      'Preciso de suporte e gostaria de atendimento, por favor.',
+      '',
+      `E-mail de cadastro: ${me?.email || user.email}`,
+    ].join('\n');
+  }, [me?.email, me?.institution?.name, me?.name, user.email, user.name]);
+
+  const supportContactUrl = useMemo(() => {
+    const supportPhone = me?.institution?.contacts?.supportPhone;
+    const supportEmail = me?.institution?.contacts?.supportEmail;
+    const byWhatsApp = createWhatsAppContactUrl(supportPhone, supportContactMessage);
+    if (byWhatsApp) return byWhatsApp;
+    return createEmailContactUrl(
+      supportEmail,
+      'Solicitação de suporte - Área do Aluno',
+      supportContactMessage,
+    );
+  }, [
+    me?.institution?.contacts?.supportEmail,
+    me?.institution?.contacts?.supportPhone,
+    supportContactMessage,
+  ]);
+  const supportContactChannel = useMemo(() => {
+    const supportPhone = me?.institution?.contacts?.supportPhone;
+    const supportEmail = me?.institution?.contacts?.supportEmail;
+    if (normalizePhoneForWhatsApp(supportPhone)) return 'WhatsApp';
+    if (String(supportEmail || '').trim()) return 'e-mail';
+    return null;
+  }, [me?.institution?.contacts?.supportEmail, me?.institution?.contacts?.supportPhone]);
+
+  const creditChargesForCommercial = useMemo(
+    () =>
+      financeMetrics.visible.filter(
+        (charge) =>
+          Boolean(charge.creditCardUnsupported) &&
+          String(charge.status || '').trim().toUpperCase() !== 'PAID' &&
+          String(charge.status || '').trim().toUpperCase() !== 'CANCELED' &&
+          String(charge.status || '').trim().toUpperCase() !== 'CANCELLED',
+      ),
+    [financeMetrics.visible],
+  );
+
+  const buildCommercialCreditMessage = (charges: StudentCharge[]) => {
+    const studentName = firstAndLastName(me?.name || user.name);
+    const institutionName = me?.institution?.name || 'a instituição';
+    const lines = charges.map((charge, index) => {
+      const dueDateLabel = formatDate(charge.dueDate);
+      return `${index + 1}. ${charge.description || charge.className} (${charge.courseName}) - vencimento ${dueDateLabel} - valor ${formatCurrency(charge.amount)}`;
+    });
+
+    return [
+      'Olá! Tudo bem?',
+      '',
+      `Meu nome é ${studentName} e acessei agora a Área do Aluno da ${institutionName}.`,
+      'Gostaria de solicitar cobrança no cartão de crédito para os itens abaixo:',
+      '',
+      ...lines,
+      '',
+      `E-mail de cadastro: ${me?.email || user.email}`,
+    ].join('\n');
+  };
+
+  const buildCommercialCreditUrl = (charges: StudentCharge[]) => {
+    if (!charges.length) return null;
+
+    const commercialPhone = me?.institution?.contacts?.commercialPhone;
+    const commercialEmail = me?.institution?.contacts?.commercialEmail;
+    const message = buildCommercialCreditMessage(charges);
+    const byWhatsApp = createWhatsAppContactUrl(commercialPhone, message);
+    if (byWhatsApp) return byWhatsApp;
+
+    return createEmailContactUrl(
+      commercialEmail,
+      'Solicitação de cobrança no crédito - Área do Aluno',
+      message,
+    );
+  };
+
+  const commercialCreditUrl = useMemo(
+    () => buildCommercialCreditUrl(creditChargesForCommercial),
+    [
+      creditChargesForCommercial,
+      me?.email,
+      me?.institution?.contacts?.commercialEmail,
+      me?.institution?.contacts?.commercialPhone,
+      me?.institution?.name,
+      me?.name,
+      user.email,
+      user.name,
+    ],
+  );
+  const commercialContactChannel = useMemo(() => {
+    const commercialPhone = me?.institution?.contacts?.commercialPhone;
+    const commercialEmail = me?.institution?.contacts?.commercialEmail;
+    if (normalizePhoneForWhatsApp(commercialPhone)) return 'WhatsApp';
+    if (String(commercialEmail || '').trim()) return 'e-mail';
+    return null;
+  }, [me?.institution?.contacts?.commercialEmail, me?.institution?.contacts?.commercialPhone]);
+
+  const openExternalContact = (url: string | null) => {
+    if (!url || typeof window === 'undefined') return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const attendanceStats = useMemo(() => {
     if (attendanceSummary) {
       return {
@@ -2338,6 +2477,30 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               </p>
             </article>
           </div>
+          {creditChargesForCommercial.length > 0 ? (
+            <article className="student-page-card student-page-card-contact-assist">
+              <h4>Pagamento no crédito</h4>
+              <p>
+                Encontramos {creditChargesForCommercial.length} cobrança(s) com forma de pagamento
+                em cartão de crédito. Como o gateway financeiro atual não processa cartão, sua
+                solicitação deve ser feita diretamente com o comercial.
+              </p>
+              <div className="student-page-contact-actions">
+                <button
+                  type="button"
+                  onClick={() => openExternalContact(commercialCreditUrl)}
+                  disabled={!commercialCreditUrl}
+                >
+                  Solicitar cobrança no crédito
+                </button>
+                <small>
+                  {commercialCreditUrl
+                    ? `Canal de atendimento: ${commercialContactChannel}.`
+                    : 'Contato comercial ainda não configurado pela instituição.'}
+                </small>
+              </div>
+            </article>
+          ) : null}
           <article className="student-page-card">
             <h4>Extrato de cobranças</h4>
             {financeMetrics.visible.length === 0 ? (
@@ -2381,6 +2544,14 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   const canPay =
                     charge.canPay !== false
                     && (normalizedStatus === 'PENDING' || normalizedStatus === 'OVERDUE');
+                  const requiresCommercialContact =
+                    Boolean(charge.creditCardUnsupported) &&
+                    normalizedStatus !== 'PAID' &&
+                    normalizedStatus !== 'CANCELED' &&
+                    normalizedStatus !== 'CANCELLED';
+                  const commercialUrlForCharge = requiresCommercialContact
+                    ? buildCommercialCreditUrl([charge])
+                    : null;
                   return (
                     <article key={charge.id} className={`student-page-list-item ${isOverdue ? 'is-overdue' : ''}`}>
                     <div>
@@ -2396,6 +2567,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       ) : null}
                       {paymentError ? (
                         <small className="student-charge-feedback is-error">{paymentError}</small>
+                      ) : null}
+                      {requiresCommercialContact ? (
+                        <small className="student-charge-feedback is-warning">
+                          Cartão de crédito indisponível neste gateway. Solicite a cobrança ao comercial.
+                        </small>
                       ) : null}
                       {paymentData?.pixCopyPaste ? (
                         <div className="student-charge-inline-actions">
@@ -2436,6 +2612,16 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       <span className={isOverdue ? 'student-charge-status is-overdue' : 'student-charge-status'}>
                         {normalizeChargeStatus(charge.status)}
                       </span>
+                      {requiresCommercialContact ? (
+                        <button
+                          type="button"
+                          className="student-charge-commercial-action"
+                          onClick={() => openExternalContact(commercialUrlForCharge)}
+                          disabled={!commercialUrlForCharge}
+                        >
+                          Solicitar no crédito
+                        </button>
+                      ) : null}
                       {canPay && !isSearchingExistingBankSlip ? (
                         <button
                           type="button"
@@ -3057,12 +3243,25 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   <StudentIcon name="headset_mic" />
                   <div>
                     <h4>Precisa de auxílio acadêmico?</h4>
-                    <p>Nosso time está disponível de segunda a sexta, das 09h às 21h.</p>
+                    <p>
+                      Nosso time está disponível de segunda a sexta, das 09h às 21h.
+                      {supportContactChannel
+                        ? ` Atendimento via ${supportContactChannel}.`
+                        : ' Contato de suporte ainda não configurado pela instituição.'}
+                    </p>
                   </div>
                 </div>
                 <div className="student-template-support-actions">
-                  <button type="button">Central de ajuda</button>
-                  <button type="button">Falar com suporte</button>
+                  <button type="button" onClick={() => openSection('st-student-notices')}>
+                    Central de ajuda
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openExternalContact(supportContactUrl)}
+                    disabled={!supportContactUrl}
+                  >
+                    Falar com suporte
+                  </button>
                 </div>
               </footer>
               ) : null}

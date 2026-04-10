@@ -14,6 +14,7 @@ import { LessonsNative } from './native/LessonsNative';
 import { StudentsNative } from './native/StudentsNative';
 import { StudentAreaNative } from './native/StudentAreaNative';
 import { StudentRegistrationNative } from './native/StudentRegistrationNative';
+import { InstitutionUsersNative } from './native/InstitutionUsersNative';
 import { SuperadminAccountsNative } from './native/SuperadminAccountsNative';
 import { SuperadminDashboardNative } from './native/SuperadminDashboardNative';
 import { SuperadminImpersonationNative } from './native/SuperadminImpersonationNative';
@@ -153,6 +154,13 @@ const SECOES_SUPERADMIN: NavSection[] = [
     renderMode: 'native',
   },
   {
+    id: 'superadmin_usuarios_globais',
+    label: 'Usuários Globais',
+    subtitle: 'Controle onipotente de usuários, perfis e permissões por instituição',
+    templatePath: '/templates/superadmin_usuarios_globais/index.html',
+    renderMode: 'native',
+  },
+  {
     id: 'superadmin_gestao_contas',
     label: 'Gestão de Contas',
     subtitle: 'Template fiel: superadmin_gestao_de_contas',
@@ -202,6 +210,13 @@ const SECOES_ADMIN: NavSection[] = [
     label: 'Alunos',
     subtitle: 'Template fiel: admin_professor_alunos_e_matriculas',
     templatePath: '/templates/admin_professor_alunos_e_matriculas/index.html',
+    renderMode: 'native',
+  },
+  {
+    id: 'admin_usuarios',
+    label: 'Usuários',
+    subtitle: 'Gestão de usuários, perfis e permissões da instituição',
+    templatePath: '/templates/admin_professor_usuarios/index.html',
     renderMode: 'native',
   },
   {
@@ -267,6 +282,7 @@ const ICONE_POR_SECAO: Record<string, string> = {
   admin_cursos: 'school',
   admin_gestao_turmas: 'groups',
   admin_alunos_matriculas: 'person',
+  admin_usuarios: 'admin_panel_settings',
   admin_contratos: 'fact_check',
   admin_aulas: 'fact_check',
   admin_agenda: 'calendar_today',
@@ -276,6 +292,7 @@ const ICONE_POR_SECAO: Record<string, string> = {
   admin_relatorios: 'checklist_rtl',
   admin_configuracoes: 'settings',
   superadmin_dashboard_global: 'dashboard',
+  superadmin_usuarios_globais: 'admin_panel_settings',
   superadmin_gestao_contas: 'admin_panel_settings',
   superadmin_impersonacao: 'fingerprint',
   superadmin_wordpress_plugin: 'extension',
@@ -484,6 +501,7 @@ const SEARCH_SECTION_ALIAS: Array<{ sectionId: string; terms: string[] }> = [
   { sectionId: 'admin_cursos', terms: ['curso', 'cursos'] },
   { sectionId: 'admin_gestao_turmas', terms: ['turma', 'turmas', 'classe', 'classes'] },
   { sectionId: 'admin_alunos_matriculas', terms: ['aluno', 'alunos', 'matricula', 'matriculas'] },
+  { sectionId: 'admin_usuarios', terms: ['usuario', 'usuarios', 'acesso', 'acessos', 'permissoes', 'perfil', 'perfis'] },
   { sectionId: 'admin_contratos', terms: ['contrato', 'contratos', 'assinatura', 'assinaturas'] },
   { sectionId: 'admin_aulas', terms: ['aula', 'aulas', 'presenca', 'presencas'] },
   { sectionId: 'admin_agenda', terms: ['agenda', 'evento', 'eventos', 'calendario'] },
@@ -496,6 +514,7 @@ const SEARCH_SECTION_ALIAS: Array<{ sectionId: string; terms: string[] }> = [
 
 const SEARCH_SECTION_ALIAS_SUPERADMIN: Array<{ sectionId: string; terms: string[] }> = [
   { sectionId: 'superadmin_dashboard_global', terms: ['dashboard', 'global', 'painel'] },
+  { sectionId: 'superadmin_usuarios_globais', terms: ['usuarios', 'acessos', 'permissoes', 'rbac'] },
   { sectionId: 'superadmin_gestao_contas', terms: ['conta', 'contas', 'gestao'] },
   { sectionId: 'superadmin_impersonacao', terms: ['impersonacao', 'impersonar'] },
   { sectionId: 'superadmin_wordpress_plugin', terms: ['plugin', 'wordpress', 'licenca', 'licencas'] },
@@ -1954,15 +1973,13 @@ export default function App() {
     usuario?.role === 'admin'
       ? usuario?.branding?.logoUrl || DEFAULT_BRANDING_LOGO_URL
       : DEFAULT_ADMIN_LOGO_URL;
-  const adminBrandingStyle = useMemo(() => {
-    if (usuario?.role !== 'admin' || !usuario.branding?.palette) {
-      return undefined;
-    }
-    return {
-      '--admin-accent': usuario.branding.palette.primaryColor,
-      '--admin-accent-strong': usuario.branding.palette.primaryStrongColor,
-    } as CSSProperties;
-  }, [usuario]);
+  const adminBrandingStyle =
+    usuario?.role === 'admin' && usuario.branding?.palette
+      ? ({
+          '--admin-accent': usuario.branding.palette.primaryColor,
+          '--admin-accent-strong': usuario.branding.palette.primaryStrongColor,
+        } as CSSProperties)
+      : undefined;
 
   return (
     <div className="app-shell" style={adminBrandingStyle}>
@@ -2150,6 +2167,10 @@ export default function App() {
               />
             ) : null}
 
+            {!isContractEditorPath && secaoAtiva === 'superadmin_usuarios_globais' ? (
+              <InstitutionUsersNative token={token} mode="superadmin" />
+            ) : null}
+
             {!isContractEditorPath && secaoAtiva === 'superadmin_gestao_contas' ? (
               <SuperadminAccountsNative token={token} />
             ) : null}
@@ -2183,6 +2204,10 @@ export default function App() {
 
             {!isContractEditorPath && secaoAtiva === 'admin_alunos_matriculas' ? (
               <StudentsNative token={token} />
+            ) : null}
+
+            {!isContractEditorPath && secaoAtiva === 'admin_usuarios' ? (
+              <InstitutionUsersNative token={token} mode="admin" />
             ) : null}
 
             {!isContractEditorPath && secaoAtiva === 'admin_contratos' ? (
