@@ -1,30 +1,34 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const schemaPath = process.env.PRISMA_SCHEMA_PATH || 'prisma/schema.prisma';
+const schemaDir = path.dirname(schemaPath);
+const migrationsDir = path.resolve(schemaDir, 'migrations');
 
 const autoResolveEnabled =
   String(process.env.PRISMA_AUTO_RESOLVE_FAILED_MIGRATIONS ?? 'true').toLowerCase() !==
   'false';
 
-const defaultAllowedMigrations = [
-  '20260329110000_email_verification',
-  '20260403120000_student_profile_enrollment_fields',
-  '20260406153000_course_payment_options',
-  '20260406170000_enrollment_payment_option_snapshot',
-  '20260408173000_contract_template_auto_send',
-  '20260408201000_institution_branding',
-  '20260408223000_password_reset_code_flow',
-  '20260409123000_contract_template_institution_signature',
-  '20260409150000_finance_vouchers',
-];
+function discoverLocalMigrations() {
+  try {
+    const entries = fs.readdirSync(migrationsDir, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => /^\d{14}_.+/.test(name));
+  } catch {
+    return [];
+  }
+}
 
-const allowedMigrations = (
-  process.env.PRISMA_AUTO_RESOLVE_ALLOWLIST || defaultAllowedMigrations.join(',')
-)
+const localMigrations = discoverLocalMigrations();
+const envAllowlist = String(process.env.PRISMA_AUTO_RESOLVE_ALLOWLIST ?? '')
   .split(',')
   .map((item) => item.trim())
   .filter(Boolean);
+const allowedMigrations = envAllowlist.length > 0 ? envAllowlist : localMigrations;
 
 function runPrisma(args, options = {}) {
   const result = spawnSync('npx', ['prisma', ...args, '--schema', schemaPath], {
@@ -62,6 +66,9 @@ function logBlock(title, content) {
 
 function main() {
   console.log('[prisma-safe] Iniciando prisma migrate deploy...');
+  console.log(
+    `[prisma-safe] Auto-resolve para migrações conhecidas: ${allowedMigrations.length} item(ns).`,
+  );
 
   const firstDeploy = runPrisma(['migrate', 'deploy']);
   if (firstDeploy.status === 0) {
@@ -79,13 +86,15 @@ function main() {
   const failedMigration = extractFailedMigrationName(firstDeploy.output);
 
   if (!failedMigration) {
-    console.error('[prisma-safe] P3009 detectado, mas não foi possível identificar a migração falha.');
+    console.error(
+      '[prisma-safe] P3009 detectado, mas não foi possível identificar a migração falha.',
+    );
     process.exit(firstDeploy.status || 1);
   }
 
   if (!allowedMigrations.includes(failedMigration)) {
     console.error(
-      `[prisma-safe] Migração falha "${failedMigration}" não está na allowlist (${allowedMigrations.join(', ')}).`,
+      `[prisma-safe] Migração falha "${failedMigration}" fora da lista permitida (${allowedMigrations.join(', ')}).`,
     );
     process.exit(firstDeploy.status || 1);
   }
