@@ -1,4 +1,4 @@
-﻿import { Transform } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { IsEmail, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 function normalizeNullableText(value: unknown): string | undefined {

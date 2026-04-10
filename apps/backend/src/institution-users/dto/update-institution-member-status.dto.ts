@@ -1,4 +1,4 @@
-﻿import { IsIn } from 'class-validator';
+import { IsIn } from 'class-validator';
 
 export class UpdateInstitutionMemberStatusDto {
   @IsIn(['active', 'invited', 'suspended'])
