@@ -406,7 +406,8 @@ function formatPaymentOptionLabel(option: {
   })();
 
   if (type === 'INSTALLMENTS') {
-    const safeCount = installmentCount > 0 ? installmentCount : 1;
+    const hasInstallmentCount = installmentCount > 0;
+    const safeCount = hasInstallmentCount ? installmentCount : 1;
     const safeInstallmentAmount =
       installmentAmount > 0
         ? installmentAmount
@@ -416,8 +417,9 @@ function formatPaymentOptionLabel(option: {
     return (
       paymentMethodLabel[method] +
       ' ' +
-      String(safeCount) +
-      'x de ' +
+      (hasInstallmentCount
+        ? `${String(safeCount)}x de `
+        : 'mensalidade de ') +
       formatCurrency(safeInstallmentAmount) +
       promoSuffix +
       discountSuffix +
@@ -438,17 +440,21 @@ function buildLegacyPaymentOptionFromCourse(course: Course): CoursePaymentOption
   const price = Number(course.price || 0);
   const paymentModel = (course.paymentModel as CoursePaymentModel) || 'CASH';
   if (paymentModel === 'INSTALLMENTS') {
-    const installmentCount = Math.max(1, Number(course.installmentMonths || 1));
+    const rawInstallmentCount = Number(course.installmentMonths || 0);
+    const installmentCount =
+      Number.isFinite(rawInstallmentCount) && rawInstallmentCount > 0
+        ? Math.max(1, Math.trunc(rawInstallmentCount))
+        : null;
     const installmentAmount =
       Number(course.installmentValue || 0) ||
-      (price > 0 ? price / installmentCount : 0);
+      (price > 0 && installmentCount ? price / installmentCount : 0);
 
     return {
       id: 'legacy-installments',
-      title: `${installmentCount}x (Boleto)`,
+      title: installmentCount ? `${installmentCount}x (Boleto)` : 'Mensalidades (Boleto)',
       method: 'BANK_SLIP',
       type: 'INSTALLMENTS',
-      totalAmount: price > 0 ? price : installmentAmount * installmentCount,
+      totalAmount: price > 0 ? price : installmentAmount * (installmentCount || 1),
       installmentCount,
       installmentAmount,
       isPromotional: false,
@@ -552,7 +558,7 @@ function emptyForm(): CourseFormState {
     id: '',
     name: '',
     description: '',
-    workloadHours: '1',
+    workloadHours: '',
     category: '',
     coordinator: '',
     price: '0,00',
@@ -561,7 +567,7 @@ function emptyForm(): CourseFormState {
     paymentModel: 'CASH',
     hasEnrollmentFee: false,
     enrollmentFee: '0,00',
-    installmentMonths: '12',
+    installmentMonths: '',
     installmentValue: '0,00',
     installmentStartMode: 'ON_ENROLLMENT',
     installmentStartDate: '',
@@ -892,10 +898,14 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
   const openEditModal = (course: Course) => {
     const price = Number(course.price || 0);
-    const months = Number(course.installmentMonths || 12);
+    const monthsRaw = Number(course.installmentMonths || 0);
+    const months =
+      Number.isFinite(monthsRaw) && monthsRaw > 0
+        ? Math.max(1, Math.trunc(monthsRaw))
+        : undefined;
     const installmentValue =
       Number(course.installmentValue || 0) ||
-      (months > 0 ? price / months : 0);
+      (months && price > 0 ? price / months : 0);
     const enrollmentFee = Number(course.enrollmentFee || 0);
     const installmentStartDate = toDateInputValue(course.installmentStartDate);
     const paymentOptions = mapCoursePaymentOptionsToForm(course);
@@ -904,7 +914,9 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       id: course.id,
       name: course.name || '',
       description: course.description || '',
-      workloadHours: String(Number(course.workloadHours || 1)),
+      workloadHours: hasPositiveNumber(course.workloadHours)
+        ? String(Number(course.workloadHours))
+        : '',
       category: course.category || '',
       coordinator: course.coordinator || '',
       price: formatMoneyValue(price),
@@ -913,7 +925,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       paymentModel: (course.paymentModel as CoursePaymentModel) || 'CASH',
       hasEnrollmentFee: enrollmentFee > 0,
       enrollmentFee: formatMoneyValue(enrollmentFee),
-      installmentMonths: String(Math.max(1, months)),
+      installmentMonths: months ? String(months) : '',
       installmentValue: formatMoneyValue(installmentValue),
       installmentStartMode: installmentStartDate ? 'SCHEDULED' : 'ON_ENROLLMENT',
       installmentStartDate,
@@ -961,8 +973,12 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     if (form.paymentModel !== 'INSTALLMENTS') return;
 
     const price = parseNumberSafe(priceValue) ?? 0;
-    const months = parseIntSafe(monthsValue) ?? 1;
-    const installment = months > 0 ? price / months : 0;
+    const months = parseIntSafe(monthsValue);
+    if (!months) {
+      updateForm('installmentValue', '');
+      return;
+    }
+    const installment = price / months;
     updateForm('installmentValue', formatMoneyValue(installment));
   };
 
@@ -1516,9 +1532,12 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     if (form.paymentModel !== 'INSTALLMENTS') {
       return hasPositiveNumber(parseNumberSafe(form.price)) ? paymentLabel.CASH : '';
     }
-    const months = parseIntSafe(form.installmentMonths) || 1;
+    const months = parseIntSafe(form.installmentMonths);
     const installment = parseNumberSafe(form.installmentValue) || 0;
     if (!hasPositiveNumber(installment)) return '';
+    if (!months) {
+      return `Mensalidades de ${formatCurrency(installment)}`;
+    }
     return `${months}x de ${formatCurrency(installment)}`;
   }, [
     previewDisplayablePaymentOptions,
@@ -1646,10 +1665,14 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       .slice(0, 2)
                       .map((option) => formatPaymentOptionLabel(option))
                       .join(' • ')
-                  : paymentModel === 'INSTALLMENTS' && hasPositiveNumber(course.installmentValue)
-                    ? `${course.installmentMonths || 1}x de ${formatCurrency(
+                  : paymentModel === 'INSTALLMENTS' &&
+                      hasPositiveNumber(course.installmentMonths) &&
+                      hasPositiveNumber(course.installmentValue)
+                    ? `${Math.trunc(Number(course.installmentMonths || 0))}x de ${formatCurrency(
                         Number(course.installmentValue || 0),
                       )}`
+                    : paymentModel === 'INSTALLMENTS' && hasPositiveNumber(course.installmentValue)
+                      ? `Mensalidades de ${formatCurrency(Number(course.installmentValue || 0))}`
                     : '';
               const paymentSummaryExtra =
                 displayablePaymentOptions.length > 2

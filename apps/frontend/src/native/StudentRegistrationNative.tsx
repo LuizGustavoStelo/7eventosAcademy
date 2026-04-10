@@ -334,13 +334,17 @@ function installmentLabel(course: CourseCatalogItem) {
           : 'Pix';
     const type = String(firstOption.type || '').toUpperCase();
     if (type === 'INSTALLMENTS') {
-      const count = Number(firstOption.installmentCount || 0) || 1;
+      const countRaw = Number(firstOption.installmentCount || 0);
+      const hasCount = Number.isFinite(countRaw) && countRaw > 0;
+      const count = hasCount ? Math.trunc(countRaw) : 1;
       const installmentAmount =
         Number(firstOption.installmentAmount || 0) ||
         (Number(firstOption.totalAmount || 0) > 0
           ? Number(firstOption.totalAmount || 0) / count
           : 0);
-      return `${methodLabel} ${count}x de ${currencyFormatter.format(installmentAmount)}`;
+      return hasCount
+        ? `${methodLabel} ${count}x de ${currencyFormatter.format(installmentAmount)}`
+        : `${methodLabel} mensalidade de ${currencyFormatter.format(installmentAmount)}`;
     }
     return `${methodLabel} à vista ${currencyFormatter.format(Number(firstOption.totalAmount || 0))}`;
   }
@@ -392,9 +396,13 @@ function paymentOptionSummary(option: PaymentOptionItem) {
   const type = String(option.type || '').toUpperCase();
   const method = paymentMethodLabel(option.method);
   if (type === 'INSTALLMENTS') {
-    const count = Number(option.installmentCount || 0) || 1;
+    const countRaw = Number(option.installmentCount || 0);
+    const hasCount = Number.isFinite(countRaw) && countRaw > 0;
+    const count = hasCount ? Math.trunc(countRaw) : 1;
     const installmentAmount = resolveOptionInstallmentAmount(option);
-    return `${method} ${count}x de ${currencyFormatter.format(installmentAmount)}`;
+    return hasCount
+      ? `${method} ${count}x de ${currencyFormatter.format(installmentAmount)}`
+      : `${method} mensalidade de ${currencyFormatter.format(installmentAmount)}`;
   }
   return `${method} à vista ${currencyFormatter.format(resolveOptionTotalAmount(option))}`;
 }
@@ -1654,10 +1662,12 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                             </header>
                             <p>{course.description || 'Curso acadêmico profissional.'}</p>
                             <dl>
-                              <div>
-                                <dt>Carga horária</dt>
-                                <dd>{course.workloadHours ? `${course.workloadHours}h` : 'Não informada'}</dd>
-                              </div>
+                              {Number(course.workloadHours || 0) > 0 ? (
+                                <div>
+                                  <dt>Carga horária</dt>
+                                  <dd>{`${course.workloadHours}h`}</dd>
+                                </div>
+                              ) : null}
                               <div>
                                 <dt>Categoria</dt>
                                 <dd>{course.category || 'Não informada'}</dd>

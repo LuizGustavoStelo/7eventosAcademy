@@ -409,16 +409,16 @@ export class CoursesService {
   }
 
   private normalizePayment(input: {
-    price?: number;
+    price?: number | null;
     paymentModel?: CoursePaymentModelDto | CoursePaymentModel;
-    enrollmentFee?: number;
-    installmentMonths?: number;
-    installmentValue?: number;
-    installmentStartDate?: string;
+    enrollmentFee?: number | null;
+    installmentMonths?: number | null;
+    installmentValue?: number | null;
+    installmentStartDate?: string | null;
   }) {
     const paymentModel = input.paymentModel ?? CoursePaymentModelDto.CASH;
     const enrollmentFee =
-      input.enrollmentFee === undefined
+      input.enrollmentFee === undefined || input.enrollmentFee === null
         ? null
         : this.toDecimal(Math.max(0, Number(input.enrollmentFee)));
 
@@ -433,14 +433,14 @@ export class CoursesService {
     }
 
     const months =
-      input.installmentMonths === undefined
+      input.installmentMonths === undefined || input.installmentMonths === null
         ? null
         : Math.max(1, Number(input.installmentMonths || 1));
     const totalPrice = Number(input.price || 0);
     const calculatedInstallment =
       months && totalPrice > 0 ? totalPrice / months : 0;
     const installmentValue =
-      input.installmentValue === undefined
+      input.installmentValue === undefined || input.installmentValue === null
         ? months
           ? calculatedInstallment
           : undefined
@@ -684,20 +684,19 @@ export class CoursesService {
     const method = this.normalizeOptionMethod(objectItem.method);
     const type = this.normalizeOptionType(objectItem.type);
     const totalAmount = this.normalizeMoneyValue(objectItem.totalAmount);
+    const installmentCountRaw = this.toFiniteNumber(objectItem.installmentCount);
     const installmentCount =
       type === CoursePaymentOptionTypeDto.INSTALLMENTS
-        ? Math.max(
-            1,
-            Math.trunc(
-              this.toFiniteNumber(objectItem.installmentCount) ?? 1,
-            ),
-          )
+        ? installmentCountRaw !== undefined && installmentCountRaw > 0
+          ? Math.max(1, Math.trunc(installmentCountRaw))
+          : null
         : null;
+    const installmentDivisor = Math.max(1, installmentCount || 1);
     const installmentAmount =
       type === CoursePaymentOptionTypeDto.INSTALLMENTS
         ? this.normalizeMoneyValue(
             this.toFiniteNumber(objectItem.installmentAmount) ??
-              totalAmount / Math.max(1, installmentCount || 1),
+              totalAmount / installmentDivisor,
           )
         : null;
     const dueDayRaw = this.toFiniteNumber(objectItem.dueDay);
@@ -908,7 +907,9 @@ export class CoursesService {
       return `À vista (${methodLabel})`;
     }
 
-    return `${input.installmentCount || 1}x (${methodLabel})`;
+    return input.installmentCount && input.installmentCount > 0
+      ? `${input.installmentCount}x (${methodLabel})`
+      : `Mensalidades (${methodLabel})`;
   }
 
   private buildLegacyPaymentOptions(input: {
@@ -921,21 +922,25 @@ export class CoursesService {
     const totalAmount = this.normalizeMoneyValue(input.price ?? 0);
 
     if (paymentModel === CoursePaymentModelDto.INSTALLMENTS) {
-      const installmentCount = Math.max(1, Math.trunc(Number(input.installmentMonths || 1)));
+      const rawInstallmentCount = Number(input.installmentMonths || 0);
+      const installmentCount =
+        Number.isFinite(rawInstallmentCount) && rawInstallmentCount > 0
+          ? Math.max(1, Math.trunc(rawInstallmentCount))
+          : null;
       const installmentAmountRaw =
         input.installmentValue === undefined
-          ? totalAmount / installmentCount
+          ? totalAmount / Math.max(1, installmentCount || 1)
           : Number(input.installmentValue);
       const installmentAmount = this.normalizeMoneyValue(installmentAmountRaw);
       const installmentTotal =
         totalAmount > 0
           ? totalAmount
-          : this.normalizeMoneyValue(installmentAmount * installmentCount);
+          : this.normalizeMoneyValue(installmentAmount * Math.max(1, installmentCount || 1));
 
       return [
         {
           id: 'legacy-installments',
-          title: `${installmentCount}x (Boleto)`,
+          title: installmentCount ? `${installmentCount}x (Boleto)` : 'Mensalidades (Boleto)',
           method: CoursePaymentOptionMethodDto.BANK_SLIP,
           type: CoursePaymentOptionTypeDto.INSTALLMENTS,
           totalAmount: installmentTotal,

@@ -211,7 +211,7 @@ export class CreateCourseDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  workloadHours?: number;
+  workloadHours?: number | null;
 
   @IsOptional()
   @IsString()
@@ -249,7 +249,7 @@ export class CreateCourseDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  installmentMonths?: number;
+  installmentMonths?: number | null;
 
   @IsOptional()
   @Type(() => Number)
