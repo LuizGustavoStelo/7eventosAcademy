@@ -1,4 +1,4 @@
-﻿CREATE TABLE "institution_audit_logs" (
+CREATE TABLE "institution_audit_logs" (
   "id" UUID NOT NULL,
   "institution_id" UUID NOT NULL,
   "actor_user_id" UUID,

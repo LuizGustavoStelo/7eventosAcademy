@@ -10,6 +10,7 @@ const allowedExtensions = new Set([
   '.mjs',
   '.cjs',
   '.json',
+  '.sql',
   '.md',
   '.html',
   '.css',
