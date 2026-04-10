@@ -1230,16 +1230,22 @@ export class FinanceService {
           ? selectedOption.type === 'INSTALLMENTS' &&
             Number(selectedOption.installmentCount ?? 0) > 0 &&
             Number(selectedOption.installmentAmount ?? 0) > 0
-          : String(charge.enrollment.schoolClass.course.paymentModel).toUpperCase() ===
-              'INSTALLMENTS' &&
-            Number(charge.enrollment.schoolClass.course.installmentMonths ?? 0) > 0 &&
-            Number(charge.enrollment.schoolClass.course.installmentValue ?? 0) > 0;
+            : String(charge.enrollment.schoolClass.course.paymentModel).toUpperCase() ===
+                'INSTALLMENTS' &&
+              Number(charge.enrollment.schoolClass.course.installmentMonths ?? 0) > 0 &&
+              Number(charge.enrollment.schoolClass.course.installmentValue ?? 0) > 0;
+      const requiresCashCoursePayment =
+        Boolean(selectedOption) &&
+        selectedOption?.type === 'CASH' &&
+        Number(selectedOption.totalAmount ?? 0) > 0;
+      const requiresFirstAcademicPayment =
+        requiresFirstInstallment || requiresCashCoursePayment;
 
       const firstInstallmentCharge = enrollmentCharges.find(
         (item) => !enrollmentFeeCharge || item.id !== enrollmentFeeCharge.id,
       );
       const firstInstallmentPaid =
-        !requiresFirstInstallment ||
+        !requiresFirstAcademicPayment ||
         Boolean(firstInstallmentCharge && firstInstallmentCharge.status === 'PAID');
       if (!firstInstallmentPaid) {
         return;
@@ -1288,6 +1294,7 @@ export class FinanceService {
         : 'CASH';
     const installmentCount = Number(record.installmentCount ?? 0);
     const installmentAmount = Number(record.installmentAmount ?? 0);
+    const totalAmount = Number(record.totalAmount ?? 0);
 
     return {
       type,
@@ -1298,6 +1305,10 @@ export class FinanceService {
       installmentAmount:
         Number.isFinite(installmentAmount) && installmentAmount > 0
           ? installmentAmount
+          : 0,
+      totalAmount:
+        Number.isFinite(totalAmount) && totalAmount > 0
+          ? totalAmount
           : 0,
     };
   }

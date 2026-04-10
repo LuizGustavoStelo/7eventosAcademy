@@ -275,15 +275,21 @@ export class EnrollmentsService {
     const selectedInstallmentAmount = Number(
       selectedPaymentOption?.installmentAmount ?? 0,
     );
+    const selectedTotalAmount = Number(selectedPaymentOption?.totalAmount ?? 0);
     const requiresFirstInstallmentPayment =
       selectedPaymentType === 'INSTALLMENTS' &&
       Number.isFinite(selectedInstallmentCount) &&
       selectedInstallmentCount > 0 &&
       Number.isFinite(selectedInstallmentAmount) &&
       selectedInstallmentAmount > 0;
+    const requiresCashCoursePayment =
+      selectedPaymentType === 'CASH' &&
+      Number.isFinite(selectedTotalAmount) &&
+      selectedTotalAmount > 0;
     const shouldSendContractImmediately =
       (!Number.isFinite(enrollmentFeeAmount) || enrollmentFeeAmount <= 0) &&
-      !requiresFirstInstallmentPayment;
+      !requiresFirstInstallmentPayment &&
+      !requiresCashCoursePayment;
 
     if (shouldSendContractImmediately) {
       try {
@@ -440,6 +446,36 @@ export class EnrollmentsService {
   }) {
     if (input.selectedPaymentOption) {
       if (input.selectedPaymentOption.type !== 'INSTALLMENTS') {
+        const totalAmount = Number(input.selectedPaymentOption.totalAmount ?? 0);
+        if (
+          input.selectedPaymentOption.type === 'CASH' &&
+          Number.isFinite(totalAmount) &&
+          totalAmount > 0
+        ) {
+          const dueDate = new Date(input.enrollmentCreatedAt);
+          const dueDateStart = new Date(
+            dueDate.getFullYear(),
+            dueDate.getMonth(),
+            dueDate.getDate(),
+          );
+          const now = new Date();
+          const startOfToday = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+          );
+          return [
+            {
+              dueDate,
+              amount: this.toMoneyValue(totalAmount),
+              status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+            },
+          ] as Array<{
+            dueDate: Date;
+            amount: number;
+            status: 'PENDING' | 'OVERDUE';
+          }>;
+        }
         return [] as Array<{
           dueDate: Date;
           amount: number;
@@ -600,7 +636,7 @@ export class EnrollmentsService {
     });
     const enrollmentGraceDueDate = this.addHours(input.enrollmentCreatedAt, 48);
     const chargesWithGrace =
-      input.selectedPaymentOption?.type === 'INSTALLMENTS' &&
+      Boolean(input.selectedPaymentOption) &&
       charges.length > 0
         ? charges.map((item, index) => {
             if (index !== 0) return item;

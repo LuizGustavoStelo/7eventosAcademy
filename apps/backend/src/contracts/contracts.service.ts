@@ -964,6 +964,10 @@ export class ContractsService {
     const selectedOptionDiscountDeadlineDay = Number(
       selectedPaymentOption?.discountDeadlineDay ?? 0,
     );
+    const hideScheduleForCreditCard =
+      String(selectedPaymentOption?.method || '')
+        .trim()
+        .toUpperCase() === 'CREDIT_CARD';
     const financialTotal =
       selectedOptionTotalAmount > 0
         ? selectedOptionTotalAmount
@@ -980,6 +984,9 @@ export class ContractsService {
       selectedOptionInstallmentCount ||
       courseInstallmentMonths ||
       (selectedPaymentOption?.type === 'CASH' ? 1 : 0);
+    const installmentCountForSummaryDisplay = hideScheduleForCreditCard
+      ? '-'
+      : String(installmentCountForSummary);
     const installmentValueForSummary = (() => {
       if (selectedOptionInstallmentAmount > 0) return selectedOptionInstallmentAmount;
       if (courseInstallmentValue > 0) return courseInstallmentValue;
@@ -989,14 +996,23 @@ export class ContractsService {
       }
       return 0;
     })();
+    const installmentValueForSummaryDisplay = hideScheduleForCreditCard
+      ? '-'
+      : this.formatCurrencyPtBr(installmentValueForSummary);
 
     const formsAndValuesSummaryLines = [
       `Forma de pagamento: ${paymentMethodLabel}`,
       `Valor total: ${this.formatCurrencyPtBr(financialTotal)}`,
       `Taxa de matrícula: ${this.formatCurrencyPtBr(courseEnrollmentFee)}`,
-      `Quantidade de parcelas: ${installmentCountForSummary}`,
-      `Valor da parcela: ${this.formatCurrencyPtBr(installmentValueForSummary)}`,
     ];
+    if (!hideScheduleForCreditCard) {
+      formsAndValuesSummaryLines.push(
+        `Quantidade de parcelas: ${installmentCountForSummary}`,
+      );
+      formsAndValuesSummaryLines.push(
+        `Valor da parcela: ${this.formatCurrencyPtBr(installmentValueForSummary)}`,
+      );
+    }
 
     if (selectedPaymentOption?.appliedVoucher) {
       const voucher = selectedPaymentOption.appliedVoucher;
@@ -1087,7 +1103,7 @@ export class ContractsService {
         course_name: courseName,
         class_name: className,
         enrollment_id: dto.enrollmentId || '',
-        financial_installments_count: String(installmentCountForSummary),
+        financial_installments_count: installmentCountForSummaryDisplay,
         financial_installments_text: installmentsText,
         financial_installments_table_html: installmentsTableHtml,
         financial_installments_rows_html: installmentsTableHtml,
@@ -1122,14 +1138,14 @@ export class ContractsService {
         curso_nome: courseName,
         turma_nome: className,
         matricula_id: dto.enrollmentId || '',
-        financeiro_parcelas_total: String(installmentCountForSummary),
+        financeiro_parcelas_total: installmentCountForSummaryDisplay,
         financeiro_parcelas_texto: installmentsText,
         financeiro_parcelas_tabela_html: installmentsTableHtml,
         financeiro_forma_pagamento: paymentMethodLabel,
         financeiro_valor_total: this.formatCurrencyPtBr(financialTotal),
         financeiro_taxa_matricula: this.formatCurrencyPtBr(courseEnrollmentFee),
-        financeiro_quantidade_parcelas: String(installmentCountForSummary),
-        financeiro_valor_parcela: this.formatCurrencyPtBr(installmentValueForSummary),
+        financeiro_quantidade_parcelas: installmentCountForSummaryDisplay,
+        financeiro_valor_parcela: installmentValueForSummaryDisplay,
         financeiro_formas_valores_resumo: formsAndValuesSummary,
         contrato_cidade_assinatura: this.resolveContractCity(),
         contrato_data_emissao: this.formatDatePtBr(now),
@@ -2274,7 +2290,24 @@ export class ContractsService {
     );
 
     if (selectedOption) {
-      if (selectedOption.type !== 'INSTALLMENTS') return result;
+      if (selectedOption.type !== 'INSTALLMENTS') {
+        const totalAmount = Number(selectedOption.totalAmount ?? 0);
+        if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+          return result;
+        }
+        const dueDate = new Date(input.signedAt);
+        const dueDateStart = new Date(
+          dueDate.getFullYear(),
+          dueDate.getMonth(),
+          dueDate.getDate(),
+        );
+        result.push({
+          dueDate,
+          amount: this.toMoneyValue(totalAmount),
+          status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+        });
+        return result;
+      }
       const months = Number(selectedOption.installmentCount ?? 0);
       const value = Number(selectedOption.installmentAmount ?? 0);
       if (
@@ -2784,6 +2817,15 @@ export class ContractsService {
       selectedPaymentOption?: ContractSelectedPaymentOption | null;
     },
   ): Promise<ContractInstallmentLine[]> {
+    const selectedOption = fallback?.selectedPaymentOption ?? null;
+    const hideScheduleForCreditCard =
+      String(selectedOption?.method || '')
+        .trim()
+        .toUpperCase() === 'CREDIT_CARD';
+    if (hideScheduleForCreditCard) {
+      return [];
+    }
+
     const charges = enrollmentId
       ? await this.prisma.monthlyCharge.findMany({
           where: {
@@ -2811,7 +2853,6 @@ export class ContractsService {
       }));
     }
 
-    const selectedOption = fallback?.selectedPaymentOption;
     if (!selectedOption || selectedOption.type !== 'INSTALLMENTS') {
       return [];
     }
