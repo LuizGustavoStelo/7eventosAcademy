@@ -419,7 +419,7 @@ function formatPaymentOptionLabel(option: {
       ' ' +
       (hasInstallmentCount
         ? `${String(safeCount)}x de `
-        : 'mensalidade de ') +
+        : '') +
       formatCurrency(safeInstallmentAmount) +
       promoSuffix +
       discountSuffix +
@@ -1535,9 +1535,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     const months = parseIntSafe(form.installmentMonths);
     const installment = parseNumberSafe(form.installmentValue) || 0;
     if (!hasPositiveNumber(installment)) return '';
-    if (!months) {
-      return `Mensalidades de ${formatCurrency(installment)}`;
-    }
+    if (!months) return '';
     return `${months}x de ${formatCurrency(installment)}`;
   }, [
     previewDisplayablePaymentOptions,
@@ -1671,8 +1669,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                     ? `${Math.trunc(Number(course.installmentMonths || 0))}x de ${formatCurrency(
                         Number(course.installmentValue || 0),
                       )}`
-                    : paymentModel === 'INSTALLMENTS' && hasPositiveNumber(course.installmentValue)
-                      ? `Mensalidades de ${formatCurrency(Number(course.installmentValue || 0))}`
                     : '';
               const paymentSummaryExtra =
                 displayablePaymentOptions.length > 2

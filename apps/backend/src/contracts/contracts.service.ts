@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -18,6 +19,7 @@ import { createHash, randomBytes, randomInt } from 'crypto';
 import { JwtPayload } from '../auth/types/app-role.type';
 import { PrismaService } from '../database/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { SuperadminIntegrationsService } from '../superadmin-integrations/superadmin-integrations.service';
 import { CreateContractTemplateDto } from './dto/create-contract-template.dto';
 import { PublishContractTemplateDto } from './dto/publish-contract-template.dto';
 import { RequestContractPinDto } from './dto/request-contract-pin.dto';
@@ -116,10 +118,13 @@ const CONTRACT_PAGE_BREAK_REGEX =
 
 @Injectable()
 export class ContractsService {
+  private readonly logger = new Logger(ContractsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
+    private readonly superadminIntegrationsService: SuperadminIntegrationsService,
   ) {}
 
   async listTemplates(actor: ContractActor) {
@@ -1459,6 +1464,18 @@ export class ContractsService {
         },
       });
     });
+
+    void this.superadminIntegrationsService
+      .dispatchKobayashiForSignedContractInstance(instance.id)
+      .catch((error) => {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Falha desconhecida no disparo da integração KOBAYASHI.';
+        this.logger.warn(
+          `[integration-dispatch] contrato=${instance.id} erro=${message}`,
+        );
+      });
 
     return {
       id: instance.id,

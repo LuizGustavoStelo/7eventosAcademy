@@ -18,6 +18,7 @@ import { InstitutionUsersNative } from './native/InstitutionUsersNative';
 import { SuperadminAccountsNative } from './native/SuperadminAccountsNative';
 import { SuperadminDashboardNative } from './native/SuperadminDashboardNative';
 import { SuperadminImpersonationNative } from './native/SuperadminImpersonationNative';
+import { SuperadminIntegrationsNative } from './native/SuperadminIntegrationsNative';
 import { SuperadminWordpressNative } from './native/SuperadminWordpressNative';
 import { apiRequest } from './native/api';
 import { toPtBrApiMessage } from './errorMessages';
@@ -175,6 +176,13 @@ const SECOES_SUPERADMIN: NavSection[] = [
     renderMode: 'native',
   },
   {
+    id: 'superadmin_integracoes',
+    label: 'Integrações',
+    subtitle: 'Configuração de integrações por instituição',
+    templatePath: '/templates/superadmin_integracoes/index.html',
+    renderMode: 'native',
+  },
+  {
     id: 'superadmin_wordpress_plugin',
     label: 'Plugin WordPress',
     subtitle: 'Gerenciar licenças e releases do plugin 7academy',
@@ -295,6 +303,7 @@ const ICONE_POR_SECAO: Record<string, string> = {
   superadmin_usuarios_globais: 'admin_panel_settings',
   superadmin_gestao_contas: 'admin_panel_settings',
   superadmin_impersonacao: 'fingerprint',
+  superadmin_integracoes: 'extension',
   superadmin_wordpress_plugin: 'extension',
 };
 
@@ -517,6 +526,7 @@ const SEARCH_SECTION_ALIAS_SUPERADMIN: Array<{ sectionId: string; terms: string[
   { sectionId: 'superadmin_usuarios_globais', terms: ['usuarios', 'acessos', 'permissoes', 'rbac'] },
   { sectionId: 'superadmin_gestao_contas', terms: ['conta', 'contas', 'gestao'] },
   { sectionId: 'superadmin_impersonacao', terms: ['impersonacao', 'impersonar'] },
+  { sectionId: 'superadmin_integracoes', terms: ['integracao', 'integracoes', 'api', 'webhook'] },
   { sectionId: 'superadmin_wordpress_plugin', terms: ['plugin', 'wordpress', 'licenca', 'licencas'] },
 ];
 
@@ -2181,6 +2191,10 @@ export default function App() {
                 onNavigate={(sectionId) => setSecaoAtiva(sectionId)}
                 onImpersonated={(session) => iniciarImpersonacao(session)}
               />
+            ) : null}
+
+            {!isContractEditorPath && secaoAtiva === 'superadmin_integracoes' ? (
+              <SuperadminIntegrationsNative token={token} />
             ) : null}
 
             {!isContractEditorPath && secaoAtiva === 'superadmin_wordpress_plugin' ? (

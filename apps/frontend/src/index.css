@@ -4776,6 +4776,83 @@ table button:disabled {
   align-items: start;
 }
 
+.native-super-integrations-grid {
+  display: grid;
+  grid-template-columns: 390px minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.native-super-integrations-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.native-super-integrations-list input[type='search'] {
+  width: 100%;
+}
+
+.native-super-integrations-list .native-table tbody tr {
+  cursor: pointer;
+}
+
+.native-super-integrations-list .native-table tbody tr.is-selected {
+  background: #fff7ed;
+}
+
+.native-super-integrations-list .native-table tbody td strong {
+  display: block;
+}
+
+.native-super-integrations-list .native-table tbody td small {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.native-super-integration-form {
+  grid-template-columns: 1fr;
+}
+
+.native-super-integration-note {
+  border: 1px solid rgba(234, 88, 12, 0.25);
+  background: #fff7ed;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  color: #9a3412;
+  font-size: 0.75rem;
+}
+
+.native-super-test-request {
+  margin-top: 0.8rem;
+}
+
+.native-super-test-request pre {
+  margin: 0.7rem 0 0;
+  max-height: 340px;
+  overflow: auto;
+  border-radius: 12px;
+  padding: 0.8rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.native-super-integration-audit {
+  margin-top: 0.85rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.native-super-integration-audit .native-table tbody td strong {
+  display: block;
+}
+
+.native-super-integration-audit .native-table tbody td small {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
 .native-super-generated-key {
   border: 1px dashed rgba(242, 92, 5, 0.45);
   border-radius: 10px;
@@ -5475,6 +5552,7 @@ table button {
 
   .native-super-grid,
   .native-super-accounts-grid,
+  .native-super-integrations-grid,
   .native-super-impersonation-grid,
   .native-super-wordpress-grid {
     grid-template-columns: 1fr;

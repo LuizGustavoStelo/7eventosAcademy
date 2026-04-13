@@ -219,9 +219,56 @@ model Institution {
   contractArtifacts ContractArtifact[]
   financeVouchers FinanceVoucher[]
   auditLogs      InstitutionAuditLog[]
+  integrations  InstitutionIntegration[]
+  integrationDispatchLogs InstitutionIntegrationDispatchLog[]
 
   @@index([status], map: "institutions_status_idx")
   @@map("institutions")
+}
+
+model InstitutionIntegration {
+  id               String      @id @default(uuid()) @db.Uuid
+  institutionId    String      @map("institution_id") @db.Uuid
+  provider         String
+  environment      String      @default("production")
+  isActive         Boolean     @default(false) @map("is_active")
+  encryptedSettings String?    @map("encrypted_settings")
+  lastSuccessAt    DateTime?   @map("last_success_at")
+  lastErrorAt      DateTime?   @map("last_error_at")
+  lastErrorMessage String?     @map("last_error_message")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  institution      Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  dispatchLogs     InstitutionIntegrationDispatchLog[]
+
+  @@unique([institutionId, provider], map: "institution_integrations_institution_provider_key")
+  @@index([provider], map: "institution_integrations_provider_idx")
+  @@index([institutionId], map: "institution_integrations_institution_idx")
+  @@map("institution_integrations")
+}
+
+model InstitutionIntegrationDispatchLog {
+  id                String      @id @default(uuid()) @db.Uuid
+  institutionId     String      @map("institution_id") @db.Uuid
+  integrationId     String?     @map("integration_id") @db.Uuid
+  provider          String
+  status            String
+  studentId         String?     @map("student_id") @db.Uuid
+  studentName       String      @map("student_name")
+  enrollmentId      String?     @map("enrollment_id") @db.Uuid
+  contractInstanceId String?    @map("contract_instance_id") @db.Uuid
+  requestPayload    Json?       @map("request_payload")
+  responsePayload   Json?       @map("response_payload")
+  responseStatusCode Int?       @map("response_status_code")
+  errorMessage      String?     @map("error_message")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  institution       Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  integration       InstitutionIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  @@index([institutionId, provider, createdAt], map: "inst_int_dispatch_inst_prov_created_idx")
+  @@index([integrationId, createdAt], map: "inst_int_dispatch_integration_created_idx")
+  @@index([contractInstanceId], map: "inst_int_dispatch_contract_instance_idx")
+  @@map("institution_integration_dispatch_logs")
 }
 
 model InstitutionMember {
