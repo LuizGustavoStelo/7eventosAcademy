@@ -134,19 +134,50 @@ type SuperadminIntegrationsNativeProps = {
   token: string;
 };
 
+type IntegrationProvider = 'kobayashi';
+
+type AuditFilters = {
+  status: 'all' | 'success' | 'failed';
+  dateFrom: string;
+  dateTo: string;
+  search: string;
+};
+
+const KOBAYASHI_PRESET = {
+  baseUrl: 'https://apiappdo.facinpro.flie.com.br',
+  clientId: 'c6b7f6ac-87ff-4790-9a22-f54ddb19cff2',
+  clientSecret: '4c522deb-84ce-4321-8b87-3a48b10147c5',
+  token:
+    '8198f8e53bba-efac-4355-abec-2aae21b37d3381984c522deb-84ce-4321-8b87-3a48b10147c58198',
+  authorizationBearer:
+    'Bearer YzZiN2Y2YWMtODdmZi00NzkwLTlhMjItZjU0ZGRiMTljZmYyOzRjNTIyZGViLTg0Y2UtNDMyMS04Yjg3LTNhNDhiMTAxNDdjNQ==',
+  grantType: 'client_credentials',
+  scopes: 'cobranca.parceiro, b2b.parceiro',
+  defaultGcssid: '9999999999999999999999999',
+  defaultIdentificacaoVendedor: 'alinne',
+  defaultOfertaCursoId: '999999',
+};
+
+const DEFAULT_AUDIT_FILTERS: AuditFilters = {
+  status: 'all',
+  dateFrom: '',
+  dateTo: '',
+  search: '',
+};
+
 const DEFAULT_FORM: FormState = {
   environment: 'production',
   isActive: false,
-  baseUrl: 'https://apiappdo.facinpro.flie.com.br',
-  clientId: '',
-  clientSecret: '',
-  token: '',
-  authorizationBearer: '',
-  grantType: 'client_credentials',
-  scopes: 'cobranca.parceiro, b2b.parceiro',
-  defaultGcssid: '',
-  defaultIdentificacaoVendedor: '',
-  defaultOfertaCursoId: '',
+  baseUrl: KOBAYASHI_PRESET.baseUrl,
+  clientId: KOBAYASHI_PRESET.clientId,
+  clientSecret: KOBAYASHI_PRESET.clientSecret,
+  token: KOBAYASHI_PRESET.token,
+  authorizationBearer: KOBAYASHI_PRESET.authorizationBearer,
+  grantType: KOBAYASHI_PRESET.grantType,
+  scopes: KOBAYASHI_PRESET.scopes,
+  defaultGcssid: KOBAYASHI_PRESET.defaultGcssid,
+  defaultIdentificacaoVendedor: KOBAYASHI_PRESET.defaultIdentificacaoVendedor,
+  defaultOfertaCursoId: KOBAYASHI_PRESET.defaultOfertaCursoId,
 };
 
 const DEFAULT_SECRET_FLAGS: SecretFlags = {
@@ -188,27 +219,104 @@ function buildTestPayloadTemplate(form: FormState) {
 
   return JSON.stringify(
     {
-      gcssid: form.defaultGcssid || '9999999999999999999999999',
+      gcssid: form.defaultGcssid || KOBAYASHI_PRESET.defaultGcssid,
       matricula: {
-        orderId: `${Date.now()}`,
-        telefoneCelular: '62999999999',
-        nomeCompleto: 'ALUNO DE TESTE',
-        nomeSocial: 'Aluno',
+        orderId: '123456789',
+        telefoneCelular: '62991860304',
+        nomeCompleto: 'CARLOS DA SILVA',
+        nomeSocial: 'Carlos',
         sexo: 'M',
-        dataNascimento: '1990-01-01',
-        eMail: 'aluno.teste@exemplo.com',
+        dataNascimento: '1987-12-26',
+        eMail: 'calors@gmail.com',
         CPF: '99999999999',
+        EnderecoCEP: '99999999',
+        enderecoLogradouro: 'Rua A',
+        enderecoNumero: '20',
+        enderecoQuadra: '',
+        enderecoLote: '',
+        enderecoComplemento: '',
+        enderecoBairro: 'Centro',
         enderecoCidade: 'Rio de Janeiro',
         enderecoUF: 'RJ',
         enderecoPais: 'Brasil',
+        situacaoMatricula: '1',
         identificacaoVendedor:
-          form.defaultIdentificacaoVendedor || 'vendedor-padrao',
-        ofertaCursoID: form.defaultOfertaCursoId || '999999',
-        valorTotal: '0.00',
+          form.defaultIdentificacaoVendedor ||
+          KOBAYASHI_PRESET.defaultIdentificacaoVendedor,
+        idContrato: null,
+        situacaooContrato: 'Sim',
+        dataPreMatricula: '2026-3-25 00:00:00',
+        formaIngresso: '2',
+        formaIngressoOpcaoPS: false,
+        profissao: null,
+        nomeMae: 'NOME DA MAE DA SILVA',
+        nomePai: 'NOME DO PAI DA SILVA',
+        rg: '9999999999',
+        naturalidadeCidade: 'Rio de Janeiro',
+        naturalidadeUF: 'RJ',
+        naturalidadePais: 'Brasil',
+        rgOrgao: 'DIC-RJ',
+        ofertaCursoID: form.defaultOfertaCursoId || KOBAYASHI_PRESET.defaultOfertaCursoId,
+        valorTotal: '3228.00',
         valorPago: '0',
+        dataPagamentoMatricula: '2026-03-25T17:05:00.114Z',
+        percentualDesconto: 0,
+        descricaoDesconto: null,
+        qtdeParcelas: 0,
         tipoPagamento: '7',
+        Detalhe: {
+          dadosPagamento: {
+            dataPagamento: null,
+            tipoPagamento: null,
+            id: null,
+            faturaId: '0',
+            valorTotal: '0',
+            valorTotalSemDesconto: null,
+            PercentualDescontoAVista: '0',
+            valorPagoMatricula: '0',
+            idItemPagamento: '2',
+            ItemPagamento: null,
+            situacaoPagamento: 'EM ABERTO',
+            cupomUsado: null,
+            tipoDescontoCupom: null,
+            valorDescontoCupom: null,
+            descricaoDesconto: null,
+            qtdDeCiclos: 1,
+            intervalo: null,
+            unidadeIntervalo: null,
+            percentualJurosCiclo: '0',
+            nomePlanoPagamento: null,
+            idRecorrenciaRubeusPay: '0',
+            idPagamentoRubeusPay: null,
+            vencimento: null,
+            dataVencimentoProxPag: null,
+            iugu: {
+              bank_slip: {
+                transaction_number: '0',
+              },
+              card: {
+                arp: null,
+                credit_card_bin: null,
+                credit_card_brand: null,
+                credit_card_last_4: null,
+                credit_card_tid: null,
+                installments: null,
+                nsu: null,
+              },
+              net_value: 0,
+              payable_with: null,
+              pix: null,
+              secure_url: null,
+              status: null,
+              taxes: 0,
+            },
+            dataPagamentoMatricula: null,
+          },
+          parcelas: [],
+        },
+        enviadoPortalSGA: 'Não',
       },
-      grant_type: form.grantType || 'client_credentials',
+      grant_type: form.grantType || KOBAYASHI_PRESET.grantType,
       scopes: scopeEntries.length > 0 ? scopeEntries : [{ name: 'b2b.parceiro' }],
     },
     null,
@@ -217,6 +325,15 @@ function buildTestPayloadTemplate(form: FormState) {
 }
 
 function toForm(data: InstitutionProviderConfigResponse): FormState {
+  if (!data.integration.isConfigured) {
+    return {
+      ...DEFAULT_FORM,
+      environment:
+        data.integration.environment === 'sandbox' ? 'sandbox' : 'production',
+      isActive: Boolean(data.integration.isActive),
+    };
+  }
+
   return {
     environment:
       data.integration.environment === 'sandbox' ? 'sandbox' : 'production',
@@ -256,6 +373,8 @@ function toSecretFlags(data: InstitutionProviderConfigResponse): SecretFlags {
 export function SuperadminIntegrationsNative({
   token,
 }: SuperadminIntegrationsNativeProps) {
+  const [selectedProvider, setSelectedProvider] =
+    useState<IntegrationProvider>('kobayashi');
   const [loadingInstitutions, setLoadingInstitutions] = useState(true);
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -272,9 +391,26 @@ export function SuperadminIntegrationsNative({
   );
   const [lastResult, setLastResult] = useState<TestRequestResponse | null>(null);
   const [dispatchLogs, setDispatchLogs] = useState<IntegrationDispatchLog[]>([]);
+  const [retryingLogId, setRetryingLogId] = useState<string | null>(null);
+  const [auditFilters, setAuditFilters] = useState<AuditFilters>(
+    DEFAULT_AUDIT_FILTERS,
+  );
   const [testPayload, setTestPayload] = useState(
     buildTestPayloadTemplate(DEFAULT_FORM),
   );
+
+  const applyProviderPreset = (provider: IntegrationProvider) => {
+    if (provider !== 'kobayashi') return;
+    setForm((current) => {
+      const nextForm: FormState = {
+        ...DEFAULT_FORM,
+        environment: current.environment,
+        isActive: current.isActive,
+      };
+      setTestPayload(buildTestPayloadTemplate(nextForm));
+      return nextForm;
+    });
+  };
 
   const loadInstitutions = async (showLoading = true) => {
     if (showLoading) setLoadingInstitutions(true);
@@ -308,7 +444,7 @@ export function SuperadminIntegrationsNative({
     try {
       const data = await apiRequest<InstitutionProviderConfigResponse>(
         token,
-        `/superadmin/integrations/institutions/${institutionId}/providers/kobayashi`,
+        `/superadmin/integrations/institutions/${institutionId}/providers/${selectedProvider}`,
       );
       const nextForm = toForm(data);
       setForm(nextForm);
@@ -326,13 +462,24 @@ export function SuperadminIntegrationsNative({
     }
   };
 
-  const loadDispatchLogs = async (institutionId: string, limit = 50) => {
+  const loadDispatchLogs = async (
+    institutionId: string,
+    filters: AuditFilters = auditFilters,
+    limit = 50,
+  ) => {
     if (!institutionId) return;
     setLoadingLogs(true);
     try {
+      const query = new URLSearchParams();
+      query.set('limit', String(limit));
+      if (filters.status !== 'all') query.set('status', filters.status);
+      if (filters.dateFrom) query.set('dateFrom', filters.dateFrom);
+      if (filters.dateTo) query.set('dateTo', filters.dateTo);
+      if (filters.search.trim()) query.set('search', filters.search.trim());
+
       const data = await apiRequest<IntegrationDispatchLogsResponse>(
         token,
-        `/superadmin/integrations/institutions/${institutionId}/providers/kobayashi/logs?limit=${limit}`,
+        `/superadmin/integrations/institutions/${institutionId}/providers/${selectedProvider}/logs?${query.toString()}`,
       );
       setDispatchLogs(Array.isArray(data.logs) ? data.logs : []);
     } catch (loadError) {
@@ -354,9 +501,9 @@ export function SuperadminIntegrationsNative({
     if (!selectedInstitutionId) return;
     void Promise.all([
       loadConfig(selectedInstitutionId),
-      loadDispatchLogs(selectedInstitutionId),
+      loadDispatchLogs(selectedInstitutionId, auditFilters),
     ]);
-  }, [selectedInstitutionId, token]);
+  }, [selectedInstitutionId, token, selectedProvider]);
 
   const filteredInstitutions = useMemo(() => {
     const query = normalizeSearch(search);
@@ -432,7 +579,7 @@ export function SuperadminIntegrationsNative({
 
       await apiRequest(
         token,
-        `/superadmin/integrations/institutions/${selectedInstitutionId}/providers/kobayashi`,
+        `/superadmin/integrations/institutions/${selectedInstitutionId}/providers/${selectedProvider}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -450,7 +597,7 @@ export function SuperadminIntegrationsNative({
       await Promise.all([
         loadConfig(selectedInstitutionId),
         loadInstitutions(false),
-        loadDispatchLogs(selectedInstitutionId),
+        loadDispatchLogs(selectedInstitutionId, auditFilters),
       ]);
     } catch (saveError) {
       setError(
@@ -489,7 +636,7 @@ export function SuperadminIntegrationsNative({
     try {
       const result = await apiRequest<TestRequestResponse>(
         token,
-        `/superadmin/integrations/institutions/${selectedInstitutionId}/providers/kobayashi/test-request`,
+        `/superadmin/integrations/institutions/${selectedInstitutionId}/providers/${selectedProvider}/test-request`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -504,7 +651,7 @@ export function SuperadminIntegrationsNative({
       );
       await Promise.all([
         loadInstitutions(false),
-        loadDispatchLogs(selectedInstitutionId),
+        loadDispatchLogs(selectedInstitutionId, auditFilters),
       ]);
     } catch (testError) {
       setError(
@@ -514,6 +661,59 @@ export function SuperadminIntegrationsNative({
       );
     } finally {
       setTesting(false);
+    }
+  };
+
+  const applyAuditFilters = async () => {
+    if (!selectedInstitutionId) return;
+    await loadDispatchLogs(selectedInstitutionId, auditFilters);
+  };
+
+  const clearAuditFilters = async () => {
+    if (!selectedInstitutionId) {
+      setAuditFilters(DEFAULT_AUDIT_FILTERS);
+      return;
+    }
+    setAuditFilters(DEFAULT_AUDIT_FILTERS);
+    await loadDispatchLogs(selectedInstitutionId, DEFAULT_AUDIT_FILTERS);
+  };
+
+  const retryDispatch = async (log: IntegrationDispatchLog) => {
+    if (!selectedInstitutionId) return;
+    setRetryingLogId(log.id);
+    setError('');
+    setFeedback('');
+    try {
+      const result = await apiRequest<{
+        success: boolean;
+        message?: string;
+      }>(
+        token,
+        `/superadmin/integrations/institutions/${selectedInstitutionId}/providers/${selectedProvider}/logs/${log.id}/retry`,
+        {
+          method: 'POST',
+        },
+      );
+
+      if (result.success) {
+        setFeedback(`Reenvio executado com sucesso para ${log.studentName}.`);
+      } else {
+        setError(result.message || 'O reenvio foi executado, mas retornou falha.');
+      }
+
+      await Promise.all([
+        loadDispatchLogs(selectedInstitutionId, auditFilters),
+        loadInstitutions(false),
+        loadConfig(selectedInstitutionId),
+      ]);
+    } catch (retryError) {
+      setError(
+        retryError instanceof Error
+          ? retryError.message
+          : 'Falha ao reenviar aluno para a integração.',
+      );
+    } finally {
+      setRetryingLogId(null);
     }
   };
 
@@ -636,7 +836,7 @@ export function SuperadminIntegrationsNative({
 
         <article className="native-panel">
           <header className="native-panel-header">
-            <h3>Configuração KOBAYASHI</h3>
+            <h3>Configuração {selectedProvider.toUpperCase()}</h3>
             {selectedInstitution ? (
               <small>
                 {selectedInstitution.name} ({selectedInstitution.slug})
@@ -650,6 +850,23 @@ export function SuperadminIntegrationsNative({
             </p>
           ) : (
             <form className="native-form-grid native-super-integration-form" onSubmit={submitIntegration}>
+              <label>
+                Provedor da API
+                <select
+                  value={selectedProvider}
+                  onChange={(event) => {
+                    const nextProvider =
+                      event.target.value === 'kobayashi'
+                        ? 'kobayashi'
+                        : 'kobayashi';
+                    setSelectedProvider(nextProvider);
+                    applyProviderPreset(nextProvider);
+                  }}
+                >
+                  <option value="kobayashi">KOBAYASHI</option>
+                </select>
+              </label>
+
               <label>
                 Ambiente
                 <select
@@ -841,10 +1058,19 @@ export function SuperadminIntegrationsNative({
                   type="button"
                   className="ghost"
                   onClick={() => {
+                    applyProviderPreset(selectedProvider);
+                  }}
+                >
+                  Aplicar preset {selectedProvider.toUpperCase()}
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
                     if (!selectedInstitutionId) return;
                     void Promise.all([
                       loadConfig(selectedInstitutionId),
-                      loadDispatchLogs(selectedInstitutionId),
+                      loadDispatchLogs(selectedInstitutionId, auditFilters),
                     ]);
                   }}
                 >
@@ -862,7 +1088,7 @@ export function SuperadminIntegrationsNative({
       {selectedInstitution ? (
         <article className="native-panel native-super-test-request">
           <header className="native-panel-header">
-            <h3>Teste de request KOBAYASHI</h3>
+            <h3>Teste de request {selectedProvider.toUpperCase()}</h3>
             <small>
               Último sucesso: {formatDate(selectedInstitution.integration.lastSuccessAt)}
             </small>
@@ -919,12 +1145,86 @@ export function SuperadminIntegrationsNative({
                 type="button"
                 onClick={() => {
                   if (!selectedInstitutionId) return;
-                  void loadDispatchLogs(selectedInstitutionId);
+                  void loadDispatchLogs(selectedInstitutionId, auditFilters);
                 }}
               >
                 Atualizar auditoria
               </button>
             </header>
+
+            <div className="native-super-integration-audit-filters">
+              <label>
+                Status
+                <select
+                  value={auditFilters.status}
+                  onChange={(event) =>
+                    setAuditFilters((current) => ({
+                      ...current,
+                      status:
+                        event.target.value === 'success' ||
+                        event.target.value === 'failed'
+                          ? event.target.value
+                          : 'all',
+                    }))
+                  }
+                >
+                  <option value="all">Todos</option>
+                  <option value="success">Sucesso</option>
+                  <option value="failed">Falha</option>
+                </select>
+              </label>
+
+              <label>
+                De
+                <input
+                  type="date"
+                  value={auditFilters.dateFrom}
+                  onChange={(event) =>
+                    setAuditFilters((current) => ({
+                      ...current,
+                      dateFrom: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+
+              <label>
+                Até
+                <input
+                  type="date"
+                  value={auditFilters.dateTo}
+                  onChange={(event) =>
+                    setAuditFilters((current) => ({
+                      ...current,
+                      dateTo: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+
+              <label>
+                Busca
+                <input
+                  value={auditFilters.search}
+                  onChange={(event) =>
+                    setAuditFilters((current) => ({
+                      ...current,
+                      search: event.target.value,
+                    }))
+                  }
+                  placeholder="Aluno ou erro..."
+                />
+              </label>
+
+              <div className="native-super-integration-audit-actions">
+                <button type="button" className="ghost" onClick={() => void clearAuditFilters()}>
+                  Limpar
+                </button>
+                <button type="button" onClick={() => void applyAuditFilters()}>
+                  Aplicar filtros
+                </button>
+              </div>
+            </div>
 
             {loadingLogs ? (
               <p className="native-info">Carregando auditoria...</p>
@@ -939,12 +1239,13 @@ export function SuperadminIntegrationsNative({
                     <th>Status</th>
                     <th>HTTP</th>
                     <th>Erro</th>
+                    <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!loadingLogs && dispatchLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={5}>Nenhum envio auditado para esta instituição.</td>
+                      <td colSpan={6}>Nenhum envio auditado para esta instituição.</td>
                     </tr>
                   ) : (
                     dispatchLogs.map((log) => (
@@ -965,6 +1266,22 @@ export function SuperadminIntegrationsNative({
                         </td>
                         <td>{log.responseStatusCode ?? '-'}</td>
                         <td>{log.errorMessage || '-'}</td>
+                        <td>
+                          {log.status === 'failed' ? (
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => {
+                                void retryDispatch(log);
+                              }}
+                              disabled={retryingLogId === log.id}
+                            >
+                              {retryingLogId === log.id ? 'Reenviando...' : 'Reenviar'}
+                            </button>
+                          ) : (
+                            '-'
+                          )}
+                        </td>
                       </tr>
                     ))
                   )}

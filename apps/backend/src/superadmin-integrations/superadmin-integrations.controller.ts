@@ -32,11 +32,19 @@ export class SuperadminIntegrationsController {
     @Param('institutionId') institutionId: string,
     @Param('provider') provider: string,
     @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('search') search?: string,
   ) {
     return this.superadminIntegrationsService.listInstitutionProviderDispatchLogs(
       institutionId,
       provider,
       limit,
+      status,
+      dateFrom,
+      dateTo,
+      search,
     );
   }
 
@@ -53,14 +61,29 @@ export class SuperadminIntegrationsController {
     );
   }
 
-  @Post('institutions/:institutionId/providers/kobayashi/test-request')
-  async sendKobayashiTestRequest(
+  @Post('institutions/:institutionId/providers/:provider/test-request')
+  async sendProviderTestRequest(
     @Param('institutionId') institutionId: string,
+    @Param('provider') provider: string,
     @Body() dto: SendKobayashiTestPayloadDto,
   ) {
-    return this.superadminIntegrationsService.sendKobayashiTestRequest(
+    return this.superadminIntegrationsService.sendProviderTestRequest(
       institutionId,
+      provider,
       dto,
+    );
+  }
+
+  @Post('institutions/:institutionId/providers/:provider/logs/:logId/retry')
+  async retryInstitutionProviderDispatchLog(
+    @Param('institutionId') institutionId: string,
+    @Param('provider') provider: string,
+    @Param('logId') logId: string,
+  ) {
+    return this.superadminIntegrationsService.retryInstitutionProviderDispatchLog(
+      institutionId,
+      provider,
+      logId,
     );
   }
 }

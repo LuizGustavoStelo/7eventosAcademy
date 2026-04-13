@@ -201,16 +201,43 @@ export class SuperadminIntegrationsService {
     institutionId: string,
     rawProvider: string,
     rawLimit?: string,
+    rawStatus?: string,
+    rawDateFrom?: string,
+    rawDateTo?: string,
+    rawSearch?: string,
   ) {
     const provider = this.normalizeProvider(rawProvider);
     const institution = await this.ensureInstitutionExists(institutionId);
     const limit = this.parseLogsLimit(rawLimit);
+    const status = this.parseDispatchStatusFilter(rawStatus);
+    const createdAt = this.parseDispatchDateRange(rawDateFrom, rawDateTo);
+    const search = String(rawSearch || '').trim();
+
+    const where: Prisma.InstitutionIntegrationDispatchLogWhereInput = {
+      institutionId,
+      provider,
+    };
+    if (status) where.status = status;
+    if (createdAt) where.createdAt = createdAt;
+    if (search) {
+      where.OR = [
+        {
+          studentName: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          errorMessage: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+      ];
+    }
 
     const rows = await this.prisma.institutionIntegrationDispatchLog.findMany({
-      where: {
-        institutionId,
-        provider,
-      },
+      where,
       orderBy: { createdAt: 'desc' },
       take: limit,
       select: {
@@ -231,6 +258,12 @@ export class SuperadminIntegrationsService {
       institution,
       provider,
       limit,
+      filters: {
+        status,
+        dateFrom: rawDateFrom ?? null,
+        dateTo: rawDateTo ?? null,
+        search: search || null,
+      },
       logs: rows.map((row) => ({
         id: row.id,
         provider: row.provider,
@@ -321,6 +354,19 @@ export class SuperadminIntegrationsService {
         updatedAt: saved.updatedAt,
       },
     };
+  }
+
+  async sendProviderTestRequest(
+    institutionId: string,
+    rawProvider: string,
+    dto: SendKobayashiTestPayloadDto,
+  ) {
+    const provider = this.normalizeProvider(rawProvider);
+    if (provider === 'kobayashi') {
+      return this.sendKobayashiTestRequest(institutionId, dto);
+    }
+
+    throw new BadRequestException('Provedor de integração não suportado para teste.');
   }
 
   async sendKobayashiTestRequest(
@@ -578,6 +624,144 @@ export class SuperadminIntegrationsService {
     }
   }
 
+  async retryInstitutionProviderDispatchLog(
+    institutionId: string,
+    rawProvider: string,
+    logId: string,
+  ) {
+    const provider = this.normalizeProvider(rawProvider);
+    await this.ensureInstitutionExists(institutionId);
+
+    const log = await this.prisma.institutionIntegrationDispatchLog.findFirst({
+      where: {
+        id: logId,
+        institutionId,
+        provider,
+      },
+      select: {
+        id: true,
+        studentId: true,
+        studentName: true,
+        enrollmentId: true,
+        contractInstanceId: true,
+        requestPayload: true,
+      },
+    });
+
+    if (!log) {
+      throw new NotFoundException('Log de auditoria não encontrado.');
+    }
+
+    const integration = await this.prisma.institutionIntegration.findUnique({
+      where: {
+        institutionId_provider: {
+          institutionId,
+          provider,
+        },
+      },
+      select: {
+        id: true,
+        encryptedSettings: true,
+      },
+    });
+
+    if (!integration || !integration.encryptedSettings) {
+      throw new NotFoundException(
+        'Integração não configurada para reenvio manual.',
+      );
+    }
+
+    const settings = this.decryptSettings(integration.encryptedSettings).kobayashi;
+    if (!settings) {
+      throw new BadRequestException(
+        'Configuração da integração KOBAYASHI inválida.',
+      );
+    }
+
+    if (!this.isObject(log.requestPayload)) {
+      if (log.contractInstanceId) {
+        const fallback = await this.dispatchKobayashiForSignedContractInstance(
+          log.contractInstanceId,
+        );
+        return {
+          retriedFromLogId: log.id,
+          usedFallbackPayload: true,
+          ...fallback,
+        };
+      }
+      throw new BadRequestException(
+        'Log sem payload válido para reenvio manual.',
+      );
+    }
+
+    const requestPayload = log.requestPayload as Record<string, unknown>;
+    const baseLog: Omit<DispatchLogInput, 'status'> = {
+      institutionId,
+      integrationId: integration.id,
+      provider,
+      studentId: log.studentId ?? null,
+      studentName: log.studentName,
+      enrollmentId: log.enrollmentId ?? null,
+      contractInstanceId: log.contractInstanceId ?? null,
+      requestPayload,
+    };
+
+    try {
+      const response = await this.requestKobayashi(settings, requestPayload);
+
+      if (!response.ok) {
+        const message = this.extractIntegrationErrorMessage(
+          response.body,
+          `KOBAYASHI respondeu com status HTTP ${response.statusCode}.`,
+        );
+        await this.markIntegrationFailure(integration.id, message);
+        await this.createDispatchLog({
+          ...baseLog,
+          status: 'failed',
+          responsePayload: response.body,
+          responseStatusCode: response.statusCode,
+          errorMessage: message,
+        });
+        return {
+          retriedFromLogId: log.id,
+          success: false,
+          response,
+          message,
+        };
+      }
+
+      await this.markIntegrationSuccess(integration.id);
+      await this.createDispatchLog({
+        ...baseLog,
+        status: 'success',
+        responsePayload: response.body,
+        responseStatusCode: response.statusCode,
+      });
+
+      return {
+        retriedFromLogId: log.id,
+        success: true,
+        response,
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Falha inesperada no reenvio manual para KOBAYASHI.';
+      await this.markIntegrationFailure(integration.id, message);
+      await this.createDispatchLog({
+        ...baseLog,
+        status: 'failed',
+        errorMessage: message,
+      });
+      return {
+        retriedFromLogId: log.id,
+        success: false,
+        message,
+      };
+    }
+  }
+
   private buildSettings(
     provider: SupportedProvider,
     dto: UpsertInstitutionIntegrationDto,
@@ -783,6 +967,39 @@ export class SuperadminIntegrationsService {
     if (!Number.isFinite(parsed)) return 50;
     const rounded = Math.trunc(parsed);
     return Math.max(1, Math.min(200, rounded));
+  }
+
+  private parseDispatchStatusFilter(rawStatus?: string): 'success' | 'failed' | null {
+    const normalized = String(rawStatus || '').trim().toLowerCase();
+    if (normalized === 'success') return 'success';
+    if (normalized === 'failed') return 'failed';
+    return null;
+  }
+
+  private parseDispatchDateRange(rawDateFrom?: string, rawDateTo?: string) {
+    const fromRaw = String(rawDateFrom || '').trim();
+    const toRaw = String(rawDateTo || '').trim();
+    if (!fromRaw && !toRaw) return null;
+
+    const range: Prisma.DateTimeFilter = {};
+
+    if (fromRaw) {
+      const parsedFrom = new Date(fromRaw);
+      if (!Number.isNaN(parsedFrom.getTime())) {
+        range.gte = parsedFrom;
+      }
+    }
+
+    if (toRaw) {
+      const normalizedTo =
+        /^\d{4}-\d{2}-\d{2}$/.test(toRaw) ? `${toRaw}T23:59:59.999` : toRaw;
+      const parsedTo = new Date(normalizedTo);
+      if (!Number.isNaN(parsedTo.getTime())) {
+        range.lte = parsedTo;
+      }
+    }
+
+    return Object.keys(range).length > 0 ? range : null;
   }
 
   private async markIntegrationSuccess(integrationId: string) {

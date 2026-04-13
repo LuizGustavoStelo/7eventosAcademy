@@ -2197,6 +2197,18 @@ export class ContractsService {
       });
     });
 
+    void this.superadminIntegrationsService
+      .dispatchKobayashiForSignedContractInstance(instance.id)
+      .catch((error) => {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Falha desconhecida no disparo da integração KOBAYASHI.';
+        this.logger.warn(
+          `[integration-dispatch] contrato=${instance.id} erro=${message}`,
+        );
+      });
+
     return {
       id: instance.id,
       status: ContractInstanceStatus.SIGNED,
