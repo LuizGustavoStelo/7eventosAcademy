@@ -453,6 +453,17 @@ export class SuperadminIntegrationsService {
 
     const requestPayload = this.applyKobayashiDefaults(settings, dto.payload);
     const endpoint = this.buildKobayashiEndpoint(settings);
+    const studentInfo = this.extractKobayashiTestStudentInfo(requestPayload);
+    const baseLog: Omit<DispatchLogInput, 'status'> = {
+      institutionId,
+      integrationId: integration.id,
+      provider: 'kobayashi',
+      studentId: null,
+      studentName: studentInfo.studentName,
+      enrollmentId: null,
+      contractInstanceId: null,
+      requestPayload,
+    };
 
     try {
       const response = await this.requestKobayashi(settings, requestPayload);
@@ -463,10 +474,23 @@ export class SuperadminIntegrationsService {
           `KOBAYASHI respondeu com status HTTP ${response.statusCode}.`,
         );
         await this.markIntegrationFailure(integration.id, message);
+        await this.createDispatchLog({
+          ...baseLog,
+          status: 'failed',
+          responsePayload: response.body,
+          responseStatusCode: response.statusCode,
+          errorMessage: message,
+        });
         throw new BadRequestException(message);
       }
 
       await this.markIntegrationSuccess(integration.id);
+      await this.createDispatchLog({
+        ...baseLog,
+        status: 'success',
+        responsePayload: response.body,
+        responseStatusCode: response.statusCode,
+      });
 
       return {
         success: true,
@@ -480,11 +504,20 @@ export class SuperadminIntegrationsService {
         response,
       };
     } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
       const message =
         error instanceof Error
           ? error.message
           : 'Falha ao enviar payload de teste para KOBAYASHI.';
       await this.markIntegrationFailure(integration.id, message);
+      await this.createDispatchLog({
+        ...baseLog,
+        status: 'failed',
+        errorMessage: message,
+      });
       throw new BadRequestException(message);
     }
   }
@@ -538,6 +571,17 @@ export class SuperadminIntegrationsService {
         'Informe enrollmentId ou payload para testar a integracao RD Station.',
       );
     }
+    const studentInfo = this.extractRdStationTestStudentInfo(requestPayload);
+    const baseLog: Omit<DispatchLogInput, 'status'> = {
+      institutionId,
+      integrationId: integration.id,
+      provider: 'rdstation',
+      studentId: null,
+      studentName: studentInfo.studentName,
+      enrollmentId: enrollmentId || null,
+      contractInstanceId: null,
+      requestPayload,
+    };
 
     try {
       const response = await this.requestRdStation(settings, requestPayload);
@@ -547,10 +591,23 @@ export class SuperadminIntegrationsService {
           `RD Station respondeu com status HTTP ${response.statusCode}.`,
         );
         await this.markIntegrationFailure(integration.id, message);
+        await this.createDispatchLog({
+          ...baseLog,
+          status: 'failed',
+          responsePayload: response.body,
+          responseStatusCode: response.statusCode,
+          errorMessage: message,
+        });
         throw new BadRequestException(message);
       }
 
       await this.markIntegrationSuccess(integration.id);
+      await this.createDispatchLog({
+        ...baseLog,
+        status: 'success',
+        responsePayload: response.body,
+        responseStatusCode: response.statusCode,
+      });
 
       return {
         success: true,
@@ -563,11 +620,20 @@ export class SuperadminIntegrationsService {
         response,
       };
     } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
       const message =
         error instanceof Error
           ? error.message
           : 'Falha ao enviar payload de teste para RD Station.';
       await this.markIntegrationFailure(integration.id, message);
+      await this.createDispatchLog({
+        ...baseLog,
+        status: 'failed',
+        errorMessage: message,
+      });
       throw new BadRequestException(message);
     }
   }
@@ -1870,6 +1936,36 @@ export class SuperadminIntegrationsService {
       percentualDesconto:
         Number.isFinite(discountValue) && discountValue > 0 ? discountValue : 0,
       totalAmount: Number.isFinite(totalAmount) && totalAmount > 0 ? totalAmount : 0,
+    };
+  }
+
+  private extractKobayashiTestStudentInfo(payload: Record<string, unknown>) {
+    const matricula = this.isObject(payload.matricula)
+      ? (payload.matricula as Record<string, unknown>)
+      : null;
+    const candidateName = String(
+      matricula?.nomeCompleto ||
+        matricula?.nomeSocial ||
+        matricula?.eMail ||
+        payload.gcssid ||
+        '',
+    ).trim();
+
+    return {
+      studentName: candidateName || 'Teste manual',
+    };
+  }
+
+  private extractRdStationTestStudentInfo(payload: Record<string, unknown>) {
+    const innerPayload = this.isObject(payload.payload)
+      ? (payload.payload as Record<string, unknown>)
+      : payload;
+    const candidateName = String(
+      innerPayload.name || innerPayload.email || innerPayload.mobile_phone || '',
+    ).trim();
+
+    return {
+      studentName: candidateName || 'Teste manual',
     };
   }
 

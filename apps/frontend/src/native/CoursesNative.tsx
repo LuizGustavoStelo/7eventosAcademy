@@ -1690,9 +1690,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
               const showDescription = hasTextValue(course.description);
               const showCategory = hasTextValue(course.category);
               const showWorkload = hasPositiveNumber(course.workloadHours);
-              const showKobayashiOfertaCursoId = hasTextValue(
-                course.kobayashiOfertaCursoId,
-              );
               const showPrice = hasPositiveNumber(course.price);
               const showPayment = hasTextValue(paymentSummary);
               const showEnrollmentFee = hasTextValue(enrollmentFeeSummary);
@@ -1727,12 +1724,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                         <small>
                           Carga horária:{' '}
                           <strong>{Number(course.workloadHours || 0)}h</strong>
-                        </small>
-                      ) : null}
-                      {showKobayashiOfertaCursoId ? (
-                        <small className="full">
-                          OfertaCursoID KOBAYASHI:{' '}
-                          <strong>{course.kobayashiOfertaCursoId}</strong>
                         </small>
                       ) : null}
                       {showPrice ? (
@@ -1840,7 +1831,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                 </label>
 
                 <label>
-                  OfertaCursoID (KOBAYASHI)
+                  OfertaCursoID
                   <input
                     value={form.kobayashiOfertaCursoId}
                     onChange={(event) =>
