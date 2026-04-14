@@ -8,6 +8,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Max,
   Min,
   ValidateNested,
@@ -220,6 +221,11 @@ export class CreateCourseDto {
   @IsOptional()
   @IsString()
   coordinator?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  kobayashiOfertaCursoId?: string;
 
   @IsOptional()
   @Type(() => Number)

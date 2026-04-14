@@ -82,6 +82,7 @@ type Course = {
   workloadHours?: number | null;
   category?: string | null;
   coordinator?: string | null;
+  kobayashiOfertaCursoId?: string | null;
   price?: number | null;
   modality?: CourseModality | null;
   status?: CourseStatus | null;
@@ -102,6 +103,7 @@ type CourseFormState = {
   workloadHours: string;
   category: string;
   coordinator: string;
+  kobayashiOfertaCursoId: string;
   price: string;
   modality: CourseModality;
   status: CourseStatus;
@@ -561,6 +563,7 @@ function emptyForm(): CourseFormState {
     workloadHours: '',
     category: '',
     coordinator: '',
+    kobayashiOfertaCursoId: '',
     price: '0,00',
     modality: 'PRESENTIAL',
     status: 'ACTIVE',
@@ -919,6 +922,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         : '',
       category: course.category || '',
       coordinator: course.coordinator || '',
+      kobayashiOfertaCursoId: course.kobayashiOfertaCursoId || '',
       price: formatMoneyValue(price),
       modality: (course.modality as CourseModality) || 'PRESENTIAL',
       status: (course.status as CourseStatus) || 'ACTIVE',
@@ -1099,6 +1103,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       workloadHours: toNullableInt(form.workloadHours),
       category: cleanCategory || undefined,
       coordinator: cleanCoordinator || undefined,
+      kobayashiOfertaCursoId:
+        form.kobayashiOfertaCursoId.trim() || (isEditing ? null : undefined),
       price: toNullableMoney(form.price),
       enrollmentFee: form.hasEnrollmentFee
         ? toNullableMoney(form.enrollmentFee)
@@ -1684,6 +1690,9 @@ export function CoursesNative({ token }: CoursesNativeProps) {
               const showDescription = hasTextValue(course.description);
               const showCategory = hasTextValue(course.category);
               const showWorkload = hasPositiveNumber(course.workloadHours);
+              const showKobayashiOfertaCursoId = hasTextValue(
+                course.kobayashiOfertaCursoId,
+              );
               const showPrice = hasPositiveNumber(course.price);
               const showPayment = hasTextValue(paymentSummary);
               const showEnrollmentFee = hasTextValue(enrollmentFeeSummary);
@@ -1718,6 +1727,12 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                         <small>
                           Carga horária:{' '}
                           <strong>{Number(course.workloadHours || 0)}h</strong>
+                        </small>
+                      ) : null}
+                      {showKobayashiOfertaCursoId ? (
+                        <small className="full">
+                          OfertaCursoID KOBAYASHI:{' '}
+                          <strong>{course.kobayashiOfertaCursoId}</strong>
                         </small>
                       ) : null}
                       {showPrice ? (
@@ -1822,6 +1837,20 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                     }
                     required
                   />
+                </label>
+
+                <label>
+                  OfertaCursoID (KOBAYASHI)
+                  <input
+                    value={form.kobayashiOfertaCursoId}
+                    onChange={(event) =>
+                      updateForm('kobayashiOfertaCursoId', event.target.value)
+                    }
+                    placeholder="Ex.: 72"
+                  />
+                  <small>
+                    Opcional. Se vazio, a integração usa o padrão da instituição.
+                  </small>
                 </label>
 
                 <label>

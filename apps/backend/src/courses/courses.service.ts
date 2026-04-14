@@ -98,6 +98,7 @@ export class CoursesService {
         workloadHours: dto.workloadHours,
         category: dto.category?.trim(),
         coordinator: dto.coordinator?.trim(),
+        kobayashiOfertaCursoId: dto.kobayashiOfertaCursoId?.trim() || undefined,
         price: this.toDecimal(dto.price),
         ...paymentData,
         paymentOptions: paymentOptionsToPersist as Prisma.InputJsonValue,
@@ -206,6 +207,9 @@ export class CoursesService {
           : undefined,
         category: dto.category?.trim(),
         coordinator: dto.coordinator?.trim(),
+        kobayashiOfertaCursoId: hasField('kobayashiOfertaCursoId')
+          ? (dto.kobayashiOfertaCursoId?.trim() || null)
+          : undefined,
         price: !hasField('price')
           ? undefined
           : dto.price === null

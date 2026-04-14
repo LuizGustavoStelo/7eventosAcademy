@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -39,6 +40,11 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsString()
   coordinator?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  kobayashiOfertaCursoId?: string | null;
 
   @IsOptional()
   @Type(() => Number)

@@ -15,7 +15,7 @@ type SupportedProvider = 'kobayashi' | 'rdstation';
 type KobayashiSettings = {
   baseUrl: string;
   clientId: string;
-  clientSecret: string;
+  clientSecret?: string;
   token?: string;
   authorizationBearer?: string;
   grantType: string;
@@ -70,6 +70,7 @@ type DispatchLogInput = {
 const KOBAYASHI_DEFAULT_BASE_URL = 'https://apiappdo.facinpro.flie.com.br';
 const KOBAYASHI_DEFAULT_GRANT_TYPE = 'client_credentials';
 const KOBAYASHI_DEFAULT_SCOPES = ['cobranca.parceiro', 'b2b.parceiro'];
+const KOBAYASHI_DEFAULT_GCSSID = '1984579899879879525449846';
 const RDSTATION_DEFAULT_BASE_URL = 'https://api.rd.services';
 const RDSTATION_DEFAULT_CONVERSION_IDENTIFIER = 'Matricula Efetivada';
 const RDSTATION_DEFAULT_COURSE_FIELD_KEY = 'cf_curso_matriculado';
@@ -213,7 +214,7 @@ export class SuperadminIntegrationsService {
             Array.isArray(kobayashi?.scopes) && kobayashi?.scopes.length > 0
               ? kobayashi.scopes
               : KOBAYASHI_DEFAULT_SCOPES,
-          defaultGcssid: kobayashi?.defaultGcssid ?? '',
+          defaultGcssid: kobayashi?.defaultGcssid ?? KOBAYASHI_DEFAULT_GCSSID,
           defaultIdentificacaoVendedor:
             kobayashi?.defaultIdentificacaoVendedor ?? '',
           defaultOfertaCursoId: kobayashi?.defaultOfertaCursoId ?? '',
@@ -737,6 +738,7 @@ export class SuperadminIntegrationsService {
                     id: true,
                     name: true,
                     price: true,
+                    kobayashiOfertaCursoId: true,
                   },
                 },
               },
@@ -1047,7 +1049,13 @@ export class SuperadminIntegrationsService {
       const clientSecret =
         String(dto.kobayashiClientSecret || '').trim() ||
         currentKobayashi?.clientSecret ||
-        '';
+        undefined;
+      const token =
+        String(dto.kobayashiToken || '').trim() || currentKobayashi?.token || undefined;
+      const authorizationBearer =
+        String(dto.kobayashiAuthorizationBearer || '').trim() ||
+        currentKobayashi?.authorizationBearer ||
+        undefined;
 
       if (!clientId) {
         throw new BadRequestException(
@@ -1055,9 +1063,9 @@ export class SuperadminIntegrationsService {
         );
       }
 
-      if (!clientSecret) {
+      if (!token && !authorizationBearer) {
         throw new BadRequestException(
-          'Client Secret da integracao KOBAYASHI e obrigatorio.',
+          'Token ou Authorization Bearer da integracao KOBAYASHI e obrigatorio.',
         );
       }
 
@@ -1067,14 +1075,8 @@ export class SuperadminIntegrationsService {
         baseUrl: this.normalizeBaseUrl(baseUrl),
         clientId,
         clientSecret,
-        token:
-          String(dto.kobayashiToken || '').trim() ||
-          currentKobayashi?.token ||
-          undefined,
-        authorizationBearer:
-          String(dto.kobayashiAuthorizationBearer || '').trim() ||
-          currentKobayashi?.authorizationBearer ||
-          undefined,
+        token,
+        authorizationBearer,
         grantType:
           String(dto.kobayashiGrantType || '').trim() ||
           currentKobayashi?.grantType ||
@@ -1083,7 +1085,7 @@ export class SuperadminIntegrationsService {
         defaultGcssid:
           String(dto.kobayashiDefaultGcssid || '').trim() ||
           currentKobayashi?.defaultGcssid ||
-          undefined,
+          KOBAYASHI_DEFAULT_GCSSID,
         defaultIdentificacaoVendedor:
           String(dto.kobayashiDefaultIdentificacaoVendedor || '').trim() ||
           currentKobayashi?.defaultIdentificacaoVendedor ||
@@ -1320,9 +1322,9 @@ export class SuperadminIntegrationsService {
     if (token) {
       return token.replace(/^Bearer\s+/i, '').trim();
     }
-
-    const value = `${settings.clientId};${settings.clientSecret}`;
-    return Buffer.from(value, 'utf8').toString('base64');
+    throw new BadRequestException(
+      'Token ou Authorization Bearer da integracao KOBAYASHI nao configurado.',
+    );
   }
 
   private toKobayashiScopeObjects(scopes?: string[]): Array<{ name: string }> {
@@ -1712,6 +1714,7 @@ export class SuperadminIntegrationsService {
             id: string;
             name: string;
             price: Prisma.Decimal | null;
+            kobayashiOfertaCursoId: string | null;
           };
         } | null;
       } | null;
@@ -1766,6 +1769,9 @@ export class SuperadminIntegrationsService {
         naturalidadePais: this.asString(profile?.country || 'Brasil'),
         rgOrgao: this.asString(profile?.issuingAuthority),
         ofertaCursoID:
+          this.asString(
+            input.contract.enrollment?.schoolClass?.course?.kobayashiOfertaCursoId,
+          ) ||
           this.asString(input.settings.defaultOfertaCursoId) ||
           this.asString(input.contract.enrollment?.schoolClass?.course?.id),
         valorTotal: this.formatMoney(totalAmount),

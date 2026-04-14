@@ -192,14 +192,14 @@ const INTEGRATION_OPTIONS: Array<{
 const KOBAYASHI_PRESET = {
   baseUrl: 'https://apiappdo.facinpro.flie.com.br',
   clientId: 'c6b7f6ac-87ff-4790-9a22-f54ddb19cff2',
-  clientSecret: '4c522deb-84ce-4321-8b87-3a48b10147c5',
+  clientSecret: '',
   token:
     '8198f8e53bba-efac-4355-abec-2aae21b37d3381984c522deb-84ce-4321-8b87-3a48b10147c58198',
   authorizationBearer:
-    'Bearer YzZiN2Y2YWMtODdmZi00NzkwLTlhMjItZjU0ZGRiMTljZmYyOzRjNTIyZGViLTg0Y2UtNDMyMS04Yjg3LTNhNDhiMTAxNDdjNQ==',
+    'Bearer 8198f8e53bba-efac-4355-abec-2aae21b37d3381984c522deb-84ce-4321-8b87-3a48b10147c58198',
   grantType: 'client_credentials',
   scopes: 'cobranca.parceiro, b2b.parceiro',
-  defaultGcssid: '9999999999999999999999999',
+  defaultGcssid: '1984579899879879525449846',
   defaultIdentificacaoVendedor: 'alinne',
   defaultOfertaCursoId: '999999',
 };
@@ -1347,7 +1347,7 @@ export function SuperadminIntegrationsNative({
                   </label>
 
                   <label>
-                    Client Secret
+                    Client Secret (opcional)
                     <input
                       type="password"
                       value={form.clientSecret}
@@ -1357,7 +1357,7 @@ export function SuperadminIntegrationsNative({
                           clientSecret: event.target.value,
                         }))
                       }
-                      placeholder="Deixe em branco para manter o atual"
+                      placeholder="Opcional. Deixe em branco para manter o atual"
                     />
                     <small>
                       {secretFlags.clientSecretConfigured
@@ -1382,24 +1382,24 @@ export function SuperadminIntegrationsNative({
                     <small>
                       {secretFlags.authorizationBearerConfigured
                         ? `Bearer atual: ${secretFlags.authorizationBearerMasked ?? 'configurado'}`
-                        : 'Se vazio, o sistema gera Bearer com client_id;client_secret'}
+                        : 'Se vazio, o sistema usa o token informado abaixo'}
                     </small>
                   </label>
 
                   <label>
-                    Token alternativo (opcional)
+                    Token Bearer (opcional)
                     <input
                       type="password"
                       value={form.token}
                       onChange={(event) =>
                         setForm((current) => ({ ...current, token: event.target.value }))
                       }
-                      placeholder="Fallback de token caso não use Authorization Bearer"
+                      placeholder="Token usado no header Authorization: Bearer {token}"
                     />
                     <small>
                       {secretFlags.tokenConfigured
                         ? `Token atual: ${secretFlags.tokenMasked ?? 'configurado'}`
-                        : 'Token alternativo não configurado'}
+                        : 'Token ainda não configurado'}
                     </small>
                   </label>
 

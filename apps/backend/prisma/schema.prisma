@@ -382,6 +382,7 @@ model Course {
   description       String?
   category          String?
   coordinator       String?
+  kobayashiOfertaCursoId String?      @map("kobayashi_oferta_curso_id")
   workloadHours     Int?               @map("workload_hours")
   price             Decimal?           @db.Decimal(12, 2)
   paymentModel      CoursePaymentModel @default(CASH) @map("payment_model")
