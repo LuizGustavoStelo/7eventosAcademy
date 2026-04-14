@@ -203,6 +203,7 @@ type StudentAreaNativeProps = {
 
 const STUDENT_CACHE_TTL_MS = 25_000;
 const REFRESH_MS = 30_000;
+const REQUIRED_SIGNED_CONTRACTS_TO_UNLOCK = 2;
 const STUDENT_CHARGE_PAYMENT_CACHE_KEY = 'student-charge-payment-cache-v1';
 const DEFAULT_STUDENT_BRANDING_LOGO_URL = '/Logo-IPESK.png';
 const DEFAULT_STUDENT_BRANDING_PALETTE: StudentBrandingPalette = {
@@ -1033,8 +1034,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     Record<string, string>
   >({});
   const [pendingContractNotificationCount, setPendingContractNotificationCount] = useState(0);
-  const [hasContractAvailable, setHasContractAvailable] = useState(false);
-  const [hasSignedContract, setHasSignedContract] = useState(false);
+  const [availableContractCount, setAvailableContractCount] = useState(0);
+  const [signedContractCount, setSignedContractCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const initialContractId = useMemo(() => {
@@ -1176,12 +1177,12 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           return normalized === 'SIGNED' || Boolean(item.signedAt);
         }).length;
         setPendingContractNotificationCount(pendingCount);
-        setHasContractAvailable(availableCount > 0);
-        setHasSignedContract(signedCount > 0);
+        setAvailableContractCount(availableCount);
+        setSignedContractCount(signedCount);
       } catch {
         setPendingContractNotificationCount(0);
-        setHasContractAvailable(false);
-        setHasSignedContract(false);
+        setAvailableContractCount(0);
+        setSignedContractCount(0);
       }
     } catch (loadError) {
       setError(
@@ -1190,8 +1191,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           : 'Não foi possível carregar a Área do Aluno.',
       );
       setPendingContractNotificationCount(0);
-      setHasContractAvailable(false);
-      setHasSignedContract(false);
+      setAvailableContractCount(0);
+      setSignedContractCount(0);
     } finally {
       setLoading(false);
     }
@@ -1355,9 +1356,15 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const cobrancas = dashboard?.cobrancas ?? [];
   const agenda = dashboard?.agenda ?? [];
   const hasActiveClass = matriculas.length > 0;
-  const isPreContractStage = !hasContractAvailable;
-  const isPreSignatureStage = hasContractAvailable && !hasSignedContract;
+  const missingRequiredContractCount = Math.max(
+    REQUIRED_SIGNED_CONTRACTS_TO_UNLOCK - signedContractCount,
+    0,
+  );
+  const isPreContractStage = availableContractCount <= 0;
+  const isPreSignatureStage =
+    availableContractCount > 0 && missingRequiredContractCount > 0;
   const isContractGateLocked = isPreContractStage || isPreSignatureStage;
+  const hasPendingContractsToSign = pendingContractNotificationCount > 0;
 
   const isSectionDisabled = (sectionId: SectionId) => {
     if (isPreContractStage) {
@@ -2421,8 +2428,6 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           token={token}
           initialContractId={initialContractId}
           onSignedSuccess={() => {
-            setHasContractAvailable(true);
-            setHasSignedContract(true);
             void loadDashboard({ bypassCache: true });
           }}
         />
@@ -2995,17 +3000,25 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     <strong>
                       {isPreContractStage
                         ? 'Acesso parcial liberado: falta o pagamento'
-                        : 'Acesso parcial liberado: falta a assinatura do contrato'}
+                        : missingRequiredContractCount > 1
+                          ? 'Acesso parcial liberado: faltam assinaturas obrigatórias'
+                          : 'Acesso parcial liberado: falta uma assinatura obrigatória'}
                     </strong>
                     {isPreContractStage ? (
                       <p>
                         Finalize o pagamento da taxa de matrícula no financeiro. Após a quitação,
                         o contrato será liberado para assinatura.
                       </p>
+                    ) : !hasPendingContractsToSign ? (
+                      <p>
+                        Ainda faltam {missingRequiredContractCount} contrato(s) obrigatório(s).
+                        Aguarde o envio dos documentos pendentes pela instituição e assine na área
+                        de Contratos para desbloquear o restante.
+                      </p>
                     ) : (
                       <p>
-                        Assine o contrato para desbloquear aulas, agenda, transmissões, frequência,
-                        materiais e certificado.
+                        Assine os contratos pendentes para desbloquear aulas, agenda,
+                        transmissões, frequência, materiais e certificado.
                       </p>
                     )}
                   </div>

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { API_BASE_URL, apiRequest } from './api';
+import {
+  CONTRACT_BASE_PRESETS,
+  DEFAULT_CONTRACT_BASE_PRESET_ID,
+} from './contractBaseTemplates';
 import { ContractWordEditor, type ContractPlaceholder } from './ContractWordEditor';
 import { buildContractPreviewSrcDoc } from './contractPreview';
 
@@ -115,7 +119,7 @@ type TemplateFormState = {
 };
 
 type SendFormState = {
-  templateId: string;
+  templateIds: string[];
   studentId: string;
   courseId: string;
   classId: string;
@@ -142,74 +146,7 @@ const EMPTY_DRAW_STATE: DrawState = {
   lastX: 0,
   lastY: 0,
 };
-
-const DEFAULT_TEMPLATE_HTML = `<section style="font-family:Arial,sans-serif;color:#111827;">
-  <div style="max-width:794px;min-height:1123px;margin:0 auto;padding:20px 56px;box-sizing:border-box;background:#fff;">
-    <h2 style="margin:0 0 4px;font-size:16px;text-align:center;">INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTA&Ccedil;&Atilde;O DE SERVI&Ccedil;OS EDUCACIONAIS</h2>
-    <p style="margin:0 0 16px;text-align:center;">P&oacute;s-gradua&ccedil;&atilde;o: <strong>{{curso_nome}}</strong></p>
-    <p style="margin:0 0 16px;text-align:center;font-size:11px;color:#4b5563;">{{contratada_nome}} - CNPJ {{contratada_cnp}} - {{contratada_endereco}}</p>
-    <h3 style="margin:0 0 8px;font-size:13px;">1. Identifica&ccedil;&atilde;o do(a) contratante</h3>
-    <table style="width:100%;border-collapse:collapse;font-size:12px;"><tbody>
-      <tr><td style="border:1px solid #d1d5db;padding:6px;"><strong>Aluno(a)</strong><br />{{aluno_nome}}</td><td style="border:1px solid #d1d5db;padding:6px;"><strong>E-mail</strong><br />{{aluno_email}}</td></tr>
-      <tr><td style="border:1px solid #d1d5db;padding:6px;"><strong>CPF</strong><br />{{aluno_cpf}}</td><td style="border:1px solid #d1d5db;padding:6px;"><strong>RG / &Oacute;rg&atilde;o</strong><br />{{aluno_rg}} - {{aluno_orgao_expedidor}}</td></tr>
-      <tr><td style="border:1px solid #d1d5db;padding:6px;"><strong>Data de nascimento</strong><br />{{aluno_data_nascimento}}</td><td style="border:1px solid #d1d5db;padding:6px;"><strong>Telefone</strong><br />{{aluno_telefone}}</td></tr>
-      <tr><td style="border:1px solid #d1d5db;padding:6px;"><strong>Pai</strong><br />{{aluno_nome_pai}}</td><td style="border:1px solid #d1d5db;padding:6px;"><strong>M&atilde;e</strong><br />{{aluno_nome_mae}}</td></tr>
-      <tr><td colspan="2" style="border:1px solid #d1d5db;padding:6px;"><strong>Endere&ccedil;o</strong><br />{{aluno_endereco}}, {{aluno_numero_endereco}} - CEP {{aluno_cep}} - {{aluno_cidade_nascimento}}</td></tr>
-      <tr><td style="border:1px solid #d1d5db;padding:6px;"><strong>Gradua&ccedil;&atilde;o</strong><br />{{aluno_graduacao}}</td><td style="border:1px solid #d1d5db;padding:6px;"><strong>Ano de conclus&atilde;o</strong><br />{{aluno_ano_conclusao_graduacao}}</td></tr>
-      <tr><td style="border:1px solid #d1d5db;padding:6px;"><strong>Empresa</strong><br />{{aluno_empresa}}</td><td style="border:1px solid #d1d5db;padding:6px;"><strong>Cargo</strong><br />{{aluno_cargo}}</td></tr>
-    </tbody></table>
-    <h3 style="margin:16px 0 8px;font-size:13px;">2. Cl&aacute;usulas e condi&ccedil;&otilde;es</h3>
-    <p style="margin:0 0 8px;">O presente INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTA&Ccedil;&Atilde;O DE SERVI&Ccedil;OS EDUCACIONAIS, em espec&iacute;fico para desenvolvimento de curso de P&oacute;s-Gradua&ccedil;&atilde;o Lato Sensu, &eacute; celebrado entre o(a) CONTRATANTE e a CONTRATADA {{contratada_nome}}, observando-se a legisla&ccedil;&atilde;o educacional e consumerista aplic&aacute;vel.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA PRIMEIRA:</strong> O presente contrato tem como objeto a presta&ccedil;&atilde;o de servi&ccedil;os educacionais pela CONTRATADA ao CONTRATANTE, durante o desenvolvimento do curso <strong>{{curso_nome}}</strong>, turma <strong>{{turma_nome}}</strong>, nos per&iacute;odos de sua ocorr&ecirc;ncia e prazos definidos em calend&aacute;rio e cronograma acad&ecirc;mico.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA SEGUNDA:</strong> A CONTRATADA assegura ao CONTRATANTE/BENEFICI&Aacute;RIO vaga no corpo discente, ministrando aulas e demais atividades escolares, cujo planejamento pedag&oacute;gico atende &agrave; legisla&ccedil;&atilde;o vigente.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA TERCEIRA:</strong> A CONTRATADA resguarda-se no direito de alterar estrutura curricular, ementas e organiza&ccedil;&atilde;o acad&ecirc;mica, visando adequa&ccedil;&atilde;o &agrave;s demandas pedag&oacute;gicas e de mercado.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA QUARTA:</strong> Os servi&ccedil;os contratados referem-se aos procedimentos relativos ao curr&iacute;culo do curso constante na matr&iacute;cula, integrante deste contrato. Excluem-se servi&ccedil;os facultativos e de car&aacute;ter pessoal do CONTRATANTE/BENEFICI&Aacute;RIO, como emiss&atilde;o de documentos extraordin&aacute;rios e outros n&atilde;o condizentes com a pr&aacute;tica acad&ecirc;mica regular.</p>
-    <p style="margin:0 0 6px;"><strong>&sect; 1&ordm;</strong> - As aulas ser&atilde;o ministradas em salas, laborat&oacute;rios, ambientes virtuais ou locais indicados pela CONTRATADA, conforme natureza dos conte&uacute;dos, sa&iacute;das de campo e t&eacute;cnicas pedag&oacute;gicas necess&aacute;rias.</p>
-    <p style="margin:0 0 6px;"><strong>&sect; 2&ordm;</strong> - Reserva-se &agrave; CONTRATADA, at&eacute; 5 (cinco) dias antes do in&iacute;cio de cada turma, o direito de cancelar turma com n&uacute;mero insuficiente de alunos, assegurando ao CONTRATANTE realoca&ccedil;&atilde;o em turma equivalente, quando dispon&iacute;vel.</p>
-    <p style="margin:0 0 8px;"><strong>&sect; 3&ordm;</strong> - &Eacute; de exclusiva compet&ecirc;ncia da CONTRATADA a orienta&ccedil;&atilde;o t&eacute;cnica e pedag&oacute;gica decorrente da presta&ccedil;&atilde;o dos servi&ccedil;os educacionais.</p>
-  </div>
-  <div data-contract-page-break="true" style="page-break-after: always;"></div>
-  <div style="max-width:794px;min-height:1123px;margin:0 auto;padding:20px 56px;box-sizing:border-box;background:#fff;">
-    <h3 style="margin:0 0 8px;font-size:13px;">2. Cl&aacute;usulas e condi&ccedil;&otilde;es (continua&ccedil;&atilde;o)</h3>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA QUINTA:</strong> Em contrapartida aos servi&ccedil;os prestados pela CONTRATADA, o(a) CONTRATANTE pagar&aacute; os valores e parcelas descritos na se&ccedil;&atilde;o financeira deste instrumento.</p>
-    <p style="margin:10px 0 6px;"><strong>&sect; 2&ordm;</strong> - Atrav&eacute;s da Modalidade de P&oacute;s-Gradua&ccedil;&atilde;o MODULAR, o aluno ter&aacute; a RENOVA&Ccedil;&Atilde;O DE MATR&Iacute;CULA autom&aacute;tica a cada 03 (tr&ecirc;s m&oacute;dulos), desde que atenda os seguintes crit&eacute;rios:</p>
-    <ul style="margin:0 0 10px 18px;padding:0;"><li style="margin:0 0 4px;">Ter assinado o Contrato de Presta&ccedil;&otilde;es de Servi&ccedil;os Educacionais ORIGIN&Aacute;RIO e apresentado toda a documenta&ccedil;&atilde;o necess&aacute;ria;</li><li style="margin:0 0 4px;">Estar totalmente adimplente em suas mensalidades at&eacute; o m&ecirc;s precedente ao da renova&ccedil;&atilde;o de matr&iacute;cula;</li><li style="margin:0 0 4px;">Caso a situa&ccedil;&atilde;o financeira esteja satisfat&oacute;ria, o CONTRATANTE n&atilde;o precisar&aacute; efetuar qualquer procedimento, pois sua rematr&iacute;cula estar&aacute; assegurada;</li><li style="margin:0 0 4px;">Na vig&ecirc;ncia de alguma pend&ecirc;ncia, a matr&iacute;cula s&oacute; poder&aacute; ser renovada se o CONTRATANTE obtiver a libera&ccedil;&atilde;o no Departamento Financeiro da CONTRATADA;</li><li style="margin:0 0 4px;">A realiza&ccedil;&atilde;o dos m&oacute;dulos seguintes ao m&oacute;dulo realizado s&oacute; poder&aacute; ocorrer mediante cumprimento dos encargos pedag&oacute;gicos e financeiros do m&oacute;dulo anterior, conforme previs&atilde;o de disciplinas.</li></ul>
-    <p style="margin:0 0 8px;"><strong>&sect; 3&ordm;</strong> - Os pagamentos das parcelas dever&atilde;o ser efetuados at&eacute; a data do vencimento prevista, nos locais indicados pela CONTRATADA. A primeira parcela ser&aacute; cobrada no ato da matr&iacute;cula.</p>
-    <p style="margin:0 0 6px;"><strong>&sect; 4&ordm;</strong> - A CONTRATADA poder&aacute; conceder descontos para pagamento dentro da data de pontualidade, sem obriga&ccedil;&atilde;o de prorroga&ccedil;&atilde;o ou altera&ccedil;&atilde;o de datas.</p>
-    <p style="margin:0 0 6px;"><strong>&sect; 5&ordm;</strong> - O n&atilde;o pagamento no prazo firmado poder&aacute; acarretar perda de descontos promocionais.</p>
-    <p style="margin:0 0 8px;"><strong>&sect; 6&ordm;</strong> - O n&atilde;o recebimento de boleto n&atilde;o isenta o CONTRATANTE do pagamento no vencimento, devendo buscar segunda via nos canais oficiais da CONTRATADA.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA SEXTA:</strong> Em caso de inadimpl&ecirc;ncia, incidir&atilde;o multa e juros conforme legisla&ccedil;&atilde;o e pol&iacute;ticas financeiras da CONTRATADA, podendo haver cobran&ccedil;a administrativa e/ou judicial, observadas as regras legais vigentes.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA S&Eacute;TIMA - CANCELAMENTO/RESCIS&Atilde;O:</strong> A rescis&atilde;o por iniciativa do CONTRATANTE dever&aacute; ser formalizada por escrito, com anteced&ecirc;ncia m&iacute;nima exigida pela institui&ccedil;&atilde;o e regulariza&ccedil;&atilde;o das obriga&ccedil;&otilde;es financeiras vencidas e vincendas previstas contratualmente.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA OITAVA:</strong> A CONTRATADA n&atilde;o se responsabiliza pela guarda de objetos pessoais, documentos, valores ou ve&iacute;culos do CONTRATANTE, salvo nos casos legalmente comprovados de responsabilidade direta.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA NONA:</strong> O abandono de aulas sem formaliza&ccedil;&atilde;o de cancelamento n&atilde;o extingue obriga&ccedil;&otilde;es financeiras e acad&ecirc;micas previstas neste contrato e no regulamento institucional.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA D&Eacute;CIMA:</strong> O CONTRATANTE dever&aacute; cumprir frequ&ecirc;ncia m&iacute;nima e crit&eacute;rios de aproveitamento acad&ecirc;mico para certifica&ccedil;&atilde;o, conforme normas do curso e exig&ecirc;ncias legais.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA D&Eacute;CIMA PRIMEIRA:</strong> O prazo de entrega de TCC/Artigo e regras de reposi&ccedil;&atilde;o de m&oacute;dulos observar&atilde;o manual acad&ecirc;mico e regulamento vigente da CONTRATADA.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA D&Eacute;CIMA SEGUNDA:</strong> O CONTRATANTE autoriza, de forma gratuita e nos limites legais, o uso de imagem para fins institucionais e publicit&aacute;rios da CONTRATADA.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA D&Eacute;CIMA TERCEIRA:</strong> O CONTRATANTE compromete-se a manter dados cadastrais atualizados, inclusive endere&ccedil;o e telefones, sob pena de validade das comunica&ccedil;&otilde;es enviadas aos dados constantes em cadastro.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA D&Eacute;CIMA QUARTA:</strong> Danos causados pelo CONTRATANTE a instala&ccedil;&otilde;es, mobili&aacute;rios ou equipamentos da CONTRATADA dever&atilde;o ser ressarcidos.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA D&Eacute;CIMA QUINTA:</strong> A renova&ccedil;&atilde;o de v&iacute;nculo acad&ecirc;mico poder&aacute; ser recusada em caso de descumprimento de obriga&ccedil;&otilde;es contratuais, acad&ecirc;micas ou financeiras.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA D&Eacute;CIMA SEXTA:</strong> A apresenta&ccedil;&atilde;o de trabalho final e emiss&atilde;o de documentos acad&ecirc;micos podem exigir regularidade financeira do CONTRATANTE.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA D&Eacute;CIMA S&Eacute;TIMA:</strong> A CONTRATADA n&atilde;o responde por servi&ccedil;os de estacionamento, vigil&acirc;ncia ou guarda de ve&iacute;culos, cabendo responsabilidade ao propriet&aacute;rio/condutor.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA D&Eacute;CIMA OITAVA:</strong> As partes reconhecem plena validade das cl&aacute;usulas pactuadas neste instrumento.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA D&Eacute;CIMA NONA:</strong> O contrato extingue-se com o cumprimento dos cr&eacute;ditos/m&oacute;dulos do curso, observadas as exig&ecirc;ncias de conclus&atilde;o e certifica&ccedil;&atilde;o.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA VIG&Eacute;SIMA:</strong> As partes atribuem ao presente contrato efic&aacute;cia jur&iacute;dica plena para todos os fins legais cab&iacute;veis.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA VIG&Eacute;SIMA PRIMEIRA:</strong> Casos omissos poder&atilde;o ser tratados entre o aluno e os setores competentes da CONTRATADA.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA VIG&Eacute;SIMA SEGUNDA:</strong> As informa&ccedil;&otilde;es cadastrais e documentais do pre&acirc;mbulo s&atilde;o de inteira responsabilidade do CONTRATANTE.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA VIG&Eacute;SIMA TERCEIRA:</strong> Havendo conven&ccedil;&atilde;o arbitral aplic&aacute;vel, controv&eacute;rsias patrimoniais dispon&iacute;veis poder&atilde;o ser resolvidas em c&acirc;mara de media&ccedil;&atilde;o/concilia&ccedil;&atilde;o/arbitragem, conforme legisla&ccedil;&atilde;o vigente.</p>
-    <p style="margin:0 0 8px;"><strong>CL&Aacute;USULA VIG&Eacute;SIMA QUARTA - DO FORO:</strong> Fica eleito o foro de <strong>{{contrato_foro}}</strong> para dirimir conflitos n&atilde;o submetidos &agrave; arbitragem.</p>
-  </div>
-  <div data-contract-page-break="true" style="page-break-after: always;"></div>
-  <div style="max-width:794px;min-height:1123px;margin:0 auto;padding:20px 56px;box-sizing:border-box;background:#fff;">
-    <h3 style="margin:0 0 8px;font-size:13px;">3. Condi&ccedil;&otilde;es financeiras</h3>
-    <p style="margin:0 0 8px;">Matr&iacute;cula vinculada ao ID <strong>{{matricula_id}}</strong>. Total de parcelas: <strong>{{financeiro_parcelas_total}}</strong>.</p>
-    <table style="width:100%;border-collapse:collapse;font-size:12px;margin:0 0 10px;"><tbody><tr><td style="border:1px solid #d1d5db;padding:6px;"><strong>Forma de pagamento</strong><br />{{financeiro_forma_pagamento}}</td><td style="border:1px solid #d1d5db;padding:6px;"><strong>Valor total</strong><br />{{financeiro_valor_total}}</td></tr><tr><td style="border:1px solid #d1d5db;padding:6px;"><strong>Taxa de matr&iacute;cula</strong><br />{{financeiro_taxa_matricula}}</td><td style="border:1px solid #d1d5db;padding:6px;"><strong>Valor da parcela</strong><br />{{financeiro_valor_parcela}}</td></tr><tr><td colspan="2" style="border:1px solid #d1d5db;padding:6px;"><strong>Resumo de formas e valores</strong><br />{{financeiro_formas_valores_resumo}}</td></tr></tbody></table>
-    <div style="margin:0 0 10px;">{{{financeiro_parcelas_tabela_html}}}</div>
-    <h3 style="margin:16px 0 8px;font-size:13px;text-align:center;">4. Assinaturas</h3>
-    <p style="margin:0 0 24px;text-align:center;">{{contrato_cidade_assinatura}}, {{contrato_data_emissao_extenso}}.</p>
-    <table style="width:100%;border-collapse:collapse;font-size:12px;"><tbody><tr><td style="width:50%;padding:8px 12px 8px 0;vertical-align:top;"><div style="border-top:1px solid #111827;padding-top:6px;">ALUNO(A) - CONTRATANTE/BENEFICI&Aacute;RIO<br />Nome: {{aluno_nome}}<br />CPF: {{aluno_cpf}}</div></td><td style="width:50%;padding:8px 0 8px 12px;vertical-align:top;"><div style="border-top:1px solid #111827;padding-top:6px;">INSTITUI&Ccedil;&Atilde;O / PROFESSOR RESPONS&Aacute;VEL<br />{{contratada_nome}}</div></td></tr></tbody></table>
-    <p style="margin:16px 0 0;font-size:11px;color:#4b5563;">C&oacute;digo de assinatura eletr&ocirc;nica: <strong>{{codigo_assinatura}}</strong></p>
-  </div>
-</section>`;
+const MIN_REQUIRED_CONTRACTS_PER_SEND = 2;
 
 const CONTRACT_EDITOR_PLACEHOLDERS: ContractPlaceholder[] = [
   { id: 'aluno_nome', label: 'Aluno: nome', token: '{{aluno_nome}}' },
@@ -255,7 +192,7 @@ const CONTRACT_EDITOR_PLACEHOLDERS: ContractPlaceholder[] = [
   { id: 'turma_nome', label: 'Turma: nome', token: '{{turma_nome}}' },
   { id: 'matricula_id', label: 'Matrícula: ID', token: '{{matricula_id}}' },
   { id: 'contratada_nome', label: 'Contratada: nome', token: '{{contratada_nome}}' },
-  { id: 'contratada_cnp', label: 'Contratada: CNPJ', token: '{{contratada_cnp}}' },
+  { id: 'contratada_cnpj', label: 'Contratada: CNPJ', token: '{{contratada_cnpj}}' },
   { id: 'contratada_endereco', label: 'Contratada: endereço', token: '{{contratada_endereco}}' },
   { id: 'contrato_foro', label: 'Contrato: foro', token: '{{contrato_foro}}' },
   {
@@ -316,18 +253,28 @@ const CONTRACT_EDITOR_PLACEHOLDERS: ContractPlaceholder[] = [
   { id: 'codigo_assinatura', label: 'Código da assinatura', token: '{{codigo_assinatura}}' },
 ];
 
-function defaultTemplateForm(): TemplateFormState {
+function resolveBasePresetForm(
+  presetId = DEFAULT_CONTRACT_BASE_PRESET_ID,
+): TemplateFormState {
+  const preset =
+    CONTRACT_BASE_PRESETS.find((item) => item.id === presetId) ??
+    CONTRACT_BASE_PRESETS[0];
+
   return {
-    name: '',
-    description: '',
-    draftTitle: 'Contrato Educacional',
-    draftHtmlContent: DEFAULT_TEMPLATE_HTML,
+    name: preset?.form.name || '',
+    description: preset?.form.description || '',
+    draftTitle: preset?.form.draftTitle || 'Contrato Educacional',
+    draftHtmlContent: preset?.form.draftHtmlContent || '',
   };
+}
+
+function defaultTemplateForm(): TemplateFormState {
+  return resolveBasePresetForm();
 }
 
 function defaultSendForm(): SendFormState {
   return {
-    templateId: '',
+    templateIds: [],
     studentId: '',
     courseId: '',
     classId: '',
@@ -788,25 +735,33 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
 
   useEffect(() => {
     if (isEditorMode) return;
-    if (
-      sendForm.templateId &&
-      sendableTemplates.some((template) => template.id === sendForm.templateId)
-    ) {
+    const selectedSet = new Set(sendForm.templateIds);
+    const validSelected = sendableTemplates
+      .map((template) => template.id)
+      .filter((id) => selectedSet.has(id));
+
+    if (validSelected.length === sendForm.templateIds.length && validSelected.length > 0) {
       return;
     }
+
     if (
       selectedTemplateId &&
       sendableTemplates.some((template) => template.id === selectedTemplateId)
     ) {
-      setSendForm((current) => ({ ...current, templateId: selectedTemplateId }));
+      setSendForm((current) => ({ ...current, templateIds: [selectedTemplateId] }));
       return;
     }
-    if (sendableTemplates[0]?.id) {
-      setSendForm((current) => ({ ...current, templateId: sendableTemplates[0].id }));
+
+    if (sendableTemplates.length > 0) {
+      const firstTemplates = sendableTemplates
+        .slice(0, Math.min(sendableTemplates.length, MIN_REQUIRED_CONTRACTS_PER_SEND))
+        .map((item) => item.id);
+      setSendForm((current) => ({ ...current, templateIds: firstTemplates }));
       return;
     }
-    setSendForm((current) => ({ ...current, templateId: '' }));
-  }, [selectedTemplateId, sendableTemplates, sendForm.templateId, isEditorMode]);
+
+    setSendForm((current) => ({ ...current, templateIds: [] }));
+  }, [selectedTemplateId, sendableTemplates, sendForm.templateIds, isEditorMode]);
 
   const openEditorPage = (templateId?: string) => {
     const target = templateId
@@ -835,6 +790,12 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       draftHtmlContent: template.draftHtmlContent,
     });
     setFormError('');
+  };
+
+  const applyBasePreset = (presetId: string) => {
+    setTemplateForm(resolveBasePresetForm(presetId));
+    setFormError('');
+    setFeedback('');
   };
 
   const saveTemplate = async (event: FormEvent<HTMLFormElement>) => {
@@ -982,38 +943,63 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
     setFeedback('');
     setError('');
 
-    if (!sendForm.templateId || !sendForm.studentId) {
-      setSendError('Selecione o modelo e o aluno para envio.');
+    if (!sendForm.studentId) {
+      setSendError('Selecione o aluno para envio.');
       return;
     }
 
-    const payload = {
-      templateId: sendForm.templateId,
-      studentId: sendForm.studentId,
-      enrollmentId: sendForm.enrollmentId.trim() || undefined,
-      courseId: sendForm.courseId || undefined,
-      classId: sendForm.classId || undefined,
-      expiresInHours: toSafePositiveInteger(sendForm.expiresInHours, 72),
-      sendEmail: sendForm.sendEmail,
-    };
+    const selectedTemplateIds = Array.from(new Set(sendForm.templateIds)).filter((id) =>
+      sendableTemplates.some((template) => template.id === id),
+    );
+
+    if (selectedTemplateIds.length < MIN_REQUIRED_CONTRACTS_PER_SEND) {
+      setSendError(
+        `Selecione pelo menos ${MIN_REQUIRED_CONTRACTS_PER_SEND} modelos para envio conjunto.`,
+      );
+      return;
+    }
 
     setSendingInstance(true);
     try {
-      const result = await apiRequest<{
-        instanceId: string;
-        signatureCode: string;
-      }>(token, '/contracts/instances/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const signatureCodes: string[] = [];
+      for (const templateId of selectedTemplateIds) {
+        const templateName =
+          sendableTemplates.find((template) => template.id === templateId)?.name ||
+          templateId;
+        const payload = {
+          templateId,
+          studentId: sendForm.studentId,
+          enrollmentId: sendForm.enrollmentId.trim() || undefined,
+          courseId: sendForm.courseId || undefined,
+          classId: sendForm.classId || undefined,
+          expiresInHours: toSafePositiveInteger(sendForm.expiresInHours, 72),
+          sendEmail: sendForm.sendEmail,
+        };
+        try {
+          const result = await apiRequest<{
+            instanceId: string;
+            signatureCode: string;
+          }>(token, '/contracts/instances/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          signatureCodes.push(result.signatureCode);
+        } catch (sendTemplateError) {
+          const message =
+            sendTemplateError instanceof Error
+              ? sendTemplateError.message
+              : 'Erro desconhecido.';
+          throw new Error(`Falha ao enviar "${templateName}": ${message}`);
+        }
+      }
 
       await Promise.all([
         loadInstances(instanceStatusFilter),
         loadAllInstancesForSignals(),
       ]);
       setFeedback(
-        `Contrato enviado com sucesso. Código de assinatura: ${result.signatureCode}.`,
+        `Foram enviados ${selectedTemplateIds.length} contratos. Códigos de assinatura: ${signatureCodes.join(', ')}.`,
       );
       setSendForm((current) => ({
         ...current,
@@ -1022,7 +1008,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
       }));
     } catch (sendErr) {
       setSendError(
-        sendErr instanceof Error ? sendErr.message : 'Falha ao enviar contrato.',
+        sendErr instanceof Error ? sendErr.message : 'Falha ao enviar contratos.',
       );
     } finally {
       setSendingInstance(false);
@@ -1537,6 +1523,24 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                 </label>
 
                 <div className="native-contract-span-all">
+                  <p className="native-contract-editor-label">Modelo base</p>
+                  <div className="native-modal-actions">
+                    {CONTRACT_BASE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        className="ghost"
+                        onClick={() => applyBasePreset(preset.id)}
+                        disabled={selectedTemplate?.status.trim().toUpperCase() === 'ARCHIVED'}
+                        title={preset.helperText}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="native-contract-span-all">
                   <p className="native-contract-editor-label">Documento do contrato</p>
                   <ContractWordEditor
                     value={templateForm.draftHtmlContent}
@@ -1844,19 +1848,22 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
 
                 {sendAccordionOpen ? (
                   <form className="native-form-grid native-contract-send-form" onSubmit={sendContract}>
-                    <label>
-                      Modelo publicado e assinado
+                    <label className="native-contract-span-all">
+                      Modelos publicados e assinados (envio conjunto obrigatório)
                       <select
-                        value={sendForm.templateId}
-                        onChange={(event) =>
+                        multiple
+                        size={Math.min(Math.max(sendableTemplates.length, 2), 8)}
+                        value={sendForm.templateIds}
+                        onChange={(event) => {
+                          const selected = Array.from(event.target.selectedOptions).map(
+                            (option) => option.value,
+                          );
                           setSendForm((current) => ({
                             ...current,
-                            templateId: event.target.value,
-                          }))
-                        }
-                        required
+                            templateIds: selected,
+                          }));
+                        }}
                       >
-                        <option value="">Selecione</option>
                         {sendableTemplates.map((template) => (
                           <option key={template.id} value={template.id}>
                             {template.name} (v{template.latestVersionNumber})
@@ -1865,9 +1872,44 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                       </select>
                     </label>
 
+                    <div className="native-modal-actions native-contract-span-all">
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() =>
+                          setSendForm((current) => ({
+                            ...current,
+                            templateIds: sendableTemplates.map((template) => template.id),
+                          }))
+                        }
+                        disabled={sendableTemplates.length === 0}
+                      >
+                        Selecionar todos os modelos
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() =>
+                          setSendForm((current) => ({
+                            ...current,
+                            templateIds: [],
+                          }))
+                        }
+                      >
+                        Limpar seleção
+                      </button>
+                    </div>
+
                     {sendableTemplates.length === 0 ? (
                       <p className="native-info native-contract-span-all">
                         Publique e assine ao menos um modelo para habilitar envios.
+                      </p>
+                    ) : null}
+                    {sendableTemplates.length > 0 ? (
+                      <p className="native-info native-contract-span-all">
+                        Para liberar o restante da área do aluno, envie no mínimo{' '}
+                        {MIN_REQUIRED_CONTRACTS_PER_SEND} contratos por matrícula (ex.: contrato
+                        principal + termo de imagem/voz/nome).
                       </p>
                     ) : null}
 
