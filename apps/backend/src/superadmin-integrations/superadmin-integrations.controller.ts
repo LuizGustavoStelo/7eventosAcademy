@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { SendKobayashiTestPayloadDto } from './dto/send-kobayashi-test-payload.dto';
+import { SendProviderTestPayloadDto } from './dto/send-kobayashi-test-payload.dto';
 import { UpsertInstitutionIntegrationDto } from './dto/upsert-institution-integration.dto';
 import { SuperadminIntegrationsService } from './superadmin-integrations.service';
 
@@ -12,8 +12,8 @@ export class SuperadminIntegrationsController {
   ) {}
 
   @Get('institutions')
-  async listInstitutions() {
-    return this.superadminIntegrationsService.listInstitutions();
+  async listInstitutions(@Query('provider') provider?: string) {
+    return this.superadminIntegrationsService.listInstitutions(provider);
   }
 
   @Get('institutions/:institutionId/providers/:provider')
@@ -65,7 +65,7 @@ export class SuperadminIntegrationsController {
   async sendProviderTestRequest(
     @Param('institutionId') institutionId: string,
     @Param('provider') provider: string,
-    @Body() dto: SendKobayashiTestPayloadDto,
+    @Body() dto: SendProviderTestPayloadDto,
   ) {
     return this.superadminIntegrationsService.sendProviderTestRequest(
       institutionId,

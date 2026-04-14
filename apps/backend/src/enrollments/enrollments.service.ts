@@ -10,6 +10,7 @@ import {
   FinanceService,
   VoucherPaymentOptionShape,
 } from '../finance/finance.service';
+import { SuperadminIntegrationsService } from '../superadmin-integrations/superadmin-integrations.service';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 
 type EnrollmentContext = {
@@ -73,6 +74,7 @@ export class EnrollmentsService {
     private readonly prisma: PrismaService,
     private readonly contractsService: ContractsService,
     private readonly financeService: FinanceService,
+    private readonly superadminIntegrationsService: SuperadminIntegrationsService,
   ) {}
 
   async create(
@@ -305,6 +307,10 @@ export class EnrollmentsService {
         // O envio automático de contrato não deve bloquear a criação da matrícula.
       }
     }
+
+    void this.superadminIntegrationsService
+      .dispatchRdStationForEnrollment(enrollment.id)
+      .catch(() => undefined);
 
     return enrollment;
   }

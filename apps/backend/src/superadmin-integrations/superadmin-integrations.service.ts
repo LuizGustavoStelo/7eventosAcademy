@@ -7,10 +7,10 @@ import {
 import { InstitutionStatus, Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { SecretsService } from '../security/secrets/secrets.service';
-import { SendKobayashiTestPayloadDto } from './dto/send-kobayashi-test-payload.dto';
+import { SendProviderTestPayloadDto } from './dto/send-kobayashi-test-payload.dto';
 import { UpsertInstitutionIntegrationDto } from './dto/upsert-institution-integration.dto';
 
-type SupportedProvider = 'kobayashi';
+type SupportedProvider = 'kobayashi' | 'rdstation';
 
 type KobayashiSettings = {
   baseUrl: string;
@@ -25,11 +25,28 @@ type KobayashiSettings = {
   defaultOfertaCursoId?: string;
 };
 
+type RdStationSettings = {
+  baseUrl: string;
+  apiKey: string;
+  conversionIdentifier: string;
+  courseFieldKey: string;
+  ageFieldKey: string;
+  addressFieldKey: string;
+  enrollmentIdFieldKey: string;
+};
+
 type InstitutionIntegrationSettings = {
   kobayashi?: KobayashiSettings;
+  rdstation?: RdStationSettings;
 };
 
 type KobayashiRequestResult = {
+  statusCode: number;
+  ok: boolean;
+  body: unknown;
+};
+
+type RdStationRequestResult = {
   statusCode: number;
   ok: boolean;
   body: unknown;
@@ -53,6 +70,12 @@ type DispatchLogInput = {
 const KOBAYASHI_DEFAULT_BASE_URL = 'https://apiappdo.facinpro.flie.com.br';
 const KOBAYASHI_DEFAULT_GRANT_TYPE = 'client_credentials';
 const KOBAYASHI_DEFAULT_SCOPES = ['cobranca.parceiro', 'b2b.parceiro'];
+const RDSTATION_DEFAULT_BASE_URL = 'https://api.rd.services';
+const RDSTATION_DEFAULT_CONVERSION_IDENTIFIER = 'Matricula Efetivada';
+const RDSTATION_DEFAULT_COURSE_FIELD_KEY = 'cf_curso_matriculado';
+const RDSTATION_DEFAULT_AGE_FIELD_KEY = 'cf_idade';
+const RDSTATION_DEFAULT_ADDRESS_FIELD_KEY = 'cf_endereco';
+const RDSTATION_DEFAULT_ENROLLMENT_ID_FIELD_KEY = 'cf_matricula_id';
 
 @Injectable()
 export class SuperadminIntegrationsService {
@@ -63,7 +86,8 @@ export class SuperadminIntegrationsService {
     private readonly secrets: SecretsService,
   ) {}
 
-  async listInstitutions() {
+  async listInstitutions(rawProvider?: string) {
+    const provider = this.normalizeProvider(rawProvider || 'kobayashi');
     const institutions = await this.prisma.institution.findMany({
       orderBy: [{ name: 'asc' }],
       select: {
@@ -90,7 +114,7 @@ export class SuperadminIntegrationsService {
           },
         },
         integrations: {
-          where: { provider: 'kobayashi' },
+          where: { provider },
           take: 1,
           select: {
             provider: true,
@@ -118,7 +142,7 @@ export class SuperadminIntegrationsService {
           updatedAt: institution.updatedAt,
           ownerAdmin,
           integration: {
-            provider: 'kobayashi',
+            provider,
             isConfigured: Boolean(integration?.encryptedSettings),
             isActive: Boolean(integration?.isActive),
             environment: (integration?.environment ?? 'production').toLowerCase(),
@@ -161,6 +185,7 @@ export class SuperadminIntegrationsService {
 
     const settings = this.decryptSettings(integration?.encryptedSettings);
     const kobayashi = settings.kobayashi;
+    const rdstation = settings.rdstation;
 
     return {
       institution,
@@ -192,6 +217,22 @@ export class SuperadminIntegrationsService {
           defaultIdentificacaoVendedor:
             kobayashi?.defaultIdentificacaoVendedor ?? '',
           defaultOfertaCursoId: kobayashi?.defaultOfertaCursoId ?? '',
+        },
+        rdstation: {
+          baseUrl: rdstation?.baseUrl ?? RDSTATION_DEFAULT_BASE_URL,
+          apiKeyConfigured: Boolean(rdstation?.apiKey),
+          apiKeyMasked: this.maskSecret(rdstation?.apiKey),
+          conversionIdentifier:
+            rdstation?.conversionIdentifier ??
+            RDSTATION_DEFAULT_CONVERSION_IDENTIFIER,
+          courseFieldKey:
+            rdstation?.courseFieldKey ?? RDSTATION_DEFAULT_COURSE_FIELD_KEY,
+          ageFieldKey: rdstation?.ageFieldKey ?? RDSTATION_DEFAULT_AGE_FIELD_KEY,
+          addressFieldKey:
+            rdstation?.addressFieldKey ?? RDSTATION_DEFAULT_ADDRESS_FIELD_KEY,
+          enrollmentIdFieldKey:
+            rdstation?.enrollmentIdFieldKey ??
+            RDSTATION_DEFAULT_ENROLLMENT_ID_FIELD_KEY,
         },
       },
     };
@@ -359,11 +400,14 @@ export class SuperadminIntegrationsService {
   async sendProviderTestRequest(
     institutionId: string,
     rawProvider: string,
-    dto: SendKobayashiTestPayloadDto,
+    dto: SendProviderTestPayloadDto,
   ) {
     const provider = this.normalizeProvider(rawProvider);
     if (provider === 'kobayashi') {
       return this.sendKobayashiTestRequest(institutionId, dto);
+    }
+    if (provider === 'rdstation') {
+      return this.sendRdStationTestRequest(institutionId, dto);
     }
 
     throw new BadRequestException('Provedor de integração não suportado para teste.');
@@ -371,7 +415,7 @@ export class SuperadminIntegrationsService {
 
   async sendKobayashiTestRequest(
     institutionId: string,
-    dto: SendKobayashiTestPayloadDto,
+    dto: SendProviderTestPayloadDto,
   ) {
     await this.ensureInstitutionExists(institutionId);
 
@@ -399,6 +443,11 @@ export class SuperadminIntegrationsService {
     const settings = this.decryptSettings(integration.encryptedSettings).kobayashi;
     if (!settings) {
       throw new BadRequestException('Configuração KOBAYASHI inválida.');
+    }
+    if (!this.isObject(dto.payload)) {
+      throw new BadRequestException(
+        'Payload de teste da integração KOBAYASHI é obrigatório.',
+      );
     }
 
     const requestPayload = this.applyKobayashiDefaults(settings, dto.payload);
@@ -436,6 +485,204 @@ export class SuperadminIntegrationsService {
           : 'Falha ao enviar payload de teste para KOBAYASHI.';
       await this.markIntegrationFailure(integration.id, message);
       throw new BadRequestException(message);
+    }
+  }
+
+  async sendRdStationTestRequest(
+    institutionId: string,
+    dto: SendProviderTestPayloadDto,
+  ) {
+    await this.ensureInstitutionExists(institutionId);
+
+    const integration = await this.prisma.institutionIntegration.findUnique({
+      where: {
+        institutionId_provider: {
+          institutionId,
+          provider: 'rdstation',
+        },
+      },
+      select: {
+        id: true,
+        environment: true,
+        isActive: true,
+        encryptedSettings: true,
+      },
+    });
+
+    if (!integration || !integration.encryptedSettings) {
+      throw new NotFoundException(
+        'Integracao RD Station nao configurada para esta instituicao.',
+      );
+    }
+
+    const settings = this.decryptSettings(integration.encryptedSettings).rdstation;
+    if (!settings) {
+      throw new BadRequestException('Configuracao RD Station invalida.');
+    }
+
+    let requestPayload: Record<string, unknown> | null = null;
+    const enrollmentId = String(dto.enrollmentId || '').trim();
+    if (enrollmentId) {
+      requestPayload = await this.buildRdStationRequestByEnrollmentId(
+        enrollmentId,
+        settings,
+        institutionId,
+      );
+    } else if (this.isObject(dto.payload)) {
+      requestPayload = this.normalizeRdStationRequestBody(dto.payload, settings);
+    }
+
+    if (!requestPayload) {
+      throw new BadRequestException(
+        'Informe enrollmentId ou payload para testar a integracao RD Station.',
+      );
+    }
+
+    try {
+      const response = await this.requestRdStation(settings, requestPayload);
+      if (!response.ok) {
+        const message = this.extractIntegrationErrorMessage(
+          response.body,
+          `RD Station respondeu com status HTTP ${response.statusCode}.`,
+        );
+        await this.markIntegrationFailure(integration.id, message);
+        throw new BadRequestException(message);
+      }
+
+      await this.markIntegrationSuccess(integration.id);
+
+      return {
+        success: true,
+        endpoint: this.maskApiKeyInUrl(this.buildRdStationEndpoint(settings)),
+        integrationActive: integration.isActive,
+        environment: integration.environment,
+        request: {
+          payload: requestPayload,
+        },
+        response,
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Falha ao enviar payload de teste para RD Station.';
+      await this.markIntegrationFailure(integration.id, message);
+      throw new BadRequestException(message);
+    }
+  }
+
+  async dispatchRdStationForEnrollment(enrollmentId: string) {
+    const enrollment = await this.loadEnrollmentForRdStation(enrollmentId);
+
+    if (!enrollment) {
+      return {
+        dispatched: false,
+        success: false,
+        message: 'Matricula nao encontrada para envio de integracao.',
+      };
+    }
+
+    const integration = await this.prisma.institutionIntegration.findUnique({
+      where: {
+        institutionId_provider: {
+          institutionId: enrollment.institutionId,
+          provider: 'rdstation',
+        },
+      },
+      select: {
+        id: true,
+        isActive: true,
+        encryptedSettings: true,
+      },
+    });
+
+    if (!integration || !integration.isActive || !integration.encryptedSettings) {
+      return {
+        dispatched: false,
+        success: false,
+        message: 'Integracao RD Station nao esta ativa para a instituicao.',
+      };
+    }
+
+    const settings = this.decryptSettings(integration.encryptedSettings).rdstation;
+    if (!settings) {
+      return {
+        dispatched: false,
+        success: false,
+        message: 'Configuracao RD Station invalida para envio automatico.',
+      };
+    }
+
+    const payload = this.buildRdStationRequestBodyFromEnrollment(enrollment, settings);
+    const studentName =
+      String(enrollment.student?.name || 'Aluno nao identificado').trim() ||
+      'Aluno nao identificado';
+    const baseLog = {
+      institutionId: enrollment.institutionId,
+      integrationId: integration.id,
+      provider: 'rdstation' as const,
+      studentId: enrollment.student?.id ?? null,
+      studentName,
+      enrollmentId: enrollment.id,
+      requestPayload: payload,
+    };
+
+    try {
+      const response = await this.requestRdStation(settings, payload);
+      if (!response.ok) {
+        const message = this.extractIntegrationErrorMessage(
+          response.body,
+          `RD Station respondeu com status HTTP ${response.statusCode}.`,
+        );
+        await this.markIntegrationFailure(integration.id, message);
+        await this.createDispatchLog({
+          ...baseLog,
+          status: 'failed',
+          responsePayload: response.body,
+          responseStatusCode: response.statusCode,
+          errorMessage: message,
+        });
+        return {
+          dispatched: true,
+          success: false,
+          message,
+        };
+      }
+
+      await this.markIntegrationSuccess(integration.id);
+      await this.createDispatchLog({
+        ...baseLog,
+        status: 'success',
+        responsePayload: response.body,
+        responseStatusCode: response.statusCode,
+      });
+
+      return {
+        dispatched: true,
+        success: true,
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Falha inesperada no envio automatico para RD Station.';
+
+      await this.markIntegrationFailure(integration.id, message);
+      await this.createDispatchLog({
+        ...baseLog,
+        status: 'failed',
+        errorMessage: message,
+      });
+
+      this.logger.warn(
+        `[rdstation-dispatch] Falha ao enviar matricula ${enrollment.id}: ${message}`,
+      );
+
+      return {
+        dispatched: true,
+        success: false,
+        message,
+      };
     }
   }
 
@@ -671,18 +918,33 @@ export class SuperadminIntegrationsService {
       );
     }
 
-    const settings = this.decryptSettings(integration.encryptedSettings).kobayashi;
-    if (!settings) {
+    const decryptedSettings = this.decryptSettings(integration.encryptedSettings);
+    const kobayashiSettings = decryptedSettings.kobayashi;
+    const rdstationSettings = decryptedSettings.rdstation;
+    if (provider === 'kobayashi' && !kobayashiSettings) {
       throw new BadRequestException(
-        'Configuração da integração KOBAYASHI inválida.',
+        'Configuracao da integracao KOBAYASHI invalida.',
+      );
+    }
+    if (provider === 'rdstation' && !rdstationSettings) {
+      throw new BadRequestException(
+        'Configuracao da integracao RD Station invalida.',
       );
     }
 
     if (!this.isObject(log.requestPayload)) {
-      if (log.contractInstanceId) {
+      if (provider === 'kobayashi' && log.contractInstanceId) {
         const fallback = await this.dispatchKobayashiForSignedContractInstance(
           log.contractInstanceId,
         );
+        return {
+          retriedFromLogId: log.id,
+          usedFallbackPayload: true,
+          ...fallback,
+        };
+      }
+      if (provider === 'rdstation' && log.enrollmentId) {
+        const fallback = await this.dispatchRdStationForEnrollment(log.enrollmentId);
         return {
           retriedFromLogId: log.id,
           usedFallbackPayload: true,
@@ -707,12 +969,17 @@ export class SuperadminIntegrationsService {
     };
 
     try {
-      const response = await this.requestKobayashi(settings, requestPayload);
+      const response =
+        provider === 'kobayashi'
+          ? await this.requestKobayashi(kobayashiSettings!, requestPayload)
+          : await this.requestRdStation(rdstationSettings!, requestPayload);
 
       if (!response.ok) {
         const message = this.extractIntegrationErrorMessage(
           response.body,
-          `KOBAYASHI respondeu com status HTTP ${response.statusCode}.`,
+          provider === 'kobayashi'
+            ? `KOBAYASHI respondeu com status HTTP ${response.statusCode}.`
+            : `RD Station respondeu com status HTTP ${response.statusCode}.`,
         );
         await this.markIntegrationFailure(integration.id, message);
         await this.createDispatchLog({
@@ -747,7 +1014,9 @@ export class SuperadminIntegrationsService {
       const message =
         error instanceof Error
           ? error.message
-          : 'Falha inesperada no reenvio manual para KOBAYASHI.';
+          : provider === 'kobayashi'
+            ? 'Falha inesperada no reenvio manual para KOBAYASHI.'
+            : 'Falha inesperada no reenvio manual para RD Station.';
       await this.markIntegrationFailure(integration.id, message);
       await this.createDispatchLog({
         ...baseLog,
@@ -767,64 +1036,118 @@ export class SuperadminIntegrationsService {
     dto: UpsertInstitutionIntegrationDto,
     current: InstitutionIntegrationSettings,
   ): InstitutionIntegrationSettings {
-    if (provider !== 'kobayashi') {
-      throw new BadRequestException('Provedor de integração não suportado.');
+    if (provider === 'kobayashi') {
+      const currentKobayashi = current.kobayashi;
+      const baseUrl =
+        String(dto.kobayashiBaseUrl || '').trim() ||
+        currentKobayashi?.baseUrl ||
+        KOBAYASHI_DEFAULT_BASE_URL;
+      const clientId =
+        String(dto.kobayashiClientId || '').trim() || currentKobayashi?.clientId || '';
+      const clientSecret =
+        String(dto.kobayashiClientSecret || '').trim() ||
+        currentKobayashi?.clientSecret ||
+        '';
+
+      if (!clientId) {
+        throw new BadRequestException(
+          'Client ID da integracao KOBAYASHI e obrigatorio.',
+        );
+      }
+
+      if (!clientSecret) {
+        throw new BadRequestException(
+          'Client Secret da integracao KOBAYASHI e obrigatorio.',
+        );
+      }
+
+      this.validateHttpUrl(baseUrl, 'URL base da integracao KOBAYASHI');
+
+      const nextSettings: KobayashiSettings = {
+        baseUrl: this.normalizeBaseUrl(baseUrl),
+        clientId,
+        clientSecret,
+        token:
+          String(dto.kobayashiToken || '').trim() ||
+          currentKobayashi?.token ||
+          undefined,
+        authorizationBearer:
+          String(dto.kobayashiAuthorizationBearer || '').trim() ||
+          currentKobayashi?.authorizationBearer ||
+          undefined,
+        grantType:
+          String(dto.kobayashiGrantType || '').trim() ||
+          currentKobayashi?.grantType ||
+          KOBAYASHI_DEFAULT_GRANT_TYPE,
+        scopes: this.normalizeScopes(dto.kobayashiScopes ?? currentKobayashi?.scopes),
+        defaultGcssid:
+          String(dto.kobayashiDefaultGcssid || '').trim() ||
+          currentKobayashi?.defaultGcssid ||
+          undefined,
+        defaultIdentificacaoVendedor:
+          String(dto.kobayashiDefaultIdentificacaoVendedor || '').trim() ||
+          currentKobayashi?.defaultIdentificacaoVendedor ||
+          undefined,
+        defaultOfertaCursoId:
+          String(dto.kobayashiDefaultOfertaCursoId || '').trim() ||
+          currentKobayashi?.defaultOfertaCursoId ||
+          undefined,
+      };
+
+      return { kobayashi: nextSettings };
     }
 
-    const currentKobayashi = current.kobayashi;
-    const baseUrl =
-      String(dto.kobayashiBaseUrl || '').trim() ||
-      currentKobayashi?.baseUrl ||
-      KOBAYASHI_DEFAULT_BASE_URL;
-    const clientId =
-      String(dto.kobayashiClientId || '').trim() || currentKobayashi?.clientId || '';
-    const clientSecret =
-      String(dto.kobayashiClientSecret || '').trim() ||
-      currentKobayashi?.clientSecret ||
-      '';
+    if (provider === 'rdstation') {
+      const currentRdStation = current.rdstation;
+      const baseUrl =
+        String(dto.rdStationBaseUrl || '').trim() ||
+        currentRdStation?.baseUrl ||
+        RDSTATION_DEFAULT_BASE_URL;
+      const apiKey =
+        String(dto.rdStationApiKey || '').trim() || currentRdStation?.apiKey || '';
+      const conversionIdentifier =
+        String(dto.rdStationConversionIdentifier || '').trim() ||
+        currentRdStation?.conversionIdentifier ||
+        RDSTATION_DEFAULT_CONVERSION_IDENTIFIER;
 
-    if (!clientId) {
-      throw new BadRequestException('Client ID da integração KOBAYASHI é obrigatório.');
+      if (!apiKey) {
+        throw new BadRequestException(
+          'API Key da integracao RD Station e obrigatoria.',
+        );
+      }
+
+      this.validateHttpUrl(baseUrl, 'URL base da integracao RD Station');
+
+      const nextSettings: RdStationSettings = {
+        baseUrl: this.normalizeBaseUrl(baseUrl),
+        apiKey,
+        conversionIdentifier,
+        courseFieldKey: this.normalizeRdCustomFieldKey(
+          dto.rdStationCourseFieldKey,
+          currentRdStation?.courseFieldKey,
+          RDSTATION_DEFAULT_COURSE_FIELD_KEY,
+        ),
+        ageFieldKey: this.normalizeRdCustomFieldKey(
+          dto.rdStationAgeFieldKey,
+          currentRdStation?.ageFieldKey,
+          RDSTATION_DEFAULT_AGE_FIELD_KEY,
+        ),
+        addressFieldKey: this.normalizeRdCustomFieldKey(
+          dto.rdStationAddressFieldKey,
+          currentRdStation?.addressFieldKey,
+          RDSTATION_DEFAULT_ADDRESS_FIELD_KEY,
+        ),
+        enrollmentIdFieldKey: this.normalizeRdCustomFieldKey(
+          dto.rdStationEnrollmentIdFieldKey,
+          currentRdStation?.enrollmentIdFieldKey,
+          RDSTATION_DEFAULT_ENROLLMENT_ID_FIELD_KEY,
+        ),
+      };
+
+      return { rdstation: nextSettings };
     }
 
-    if (!clientSecret) {
-      throw new BadRequestException(
-        'Client Secret da integração KOBAYASHI é obrigatório.',
-      );
-    }
-
-    this.validateHttpUrl(baseUrl, 'URL base da integração KOBAYASHI');
-
-    const nextSettings: KobayashiSettings = {
-      baseUrl: this.normalizeBaseUrl(baseUrl),
-      clientId,
-      clientSecret,
-      token:
-        String(dto.kobayashiToken || '').trim() || currentKobayashi?.token || undefined,
-      authorizationBearer:
-        String(dto.kobayashiAuthorizationBearer || '').trim() ||
-        currentKobayashi?.authorizationBearer ||
-        undefined,
-      grantType:
-        String(dto.kobayashiGrantType || '').trim() ||
-        currentKobayashi?.grantType ||
-        KOBAYASHI_DEFAULT_GRANT_TYPE,
-      scopes: this.normalizeScopes(dto.kobayashiScopes ?? currentKobayashi?.scopes),
-      defaultGcssid:
-        String(dto.kobayashiDefaultGcssid || '').trim() ||
-        currentKobayashi?.defaultGcssid ||
-        undefined,
-      defaultIdentificacaoVendedor:
-        String(dto.kobayashiDefaultIdentificacaoVendedor || '').trim() ||
-        currentKobayashi?.defaultIdentificacaoVendedor ||
-        undefined,
-      defaultOfertaCursoId:
-        String(dto.kobayashiDefaultOfertaCursoId || '').trim() ||
-        currentKobayashi?.defaultOfertaCursoId ||
-        undefined,
-    };
-
-    return { kobayashi: nextSettings };
+    throw new BadRequestException('Provedor de integracao nao suportado.');
   }
 
   private applyKobayashiDefaults(
@@ -905,6 +1228,43 @@ export class SuperadminIntegrationsService {
     }
   }
 
+  private async requestRdStation(
+    settings: RdStationSettings,
+    payload: Record<string, unknown>,
+  ): Promise<RdStationRequestResult> {
+    const endpoint = this.buildRdStationEndpoint(settings);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25_000);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      const textBody = await response.text();
+      const parsedBody = this.tryParseBody(textBody, contentType);
+
+      return {
+        statusCode: response.status,
+        ok: response.ok,
+        body: parsedBody,
+      };
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Tempo limite excedido ao enviar requisicao para RD Station.');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   private tryParseBody(textBody: string, contentType: string): unknown {
     if (!textBody) return null;
 
@@ -929,6 +1289,25 @@ export class SuperadminIntegrationsService {
     const endpoint = new URL('/b2b/VendaRubeus', baseUrl);
     endpoint.searchParams.set('client_id', settings.clientId);
     return endpoint.toString();
+  }
+
+  private buildRdStationEndpoint(settings: RdStationSettings) {
+    const baseUrl = this.normalizeBaseUrl(settings.baseUrl);
+    const endpoint = new URL('/platform/conversions', baseUrl);
+    endpoint.searchParams.set('api_key', settings.apiKey);
+    return endpoint.toString();
+  }
+
+  private maskApiKeyInUrl(url: string) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.searchParams.has('api_key')) {
+        parsed.searchParams.set('api_key', '****');
+      }
+      return parsed.toString();
+    } catch {
+      return url;
+    }
   }
 
   private resolveKobayashiAuthorizationBearer(settings: KobayashiSettings) {
@@ -960,6 +1339,251 @@ export class SuperadminIntegrationsService {
       .filter((scope, index, arr) => arr.indexOf(scope) === index);
 
     return normalized.length > 0 ? normalized : fallback;
+  }
+
+  private normalizeRdCustomFieldKey(
+    inputValue: unknown,
+    currentValue: string | undefined,
+    fallback: string,
+  ) {
+    const raw =
+      String(inputValue || '').trim() ||
+      String(currentValue || '').trim() ||
+      String(fallback || '').trim();
+    const withoutAccents = raw
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    const slug = withoutAccents.replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+    const key = slug.startsWith('cf_') ? slug : `cf_${slug}`;
+    return key || fallback;
+  }
+
+  private normalizeRdStationRequestBody(
+    payload: Record<string, unknown>,
+    settings: RdStationSettings,
+  ) {
+    if (this.isObject(payload.payload)) {
+      const rootPayload = { ...payload };
+      rootPayload.event_type =
+        String(rootPayload.event_type || '').trim() || 'CONVERSION';
+      rootPayload.event_family =
+        String(rootPayload.event_family || '').trim() || 'CDP';
+
+      const innerPayload = {
+        ...(rootPayload.payload as Record<string, unknown>),
+      };
+      if (!String(innerPayload.conversion_identifier || '').trim()) {
+        innerPayload.conversion_identifier = settings.conversionIdentifier;
+      }
+      if (!String(innerPayload.email || '').trim()) {
+        throw new BadRequestException(
+          'Payload RD Station precisa informar payload.email.',
+        );
+      }
+      rootPayload.payload = innerPayload;
+      return rootPayload;
+    }
+
+    const innerPayload: Record<string, unknown> = {
+      conversion_identifier: settings.conversionIdentifier,
+      ...payload,
+    };
+    if (!String(innerPayload.email || '').trim()) {
+      throw new BadRequestException('Payload RD Station precisa informar email.');
+    }
+    return {
+      event_type: 'CONVERSION',
+      event_family: 'CDP',
+      payload: innerPayload,
+    };
+  }
+
+  private async buildRdStationRequestByEnrollmentId(
+    enrollmentId: string,
+    settings: RdStationSettings,
+    expectedInstitutionId?: string,
+  ) {
+    const enrollment = await this.loadEnrollmentForRdStation(enrollmentId);
+    if (!enrollment) {
+      throw new NotFoundException('Matricula nao encontrada para envio de teste.');
+    }
+    if (
+      expectedInstitutionId &&
+      enrollment.institutionId &&
+      enrollment.institutionId !== expectedInstitutionId
+    ) {
+      throw new BadRequestException(
+        'Matricula nao pertence a instituicao informada.',
+      );
+    }
+    return this.buildRdStationRequestBodyFromEnrollment(enrollment, settings);
+  }
+
+  private async loadEnrollmentForRdStation(enrollmentId: string) {
+    return this.prisma.enrollment.findUnique({
+      where: { id: enrollmentId },
+      select: {
+        id: true,
+        institutionId: true,
+        createdAt: true,
+        student: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            studentProfile: {
+              select: {
+                phone: true,
+                birthDate: true,
+                street: true,
+                streetNumber: true,
+                complement: true,
+                neighborhood: true,
+                city: true,
+                state: true,
+                country: true,
+              },
+            },
+          },
+        },
+        schoolClass: {
+          select: {
+            course: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  private buildRdStationRequestBodyFromEnrollment(
+    enrollment: {
+      id: string;
+      createdAt: Date;
+      student: {
+        id: string;
+        name: string;
+        email: string;
+        studentProfile: {
+          phone: string | null;
+          birthDate: Date | null;
+          street: string | null;
+          streetNumber: string | null;
+          complement: string | null;
+          neighborhood: string | null;
+          city: string | null;
+          state: string | null;
+          country: string | null;
+        } | null;
+      };
+      schoolClass: {
+        course: {
+          name: string;
+        };
+      };
+    },
+    settings: RdStationSettings,
+  ) {
+    const profile = enrollment.student.studentProfile;
+    const email = String(enrollment.student.email || '').trim().toLowerCase();
+    if (!email) {
+      throw new BadRequestException('Aluno sem email valido para envio ao RD Station.');
+    }
+
+    const payload: Record<string, unknown> = {
+      conversion_identifier: settings.conversionIdentifier,
+      email,
+    };
+
+    const studentName = String(enrollment.student.name || '').trim();
+    if (studentName) payload.name = studentName;
+
+    const phone = this.onlyDigits(profile?.phone);
+    if (phone) payload.mobile_phone = phone;
+
+    const city = String(profile?.city || '').trim();
+    const state = String(profile?.state || '').trim();
+    const country = String(profile?.country || 'Brasil').trim();
+    if (city) payload.city = city;
+    if (state) payload.state = state;
+    if (country) payload.country = country;
+
+    payload[settings.courseFieldKey] = String(
+      enrollment.schoolClass?.course?.name || '',
+    ).trim();
+    payload[settings.enrollmentIdFieldKey] = enrollment.id;
+
+    const age = this.calculateAge(profile?.birthDate);
+    if (age !== null) {
+      payload[settings.ageFieldKey] = String(age);
+    }
+
+    const address = this.buildStudentAddress(profile);
+    if (address) {
+      payload[settings.addressFieldKey] = address;
+    }
+
+    payload.tags = ['matricula_efetivada'];
+
+    const sanitizedPayload = Object.fromEntries(
+      Object.entries(payload).filter(([, value]) => {
+        if (value === null || value === undefined) return false;
+        if (typeof value === 'string') return value.trim().length > 0;
+        if (Array.isArray(value)) return value.length > 0;
+        return true;
+      }),
+    );
+
+    return {
+      event_type: 'CONVERSION',
+      event_family: 'CDP',
+      payload: sanitizedPayload,
+    };
+  }
+
+  private buildStudentAddress(
+    profile:
+      | {
+          street: string | null;
+          streetNumber: string | null;
+          complement: string | null;
+          neighborhood: string | null;
+          city: string | null;
+          state: string | null;
+          country: string | null;
+        }
+      | null
+      | undefined,
+  ) {
+    if (!profile) return '';
+    const parts = [
+      String(profile.street || '').trim(),
+      String(profile.streetNumber || '').trim(),
+      String(profile.complement || '').trim(),
+      String(profile.neighborhood || '').trim(),
+      String(profile.city || '').trim(),
+      String(profile.state || '').trim(),
+      String(profile.country || '').trim(),
+    ].filter(Boolean);
+    return parts.join(', ');
+  }
+
+  private calculateAge(birthDate: Date | null | undefined) {
+    if (!birthDate) return null;
+    const parsed = new Date(birthDate);
+    if (Number.isNaN(parsed.getTime())) return null;
+
+    const now = new Date();
+    let age = now.getFullYear() - parsed.getFullYear();
+    const monthDiff = now.getMonth() - parsed.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < parsed.getDate())) {
+      age -= 1;
+    }
+    return age >= 0 ? age : null;
   }
 
   private parseLogsLimit(rawLimit?: string) {
@@ -1349,6 +1973,13 @@ export class SuperadminIntegrationsService {
     if (provider === 'kobayashi') {
       return provider;
     }
+    if (
+      provider === 'rdstation' ||
+      provider === 'rd-station' ||
+      provider === 'rd_station'
+    ) {
+      return 'rdstation';
+    }
 
     throw new BadRequestException('Provedor de integração inválido.');
   }
@@ -1387,3 +2018,4 @@ export class SuperadminIntegrationsService {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
   }
 }
+

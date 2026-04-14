@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { apiRequest } from './api';
 
 type IntegrationOverview = {
-  provider: 'kobayashi';
+  provider: 'kobayashi' | 'rdstation';
   isConfigured: boolean;
   isActive: boolean;
   environment: 'production' | 'sandbox' | string;
@@ -39,7 +39,7 @@ type InstitutionProviderConfigResponse = {
   };
   integration: {
     id: string | null;
-    provider: 'kobayashi';
+    provider: 'kobayashi' | 'rdstation';
     environment: 'production' | 'sandbox' | string;
     isActive: boolean;
     isConfigured: boolean;
@@ -62,6 +62,16 @@ type InstitutionProviderConfigResponse = {
       defaultIdentificacaoVendedor: string;
       defaultOfertaCursoId: string;
     };
+    rdstation: {
+      baseUrl: string;
+      apiKeyConfigured: boolean;
+      apiKeyMasked: string | null;
+      conversionIdentifier: string;
+      courseFieldKey: string;
+      ageFieldKey: string;
+      addressFieldKey: string;
+      enrollmentIdFieldKey: string;
+    };
   };
 };
 
@@ -70,10 +80,7 @@ type TestRequestResponse = {
   endpoint: string;
   integrationActive: boolean;
   environment: string;
-  request: {
-    hasAuthorizationBearer: boolean;
-    payload: Record<string, unknown>;
-  };
+  request: Record<string, unknown>;
   response: {
     statusCode: number;
     ok: boolean;
@@ -119,6 +126,12 @@ type FormState = {
   defaultGcssid: string;
   defaultIdentificacaoVendedor: string;
   defaultOfertaCursoId: string;
+  rdStationApiKey: string;
+  rdStationConversionIdentifier: string;
+  rdStationCourseFieldKey: string;
+  rdStationAgeFieldKey: string;
+  rdStationAddressFieldKey: string;
+  rdStationEnrollmentIdFieldKey: string;
 };
 
 type SecretFlags = {
@@ -128,13 +141,15 @@ type SecretFlags = {
   clientSecretMasked: string | null;
   tokenMasked: string | null;
   authorizationBearerMasked: string | null;
+  rdStationApiKeyConfigured: boolean;
+  rdStationApiKeyMasked: string | null;
 };
 
 type SuperadminIntegrationsNativeProps = {
   token: string;
 };
 
-type IntegrationProvider = 'kobayashi';
+type IntegrationProvider = 'kobayashi' | 'rdstation';
 
 type AuditFilters = {
   status: 'all' | 'success' | 'failed';
@@ -142,6 +157,37 @@ type AuditFilters = {
   dateTo: string;
   search: string;
 };
+
+type ProviderSummary = {
+  loading: boolean;
+  isConfigured: boolean;
+  isActive: boolean;
+  environment: string;
+  updatedAt: string | null;
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
+  lastErrorMessage: string | null;
+};
+
+const INTEGRATION_OPTIONS: Array<{
+  provider: IntegrationProvider;
+  name: string;
+  description: string;
+  badge: string;
+}> = [
+  {
+    provider: 'kobayashi',
+    name: 'KOBAYASHI',
+    description: 'API de matrículas e contratos',
+    badge: 'KB',
+  },
+  {
+    provider: 'rdstation',
+    name: 'RD STATION',
+    description: 'Leads e conversões de marketing',
+    badge: 'RD',
+  },
+];
 
 const KOBAYASHI_PRESET = {
   baseUrl: 'https://apiappdo.facinpro.flie.com.br',
@@ -156,6 +202,15 @@ const KOBAYASHI_PRESET = {
   defaultGcssid: '9999999999999999999999999',
   defaultIdentificacaoVendedor: 'alinne',
   defaultOfertaCursoId: '999999',
+};
+
+const RD_STATION_PRESET = {
+  baseUrl: 'https://api.rd.services',
+  conversionIdentifier: 'Matricula Efetivada',
+  courseFieldKey: 'cf_curso_matriculado',
+  ageFieldKey: 'cf_idade',
+  addressFieldKey: 'cf_endereco',
+  enrollmentIdFieldKey: 'cf_matricula_id',
 };
 
 const DEFAULT_AUDIT_FILTERS: AuditFilters = {
@@ -178,6 +233,12 @@ const DEFAULT_FORM: FormState = {
   defaultGcssid: KOBAYASHI_PRESET.defaultGcssid,
   defaultIdentificacaoVendedor: KOBAYASHI_PRESET.defaultIdentificacaoVendedor,
   defaultOfertaCursoId: KOBAYASHI_PRESET.defaultOfertaCursoId,
+  rdStationApiKey: '',
+  rdStationConversionIdentifier: RD_STATION_PRESET.conversionIdentifier,
+  rdStationCourseFieldKey: RD_STATION_PRESET.courseFieldKey,
+  rdStationAgeFieldKey: RD_STATION_PRESET.ageFieldKey,
+  rdStationAddressFieldKey: RD_STATION_PRESET.addressFieldKey,
+  rdStationEnrollmentIdFieldKey: RD_STATION_PRESET.enrollmentIdFieldKey,
 };
 
 const DEFAULT_SECRET_FLAGS: SecretFlags = {
@@ -187,6 +248,19 @@ const DEFAULT_SECRET_FLAGS: SecretFlags = {
   clientSecretMasked: null,
   tokenMasked: null,
   authorizationBearerMasked: null,
+  rdStationApiKeyConfigured: false,
+  rdStationApiKeyMasked: null,
+};
+
+const DEFAULT_PROVIDER_SUMMARY: ProviderSummary = {
+  loading: false,
+  isConfigured: false,
+  isActive: false,
+  environment: 'production',
+  updatedAt: null,
+  lastSuccessAt: null,
+  lastErrorAt: null,
+  lastErrorMessage: null,
 };
 
 function normalizeSearch(value: string) {
@@ -210,7 +284,7 @@ function formatDate(value: string | null | undefined): string {
   }).format(date);
 }
 
-function buildTestPayloadTemplate(form: FormState) {
+function buildKobayashiTestPayloadTemplate(form: FormState) {
   const scopeEntries = form.scopes
     .split(',')
     .map((item) => item.trim())
@@ -324,13 +398,89 @@ function buildTestPayloadTemplate(form: FormState) {
   );
 }
 
-function toForm(data: InstitutionProviderConfigResponse): FormState {
+function buildRdStationTestPayloadTemplate(form: FormState) {
+  return JSON.stringify(
+    {
+      event_type: 'CONVERSION',
+      event_family: 'CDP',
+      payload: {
+        conversion_identifier:
+          form.rdStationConversionIdentifier ||
+          RD_STATION_PRESET.conversionIdentifier,
+        name: 'Carlos da Silva',
+        email: 'carlos@teste.com',
+        mobile_phone: '62999999999',
+        city: 'Cuiaba',
+        state: 'MT',
+        country: 'Brasil',
+        [form.rdStationCourseFieldKey || RD_STATION_PRESET.courseFieldKey]:
+          'Tecnico em Enfermagem',
+        [form.rdStationAgeFieldKey || RD_STATION_PRESET.ageFieldKey]: '28',
+        [form.rdStationAddressFieldKey || RD_STATION_PRESET.addressFieldKey]:
+          'Centro, Cuiaba - MT',
+        [form.rdStationEnrollmentIdFieldKey ||
+        RD_STATION_PRESET.enrollmentIdFieldKey]: 'ENR_TEST_001',
+        tags: ['matricula_efetivada'],
+      },
+    },
+    null,
+    2,
+  );
+}
+
+function buildTestPayloadTemplate(provider: IntegrationProvider, form: FormState) {
+  return provider === 'rdstation'
+    ? buildRdStationTestPayloadTemplate(form)
+    : buildKobayashiTestPayloadTemplate(form);
+}
+
+function toForm(
+  data: InstitutionProviderConfigResponse,
+  provider: IntegrationProvider,
+): FormState {
   if (!data.integration.isConfigured) {
     return {
       ...DEFAULT_FORM,
       environment:
         data.integration.environment === 'sandbox' ? 'sandbox' : 'production',
       isActive: Boolean(data.integration.isActive),
+      baseUrl:
+        provider === 'rdstation'
+          ? RD_STATION_PRESET.baseUrl
+          : KOBAYASHI_PRESET.baseUrl,
+    };
+  }
+
+  if (provider === 'rdstation') {
+    return {
+      ...DEFAULT_FORM,
+      environment:
+        data.integration.environment === 'sandbox' ? 'sandbox' : 'production',
+      isActive: Boolean(data.integration.isActive),
+      baseUrl: data.integration.rdstation.baseUrl || RD_STATION_PRESET.baseUrl,
+      rdStationApiKey: '',
+      rdStationConversionIdentifier:
+        data.integration.rdstation.conversionIdentifier ||
+        RD_STATION_PRESET.conversionIdentifier,
+      rdStationCourseFieldKey:
+        data.integration.rdstation.courseFieldKey || RD_STATION_PRESET.courseFieldKey,
+      rdStationAgeFieldKey:
+        data.integration.rdstation.ageFieldKey || RD_STATION_PRESET.ageFieldKey,
+      rdStationAddressFieldKey:
+        data.integration.rdstation.addressFieldKey ||
+        RD_STATION_PRESET.addressFieldKey,
+      rdStationEnrollmentIdFieldKey:
+        data.integration.rdstation.enrollmentIdFieldKey ||
+        RD_STATION_PRESET.enrollmentIdFieldKey,
+      clientId: '',
+      clientSecret: '',
+      token: '',
+      authorizationBearer: '',
+      grantType: KOBAYASHI_PRESET.grantType,
+      scopes: KOBAYASHI_PRESET.scopes,
+      defaultGcssid: '',
+      defaultIdentificacaoVendedor: '',
+      defaultOfertaCursoId: '',
     };
   }
 
@@ -351,10 +501,27 @@ function toForm(data: InstitutionProviderConfigResponse): FormState {
     defaultIdentificacaoVendedor:
       data.integration.kobayashi.defaultIdentificacaoVendedor || '',
     defaultOfertaCursoId: data.integration.kobayashi.defaultOfertaCursoId || '',
+    rdStationApiKey: '',
+    rdStationConversionIdentifier: RD_STATION_PRESET.conversionIdentifier,
+    rdStationCourseFieldKey: RD_STATION_PRESET.courseFieldKey,
+    rdStationAgeFieldKey: RD_STATION_PRESET.ageFieldKey,
+    rdStationAddressFieldKey: RD_STATION_PRESET.addressFieldKey,
+    rdStationEnrollmentIdFieldKey: RD_STATION_PRESET.enrollmentIdFieldKey,
   };
 }
 
-function toSecretFlags(data: InstitutionProviderConfigResponse): SecretFlags {
+function toSecretFlags(
+  data: InstitutionProviderConfigResponse,
+  provider: IntegrationProvider,
+): SecretFlags {
+  if (provider === 'rdstation') {
+    return {
+      ...DEFAULT_SECRET_FLAGS,
+      rdStationApiKeyConfigured: Boolean(data.integration.rdstation.apiKeyConfigured),
+      rdStationApiKeyMasked: data.integration.rdstation.apiKeyMasked ?? null,
+    };
+  }
+
   return {
     clientSecretConfigured: Boolean(
       data.integration.kobayashi.clientSecretConfigured,
@@ -367,6 +534,23 @@ function toSecretFlags(data: InstitutionProviderConfigResponse): SecretFlags {
     tokenMasked: data.integration.kobayashi.tokenMasked ?? null,
     authorizationBearerMasked:
       data.integration.kobayashi.authorizationBearerMasked ?? null,
+    rdStationApiKeyConfigured: false,
+    rdStationApiKeyMasked: null,
+  };
+}
+
+function toProviderSummary(
+  data: InstitutionProviderConfigResponse,
+): ProviderSummary {
+  return {
+    loading: false,
+    isConfigured: Boolean(data.integration.isConfigured),
+    isActive: Boolean(data.integration.isActive),
+    environment: String(data.integration.environment || 'production'),
+    updatedAt: data.integration.updatedAt ?? null,
+    lastSuccessAt: data.integration.lastSuccessAt ?? null,
+    lastErrorAt: data.integration.lastErrorAt ?? null,
+    lastErrorMessage: data.integration.lastErrorMessage ?? null,
   };
 }
 
@@ -392,22 +576,34 @@ export function SuperadminIntegrationsNative({
   const [lastResult, setLastResult] = useState<TestRequestResponse | null>(null);
   const [dispatchLogs, setDispatchLogs] = useState<IntegrationDispatchLog[]>([]);
   const [retryingLogId, setRetryingLogId] = useState<string | null>(null);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  const [providerSummaries, setProviderSummaries] = useState<
+    Record<IntegrationProvider, ProviderSummary>
+  >({
+    kobayashi: { ...DEFAULT_PROVIDER_SUMMARY },
+    rdstation: { ...DEFAULT_PROVIDER_SUMMARY },
+  });
   const [auditFilters, setAuditFilters] = useState<AuditFilters>(
     DEFAULT_AUDIT_FILTERS,
   );
+  const [testEnrollmentId, setTestEnrollmentId] = useState('');
   const [testPayload, setTestPayload] = useState(
-    buildTestPayloadTemplate(DEFAULT_FORM),
+    buildTestPayloadTemplate(selectedProvider, DEFAULT_FORM),
   );
 
   const applyProviderPreset = (provider: IntegrationProvider) => {
-    if (provider !== 'kobayashi') return;
     setForm((current) => {
       const nextForm: FormState = {
         ...DEFAULT_FORM,
         environment: current.environment,
         isActive: current.isActive,
+        baseUrl:
+          provider === 'rdstation'
+            ? RD_STATION_PRESET.baseUrl
+            : KOBAYASHI_PRESET.baseUrl,
       };
-      setTestPayload(buildTestPayloadTemplate(nextForm));
+      setTestPayload(buildTestPayloadTemplate(provider, nextForm));
+      setTestEnrollmentId('');
       return nextForm;
     });
   };
@@ -437,20 +633,70 @@ export function SuperadminIntegrationsNative({
     }
   };
 
-  const loadConfig = async (institutionId: string) => {
+  const fetchProviderConfig = (
+    institutionId: string,
+    provider: IntegrationProvider,
+  ) =>
+    apiRequest<InstitutionProviderConfigResponse>(
+      token,
+      `/superadmin/integrations/institutions/${institutionId}/providers/${provider}`,
+    );
+
+  const loadProviderSummary = async (
+    institutionId: string,
+    provider: IntegrationProvider,
+  ) => {
+    setProviderSummaries((current) => ({
+      ...current,
+      [provider]: {
+        ...current[provider],
+        loading: true,
+      },
+    }));
+
+    try {
+      const data = await fetchProviderConfig(institutionId, provider);
+      setProviderSummaries((current) => ({
+        ...current,
+        [provider]: toProviderSummary(data),
+      }));
+      return data;
+    } catch (errorSummary) {
+      setProviderSummaries((current) => ({
+        ...current,
+        [provider]: {
+          ...current[provider],
+          loading: false,
+          lastErrorMessage:
+            errorSummary instanceof Error
+              ? errorSummary.message
+              : 'Falha ao carregar status da integração.',
+        },
+      }));
+      return null;
+    }
+  };
+
+  const loadConfig = async (
+    institutionId: string,
+    provider: IntegrationProvider = selectedProvider,
+  ) => {
     if (!institutionId) return;
     setLoadingConfig(true);
     setError('');
     try {
-      const data = await apiRequest<InstitutionProviderConfigResponse>(
-        token,
-        `/superadmin/integrations/institutions/${institutionId}/providers/${selectedProvider}`,
-      );
-      const nextForm = toForm(data);
+      const data = await fetchProviderConfig(institutionId, provider);
+      const nextForm = toForm(data, provider);
+      setSelectedProvider(provider);
       setForm(nextForm);
-      setSecretFlags(toSecretFlags(data));
-      setTestPayload(buildTestPayloadTemplate(nextForm));
+      setSecretFlags(toSecretFlags(data, provider));
+      setTestPayload(buildTestPayloadTemplate(provider, nextForm));
+      setTestEnrollmentId('');
       setLastResult(null);
+      setProviderSummaries((current) => ({
+        ...current,
+        [provider]: toProviderSummary(data),
+      }));
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -465,6 +711,7 @@ export function SuperadminIntegrationsNative({
   const loadDispatchLogs = async (
     institutionId: string,
     filters: AuditFilters = auditFilters,
+    provider: IntegrationProvider = selectedProvider,
     limit = 50,
   ) => {
     if (!institutionId) return;
@@ -479,7 +726,7 @@ export function SuperadminIntegrationsNative({
 
       const data = await apiRequest<IntegrationDispatchLogsResponse>(
         token,
-        `/superadmin/integrations/institutions/${institutionId}/providers/${selectedProvider}/logs?${query.toString()}`,
+        `/superadmin/integrations/institutions/${institutionId}/providers/${provider}/logs?${query.toString()}`,
       );
       setDispatchLogs(Array.isArray(data.logs) ? data.logs : []);
     } catch (loadError) {
@@ -499,11 +746,17 @@ export function SuperadminIntegrationsNative({
 
   useEffect(() => {
     if (!selectedInstitutionId) return;
+    setProviderSummaries({
+      kobayashi: { ...DEFAULT_PROVIDER_SUMMARY, loading: true },
+      rdstation: { ...DEFAULT_PROVIDER_SUMMARY, loading: true },
+    });
+    setDispatchLogs([]);
+    setLastResult(null);
     void Promise.all([
-      loadConfig(selectedInstitutionId),
-      loadDispatchLogs(selectedInstitutionId, auditFilters),
+      loadProviderSummary(selectedInstitutionId, 'kobayashi'),
+      loadProviderSummary(selectedInstitutionId, 'rdstation'),
     ]);
-  }, [selectedInstitutionId, token, selectedProvider]);
+  }, [selectedInstitutionId, token]);
 
   const filteredInstitutions = useMemo(() => {
     const query = normalizeSearch(search);
@@ -521,19 +774,6 @@ export function SuperadminIntegrationsNative({
     [institutions, selectedInstitutionId],
   );
 
-  const configuredCount = useMemo(
-    () => institutions.filter((item) => item.integration.isConfigured).length,
-    [institutions],
-  );
-
-  const activeCount = useMemo(
-    () =>
-      institutions.filter(
-        (item) => item.integration.isConfigured && item.integration.isActive,
-      ).length,
-    [institutions],
-  );
-
   const submitIntegration = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedInstitutionId) {
@@ -549,32 +789,47 @@ export function SuperadminIntegrationsNative({
       const payload: Record<string, unknown> = {
         environment: form.environment,
         isActive: form.isActive,
-        kobayashiBaseUrl: form.baseUrl.trim(),
-        kobayashiClientId: form.clientId.trim(),
-        kobayashiGrantType: form.grantType.trim() || 'client_credentials',
-        kobayashiDefaultGcssid: form.defaultGcssid.trim(),
-        kobayashiDefaultIdentificacaoVendedor:
-          form.defaultIdentificacaoVendedor.trim(),
-        kobayashiDefaultOfertaCursoId: form.defaultOfertaCursoId.trim(),
       };
 
-      const parsedScopes = form.scopes
-        .split(',')
-        .map((scope) => scope.trim())
-        .filter(Boolean);
+      if (selectedProvider === 'rdstation') {
+        payload.rdStationBaseUrl = form.baseUrl.trim();
+        payload.rdStationConversionIdentifier =
+          form.rdStationConversionIdentifier.trim();
+        payload.rdStationCourseFieldKey = form.rdStationCourseFieldKey.trim();
+        payload.rdStationAgeFieldKey = form.rdStationAgeFieldKey.trim();
+        payload.rdStationAddressFieldKey = form.rdStationAddressFieldKey.trim();
+        payload.rdStationEnrollmentIdFieldKey =
+          form.rdStationEnrollmentIdFieldKey.trim();
+        if (form.rdStationApiKey.trim()) {
+          payload.rdStationApiKey = form.rdStationApiKey.trim();
+        }
+      } else {
+        payload.kobayashiBaseUrl = form.baseUrl.trim();
+        payload.kobayashiClientId = form.clientId.trim();
+        payload.kobayashiGrantType = form.grantType.trim() || 'client_credentials';
+        payload.kobayashiDefaultGcssid = form.defaultGcssid.trim();
+        payload.kobayashiDefaultIdentificacaoVendedor =
+          form.defaultIdentificacaoVendedor.trim();
+        payload.kobayashiDefaultOfertaCursoId = form.defaultOfertaCursoId.trim();
 
-      if (parsedScopes.length > 0) {
-        payload.kobayashiScopes = parsedScopes;
-      }
+        const parsedScopes = form.scopes
+          .split(',')
+          .map((scope) => scope.trim())
+          .filter(Boolean);
 
-      if (form.clientSecret.trim()) {
-        payload.kobayashiClientSecret = form.clientSecret.trim();
-      }
-      if (form.token.trim()) {
-        payload.kobayashiToken = form.token.trim();
-      }
-      if (form.authorizationBearer.trim()) {
-        payload.kobayashiAuthorizationBearer = form.authorizationBearer.trim();
+        if (parsedScopes.length > 0) {
+          payload.kobayashiScopes = parsedScopes;
+        }
+
+        if (form.clientSecret.trim()) {
+          payload.kobayashiClientSecret = form.clientSecret.trim();
+        }
+        if (form.token.trim()) {
+          payload.kobayashiToken = form.token.trim();
+        }
+        if (form.authorizationBearer.trim()) {
+          payload.kobayashiAuthorizationBearer = form.authorizationBearer.trim();
+        }
       }
 
       await apiRequest(
@@ -593,11 +848,13 @@ export function SuperadminIntegrationsNative({
         clientSecret: '',
         token: '',
         authorizationBearer: '',
+        rdStationApiKey: '',
       }));
       await Promise.all([
-        loadConfig(selectedInstitutionId),
+        loadConfig(selectedInstitutionId, selectedProvider),
         loadInstitutions(false),
-        loadDispatchLogs(selectedInstitutionId, auditFilters),
+        loadDispatchLogs(selectedInstitutionId, auditFilters, selectedProvider),
+        loadProviderSummary(selectedInstitutionId, selectedProvider),
       ]);
     } catch (saveError) {
       setError(
@@ -620,27 +877,50 @@ export function SuperadminIntegrationsNative({
     setFeedback('');
     setTesting(true);
 
-    let parsedPayload: Record<string, unknown>;
     try {
-      const parsed = JSON.parse(testPayload) as unknown;
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('Payload inválido');
-      }
-      parsedPayload = parsed as Record<string, unknown>;
-    } catch {
-      setTesting(false);
-      setError('O payload de teste precisa ser um JSON válido.');
-      return;
-    }
+      const body: Record<string, unknown> = {};
+      const trimmedEnrollmentId = testEnrollmentId.trim();
+      const rawPayload = testPayload.trim();
 
-    try {
+      if (selectedProvider === 'rdstation' && trimmedEnrollmentId) {
+        body.enrollmentId = trimmedEnrollmentId;
+      }
+
+      if (rawPayload) {
+        let parsedPayload: Record<string, unknown>;
+        try {
+          const parsed = JSON.parse(rawPayload) as unknown;
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error('Payload inválido');
+          }
+          parsedPayload = parsed as Record<string, unknown>;
+        } catch {
+          setTesting(false);
+          setError('O payload de teste precisa ser um JSON v?lido.');
+          return;
+        }
+        body.payload = parsedPayload;
+      }
+
+      if (selectedProvider === 'kobayashi' && !body.payload) {
+        setTesting(false);
+        setError('Informe um payload JSON para executar o teste KOBAYASHI.');
+        return;
+      }
+
+      if (selectedProvider === 'rdstation' && !body.payload && !body.enrollmentId) {
+        setTesting(false);
+        setError('Informe o ID da matrícula ou um payload JSON para testar o RD Station.');
+        return;
+      }
+
       const result = await apiRequest<TestRequestResponse>(
         token,
         `/superadmin/integrations/institutions/${selectedInstitutionId}/providers/${selectedProvider}/test-request`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payload: parsedPayload }),
+          body: JSON.stringify(body),
         },
       );
       setLastResult(result);
@@ -651,7 +931,8 @@ export function SuperadminIntegrationsNative({
       );
       await Promise.all([
         loadInstitutions(false),
-        loadDispatchLogs(selectedInstitutionId, auditFilters),
+        loadDispatchLogs(selectedInstitutionId, auditFilters, selectedProvider),
+        loadProviderSummary(selectedInstitutionId, selectedProvider),
       ]);
     } catch (testError) {
       setError(
@@ -702,9 +983,10 @@ export function SuperadminIntegrationsNative({
       }
 
       await Promise.all([
-        loadDispatchLogs(selectedInstitutionId, auditFilters),
+        loadDispatchLogs(selectedInstitutionId, auditFilters, selectedProvider),
         loadInstitutions(false),
-        loadConfig(selectedInstitutionId),
+        loadConfig(selectedInstitutionId, selectedProvider),
+        loadProviderSummary(selectedInstitutionId, selectedProvider),
       ]);
     } catch (retryError) {
       setError(
@@ -717,33 +999,23 @@ export function SuperadminIntegrationsNative({
     }
   };
 
+  const openIntegrationModal = async (provider: IntegrationProvider) => {
+    if (!selectedInstitutionId) return;
+    setSelectedProvider(provider);
+    setAuditFilters(DEFAULT_AUDIT_FILTERS);
+    await Promise.all([
+      loadConfig(selectedInstitutionId, provider),
+      loadDispatchLogs(selectedInstitutionId, DEFAULT_AUDIT_FILTERS, provider),
+    ]);
+    setIsConfigModalOpen(true);
+  };
+
   return (
     <section className="native-page native-super-integrations">
       <header className="native-page-header">
         <h2>Integrações</h2>
-        <p>
-          Configure integrações por instituição. Nesta versão já está disponível o
-          provedor KOBAYASHI com teste de envio em tempo real.
-        </p>
+        <p>Configure integrações por instituição.</p>
       </header>
-
-      <div className="native-kpi-grid native-kpi-grid-small">
-        <article className="native-kpi-card">
-          <span>Instituições</span>
-          <strong>{institutions.length}</strong>
-          <small>Total no tenant global</small>
-        </article>
-        <article className="native-kpi-card">
-          <span>Configuradas</span>
-          <strong>{configuredCount}</strong>
-          <small>Com credenciais cadastradas</small>
-        </article>
-        <article className="native-kpi-card">
-          <span>Ativas</span>
-          <strong>{activeCount}</strong>
-          <small>Integrações habilitadas</small>
-        </article>
-      </div>
 
       {error ? <p className="native-error">{error}</p> : null}
       {feedback ? <p className="native-success">{feedback}</p> : null}
@@ -773,14 +1045,13 @@ export function SuperadminIntegrationsNative({
                   <tr>
                     <th>Instituição</th>
                     <th>Status</th>
-                    <th>Integração</th>
                     <th>Atualizado em</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredInstitutions.length === 0 ? (
                     <tr>
-                      <td colSpan={4}>Nenhuma instituição encontrada.</td>
+                      <td colSpan={3}>Nenhuma instituição encontrada.</td>
                     </tr>
                   ) : (
                     filteredInstitutions.map((institution) => {
@@ -798,29 +1069,10 @@ export function SuperadminIntegrationsNative({
                           <td>
                             <span
                               className={`native-status-chip ${
-                                institution.status === 'active'
-                                  ? 'is-success'
-                                  : 'is-warning'
+                                institution.status === 'active' ? 'is-success' : 'is-warning'
                               }`}
                             >
                               {institution.status === 'active' ? 'Ativa' : 'Inativa'}
-                            </span>
-                          </td>
-                          <td>
-                            <span
-                              className={`native-status-chip ${
-                                institution.integration.isConfigured
-                                  ? institution.integration.isActive
-                                    ? 'is-info'
-                                    : 'is-muted'
-                                  : 'is-warning'
-                              }`}
-                            >
-                              {!institution.integration.isConfigured
-                                ? 'Não configurada'
-                                : institution.integration.isActive
-                                  ? 'Configurada e ativa'
-                                  : 'Configurada (inativa)'}
                             </span>
                           </td>
                           <td>{formatDate(institution.integration.updatedAt)}</td>
@@ -834,9 +1086,9 @@ export function SuperadminIntegrationsNative({
           )}
         </article>
 
-        <article className="native-panel">
+        <article className="native-panel native-super-integrations-cards-panel">
           <header className="native-panel-header">
-            <h3>Configuração {selectedProvider.toUpperCase()}</h3>
+            <h3>Integrações</h3>
             {selectedInstitution ? (
               <small>
                 {selectedInstitution.name} ({selectedInstitution.slug})
@@ -845,26 +1097,92 @@ export function SuperadminIntegrationsNative({
           </header>
 
           {!selectedInstitution ? (
-            <p className="native-info">
-              Selecione uma instituição para editar a integração.
-            </p>
+            <p className="native-info">Selecione uma instituição para ver as integrações.</p>
           ) : (
+            <div className="native-super-integrations-cards">
+              {INTEGRATION_OPTIONS.map((option) => {
+                const summary = providerSummaries[option.provider];
+                const statusClass = summary.loading
+                  ? 'is-muted'
+                  : !summary.isConfigured
+                    ? 'is-warning'
+                    : summary.isActive
+                      ? 'is-info'
+                      : 'is-muted';
+
+                const statusLabel = summary.loading
+                  ? 'Carregando...'
+                  : !summary.isConfigured
+                    ? 'Não configurada'
+                    : summary.isActive
+                      ? 'Configurada e ativa'
+                      : 'Configurada (inativa)';
+
+                return (
+                  <button
+                    key={option.provider}
+                    type="button"
+                    className={`native-super-integration-card ${
+                      selectedProvider === option.provider ? 'is-selected' : ''
+                    }`}
+                    onClick={() => {
+                      void openIntegrationModal(option.provider);
+                    }}
+                  >
+                    <div className="native-super-integration-card-header">
+                      <div className="native-super-integration-card-title">
+                        <span className="native-super-integration-icon">{option.badge}</span>
+                        <strong>{option.name}</strong>
+                      </div>
+                      <span className={`native-status-chip ${statusClass}`}>{statusLabel}</span>
+                    </div>
+                    <small>{option.description}</small>
+                    <small>Última atualização: {formatDate(summary.updatedAt)}</small>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </article>
+      </div>
+
+      {isConfigModalOpen && selectedInstitution ? (
+        <div
+          className="native-modal-backdrop"
+          onClick={() => {
+            setIsConfigModalOpen(false);
+          }}
+        >
+          <section
+            className="native-modal native-super-integration-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="native-panel-header">
+              <h3>Configuração {selectedProvider.toUpperCase()}</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConfigModalOpen(false);
+                }}
+              >
+                Fechar
+              </button>
+            </header>
+
+            <small>
+              {selectedInstitution.name} ({selectedInstitution.slug})
+            </small>
+
+            <div className="native-super-integration-modal-grid">
+              <section className="native-super-integration-block">
+                <header>
+                  <h4>Configuração</h4>
+                </header>
+
             <form className="native-form-grid native-super-integration-form" onSubmit={submitIntegration}>
               <label>
-                Provedor da API
-                <select
-                  value={selectedProvider}
-                  onChange={(event) => {
-                    const nextProvider =
-                      event.target.value === 'kobayashi'
-                        ? 'kobayashi'
-                        : 'kobayashi';
-                    setSelectedProvider(nextProvider);
-                    applyProviderPreset(nextProvider);
-                  }}
-                >
-                  <option value="kobayashi">KOBAYASHI</option>
-                </select>
+                Provedor
+                <input value={selectedProvider.toUpperCase()} readOnly />
               </label>
 
               <label>
@@ -908,148 +1226,251 @@ export function SuperadminIntegrationsNative({
                   onChange={(event) =>
                     setForm((current) => ({ ...current, baseUrl: event.target.value }))
                   }
-                  placeholder="https://apiappdo.facinpro.flie.com.br"
+                  placeholder={
+                    selectedProvider === 'rdstation'
+                      ? 'https://api.rd.services'
+                      : 'https://apiappdo.facinpro.flie.com.br'
+                  }
                   required
                 />
               </label>
 
-              <label>
-                Client ID
-                <input
-                  value={form.clientId}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, clientId: event.target.value }))
-                  }
-                  placeholder="UUID do client_id"
-                  required
-                />
-              </label>
+              {selectedProvider === 'rdstation' ? (
+                <>
+                  <label>
+                    API Key
+                    <input
+                      type="password"
+                      value={form.rdStationApiKey}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          rdStationApiKey: event.target.value,
+                        }))
+                      }
+                      placeholder="Deixe em branco para manter a atual"
+                    />
+                    <small>
+                      {secretFlags.rdStationApiKeyConfigured
+                        ? `Chave atual: ${secretFlags.rdStationApiKeyMasked ?? 'configurada'}`
+                        : 'Nenhuma API Key salva ainda'}
+                    </small>
+                  </label>
 
-              <label>
-                Client Secret
-                <input
-                  type="password"
-                  value={form.clientSecret}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      clientSecret: event.target.value,
-                    }))
-                  }
-                  placeholder="Deixe em branco para manter o atual"
-                />
-                <small>
-                  {secretFlags.clientSecretConfigured
-                    ? `Segredo atual: ${secretFlags.clientSecretMasked ?? 'configurado'}`
-                    : 'Nenhum segredo salvo ainda'}
-                </small>
-              </label>
+                  <label>
+                    Conversion Identifier
+                    <input
+                      value={form.rdStationConversionIdentifier}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          rdStationConversionIdentifier: event.target.value,
+                        }))
+                      }
+                      placeholder="Matrícula Efetivada"
+                      required
+                    />
+                  </label>
 
-              <label>
-                Authorization Bearer (opcional)
-                <input
-                  type="password"
-                  value={form.authorizationBearer}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      authorizationBearer: event.target.value,
-                    }))
-                  }
-                  placeholder="Pode começar com Bearer ou sem prefixo"
-                />
-                <small>
-                  {secretFlags.authorizationBearerConfigured
-                    ? `Bearer atual: ${secretFlags.authorizationBearerMasked ?? 'configurado'}`
-                    : 'Se vazio, o sistema gera Bearer com client_id;client_secret'}
-                </small>
-              </label>
+                  <label>
+                    Campo do curso
+                    <input
+                      value={form.rdStationCourseFieldKey}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          rdStationCourseFieldKey: event.target.value,
+                        }))
+                      }
+                      placeholder="cf_curso_matriculado"
+                      required
+                    />
+                  </label>
 
-              <label>
-                Token alternativo (opcional)
-                <input
-                  type="password"
-                  value={form.token}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, token: event.target.value }))
-                  }
-                  placeholder="Fallback de token caso não use Authorization Bearer"
-                />
-                <small>
-                  {secretFlags.tokenConfigured
-                    ? `Token atual: ${secretFlags.tokenMasked ?? 'configurado'}`
-                    : 'Token alternativo não configurado'}
-                </small>
-              </label>
+                  <label>
+                    Campo da idade
+                    <input
+                      value={form.rdStationAgeFieldKey}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          rdStationAgeFieldKey: event.target.value,
+                        }))
+                      }
+                      placeholder="cf_idade"
+                      required
+                    />
+                  </label>
 
-              <label>
-                Grant type
-                <input
-                  value={form.grantType}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, grantType: event.target.value }))
-                  }
-                  placeholder="client_credentials"
-                />
-              </label>
+                  <label>
+                    Campo do endereço
+                    <input
+                      value={form.rdStationAddressFieldKey}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          rdStationAddressFieldKey: event.target.value,
+                        }))
+                      }
+                      placeholder="cf_endereco"
+                      required
+                    />
+                  </label>
 
-              <label>
-                Scopes (separados por vírgula)
-                <input
-                  value={form.scopes}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, scopes: event.target.value }))
-                  }
-                  placeholder="cobranca.parceiro, b2b.parceiro"
-                />
-              </label>
+                  <label>
+                    Campo do ID da matrícula
+                    <input
+                      value={form.rdStationEnrollmentIdFieldKey}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          rdStationEnrollmentIdFieldKey: event.target.value,
+                        }))
+                      }
+                      placeholder="cf_matricula_id"
+                      required
+                    />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label>
+                    Client ID
+                    <input
+                      value={form.clientId}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, clientId: event.target.value }))
+                      }
+                      placeholder="UUID do client_id"
+                      required
+                    />
+                  </label>
 
-              <label>
-                GCSSID padrão (opcional)
-                <input
-                  value={form.defaultGcssid}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      defaultGcssid: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                  <label>
+                    Client Secret
+                    <input
+                      type="password"
+                      value={form.clientSecret}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          clientSecret: event.target.value,
+                        }))
+                      }
+                      placeholder="Deixe em branco para manter o atual"
+                    />
+                    <small>
+                      {secretFlags.clientSecretConfigured
+                        ? `Segredo atual: ${secretFlags.clientSecretMasked ?? 'configurado'}`
+                        : 'Nenhum segredo salvo ainda'}
+                    </small>
+                  </label>
 
-              <label>
-                Identificação do vendedor padrão (opcional)
-                <input
-                  value={form.defaultIdentificacaoVendedor}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      defaultIdentificacaoVendedor: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                  <label>
+                    Authorization Bearer (opcional)
+                    <input
+                      type="password"
+                      value={form.authorizationBearer}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          authorizationBearer: event.target.value,
+                        }))
+                      }
+                      placeholder="Pode começar com Bearer ou sem prefixo"
+                    />
+                    <small>
+                      {secretFlags.authorizationBearerConfigured
+                        ? `Bearer atual: ${secretFlags.authorizationBearerMasked ?? 'configurado'}`
+                        : 'Se vazio, o sistema gera Bearer com client_id;client_secret'}
+                    </small>
+                  </label>
 
-              <label>
-                OfertaCursoID padrão (opcional)
-                <input
-                  value={form.defaultOfertaCursoId}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      defaultOfertaCursoId: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                  <label>
+                    Token alternativo (opcional)
+                    <input
+                      type="password"
+                      value={form.token}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, token: event.target.value }))
+                      }
+                      placeholder="Fallback de token caso não use Authorization Bearer"
+                    />
+                    <small>
+                      {secretFlags.tokenConfigured
+                        ? `Token atual: ${secretFlags.tokenMasked ?? 'configurado'}`
+                        : 'Token alternativo não configurado'}
+                    </small>
+                  </label>
 
-              {loadingConfig ? (
-                <p className="native-info">Carregando configuração...</p>
-              ) : null}
+                  <label>
+                    Grant type
+                    <input
+                      value={form.grantType}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, grantType: event.target.value }))
+                      }
+                      placeholder="client_credentials"
+                    />
+                  </label>
 
-              {selectedInstitution.integration.lastErrorMessage ? (
+                  <label>
+                    Scopes (separados por vírgula)
+                    <input
+                      value={form.scopes}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, scopes: event.target.value }))
+                      }
+                      placeholder="cobranca.parceiro, b2b.parceiro"
+                    />
+                  </label>
+
+                  <label>
+                    GCSSID padrão (opcional)
+                    <input
+                      value={form.defaultGcssid}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          defaultGcssid: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    Identificação do vendedor padrão (opcional)
+                    <input
+                      value={form.defaultIdentificacaoVendedor}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          defaultIdentificacaoVendedor: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    OfertaCursoID padrão (opcional)
+                    <input
+                      value={form.defaultOfertaCursoId}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          defaultOfertaCursoId: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </>
+              )}
+
+              {loadingConfig ? <p className="native-info">Carregando configuração...</p> : null}
+
+              {providerSummaries[selectedProvider].lastErrorMessage ? (
                 <p className="native-super-integration-note">
-                  Último erro: {selectedInstitution.integration.lastErrorMessage}
+                  Último erro: {providerSummaries[selectedProvider].lastErrorMessage}
                 </p>
               ) : null}
 
@@ -1069,8 +1490,12 @@ export function SuperadminIntegrationsNative({
                   onClick={() => {
                     if (!selectedInstitutionId) return;
                     void Promise.all([
-                      loadConfig(selectedInstitutionId),
-                      loadDispatchLogs(selectedInstitutionId, auditFilters),
+                      loadConfig(selectedInstitutionId, selectedProvider),
+                      loadDispatchLogs(
+                        selectedInstitutionId,
+                        auditFilters,
+                        selectedProvider,
+                      ),
                     ]);
                   }}
                 >
@@ -1081,215 +1506,244 @@ export function SuperadminIntegrationsNative({
                 </button>
               </div>
             </form>
-          )}
-        </article>
-      </div>
+              </section>
 
-      {selectedInstitution ? (
-        <article className="native-panel native-super-test-request">
-          <header className="native-panel-header">
-            <h3>Teste de request {selectedProvider.toUpperCase()}</h3>
-            <small>
-              Último sucesso: {formatDate(selectedInstitution.integration.lastSuccessAt)}
-            </small>
-          </header>
+              <section className="native-super-integration-block">
+                <header>
+                  <h4>Teste e Auditoria</h4>
+                </header>
 
-          <p className="native-super-integration-note">
-            O teste envia um `POST /b2b/VendaRubeus` com `client_id` e
-            `Authorization: Bearer ...`, aplicando os defaults da configuração da
-            instituição quando o payload não informar esses campos.
-          </p>
+            <article className="native-panel native-super-test-request">
+              <header className="native-panel-header">
+                <h3>Teste de request {selectedProvider.toUpperCase()}</h3>
+                <small>
+                  Último sucesso: {formatDate(providerSummaries[selectedProvider].lastSuccessAt)}
+                </small>
+              </header>
 
-          <label>
-            Payload JSON
-            <textarea
-              rows={14}
-              value={testPayload}
-              onChange={(event) => setTestPayload(event.target.value)}
-            />
-          </label>
+              <p className="native-super-integration-note">
+                {selectedProvider === 'rdstation'
+                  ? 'O teste do RD Station pode ser feito por ID de matrícula (busca dados reais) ou por payload JSON manual.'
+                  : 'O teste envia um `POST /b2b/VendaRubeus` com `client_id` e `Authorization: Bearer ...`, aplicando os defaults da configuração da instituição quando o payload não informar esses campos.'}
+              </p>
 
-          <div className="native-modal-actions">
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => setTestPayload(buildTestPayloadTemplate(form))}
-              disabled={testing}
-            >
-              Regerar exemplo
-            </button>
-            <button type="button" onClick={() => void submitTestRequest()} disabled={testing}>
-              {testing ? 'Enviando teste...' : 'Enviar payload de teste'}
-            </button>
-          </div>
+              {selectedProvider === 'rdstation' ? (
+                <label>
+                  ID da matrícula (opcional)
+                  <input
+                    value={testEnrollmentId}
+                    onChange={(event) => setTestEnrollmentId(event.target.value)}
+                    placeholder="Ex.: cm8abc123xyz"
+                  />
+                  <small>
+                    Se informado, o backend monta o payload automaticamente com os dados da
+                    matrícula.
+                  </small>
+                </label>
+              ) : null}
 
-          {lastResult ? (
-            <pre>
-              {JSON.stringify(
-                {
-                  endpoint: lastResult.endpoint,
-                  statusCode: lastResult.response.statusCode,
-                  ok: lastResult.response.ok,
-                  body: lastResult.response.body,
-                },
-                null,
-                2,
-              )}
-            </pre>
-          ) : null}
-
-          <div className="native-super-integration-audit">
-            <header className="native-panel-header">
-              <h3>Auditoria de envios</h3>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!selectedInstitutionId) return;
-                  void loadDispatchLogs(selectedInstitutionId, auditFilters);
-                }}
-              >
-                Atualizar auditoria
-              </button>
-            </header>
-
-            <div className="native-super-integration-audit-filters">
               <label>
-                Status
-                <select
-                  value={auditFilters.status}
-                  onChange={(event) =>
-                    setAuditFilters((current) => ({
-                      ...current,
-                      status:
-                        event.target.value === 'success' ||
-                        event.target.value === 'failed'
-                          ? event.target.value
-                          : 'all',
-                    }))
+                Payload JSON
+                <textarea
+                  rows={14}
+                  value={testPayload}
+                  onChange={(event) => setTestPayload(event.target.value)}
+                />
+              </label>
+
+              <div className="native-modal-actions">
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() =>
+                    setTestPayload(buildTestPayloadTemplate(selectedProvider, form))
                   }
+                  disabled={testing}
                 >
-                  <option value="all">Todos</option>
-                  <option value="success">Sucesso</option>
-                  <option value="failed">Falha</option>
-                </select>
-              </label>
-
-              <label>
-                De
-                <input
-                  type="date"
-                  value={auditFilters.dateFrom}
-                  onChange={(event) =>
-                    setAuditFilters((current) => ({
-                      ...current,
-                      dateFrom: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-
-              <label>
-                Até
-                <input
-                  type="date"
-                  value={auditFilters.dateTo}
-                  onChange={(event) =>
-                    setAuditFilters((current) => ({
-                      ...current,
-                      dateTo: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-
-              <label>
-                Busca
-                <input
-                  value={auditFilters.search}
-                  onChange={(event) =>
-                    setAuditFilters((current) => ({
-                      ...current,
-                      search: event.target.value,
-                    }))
-                  }
-                  placeholder="Aluno ou erro..."
-                />
-              </label>
-
-              <div className="native-super-integration-audit-actions">
-                <button type="button" className="ghost" onClick={() => void clearAuditFilters()}>
-                  Limpar
+                  Regerar exemplo
                 </button>
-                <button type="button" onClick={() => void applyAuditFilters()}>
-                  Aplicar filtros
+                <button
+                  type="button"
+                  onClick={() => void submitTestRequest()}
+                  disabled={testing}
+                >
+                  {testing ? 'Enviando teste...' : 'Enviar payload de teste'}
                 </button>
               </div>
-            </div>
 
-            {loadingLogs ? (
-              <p className="native-info">Carregando auditoria...</p>
-            ) : null}
-
-            <div className="native-table-wrap">
-              <table className="native-table">
-                <thead>
-                  <tr>
-                    <th>Data/hora</th>
-                    <th>Aluno</th>
-                    <th>Status</th>
-                    <th>HTTP</th>
-                    <th>Erro</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!loadingLogs && dispatchLogs.length === 0 ? (
-                    <tr>
-                      <td colSpan={6}>Nenhum envio auditado para esta instituição.</td>
-                    </tr>
-                  ) : (
-                    dispatchLogs.map((log) => (
-                      <tr key={log.id}>
-                        <td>{formatDate(log.createdAt)}</td>
-                        <td>
-                          <strong>{log.studentName || 'Aluno não identificado'}</strong>
-                          <small>{log.studentId ? `#${log.studentId.slice(0, 8)}` : '-'}</small>
-                        </td>
-                        <td>
-                          <span
-                            className={`native-status-chip ${
-                              log.status === 'success' ? 'is-success' : 'is-danger'
-                            }`}
-                          >
-                            {log.status === 'success' ? 'Sucesso' : 'Falha'}
-                          </span>
-                        </td>
-                        <td>{log.responseStatusCode ?? '-'}</td>
-                        <td>{log.errorMessage || '-'}</td>
-                        <td>
-                          {log.status === 'failed' ? (
-                            <button
-                              type="button"
-                              className="ghost"
-                              onClick={() => {
-                                void retryDispatch(log);
-                              }}
-                              disabled={retryingLogId === log.id}
-                            >
-                              {retryingLogId === log.id ? 'Reenviando...' : 'Reenviar'}
-                            </button>
-                          ) : (
-                            '-'
-                          )}
-                        </td>
-                      </tr>
-                    ))
+              {lastResult ? (
+                <pre>
+                  {JSON.stringify(
+                    {
+                      endpoint: lastResult.endpoint,
+                      statusCode: lastResult.response.statusCode,
+                      ok: lastResult.response.ok,
+                      body: lastResult.response.body,
+                    },
+                    null,
+                    2,
                   )}
-                </tbody>
-              </table>
+                </pre>
+              ) : null}
+
+              <div className="native-super-integration-audit">
+                <header className="native-panel-header">
+                  <h3>Auditoria de envios</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedInstitutionId) return;
+                      void loadDispatchLogs(
+                        selectedInstitutionId,
+                        auditFilters,
+                        selectedProvider,
+                      );
+                    }}
+                  >
+                    Atualizar auditoria
+                  </button>
+                </header>
+
+                <div className="native-super-integration-audit-filters">
+                  <label>
+                    Status
+                    <select
+                      value={auditFilters.status}
+                      onChange={(event) =>
+                        setAuditFilters((current) => ({
+                          ...current,
+                          status:
+                            event.target.value === 'success' ||
+                            event.target.value === 'failed'
+                              ? event.target.value
+                              : 'all',
+                        }))
+                      }
+                    >
+                      <option value="all">Todos</option>
+                      <option value="success">Sucesso</option>
+                      <option value="failed">Falha</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    De
+                    <input
+                      type="date"
+                      value={auditFilters.dateFrom}
+                      onChange={(event) =>
+                        setAuditFilters((current) => ({
+                          ...current,
+                          dateFrom: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    Até
+                    <input
+                      type="date"
+                      value={auditFilters.dateTo}
+                      onChange={(event) =>
+                        setAuditFilters((current) => ({
+                          ...current,
+                          dateTo: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    Busca
+                    <input
+                      value={auditFilters.search}
+                      onChange={(event) =>
+                        setAuditFilters((current) => ({
+                          ...current,
+                          search: event.target.value,
+                        }))
+                      }
+                      placeholder="Aluno ou erro..."
+                    />
+                  </label>
+
+                  <div className="native-super-integration-audit-actions">
+                    <button type="button" className="ghost" onClick={() => void clearAuditFilters()}>
+                      Limpar
+                    </button>
+                    <button type="button" onClick={() => void applyAuditFilters()}>
+                      Aplicar filtros
+                    </button>
+                  </div>
+                </div>
+
+                {loadingLogs ? <p className="native-info">Carregando auditoria...</p> : null}
+
+                <div className="native-table-wrap">
+                  <table className="native-table">
+                    <thead>
+                      <tr>
+                        <th>Data/hora</th>
+                        <th>Aluno</th>
+                        <th>Status</th>
+                        <th>HTTP</th>
+                        <th>Erro</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {!loadingLogs && dispatchLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={6}>Nenhum envio auditado para esta instituição.</td>
+                        </tr>
+                      ) : (
+                        dispatchLogs.map((log) => (
+                          <tr key={log.id}>
+                            <td>{formatDate(log.createdAt)}</td>
+                            <td>
+                              <strong>{log.studentName || 'Aluno não identificado'}</strong>
+                              <small>{log.studentId ? `#${log.studentId.slice(0, 8)}` : '-'}</small>
+                            </td>
+                            <td>
+                              <span
+                                className={`native-status-chip ${
+                                  log.status === 'success' ? 'is-success' : 'is-danger'
+                                }`}
+                              >
+                                {log.status === 'success' ? 'Sucesso' : 'Falha'}
+                              </span>
+                            </td>
+                            <td>{log.responseStatusCode ?? '-'}</td>
+                            <td>{log.errorMessage || '-'}</td>
+                            <td>
+                              {log.status === 'failed' ? (
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  onClick={() => {
+                                    void retryDispatch(log);
+                                  }}
+                                  disabled={retryingLogId === log.id}
+                                >
+                                  {retryingLogId === log.id ? 'Reenviando...' : 'Reenviar'}
+                                </button>
+                              ) : (
+                                '-'
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </article>
+              </section>
             </div>
-          </div>
-        </article>
+          </section>
+        </div>
       ) : null}
     </section>
   );

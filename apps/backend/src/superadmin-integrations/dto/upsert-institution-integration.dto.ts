@@ -70,4 +70,39 @@ export class UpsertInstitutionIntegrationDto {
   @IsString()
   @MaxLength(255)
   kobayashiDefaultOfertaCursoId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  rdStationBaseUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  rdStationApiKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  rdStationConversionIdentifier?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  rdStationCourseFieldKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  rdStationAgeFieldKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  rdStationAddressFieldKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  rdStationEnrollmentIdFieldKey?: string;
 }

@@ -1,7 +1,17 @@
-import { IsNotEmptyObject, IsObject } from 'class-validator';
+import {
+  IsNotEmptyObject,
+  IsObject,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
-export class SendKobayashiTestPayloadDto {
+export class SendProviderTestPayloadDto {
+  @IsOptional()
+  @IsString()
+  enrollmentId?: string;
+
+  @IsOptional()
   @IsObject()
   @IsNotEmptyObject()
-  payload!: Record<string, unknown>;
+  payload?: Record<string, unknown>;
 }
