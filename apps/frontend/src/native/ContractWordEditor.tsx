@@ -114,16 +114,10 @@ const isIgnorableNodeForPagination = (node: ChildNode) => {
     return normalizeMeaningfulText(node.textContent || '') === '';
   }
   if (node.nodeType !== Node.ELEMENT_NODE) return true;
+  
   const element = node as HTMLElement;
-  if (element.tagName === 'BR' && element.attributes.length === 0) return true;
-  if (
-    !hasMeaningfulHtml(element.innerHTML || '') &&
-    element.querySelector(
-      'img,table,svg,canvas,iframe,video,audio,object,embed,input,textarea,select',
-    ) === null
-  ) {
-    return true;
-  }
+  if (['STYLE', 'SCRIPT', 'META', 'LINK', 'TITLE'].includes(element.tagName)) return true;
+  
   return false;
 };
 

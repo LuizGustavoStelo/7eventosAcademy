@@ -249,6 +249,8 @@ export function StudentContractsNative({
     }
   }, [selectedId, selectedIsSigned, resetSignatureCanvas]);
 
+  const [signModalOpen, setSignModalOpen] = useState(false);
+
   const requestPin = async () => {
     if (!selectedId) return;
 
@@ -434,6 +436,7 @@ export function StudentContractsNative({
       setFeedback('Contrato assinado com sucesso.');
       setAcceptTerms(false);
       setPinInput('');
+      setSignModalOpen(false);
       onSignedSuccess?.();
     } catch (signError) {
       setError(
@@ -502,8 +505,8 @@ export function StudentContractsNative({
   return (
     <section className="student-page-layout student-contracts-layout">
       {loading ? <p className="student-template-loading">Carregando contratos...</p> : null}
-      {error ? <p className="student-template-error">{error}</p> : null}
-      {feedback ? <p className="native-success">{feedback}</p> : null}
+      {error && !signModalOpen ? <p className="student-template-error">{error}</p> : null}
+      {feedback && !signModalOpen ? <p className="native-success">{feedback}</p> : null}
 
       <div className="student-page-grid cols-2 student-contracts-main-grid">
         <article className="student-page-card student-contract-list-card">
@@ -563,7 +566,7 @@ export function StudentContractsNative({
                 </article>
               </div>
 
-              <div className="student-contract-action-row">
+              <div className="student-contract-action-row" style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem' }}>
                 <button
                   type="button"
                   onClick={() => void downloadContract()}
@@ -574,112 +577,22 @@ export function StudentContractsNative({
                 {!selectedIsSigned ? (
                   <button
                     type="button"
-                    onClick={() => void requestPin()}
-                    disabled={sendingPin}
+                    onClick={() => {
+                        setError('');
+                        setFeedback('');
+                        setSignModalOpen(true);
+                    }}
                   >
-                    {sendingPin ? 'Enviando PIN...' : 'Solicitar PIN por e-mail'}
+                    Assinar
                   </button>
                 ) : null}
               </div>
 
               {selectedIsSigned ? (
-                <div className="student-contract-complete-note">
+                <div className="student-contract-complete-note" style={{ marginTop: '1.5rem' }}>
                   Contrato assinado. Você pode baixar o arquivo ou revisar o conteúdo abaixo.
                 </div>
-              ) : (
-                <>
-                  <section className={`student-contract-step ${selectedPinVerified ? 'is-complete' : ''}`}>
-                    <header>
-                      <span>Etapa 1</span>
-                      <h5>Validar PIN</h5>
-                    </header>
-                    <p>Digite o PIN de 6 dígitos recebido por e-mail.</p>
-                    <form onSubmit={verifyPin} className="student-contract-pin-form">
-                      <input
-                        value={pinInput}
-                        onChange={(event) => setPinInput(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                        placeholder="Digite o PIN de 6 dígitos"
-                        inputMode="numeric"
-                      />
-                      <button type="submit" disabled={verifyingPin}>
-                        {verifyingPin ? 'Validando...' : 'Validar PIN'}
-                      </button>
-                    </form>
-                  </section>
-
-                  {shouldShowSignatureStep ? (
-                    <section className="student-contract-step">
-                      <header>
-                        <span>Etapa 2</span>
-                        <h5>Assinar contrato</h5>
-                      </header>
-                      <p>
-                        Digite seu nome, desenhe sua assinatura e confirme o aceite para concluir.
-                      </p>
-
-                      <input
-                        value={signerName}
-                        onChange={(event) => setSignerName(event.target.value)}
-                        placeholder="Nome do assinante (opcional)"
-                        disabled={signing}
-                      />
-
-                      <div className="student-contract-signature-canvas-wrap">
-                        <canvas
-                          ref={signatureCanvasRef}
-                          className="student-contract-signature-canvas"
-                          style={{ touchAction: 'none' }}
-                          onPointerDown={handleSignaturePointerDown}
-                          onPointerMove={handleSignaturePointerMove}
-                          onPointerUp={(event) => finishSignaturePointer(event.pointerId)}
-                          onPointerLeave={(event) => finishSignaturePointer(event.pointerId)}
-                          onPointerCancel={(event) => finishSignaturePointer(event.pointerId)}
-                        />
-                      </div>
-
-                      <div className="student-contract-signature-helper">
-                        <small>Use mouse ou toque para desenhar sua assinatura.</small>
-                        <button
-                          type="button"
-                          onClick={clearSignature}
-                          disabled={!hasSignatureStroke || signing}
-                        >
-                          Limpar assinatura
-                        </button>
-                      </div>
-
-                      <label className="student-contract-accept">
-                        <input
-                          type="checkbox"
-                          checked={acceptTerms}
-                          onChange={(event) => setAcceptTerms(event.target.checked)}
-                          disabled={signing}
-                        />
-                        <span>Declaro que li e aceito os termos da assinatura eletrônica.</span>
-                      </label>
-
-                      <button
-                        type="button"
-                        onClick={() => void signContract()}
-                        disabled={signing}
-                        className="student-contract-sign-submit"
-                      >
-                        {signing ? 'Assinando...' : 'Assinar contrato'}
-                      </button>
-                    </section>
-                  ) : (
-                    <section className="student-contract-step is-disabled">
-                      <header>
-                        <span>Etapa 2</span>
-                        <h5>Assinar contrato</h5>
-                      </header>
-                      <p className="student-contract-step-note">
-                        Etapa 2 será liberada após validar o PIN.
-                      </p>
-                    </section>
-                  )}
-                </>
-              )}
+              ) : null}
             </div>
           )}
         </article>
@@ -703,6 +616,130 @@ export function StudentContractsNative({
           />
         )}
       </article>
+
+      {signModalOpen && selectedContract && (
+        <div 
+          className="native-modal-backdrop"
+          onClick={() => {
+            if (!signing && !verifyingPin && !sendingPin) setSignModalOpen(false);
+          }}
+        >
+          <section className="native-modal native-modal-sm" onClick={e => e.stopPropagation()}>
+            <header>
+              <h3>Assinatura do contrato</h3>
+              <button 
+                type="button" 
+                onClick={() => {
+                  if (!signing && !verifyingPin && !sendingPin) setSignModalOpen(false);
+                }}
+              >
+                Fechar
+              </button>
+            </header>
+
+            {!selectedPinVerified ? (
+              <div className="student-contract-step is-complete" style={{ border: 'none', padding: 0 }}>
+                <header>
+                  <span>Etapa 1</span>
+                  <h5>Validar PIN</h5>
+                </header>
+                <p>Digite o PIN de 6 dígitos recebido por e-mail.</p>
+                <form onSubmit={verifyPin} className="student-contract-pin-form">
+                  <input
+                    value={pinInput}
+                    onChange={(event) => setPinInput(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="Digite o PIN de 6 dígitos"
+                    inputMode="numeric"
+                  />
+                  <div className="native-modal-actions" style={{ marginTop: '1rem' }}>
+                    <button 
+                      type="button" 
+                      className="ghost" 
+                      onClick={() => void requestPin()} 
+                      disabled={sendingPin || verifyingPin}
+                    >
+                      {sendingPin ? 'Enviando PIN...' : 'Solicitar PIN por e-mail'}
+                    </button>
+                    <button type="submit" disabled={verifyingPin || sendingPin}>
+                      {verifyingPin ? 'Validando...' : 'Validar PIN'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : (
+              <div className="student-contract-step" style={{ border: 'none', padding: 0 }}>
+                <header>
+                  <span>Etapa 2</span>
+                  <h5>Assinar contrato</h5>
+                </header>
+                <p>
+                  Digite seu nome, desenhe sua assinatura e confirme o aceite para concluir.
+                </p>
+
+                <input
+                  value={signerName}
+                  onChange={(event) => setSignerName(event.target.value)}
+                  placeholder="Nome do assinante (opcional)"
+                  disabled={signing}
+                />
+
+                <div className="student-contract-signature-canvas-wrap">
+                  <canvas
+                    ref={signatureCanvasRef}
+                    className="student-contract-signature-canvas"
+                    style={{ touchAction: 'none' }}
+                    onPointerDown={handleSignaturePointerDown}
+                    onPointerMove={handleSignaturePointerMove}
+                    onPointerUp={(event) => finishSignaturePointer(event.pointerId)}
+                    onPointerLeave={(event) => finishSignaturePointer(event.pointerId)}
+                    onPointerCancel={(event) => finishSignaturePointer(event.pointerId)}
+                  />
+                </div>
+
+                <div className="student-contract-signature-helper">
+                  <small>Use mouse ou toque para desenhar sua assinatura.</small>
+                  <button
+                    type="button"
+                    onClick={clearSignature}
+                    disabled={!hasSignatureStroke || signing}
+                  >
+                    Limpar assinatura
+                  </button>
+                </div>
+
+                <label className="student-contract-accept">
+                  <input
+                    type="checkbox"
+                    checked={acceptTerms}
+                    onChange={(event) => setAcceptTerms(event.target.checked)}
+                    disabled={signing}
+                  />
+                  <span>Declaro que li e aceito os termos da assinatura eletrônica.</span>
+                </label>
+
+                <div className="native-modal-actions" style={{ marginTop: '1rem' }}>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => setSignModalOpen(false)}
+                    disabled={signing}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void signContract()}
+                    disabled={signing}
+                    className="student-contract-sign-submit"
+                  >
+                    {signing ? 'Assinando...' : 'Confirmar assinatura'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </section>
   );
 }
