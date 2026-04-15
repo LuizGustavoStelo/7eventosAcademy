@@ -3139,7 +3139,7 @@ export class ContractsService {
       : '';
 
     return `
-      <section style="margin-top:24px;padding:16px;border:1px solid #d1d5db;border-radius:8px;background:#f8fafc;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
+      <section style="display:inline-block;width:48%;box-sizing:border-box;vertical-align:top;margin:0 1%;padding:16px;border:1px solid #d1d5db;border-radius:8px;background:#f8fafc;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;text-align:left;">
         <h4 style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:16px;line-height:1.3;">Assinatura institucional</h4>
         <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
           <strong>Assinado por:</strong> ${this.escapeHtml(params.signerName)}
@@ -3178,7 +3178,7 @@ export class ContractsService {
     );
 
     const signatureBlock = `
-      <section style="margin-top:24px;padding:16px;border:1px solid #d1d5db;border-radius:8px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
+      <section style="display:inline-block;width:48%;box-sizing:border-box;vertical-align:top;margin:0 1%;padding:16px;border:1px solid #d1d5db;border-radius:8px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;text-align:left;">
         <h4 style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:16px;line-height:1.3;">Assinatura eletrônica</h4>
         <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;line-height:1.4;">
           <strong>Assinado por:</strong> ${this.escapeHtml(params.signerName)}
@@ -3211,13 +3211,21 @@ export class ContractsService {
 
     const wrapperRange = this.findDocumentWrapperRange(base);
     if (!wrapperRange) {
-      return `${base}\n${CONTRACT_PAGE_BREAK_MARKER}\n${block}`.trim();
+      if (base.includes('<!-- END_SIGNATURES_WRAPPER -->')) {
+        return base.replace('<!-- END_SIGNATURES_WRAPPER -->', `\n${block}\n<!-- END_SIGNATURES_WRAPPER -->`);
+      }
+      return `${base}\n<div data-signatures-wrapper="true" style="text-align:center;margin-top:24px;width:100%;font-size:0;page-break-inside:avoid;">\n${block}\n<!-- END_SIGNATURES_WRAPPER -->\n</div>`.trim();
     }
 
     const inner = base.slice(wrapperRange.contentStart, wrapperRange.contentEnd);
-    const nextInner = inner.trim()
-      ? `${inner}\n${CONTRACT_PAGE_BREAK_MARKER}\n${block}`
-      : block;
+    let nextInner = '';
+    
+    if (inner.includes('<!-- END_SIGNATURES_WRAPPER -->')) {
+      nextInner = inner.replace('<!-- END_SIGNATURES_WRAPPER -->', `\n${block}\n<!-- END_SIGNATURES_WRAPPER -->`);
+    } else {
+      const sigWrapper = `<div data-signatures-wrapper="true" style="text-align:center;margin-top:24px;width:100%;font-size:0;page-break-inside:avoid;">\n${block}\n<!-- END_SIGNATURES_WRAPPER -->\n</div>`;
+      nextInner = inner.trim() ? `${inner}\n${sigWrapper}` : sigWrapper;
+    }
 
     return `${base.slice(0, wrapperRange.contentStart)}${nextInner}${base.slice(wrapperRange.contentEnd)}`.trim();
   }
