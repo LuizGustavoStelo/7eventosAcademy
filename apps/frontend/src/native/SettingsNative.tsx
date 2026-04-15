@@ -17,6 +17,11 @@ type SettingsUser = {
       supportPhone: string | null;
       commercialEmail: string | null;
       commercialPhone: string | null;
+      legalName: string | null;
+      documentCnpj: string | null;
+      address: string | null;
+      contractCity: string | null;
+      contractForum: string | null;
     };
   } | null;
 };
@@ -39,6 +44,11 @@ type InstitutionContactsFormState = {
   supportPhone: string;
   commercialEmail: string;
   commercialPhone: string;
+  legalName: string;
+  documentCnpj: string;
+  address: string;
+  contractCity: string;
+  contractForum: string;
 };
 
 type SettingsNativeProps = {
@@ -76,6 +86,11 @@ export function SettingsNative({
     supportPhone: '',
     commercialEmail: '',
     commercialPhone: '',
+    legalName: '',
+    documentCnpj: '',
+    address: '',
+    contractCity: '',
+    contractForum: '',
   });
 
   const loadData = async (showLoading = true) => {
@@ -94,6 +109,11 @@ export function SettingsNative({
         supportPhone: me.institution?.contacts?.supportPhone || '',
         commercialEmail: me.institution?.contacts?.commercialEmail || '',
         commercialPhone: me.institution?.contacts?.commercialPhone || '',
+        legalName: me.institution?.contacts?.legalName || '',
+        documentCnpj: me.institution?.contacts?.documentCnpj || '',
+        address: me.institution?.contacts?.address || '',
+        contractCity: me.institution?.contacts?.contractCity || '',
+        contractForum: me.institution?.contacts?.contractForum || '',
       });
       setGateway(gatewayConfig);
       onProfileUpdated(me);
@@ -161,6 +181,11 @@ export function SettingsNative({
           supportPhone: string | null;
           commercialEmail: string | null;
           commercialPhone: string | null;
+          legalName: string | null;
+          documentCnpj: string | null;
+          address: string | null;
+          contractCity: string | null;
+          contractForum: string | null;
         };
       }>(token, '/auth/institution-contacts', {
         method: 'PATCH',
@@ -170,6 +195,11 @@ export function SettingsNative({
           supportPhone: contactsForm.supportPhone.trim(),
           commercialEmail: contactsForm.commercialEmail.trim(),
           commercialPhone: contactsForm.commercialPhone.trim(),
+          legalName: contactsForm.legalName.trim(),
+          documentCnpj: contactsForm.documentCnpj.trim(),
+          address: contactsForm.address.trim(),
+          contractCity: contactsForm.contractCity.trim(),
+          contractForum: contactsForm.contractForum.trim(),
         }),
       });
 
@@ -178,6 +208,11 @@ export function SettingsNative({
         supportPhone: response.contacts.supportPhone || '',
         commercialEmail: response.contacts.commercialEmail || '',
         commercialPhone: response.contacts.commercialPhone || '',
+        legalName: response.contacts.legalName || '',
+        documentCnpj: response.contacts.documentCnpj || '',
+        address: response.contacts.address || '',
+        contractCity: response.contacts.contractCity || '',
+        contractForum: response.contacts.contractForum || '',
       });
 
       setUser((current) =>
@@ -424,7 +459,7 @@ export function SettingsNative({
             Boolean(user?.institution?.id) ? (
               <section className="native-panel">
                 <header className="native-panel-header">
-                  <h3>Contatos da instituição</h3>
+                  <h3>Contatos e Configuração (Contratos)</h3>
                 </header>
 
                 <form
@@ -494,6 +529,78 @@ export function SettingsNative({
                     />
                   </label>
 
+                  <h4 style={{ gridColumn: '1 / -1', margin: '16px 0 0 0' }}>Dados da Contratada (Contratos)</h4>
+
+                  <label>
+                    Razão Social / Nome da Contratada
+                    <input
+                      value={contactsForm.legalName}
+                      onChange={(event) =>
+                        setContactsForm((current) => ({
+                          ...current,
+                          legalName: event.target.value,
+                        }))
+                      }
+                      placeholder="Ex: INSTITUTO PROJEÇÃO"
+                    />
+                  </label>
+
+                  <label>
+                    CNPJ
+                    <input
+                      value={contactsForm.documentCnpj}
+                      onChange={(event) =>
+                        setContactsForm((current) => ({
+                          ...current,
+                          documentCnpj: event.target.value,
+                        }))
+                      }
+                      placeholder="Ex: 27.683.733/0001-24"
+                    />
+                  </label>
+
+                  <label style={{ gridColumn: '1 / -1' }}>
+                    Endereço Completo
+                    <input
+                      value={contactsForm.address}
+                      onChange={(event) =>
+                        setContactsForm((current) => ({
+                          ...current,
+                          address: event.target.value,
+                        }))
+                      }
+                      placeholder="Ex: Av. T1, nº 2266, Setor Bueno, Goiânia - GO"
+                    />
+                  </label>
+
+                  <label>
+                    Cidade de Assinatura
+                    <input
+                      value={contactsForm.contractCity}
+                      onChange={(event) =>
+                        setContactsForm((current) => ({
+                          ...current,
+                          contractCity: event.target.value,
+                        }))
+                      }
+                      placeholder="Ex: Goiânia"
+                    />
+                  </label>
+
+                  <label>
+                    Foro do Contrato
+                    <input
+                      value={contactsForm.contractForum}
+                      onChange={(event) =>
+                        setContactsForm((current) => ({
+                          ...current,
+                          contractForum: event.target.value,
+                        }))
+                      }
+                      placeholder="Ex: Comarca de Goiânia/GO"
+                    />
+                  </label>
+
                   {contactsError ? <p className="native-error">{contactsError}</p> : null}
 
                   <div className="native-modal-actions">
@@ -506,6 +613,11 @@ export function SettingsNative({
                           supportPhone: user?.institution?.contacts?.supportPhone || '',
                           commercialEmail: user?.institution?.contacts?.commercialEmail || '',
                           commercialPhone: user?.institution?.contacts?.commercialPhone || '',
+                          legalName: user?.institution?.contacts?.legalName || '',
+                          documentCnpj: user?.institution?.contacts?.documentCnpj || '',
+                          address: user?.institution?.contacts?.address || '',
+                          contractCity: user?.institution?.contacts?.contractCity || '',
+                          contractForum: user?.institution?.contacts?.contractForum || '',
                         })
                       }
                     >

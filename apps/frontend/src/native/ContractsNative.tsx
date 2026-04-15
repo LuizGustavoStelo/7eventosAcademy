@@ -1411,6 +1411,8 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
                             </span>
                             {isTemplateInstitutionSigned(template) ? (
                               <span className="native-status-chip is-success">Assinado</span>
+                            ) : template.status.trim().toUpperCase() === 'PUBLISHED' ? (
+                              <span className="native-status-chip is-danger">Pendente de assinatura</span>
                             ) : null}
                             {hasPendingSignature ? (
                               <span className="native-status-chip is-warning">

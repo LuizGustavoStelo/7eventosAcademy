@@ -35,4 +35,34 @@ export class UpdateInstitutionContactsDto {
   @MaxLength(32)
   @Matches(/^[0-9()+\-\s]{8,32}$/)
   commercialPhone?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => normalizeNullableText(value))
+  @IsString()
+  @MaxLength(255)
+  legalName?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => normalizeNullableText(value))
+  @IsString()
+  @MaxLength(64)
+  documentCnpj?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => normalizeNullableText(value))
+  @IsString()
+  @MaxLength(512)
+  address?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => normalizeNullableText(value))
+  @IsString()
+  @MaxLength(255)
+  contractCity?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => normalizeNullableText(value))
+  @IsString()
+  @MaxLength(255)
+  contractForum?: string;
 }

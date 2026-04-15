@@ -795,9 +795,26 @@ export class ContractsService {
       throw new NotFoundException('Aluno não encontrado nesta instituição.');
     }
 
+    const institution = await this.prisma.institution.findUnique({
+      where: { id: institutionId },
+      select: {
+        legalName: true,
+        documentCnpj: true,
+        address: true,
+        contractCity: true,
+        contractForum: true,
+      },
+    });
+
+    const resolvedCity = institution?.contractCity || String(this.configService.get<string>('CONTRACT_DEFAULT_CITY') || 'Goiânia').trim() || 'Goiânia';
+    const resolvedName = institution?.legalName || String(this.configService.get<string>('CONTRACT_PROVIDER_NAME') || 'INSTITUTO PROJEÇÃO').trim() || 'INSTITUTO PROJEÇÃO';
+    const resolvedCnpj = institution?.documentCnpj || String(this.configService.get<string>('CONTRACT_PROVIDER_DOCUMENT') || '27.683.733/0001-24').trim() || '27.683.733/0001-24';
+    const resolvedAddress = institution?.address || String(this.configService.get<string>('CONTRACT_PROVIDER_ADDRESS') || 'Av. T1, nº 2266, edifício Alpha, Setor Bueno, Goiânia - GO, CEP 74.210-045').trim();
+    const resolvedForum = institution?.contractForum || String(this.configService.get<string>('CONTRACT_FORUM') || 'Comarca de Goiânia/GO').trim() || 'Comarca de Goiânia/GO';
+
     const institutionSignerName =
       String(template.institutionSignedByName || '').trim() ||
-      this.resolveContractProviderName();
+      resolvedName;
     const institutionSignedAt = template.institutionSignedAt;
     const institutionSignatureData =
       this.readInstitutionSignatureDataFromTemplateVersion(
@@ -1112,7 +1129,7 @@ export class ContractsService {
         financial_installments_text: installmentsText,
         financial_installments_table_html: installmentsTableHtml,
         financial_installments_rows_html: installmentsTableHtml,
-        contract_sign_city: this.resolveContractCity(),
+        contract_sign_city: resolvedCity,
         contract_issue_date: this.formatDatePtBr(now),
         contract_issue_date_long: this.formatDateLongPtBr(now),
         contract_issue_datetime: this.formatDateTimePtBr(now),
@@ -1152,17 +1169,17 @@ export class ContractsService {
         financeiro_quantidade_parcelas: installmentCountForSummaryDisplay,
         financeiro_valor_parcela: installmentValueForSummaryDisplay,
         financeiro_formas_valores_resumo: formsAndValuesSummary,
-        contrato_cidade_assinatura: this.resolveContractCity(),
+        contrato_cidade_assinatura: resolvedCity,
         contrato_data_emissao: this.formatDatePtBr(now),
         contrato_data_emissao_extenso: this.formatDateLongPtBr(now),
         contrato_datahora_emissao: this.formatDateTimePtBr(now),
         assinado_por_nome: institutionSignerName,
         assinado_em: this.formatDateTimePtBr(institutionSignedAt),
         codigo_assinatura: signatureCode,
-        contratada_nome: this.resolveContractProviderName(),
-        contratada_cnpj: this.resolveContractProviderDocument(),
-        contratada_endereco: this.resolveContractProviderAddress(),
-        contrato_foro: this.resolveContractForum(),
+        contratada_nome: resolvedName,
+        contratada_cnpj: resolvedCnpj,
+        contratada_endereco: resolvedAddress,
+        contrato_foro: resolvedForum,
       },
     );
     const cleanedUnsignedHtml = this.removeLegacySignatureIdentificationBlock(
@@ -3030,44 +3047,7 @@ export class ContractsService {
     </table>`;
   }
 
-  private resolveContractCity(): string {
-    const value = String(
-      this.configService.get<string>('CONTRACT_DEFAULT_CITY') || 'Goiânia',
-    ).trim();
-    return value || 'Goiânia';
-  }
 
-  private resolveContractProviderName(): string {
-    const value = String(
-      this.configService.get<string>('CONTRACT_PROVIDER_NAME') ||
-        'INSTITUTO PROJEÇÃO',
-    ).trim();
-    return value || 'INSTITUTO PROJEÇÃO';
-  }
-
-  private resolveContractProviderDocument(): string {
-    const value = String(
-      this.configService.get<string>('CONTRACT_PROVIDER_DOCUMENT') ||
-        '27.683.733/0001-24',
-    ).trim();
-    return value || '27.683.733/0001-24';
-  }
-
-  private resolveContractProviderAddress(): string {
-    const value = String(
-      this.configService.get<string>('CONTRACT_PROVIDER_ADDRESS') ||
-        'Av. T1, nº 2266, edifício Alpha, Setor Bueno, Goiânia - GO, CEP 74.210-045',
-    ).trim();
-    return value;
-  }
-
-  private resolveContractForum(): string {
-    const value = String(
-      this.configService.get<string>('CONTRACT_FORUM') ||
-        'Comarca de Goiânia/GO',
-    ).trim();
-    return value || 'Comarca de Goiânia/GO';
-  }
 
   private snapshotToRecord(
     snapshot: Prisma.JsonValue | null,

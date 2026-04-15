@@ -1311,6 +1311,11 @@ export class AuthService {
         supportContactPhone: institution.supportContactPhone,
         commercialContactEmail: institution.commercialContactEmail,
         commercialContactPhone: institution.commercialContactPhone,
+        legalName: institution.legalName,
+        documentCnpj: institution.documentCnpj,
+        address: institution.address,
+        contractCity: institution.contractCity,
+        contractForum: institution.contractForum,
       }),
       updatedAt: institution.updatedAt,
     };
@@ -1333,6 +1338,11 @@ export class AuthService {
       supportContactPhone: this.normalizeNullablePhone(dto.supportPhone),
       commercialContactEmail: this.normalizeNullableEmail(dto.commercialEmail),
       commercialContactPhone: this.normalizeNullablePhone(dto.commercialPhone),
+      legalName: dto.legalName?.trim() || null,
+      documentCnpj: dto.documentCnpj?.trim() || null,
+      address: dto.address?.trim() || null,
+      contractCity: dto.contractCity?.trim() || null,
+      contractForum: dto.contractForum?.trim() || null,
     };
 
     const updated = await this.prisma.institution.update({
@@ -1346,6 +1356,11 @@ export class AuthService {
         supportContactPhone: true,
         commercialContactEmail: true,
         commercialContactPhone: true,
+        legalName: true,
+        documentCnpj: true,
+        address: true,
+        contractCity: true,
+        contractForum: true,
         updatedAt: true,
       },
     });
@@ -1922,6 +1937,11 @@ export class AuthService {
             supportContactPhone: true,
             commercialContactEmail: true,
             commercialContactPhone: true,
+            legalName: true,
+            documentCnpj: true,
+            address: true,
+            contractCity: true,
+            contractForum: true,
             updatedAt: true,
           },
         },
@@ -1942,12 +1962,22 @@ export class AuthService {
     supportContactPhone?: string | null;
     commercialContactEmail?: string | null;
     commercialContactPhone?: string | null;
+    legalName?: string | null;
+    documentCnpj?: string | null;
+    address?: string | null;
+    contractCity?: string | null;
+    contractForum?: string | null;
   }) {
     return {
       supportEmail: input.supportContactEmail?.trim() || null,
       supportPhone: input.supportContactPhone?.trim() || null,
       commercialEmail: input.commercialContactEmail?.trim() || null,
       commercialPhone: input.commercialContactPhone?.trim() || null,
+      legalName: input.legalName?.trim() || null,
+      documentCnpj: input.documentCnpj?.trim() || null,
+      address: input.address?.trim() || null,
+      contractCity: input.contractCity?.trim() || null,
+      contractForum: input.contractForum?.trim() || null,
     };
   }
 
