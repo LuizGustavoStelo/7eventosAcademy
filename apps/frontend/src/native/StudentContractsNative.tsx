@@ -130,7 +130,6 @@ export function StudentContractsNative({
   const selectedStatus = selectedContract?.status.trim().toUpperCase() ?? '';
   const selectedIsSigned = selectedStatus === 'SIGNED';
   const selectedPinVerified = selectedStatus === 'PIN_VERIFIED' || selectedStatus === 'SIGNED';
-  const shouldShowSignatureStep = selectedPinVerified && !selectedIsSigned;
 
   const resetSignatureCanvas = useCallback(() => {
     const canvas = signatureCanvasRef.current;
