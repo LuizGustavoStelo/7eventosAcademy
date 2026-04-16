@@ -415,6 +415,7 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
   const [studentsSearch, setStudentsSearch] = useState('');
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [deletingStudentId, setDeletingStudentId] = useState<string | null>(null);
+  const [changingPasswordUserId, setChangingPasswordUserId] = useState<string | null>(null);
   const [students, setStudents] = useState<PlatformStudent[]>([]);
   const [dashboard, setDashboard] = useState<AccountsDashboardResponse | null>(
     null,
@@ -904,6 +905,55 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
     }
   };
 
+  const changeUserPassword = async (input: {
+    id: string;
+    name: string;
+    email: string;
+    label: string;
+  }) => {
+    const newPassword = window.prompt(
+      `Informe a nova senha para ${input.label} "${input.name}" (${input.email}).`,
+    );
+    if (newPassword === null) return;
+
+    const normalizedPassword = newPassword.trim();
+    if (!normalizedPassword) {
+      setError('Informe uma senha válida para redefinir.');
+      return;
+    }
+
+    if (normalizedPassword.length < 8) {
+      setError('A senha deve ter no mínimo 8 caracteres.');
+      return;
+    }
+
+    setChangingPasswordUserId(input.id);
+    setError('');
+    setFeedback('');
+
+    try {
+      await apiRequest<{ success: boolean; message?: string }>(
+        token,
+        `/superadmin/accounts/users/${input.id}/password`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: normalizedPassword }),
+        },
+      );
+
+      setFeedback(`Senha de "${input.name}" alterada com sucesso.`);
+    } catch (changeError) {
+      setError(
+        changeError instanceof Error
+          ? changeError.message
+          : 'Falha ao alterar a senha do usuário.',
+      );
+    } finally {
+      setChangingPasswordUserId((current) => (current === input.id ? null : current));
+    }
+  };
+
   const removeStudent = async (student: PlatformStudent) => {
     const confirmed = window.confirm(
       `Deseja realmente excluir o aluno "${student.name}"? Esta ação não pode ser desfeita.`,
@@ -1068,6 +1118,23 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                 <div className="native-super-selected-account">
                   <strong>{selectedAccount.name}</strong>
                   <small>{selectedAccount.email}</small>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      void changeUserPassword({
+                        id: selectedAccount.id,
+                        name: selectedAccount.name,
+                        email: selectedAccount.email,
+                        label: 'conta',
+                      });
+                    }}
+                    disabled={changingPasswordUserId === selectedAccount.id}
+                  >
+                    {changingPasswordUserId === selectedAccount.id
+                      ? 'Alterando senha...'
+                      : 'Alterar senha da conta'}
+                  </button>
                   <small>
                     Instituição:{' '}
                     {brandingMeta?.institutionName ||
@@ -1717,18 +1784,37 @@ export function SuperadminAccountsNative({ token }: SuperadminAccountsNativeProp
                           <td>{student.enrollments?.length ?? 0}</td>
                           <td>{student.statusLabel ?? 'Sem definição'}</td>
                           <td>
-                            <button
-                              type="button"
-                              className="native-super-student-delete-btn"
-                              onClick={() => {
-                                void removeStudent(student);
-                              }}
-                              disabled={deletingStudentId === student.id}
-                            >
-                              {deletingStudentId === student.id
-                                ? 'Excluindo...'
-                                : 'Excluir aluno'}
-                            </button>
+                            <div className="native-super-student-actions">
+                              <button
+                                type="button"
+                                className="native-super-student-password-btn"
+                                onClick={() => {
+                                  void changeUserPassword({
+                                    id: student.id,
+                                    name: student.name,
+                                    email: student.email,
+                                    label: 'aluno',
+                                  });
+                                }}
+                                disabled={changingPasswordUserId === student.id}
+                              >
+                                {changingPasswordUserId === student.id
+                                  ? 'Alterando...'
+                                  : 'Alterar senha'}
+                              </button>
+                              <button
+                                type="button"
+                                className="native-super-student-delete-btn"
+                                onClick={() => {
+                                  void removeStudent(student);
+                                }}
+                                disabled={deletingStudentId === student.id}
+                              >
+                                {deletingStudentId === student.id
+                                  ? 'Excluindo...'
+                                  : 'Excluir aluno'}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

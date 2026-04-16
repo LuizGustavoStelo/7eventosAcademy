@@ -4555,6 +4555,34 @@ table button:disabled {
   font-size: 0.74rem;
 }
 
+.native-super-student-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.native-super-student-password-btn {
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 9px;
+  padding: 0.38rem 0.66rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.native-super-student-password-btn:hover:not(:disabled) {
+  border-color: rgba(15, 23, 42, 0.35);
+  background: #f8fafc;
+}
+
+.native-super-student-password-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .native-super-student-delete-btn {
   border: 1px solid rgba(185, 28, 28, 0.28);
   background: #fff5f5;

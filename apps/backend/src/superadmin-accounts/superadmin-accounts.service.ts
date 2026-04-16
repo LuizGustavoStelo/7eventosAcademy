@@ -11,6 +11,7 @@ import { request as httpsRequest } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Prisma, UploadOwnerType, UserRole } from '@prisma/client';
+import { hash } from 'bcryptjs';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../database/prisma.service';
 import { SecretsService } from '../security/secrets/secrets.service';
@@ -21,6 +22,7 @@ import {
   UpsertAccountFinancialConfigDto,
 } from './dto/upsert-account-financial-config.dto';
 import { CreateImpersonationSessionDto } from './dto/create-impersonation-session.dto';
+import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
 
 type SicoobSettings = {
   // Legacy field kept only for backward compatibility with old payloads.
@@ -906,6 +908,51 @@ export class SuperadminAccountsService {
       reason: dto.reason,
       durationMinutes: dto.durationMinutes,
     });
+  }
+
+  async resetUserPassword(userId: string, dto: ResetUserPasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    if (user.role !== UserRole.ADMIN && user.role !== UserRole.USER) {
+      throw new BadRequestException(
+        'A redefinição de senha é permitida apenas para contas admin e aluno.',
+      );
+    }
+
+    const passwordHash = await hash(dto.password, 12);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetCodeHash: null,
+        passwordResetCodeExpiresAt: null,
+        passwordResetCodeSentAt: null,
+      },
+    });
+
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role.toLowerCase(),
+      },
+      message: 'Senha redefinida com sucesso.',
+    };
   }
 
   private async findAdminAccountWithInstitution(userId: string) {

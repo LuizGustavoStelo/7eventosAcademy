@@ -12,6 +12,7 @@ import { MultipartFile } from '@fastify/multipart';
 import type { FastifyRequest } from 'fastify';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CreateImpersonationSessionDto } from './dto/create-impersonation-session.dto';
+import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
 import { UpsertAccountBrandingDto } from './dto/upsert-account-branding.dto';
 import { UpsertAccountFinancialConfigDto } from './dto/upsert-account-financial-config.dto';
 import { SuperadminAccountsService } from './superadmin-accounts.service';
@@ -96,5 +97,13 @@ export class SuperadminAccountsController {
       userId,
       dto,
     );
+  }
+
+  @Put('users/:userId/password')
+  async resetUserPassword(
+    @Param('userId') userId: string,
+    @Body() dto: ResetUserPasswordDto,
+  ) {
+    return this.superadminAccountsService.resetUserPassword(userId, dto);
   }
 }
