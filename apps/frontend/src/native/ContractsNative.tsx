@@ -2242,7 +2242,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
 
             {autoSendError ? <p className="native-error">{autoSendError}</p> : null}
 
-            <div className="native-modal-actions">
+            <div className="native-modal-actions" style={{ marginTop: '2rem', justifyContent: 'center', width: '100%' }}>
               <button
                 type="button"
                 className="ghost"
@@ -2253,6 +2253,7 @@ export function ContractsNative({ token, mode = 'hub' }: ContractsNativeProps) {
               </button>
               <button
                 type="button"
+                className="student-contract-sign-submit"
                 onClick={() => void signInstitutionForSelectedTemplate()}
                 disabled={signingTemplateInstitution}
               >

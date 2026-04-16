@@ -170,6 +170,18 @@ export function buildContractPreviewSrcDoc(rawHtml: string) {
       padding: 14px;
       min-height: 100vh;
       overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .scale-wrapper {
+      width: 794px;
+    }
+    @media (max-width: 822px) {
+      body { padding: 8px; }
+      .scale-wrapper {
+        zoom: calc((100vw - 16px) / 794);
+      }
     }
     .contract-preview-sheet {
       width: 794px;
@@ -190,20 +202,8 @@ export function buildContractPreviewSrcDoc(rawHtml: string) {
     .contract-preview-separator {
       height: 14px;
     }
-    @media (max-width: 860px) {
-      body { padding: 8px; }
-      .contract-preview-sheet {
-        width: 100%;
-      }
-      .contract-preview-page {
-        width: 100%;
-        min-height: auto;
-        height: auto;
-        max-height: none;
-      }
-    }
   </style>
 </head>
-<body>${bodyHtml || `<article class="contract-preview-sheet"><section class="contract-preview-page"><p>${escapeHtmlForIframe('Sem conteúdo para pré-visualizar.')}</p></section></article>`}</body>
+<body><div class="scale-wrapper">${bodyHtml || `<article class="contract-preview-sheet"><section class="contract-preview-page"><p>${escapeHtmlForIframe('Sem conteúdo para pré-visualizar.')}</p></section></article>`}</div></body>
 </html>`;
 }

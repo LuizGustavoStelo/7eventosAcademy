@@ -3340,6 +3340,15 @@ export class ContractsService {
       return '';
     });
 
+    let imageOpacity = 1;
+    const gradientRegex = /linear-gradient\(\s*rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*([0-9.]+)\s*\)\s*,\s*rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*[0-9.]+\s*\)\s*\)\s*,\s*/gi;
+    backgroundStyle = backgroundStyle.replace(gradientRegex, (_match, alpha) => {
+      const parsed = parseFloat(alpha);
+      if (!isNaN(parsed)) imageOpacity = Math.max(0, 1 - parsed);
+      return '';
+    });
+    const opacityStyle = imageOpacity < 1 ? `opacity:${imageOpacity};` : '';
+
     const paddingRegex = /padding\s*:\s*([^;]+);?/gi;
     const paddingMatch = contentStyle.match(paddingRegex);
     const paddingValue = paddingMatch ? paddingMatch[1].trim() : '48px';
@@ -3349,7 +3358,7 @@ export class ContractsService {
     contentStyle = contentStyle.replace(heightRegex, '');
 
     const fixedBgHtml = backgroundStyle
-      ? `<div style="position:fixed;top:-${paddingValue};left:-${paddingValue};right:-${paddingValue};bottom:-${paddingValue};z-index:-1;${backgroundStyle}"></div>`
+      ? `<div style="position:fixed;top:-${paddingValue};left:-${paddingValue};right:-${paddingValue};bottom:-${paddingValue};z-index:-1;${opacityStyle}${backgroundStyle}"></div>`
       : '';
 
     const contentHtml = pages.join('\n');
