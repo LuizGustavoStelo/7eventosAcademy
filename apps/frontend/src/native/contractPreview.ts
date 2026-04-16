@@ -165,6 +165,7 @@ export function buildContractPreviewSrcDoc(rawHtml: string) {
       background: #eef2f7;
       color: #0f172a;
       font-family: Arial, sans-serif;
+      overflow-x: hidden;
     }
     body {
       padding: 14px;
@@ -180,7 +181,7 @@ export function buildContractPreviewSrcDoc(rawHtml: string) {
     @media (max-width: 822px) {
       body { padding: 8px; }
       .scale-wrapper {
-        zoom: calc((100vw - 16px) / 794);
+        zoom: calc((100vw - 48px) / 794);
       }
     }
     .contract-preview-sheet {
