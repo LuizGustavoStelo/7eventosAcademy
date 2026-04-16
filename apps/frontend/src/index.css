@@ -815,6 +815,7 @@ table button:disabled {
   padding: 1.9rem 1.75rem;
   display: grid;
   gap: 1rem;
+  overflow-x: hidden;
 }
 
 .native-page-header h2 {
@@ -829,6 +830,8 @@ table button:disabled {
   color: #6b7280;
   font-size: 1.05rem;
   line-height: 1.35;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .native-kpi-grid {
@@ -885,6 +888,7 @@ table button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.8rem;
   margin-bottom: 0.75rem;
 }
@@ -3660,6 +3664,7 @@ table button:disabled {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.6rem;
 }
 
@@ -5565,11 +5570,14 @@ table button {
   }
 
   .native-kpi-grid,
-  .native-kpi-grid.native-kpi-grid-small,
   .native-grid-2,
   .native-finance-kpis,
   .native-super-kpi-grid {
     grid-template-columns: 1fr;
+  }
+
+  .native-kpi-grid.native-kpi-grid-small {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .native-courses-grid {
@@ -9579,6 +9587,7 @@ table button {
   justify-content: space-between;
   gap: 0.5rem;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .native-contract-template-chips {
@@ -9679,7 +9688,7 @@ table button {
 
 .native-contract-model-summary-grid {
   display: grid;
-  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
   gap: 0.75rem;
   align-items: start;
 }
@@ -9795,6 +9804,7 @@ table button {
   display: flex;
   align-items: center;
   gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
 .native-contract-instance-filters select {
@@ -10151,7 +10161,7 @@ table button {
   }
 
   .native-contract-quick-kpis {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .native-contract-details-meta {
@@ -10160,6 +10170,10 @@ table button {
 
   .student-contract-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .native-contract-template-list {
+    max-height: 320px;
   }
 }
 
@@ -10202,6 +10216,37 @@ table button {
 @media (max-width: 640px) {
   .student-contract-signature-canvas {
     height: 170px;
+  }
+
+  .native-page-header h2 {
+    font-size: 1.45rem;
+  }
+
+  .native-page-header p {
+    font-size: 0.92rem;
+  }
+
+  .native-contract-quick-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .native-contract-template-main {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .native-contract-template-chips {
+    justify-content: flex-start;
+  }
+
+  .native-contract-accordion-trigger {
+    font-size: 0.88rem;
+    padding: 0.6rem 0.55rem;
+  }
+
+  .native-contract-editor-tooltip {
+    white-space: normal;
+    max-width: 200px;
   }
 }
 .native-users-admin .native-users-permissions-grid {
