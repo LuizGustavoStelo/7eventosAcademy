@@ -637,20 +637,21 @@ export function StudentContractsNative({
             </header>
 
             {!selectedPinVerified ? (
-              <div className="student-contract-step is-complete" style={{ border: 'none', padding: 0 }}>
-                <header>
-                  <span>Etapa 1</span>
-                  <h5>Validar PIN</h5>
+              <div className="student-contract-step is-complete" style={{ border: 'none', padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                <header style={{ borderBottom: 'none', padding: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1rem', background: 'transparent' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Etapa 1</span>
+                  <h5 style={{ margin: '0.25rem 0 0', fontSize: '1.25rem' }}>Validar PIN</h5>
                 </header>
-                <p>Digite o PIN de 6 dígitos recebido por e-mail.</p>
-                <form onSubmit={verifyPin} className="student-contract-pin-form">
+                <p style={{ marginBottom: '1.5rem', color: '#64748b' }}>Digite o PIN de 6 dígitos recebido por e-mail.</p>
+                <form onSubmit={verifyPin} className="student-contract-pin-form" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <input
                     value={pinInput}
                     onChange={(event) => setPinInput(event.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="Digite o PIN de 6 dígitos"
                     inputMode="numeric"
+                    style={{ textAlign: 'center', width: '100%', maxWidth: '300px', fontSize: '1.25rem', letterSpacing: '0.1em' }}
                   />
-                  <div className="native-modal-actions" style={{ marginTop: '1rem' }}>
+                  <div className="native-modal-actions" style={{ marginTop: '2rem', justifyContent: 'center', width: '100%' }}>
                     <button 
                       type="button" 
                       className="ghost" 
@@ -666,12 +667,12 @@ export function StudentContractsNative({
                 </form>
               </div>
             ) : (
-              <div className="student-contract-step" style={{ border: 'none', padding: 0 }}>
-                <header>
-                  <span>Etapa 2</span>
-                  <h5>Assinar contrato</h5>
+              <div className="student-contract-step" style={{ border: 'none', padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                <header style={{ borderBottom: 'none', padding: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1rem', background: 'transparent' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Etapa 2</span>
+                  <h5 style={{ margin: '0.25rem 0 0', fontSize: '1.25rem' }}>Assinar contrato</h5>
                 </header>
-                <p>
+                <p style={{ marginBottom: '1.5rem', color: '#64748b' }}>
                   Digite seu nome, desenhe sua assinatura e confirme o aceite para concluir.
                 </p>
 
@@ -680,13 +681,14 @@ export function StudentContractsNative({
                   onChange={(event) => setSignerName(event.target.value)}
                   placeholder="Nome do assinante (opcional)"
                   disabled={signing}
+                  style={{ textAlign: 'center', width: '100%', maxWidth: '400px', marginBottom: '1.25rem' }}
                 />
 
-                <div className="student-contract-signature-canvas-wrap">
+                <div className="student-contract-signature-canvas-wrap" style={{ width: '100%', maxWidth: '400px', margin: '0 auto' }}>
                   <canvas
                     ref={signatureCanvasRef}
                     className="student-contract-signature-canvas"
-                    style={{ touchAction: 'none' }}
+                    style={{ touchAction: 'none', width: '100%', border: '1px dashed #cbd5e1', borderRadius: '0.5rem', background: '#f8fafc' }}
                     onPointerDown={handleSignaturePointerDown}
                     onPointerMove={handleSignaturePointerMove}
                     onPointerUp={(event) => finishSignaturePointer(event.pointerId)}
@@ -695,10 +697,11 @@ export function StudentContractsNative({
                   />
                 </div>
 
-                <div className="student-contract-signature-helper">
-                  <small>Use mouse ou toque para desenhar sua assinatura.</small>
+                <div className="student-contract-signature-helper" style={{ width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', marginTop: '1rem', marginBottom: '1.5rem' }}>
+                  <small style={{ color: '#94a3b8' }}>Use o mouse ou toque para desenhar sua assinatura.</small>
                   <button
                     type="button"
+                    className="ghost"
                     onClick={clearSignature}
                     disabled={!hasSignatureStroke || signing}
                   >
@@ -706,17 +709,18 @@ export function StudentContractsNative({
                   </button>
                 </div>
 
-                <label className="student-contract-accept">
+                <label className="student-contract-accept" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'left', gap: '0.75rem', width: '100%', maxWidth: '400px', margin: '0 auto', color: '#334155', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={acceptTerms}
                     onChange={(event) => setAcceptTerms(event.target.checked)}
                     disabled={signing}
+                    style={{ flexShrink: 0, width: '1.25rem', height: '1.25rem', cursor: 'pointer' }}
                   />
-                  <span>Declaro que li e aceito os termos da assinatura eletrônica.</span>
+                  <span style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>Declaro que li e aceito os termos da assinatura eletrônica.</span>
                 </label>
 
-                <div className="native-modal-actions" style={{ marginTop: '1rem' }}>
+                <div className="native-modal-actions" style={{ marginTop: '2rem', justifyContent: 'center', width: '100%' }}>
                   <button
                     type="button"
                     className="ghost"

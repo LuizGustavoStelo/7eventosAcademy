@@ -1021,8 +1021,8 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
     const endDateParsed = form.endDate ? parseBrDate(form.endDate) : null;
     const repeatUntilParsed = form.repeatUntil ? parseBrDate(form.repeatUntil) : null;
 
-    if (!cleanName || !form.courseId || !startDateTimeParsed) {
-      setError('Preencha nome, curso e data de início.');
+    if (!cleanName || !form.courseId) {
+      setError('Preencha nome e curso.');
       return;
     }
 
@@ -1049,7 +1049,7 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
 
     setSaving(true);
     try {
-      const startDateIso = startDateTimeParsed.toISOString();
+      const startDateIso = startDateTimeParsed ? startDateTimeParsed.toISOString() : undefined;
       const endDateIso =
         form.recurrenceKind === 'none'
           ? endDateParsed
@@ -1121,29 +1121,31 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
         preserveExisting: !form.id && form.autoEnrollNewStudents,
         ignoreAlreadyEnrolledOnAdd: !form.id && form.autoEnrollNewStudents,
       });
-      await syncClassEventsToAgenda({
-        classId,
-        className: cleanName,
-        startDateTime: startDateIso,
-        recurrenceKind: form.recurrenceKind,
-        repeatUntil: endDateIso || '',
-        weeklyDays: form.weeklyDays,
-        monthDay: form.monthDay,
-      });
-
-      setClassEventMetaByClassId((current) => ({
-        ...current,
-        [classId]: {
+      if (startDateIso) {
+        await syncClassEventsToAgenda({
           classId,
+          className: cleanName,
+          startDateTime: startDateIso,
           recurrenceKind: form.recurrenceKind,
-          repeatUntil: endDateIso || null,
-          monthDay:
-            form.recurrenceKind === 'monthly' && form.monthDay.trim() !== ''
-              ? Number(form.monthDay)
-              : null,
-          weeklyDays: form.recurrenceKind === 'weekly' ? form.weeklyDays : [],
-        },
-      }));
+          repeatUntil: endDateIso || '',
+          weeklyDays: form.weeklyDays,
+          monthDay: form.monthDay,
+        });
+
+        setClassEventMetaByClassId((current) => ({
+          ...current,
+          [classId]: {
+            classId,
+            recurrenceKind: form.recurrenceKind,
+            repeatUntil: endDateIso || null,
+            monthDay:
+              form.recurrenceKind === 'monthly' && form.monthDay.trim() !== ''
+                ? Number(form.monthDay)
+                : null,
+            weeklyDays: form.recurrenceKind === 'weekly' ? form.weeklyDays : [],
+          },
+        }));
+      }
 
       await loadData();
       setModalOpen(false);
@@ -1586,7 +1588,7 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
               </label>
 
               <label>
-                Data e hora de início
+                Data e hora de início (opcional)
                 <input
                   type="text"
                   value={form.startDateTime}
@@ -1599,7 +1601,6 @@ export function ClassesNative({ token, onNavigate }: ClassesNativeProps) {
                   placeholder="DD/MM/AAAA HH:MM"
                   inputMode="numeric"
                   maxLength={16}
-                  required
                 />
               </label>
 

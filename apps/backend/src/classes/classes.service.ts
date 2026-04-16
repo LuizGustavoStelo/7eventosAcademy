@@ -42,7 +42,7 @@ export class ClassesService {
     }
 
     const endDate = dto.endDate ? new Date(dto.endDate) : undefined;
-    if (endDate && endDate < new Date(dto.startDate)) {
+    if (endDate && dto.startDate && endDate < new Date(dto.startDate)) {
       throw new BadRequestException(
         'A data de término não pode ser menor que a data de início.',
       );
@@ -54,7 +54,7 @@ export class ClassesService {
         institutionId: course.institutionId,
         name: dto.name.trim(),
         totalSeats: dto.totalSeats,
-        startDate: new Date(dto.startDate),
+        startDate: dto.startDate ? new Date(dto.startDate) : null,
         endDate,
         autoEnrollNewStudents: dto.autoEnrollNewStudents ?? true,
       },
@@ -168,12 +168,12 @@ export class ClassesService {
       }
     }
 
-    const startDate = dto.startDate
+    const startDate = dto.startDate === null ? null : (dto.startDate
       ? new Date(dto.startDate)
-      : existingClass.startDate;
-    const endDate = dto.endDate ? new Date(dto.endDate) : existingClass.endDate;
+      : existingClass.startDate);
+    const endDate = dto.endDate === null ? null : (dto.endDate ? new Date(dto.endDate) : existingClass.endDate);
 
-    if (endDate && endDate < startDate) {
+    if (endDate && startDate && endDate < startDate) {
       throw new BadRequestException(
         'A data de término não pode ser menor que a data de início.',
       );

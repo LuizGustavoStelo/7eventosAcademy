@@ -444,7 +444,7 @@ export class EnrollmentsService {
 
   private buildInstallmentCharges(input: {
     enrollmentCreatedAt: Date;
-    classStartDate: Date;
+    classStartDate: Date | null;
     paymentModel: string;
     installmentMonths: number | null;
     installmentValue: { toNumber: () => number } | null;
@@ -602,7 +602,7 @@ export class EnrollmentsService {
 
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const base = new Date(input.classStartDate);
+    const base = input.classStartDate ? new Date(input.classStartDate) : new Date(input.enrollmentCreatedAt);
     const result: Array<{
       dueDate: Date;
       amount: number;
@@ -625,7 +625,7 @@ export class EnrollmentsService {
 
   private buildEnrollmentChargesForPreContractFlow(input: {
     enrollmentCreatedAt: Date;
-    classStartDate: Date;
+    classStartDate: Date | null;
     enrollmentFee: number;
     paymentModel: string;
     installmentMonths: number | null;

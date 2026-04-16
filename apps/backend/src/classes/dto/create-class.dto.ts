@@ -21,8 +21,9 @@ export class CreateClassDto {
   @Min(1)
   totalSeats!: number;
 
+  @IsOptional()
   @IsDateString()
-  startDate!: string;
+  startDate?: string;
 
   @IsOptional()
   @IsDateString()

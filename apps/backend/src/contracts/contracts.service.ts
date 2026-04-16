@@ -2296,7 +2296,7 @@ export class ContractsService {
   }
 
   private buildChargesForEnrollmentAfterContract(input: {
-    classStartDate: Date;
+    classStartDate: Date | null;
     signedAt: Date;
     enrollmentFee: number;
     paymentModel: string;
@@ -2403,7 +2403,7 @@ export class ContractsService {
         return result;
       }
 
-      const base = new Date(input.classStartDate);
+      const base = input.classStartDate ? new Date(input.classStartDate) : new Date(input.signedAt);
       if (Number.isNaN(base.getTime())) return result;
 
       for (let index = 0; index < months; index += 1) {
@@ -2434,7 +2434,7 @@ export class ContractsService {
       return result;
     }
 
-    const base = new Date(input.classStartDate);
+    const base = input.classStartDate ? new Date(input.classStartDate) : new Date(input.signedAt);
 
     for (let index = 0; index < months; index += 1) {
       const dueDate = new Date(base.getTime());
