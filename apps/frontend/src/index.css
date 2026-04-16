@@ -799,6 +799,7 @@ table button:disabled {
 .native-content-wrap {
   height: 100%;
   overflow: auto;
+  overflow-x: hidden;
   background: #f7f8fa;
 }
 
@@ -816,6 +817,8 @@ table button:disabled {
   display: grid;
   gap: 1rem;
   overflow-x: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .native-page-header h2 {
@@ -851,6 +854,8 @@ table button:disabled {
   padding: 0.9rem;
   display: grid;
   gap: 0.3rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .native-kpi-card span {
@@ -882,6 +887,8 @@ table button:disabled {
   border-radius: 14px;
   background: #fff;
   padding: 0.9rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .native-panel-header {
@@ -9540,20 +9547,32 @@ table button {
   }
 }
 
+.native-contracts {
+  overflow: hidden;
+}
+
 .native-contracts-layout {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 0.85rem;
   align-items: start;
+  min-width: 0;
 }
 
 .native-contracts-layout.is-editor-page {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.native-contracts-sidebar {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .native-contracts-main {
   display: grid;
   gap: 0.85rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .native-contract-template-list {
