@@ -759,6 +759,20 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
       return;
     }
 
+    // 2. Rastreio Forçado de Foco (Caret Tracking)
+    let savedRange: Range | null = null;
+    let savedContainer: Node | null = null;
+    let savedOffset = 0;
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      if (pages.some((node) => node.contains(range.startContainer))) {
+        savedRange = range.cloneRange();
+        savedContainer = range.startContainer;
+        savedOffset = range.startOffset;
+      }
+    }
+
     const first = Math.max(0, Math.min(startIndex, pages.length - 1));
     let appendNew = false;
     let appendFrom: number | null = null;
@@ -766,6 +780,22 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
     for (let i = first; i < pages.length; i += 1) {
       const current = pages[i];
       const next = pages[i + 1] || null;
+
+      // 1. Fazer a refluência reversa (Backflow)
+      if (next) {
+        let backflowGuard = 0;
+        while (current.scrollHeight <= current.clientHeight + 1 && next.firstChild && backflowGuard < 600) {
+          backflowGuard += 1;
+          const nodeToPull = next.firstChild;
+          current.appendChild(nodeToPull);
+          if (current.scrollHeight > current.clientHeight + 1) {
+            current.removeChild(nodeToPull);
+            next.insertBefore(nodeToPull, next.firstChild);
+            break;
+          }
+        }
+      }
+
       let guard = 0;
       while (current.scrollHeight > current.clientHeight + 1 && guard < 600) {
         guard += 1;
@@ -864,18 +894,54 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
       return;
     }
 
-    let lastNonEmpty = -1;
-    pages.forEach((page, index) => {
-      const text = String(page.textContent || '').trim();
-      if (text || hasMeaningfulHtml(page.innerHTML || '')) lastNonEmpty = index;
-    });
-    const desired = Math.max(1, lastNonEmpty + 1);
-    if (desired < pageCount) setPageCount(desired);
+    // 3. Eliminação Refinada de Fantasmas ("Garbage Pages")
+    const isGarbage = (node: HTMLDivElement) => {
+      return !(String(node.textContent || '').trim().length > 0 || node.querySelector('img, table, iframe') !== null);
+    };
+
+    let desired = pageCount;
+    while (desired > 1 && isGarbage(pages[desired - 1])) {
+      desired -= 1;
+    }
+
+    // Garantia de não extinguir do React a página em que o usuário se encontra ativamente
+    if (activePageIndex >= desired) {
+      desired = Math.max(1, activePageIndex + 1);
+    }
+
+    if (desired < pageCount) {
+      setPageCount(desired);
+    }
 
     updateEmpty();
     refreshPreviews();
     emitChange();
-  }, [emitChange, pageCount, refreshPreviews, updateEmpty]);
+
+    // 2. Rastreio Forçado de Foco (Caret Tracking) - Restauração
+    if (savedContainer && savedRange) {
+      const parentPageIdx = pages.findIndex(page => page.contains(savedContainer));
+      if (parentPageIdx !== -1) {
+        setActivePageIndex(parentPageIdx);
+        window.setTimeout(() => {
+          const sel = window.getSelection();
+          if (sel) {
+            sel.removeAllRanges();
+            const newRange = document.createRange();
+            try {
+              newRange.setStart(savedContainer!, savedOffset);
+              newRange.collapse(true);
+              sel.addRange(newRange);
+            } catch (e) {
+              // Ignorar erros caso nó já tenha sido recriado fora do track
+            }
+          }
+          if (pageRefs.current[parentPageIdx]) {
+            pageRefs.current[parentPageIdx]?.focus();
+          }
+        }, 0);
+      }
+    }
+  }, [emitChange, pageCount, refreshPreviews, updateEmpty, activePageIndex]);
 
   const requestPagination = useCallback((startIndex = 0) => {
     const safeStart = Math.max(0, startIndex);
@@ -983,6 +1049,52 @@ export function ContractWordEditor({ value, onChange, placeholders, disabled = f
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
+      // 4. Hook de Transbordo Frontal (Interceptação de Backspace)
+      if (event.key === 'Backspace' && activePageIndex > 0) {
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          const active = getActiveEditorNode();
+          if (active && range.collapsed && range.startOffset === 0) {
+            let isAtBeginning = false;
+            if (range.startContainer === active) {
+              isAtBeginning = true;
+            } else {
+              let firstChild: Node | null = active.firstChild;
+              while (firstChild && firstChild.nodeType !== Node.TEXT_NODE && firstChild.firstChild) {
+                 firstChild = firstChild.firstChild;
+              }
+              if (firstChild && range.startContainer === firstChild) {
+                isAtBeginning = true;
+              } else if (range.startContainer.parentNode === active && !range.startContainer.previousSibling) {
+                isAtBeginning = true;
+              }
+            }
+
+            if (isAtBeginning) {
+              event.preventDefault();
+              const prevIndex = activePageIndex - 1;
+              setActivePageIndex(prevIndex);
+              window.setTimeout(() => {
+                const prevPage = pageRefs.current[prevIndex];
+                if (prevPage) {
+                  prevPage.focus();
+                  const newRange = document.createRange();
+                  newRange.selectNodeContents(prevPage);
+                  newRange.collapse(false); // encolhe pro final
+                  const sel = window.getSelection();
+                  if (sel) {
+                    sel.removeAllRanges();
+                    sel.addRange(newRange);
+                  }
+                }
+              }, 0);
+              return;
+            }
+          }
+        }
+      }
+
       if ((event.ctrlKey || event.metaKey) && !event.altKey) {
         const key = event.key.toLowerCase();
         const execute = (cmd: string, value?: string) => {
