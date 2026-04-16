@@ -3331,13 +3331,33 @@ export class ContractsService {
 
     if (!pages.length) return source;
 
-    const pageStyle =
-      wrapperRange.style ||
-      'max-width:794px;min-height:1123px;width:100%;margin:0 auto;box-sizing:border-box;background:#fff;';
+    const originalStyle = wrapperRange.style || 'max-width:794px;width:100%;margin:0 auto;box-sizing:border-box;background:#fff;';
 
-    return pages
-      .map((page) => `<div style="${pageStyle}">${page || '<p>&nbsp;</p>'}</div>`)
-      .join(CONTRACT_PAGE_BREAK_MARKER);
+    const bgRegex = /(background(-image|-size|-position|-repeat|-color)?\s*:[^;]+;?)/gi;
+    let backgroundStyle = '';
+    let contentStyle = originalStyle.replace(bgRegex, (match) => {
+      backgroundStyle += match;
+      return '';
+    });
+
+    const paddingRegex = /padding\s*:\s*([^;]+);?/gi;
+    const paddingMatch = contentStyle.match(paddingRegex);
+    const paddingValue = paddingMatch ? paddingMatch[1].trim() : '48px';
+    contentStyle = contentStyle.replace(paddingRegex, '');
+
+    const heightRegex = /(min-height|height|max-height)\s*:\s*[^;]+;?/gi;
+    contentStyle = contentStyle.replace(heightRegex, '');
+
+    const fixedBgHtml = backgroundStyle
+      ? `<div style="position:fixed;top:-${paddingValue};left:-${paddingValue};right:-${paddingValue};bottom:-${paddingValue};z-index:-1;${backgroundStyle}"></div>`
+      : '';
+
+    const contentHtml = pages.join('\n');
+    const flowHtml = `<div style="${contentStyle}">${contentHtml || '<p>&nbsp;</p>'}</div>`;
+
+    const styleBlock = `<style>@page { margin: ${paddingValue}; }</style>`;
+
+    return `${styleBlock}\n${fixedBgHtml}\n${flowHtml}`;
   }
 
   private removeLegacySignatureIdentificationBlock(html: string): string {
