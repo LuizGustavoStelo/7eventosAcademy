@@ -143,7 +143,7 @@ const IMPERSONATION_SOURCE_TOKEN_KEY = 'academy-impersonation-source-token';
 const IMPERSONATION_SOURCE_USER_KEY = 'academy-impersonation-source-user';
 const IMPERSONATION_META_KEY = 'academy-impersonation-meta';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
-const DEFAULT_ADMIN_LOGO_URL = '/7eventos_academy_logo.png';
+const DEFAULT_ADMIN_LOGO_URL = '/Academy_Logo_003.png';
 const DEFAULT_BRANDING_LOGO_URL = '/Logo-IPESK.png';
 
 const SECOES_SUPERADMIN: NavSection[] = [
@@ -1612,7 +1612,7 @@ export default function App() {
               <div className="auth-brand-logo-wrap">
                 <img
                   className="auth-brand-logo"
-                  src="/7eventos_academy_logo.png"
+                  src="/Academy_Logo_003.png"
                   alt="7Eventos Academy"
                 />
               </div>
