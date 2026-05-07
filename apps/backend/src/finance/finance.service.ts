@@ -67,6 +67,7 @@ type AppliedVoucherSnapshot = {
   discountType: VoucherDiscountTypeInput;
   discountValue: number;
   appliesTo: VoucherAppliesToInput;
+  appliesToEnrollmentFee: boolean;
   installmentScope: VoucherInstallmentScopeInput;
   discountLabel: string;
   targetLabel: string;
@@ -680,6 +681,7 @@ export class FinanceService {
       discountType: voucher.discountType,
       discountValue: Number(voucher.discountValue),
       appliesTo: voucher.appliesTo,
+      appliesToEnrollmentFee: voucher.appliesToEnrollmentFee,
       installmentScope: voucher.installmentScope,
       maxUses: voucher.maxUses,
       usageCount: voucher.usageCount,
@@ -746,7 +748,7 @@ export class FinanceService {
     const normalizedAllowedOptionIds = this.normalizePaymentOptionIdList(
       dto.allowedPaymentOptionIds,
     );
-    if (!allCourses && normalizedAllowedOptionIds.length === 0) {
+    if (normalizedAllowedOptionIds.length === 0) {
       throw new BadRequestException('Selecione pelo menos uma opcao de pagamento para o voucher.');
     }
 
@@ -772,6 +774,7 @@ export class FinanceService {
 
     const discountType = this.normalizeVoucherDiscountType(dto.discountType);
     const appliesTo = this.normalizeVoucherAppliesTo(dto.appliesTo);
+    const appliesToEnrollmentFee = dto.appliesToEnrollmentFee === true;
     const installmentScope =
       appliesTo === 'INSTALLMENT'
         ? this.normalizeVoucherInstallmentScope(dto.installmentScope)
@@ -819,6 +822,7 @@ export class FinanceService {
         discountType,
         discountValue,
         appliesTo,
+        appliesToEnrollmentFee,
         installmentScope,
         maxUses,
         usageCount: 0,
@@ -847,6 +851,7 @@ export class FinanceService {
       discountType: createdVoucher.discountType,
       discountValue: Number(createdVoucher.discountValue),
       appliesTo: createdVoucher.appliesTo,
+      appliesToEnrollmentFee: createdVoucher.appliesToEnrollmentFee,
       installmentScope: createdVoucher.installmentScope,
       maxUses: createdVoucher.maxUses,
       usageCount: createdVoucher.usageCount,
@@ -910,6 +915,7 @@ export class FinanceService {
       discountType: updatedVoucher.discountType,
       discountValue: Number(updatedVoucher.discountValue),
       appliesTo: updatedVoucher.appliesTo,
+      appliesToEnrollmentFee: updatedVoucher.appliesToEnrollmentFee,
       installmentScope: updatedVoucher.installmentScope,
       maxUses: updatedVoucher.maxUses,
       usageCount: updatedVoucher.usageCount,
@@ -995,6 +1001,7 @@ export class FinanceService {
         discountType: true,
         discountValue: true,
         appliesTo: true,
+        appliesToEnrollmentFee: true,
         installmentScope: true,
         maxUses: true,
         usageCount: true,
@@ -1034,6 +1041,7 @@ export class FinanceService {
       discountType: voucher.discountType,
       discountValue: Number(voucher.discountValue),
       appliesTo: voucher.appliesTo,
+      appliesToEnrollmentFee: voucher.appliesToEnrollmentFee,
       installmentScope: voucher.installmentScope,
       discountLabel: this.formatVoucherDiscountLabel(
         voucher.discountType,
@@ -1165,6 +1173,7 @@ export class FinanceService {
         discountType: voucher.discountType,
         discountValue,
         appliesTo: voucher.appliesTo,
+        appliesToEnrollmentFee: voucher.appliesToEnrollmentFee,
         installmentScope: voucher.installmentScope,
         discountLabel: this.formatVoucherDiscountLabel(
           voucher.discountType,
@@ -2032,6 +2041,7 @@ export class FinanceService {
         discountType: true,
         discountValue: true,
         appliesTo: true,
+        appliesToEnrollmentFee: true,
         installmentScope: true,
         maxUses: true,
         usageCount: true,

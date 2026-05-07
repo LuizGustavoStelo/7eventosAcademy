@@ -59,6 +59,7 @@ type EnrollmentPaymentOption = {
     discountType: 'PERCENT' | 'FIXED';
     discountValue: number;
     appliesTo: 'TOTAL' | 'INSTALLMENT';
+    appliesToEnrollmentFee?: boolean;
     installmentScope?: 'ALL' | 'SINGLE';
     discountLabel: string;
     targetLabel?: string;
@@ -658,7 +659,18 @@ export class EnrollmentsService {
           })
         : charges;
 
-    const enrollmentFee = this.toMoneyValue(input.enrollmentFee);
+    const appliedVoucher = input.selectedPaymentOption?.appliedVoucher;
+    const shouldDiscountEnrollmentFee = Boolean(
+      appliedVoucher?.appliesToEnrollmentFee,
+    );
+    const enrollmentFeeBase = this.toMoneyValue(input.enrollmentFee);
+    const enrollmentFee = shouldDiscountEnrollmentFee
+      ? this.applyVoucherDiscountToAmount({
+          amount: enrollmentFeeBase,
+          discountType: appliedVoucher?.discountType,
+          discountValue: Number(appliedVoucher?.discountValue ?? 0),
+        })
+      : enrollmentFeeBase;
     if (enrollmentFee <= 0) {
       return chargesWithGrace;
     }
@@ -671,6 +683,27 @@ export class EnrollmentsService {
       },
       ...chargesWithGrace,
     ];
+  }
+
+  private applyVoucherDiscountToAmount(input: {
+    amount: number;
+    discountType?: string | null;
+    discountValue?: number | null;
+  }) {
+    const amount = this.toMoneyValue(input.amount);
+    const discountValue = this.toMoneyValue(Number(input.discountValue ?? 0));
+    if (amount <= 0 || discountValue <= 0) return amount;
+
+    const discountType = String(input.discountType || '')
+      .trim()
+      .toUpperCase();
+    if (discountType === 'PERCENT') {
+      return this.toMoneyValue(
+        Math.max(0, amount - amount * (discountValue / 100)),
+      );
+    }
+
+    return this.toMoneyValue(Math.max(0, amount - discountValue));
   }
 
   private buildChargeDueDate(baseDate: Date, monthOffset: number, dueDay?: number) {
@@ -718,6 +751,9 @@ export class EnrollmentsService {
     const availableOptions = this.normalizeCoursePaymentOptionsForEnrollment(
       input.course,
     ).filter((option) => option.active);
+    const hasRequestedVoucher = Boolean(
+      String(input.requestedVoucherCode || '').trim(),
+    );
 
     if (availableOptions.length === 0) {
       throw new BadRequestException(
@@ -733,16 +769,17 @@ export class EnrollmentsService {
         throw new BadRequestException('Op??o de pagamento inv?lida para este curso.');
       }
 
-      const promotionalApplied = await this.isPromotionalOptionAvailable({
-        tx: input.tx,
-        institutionId: input.institutionId,
-        courseId: input.courseId,
-        option: requestedOption,
-      });
-      const optionWithPromotion = this.resolveOptionWithPromotion(
-        requestedOption,
-        promotionalApplied,
-      );
+      const optionWithPromotion = hasRequestedVoucher
+        ? this.resolveOptionWithoutPromotion(requestedOption)
+        : this.resolveOptionWithPromotion(
+            requestedOption,
+            await this.isPromotionalOptionAvailable({
+              tx: input.tx,
+              institutionId: input.institutionId,
+              courseId: input.courseId,
+              option: requestedOption,
+            }),
+          );
       return this.applyVoucherToResolvedOption({
         tx: input.tx,
         institutionId: input.institutionId,
@@ -753,14 +790,20 @@ export class EnrollmentsService {
     }
 
     const resolvedOptions: EnrollmentPaymentOption[] = [];
-    for (const option of availableOptions) {
-      const promotionalApplied = await this.isPromotionalOptionAvailable({
-        tx: input.tx,
-        institutionId: input.institutionId,
-        courseId: input.courseId,
-        option,
-      });
-      resolvedOptions.push(this.resolveOptionWithPromotion(option, promotionalApplied));
+    if (hasRequestedVoucher) {
+      for (const option of availableOptions) {
+        resolvedOptions.push(this.resolveOptionWithoutPromotion(option));
+      }
+    } else {
+      for (const option of availableOptions) {
+        const promotionalApplied = await this.isPromotionalOptionAvailable({
+          tx: input.tx,
+          institutionId: input.institutionId,
+          courseId: input.courseId,
+          option,
+        });
+        resolvedOptions.push(this.resolveOptionWithPromotion(option, promotionalApplied));
+      }
     }
 
     resolvedOptions.sort((a, b) => {
@@ -911,6 +954,15 @@ export class EnrollmentsService {
           ? option.promotionalDiscountRequiresActiveCrf
           : option.discountRequiresActiveCrf,
       promotionalApplied: true,
+    };
+  }
+
+  private resolveOptionWithoutPromotion(
+    option: EnrollmentPaymentOption,
+  ): EnrollmentPaymentOption {
+    return {
+      ...option,
+      promotionalApplied: false,
     };
   }
 

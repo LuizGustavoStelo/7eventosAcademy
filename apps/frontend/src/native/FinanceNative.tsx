@@ -102,6 +102,7 @@ type Voucher = {
   discountType: 'PERCENT' | 'FIXED' | string;
   discountValue: number;
   appliesTo: 'TOTAL' | 'INSTALLMENT' | string;
+  appliesToEnrollmentFee?: boolean;
   installmentScope?: 'ALL' | 'SINGLE' | string;
   maxUses?: number | null;
   usageCount?: number;
@@ -120,6 +121,7 @@ type VoucherFormState = {
   discountType: 'PERCENT' | 'FIXED';
   discountValue: string;
   appliesTo: 'TOTAL' | 'INSTALLMENT';
+  appliesToEnrollmentFee: boolean;
   installmentScope: 'ALL' | 'SINGLE';
   maxUses: string;
   allowedPaymentOptionIds: string[];
@@ -163,6 +165,7 @@ function defaultVoucherForm(): VoucherFormState {
     discountType: 'PERCENT',
     discountValue: '',
     appliesTo: 'INSTALLMENT',
+    appliesToEnrollmentFee: false,
     installmentScope: 'ALL',
     maxUses: '',
     allowedPaymentOptionIds: [],
@@ -389,18 +392,32 @@ export function FinanceNative({ token }: FinanceNativeProps) {
     [charges],
   );
 
+  const allVoucherPaymentOptions = useMemo(() => {
+    const optionMap = new Map<string, VoucherCourse['paymentOptions'][number]>();
+    for (const course of voucherCourses) {
+      for (const option of course.paymentOptions) {
+        if (!optionMap.has(option.id)) {
+          optionMap.set(option.id, option);
+        }
+      }
+    }
+    return Array.from(optionMap.values()).sort((left, right) =>
+      left.title.localeCompare(right.title, 'pt-BR'),
+    );
+  }, [voucherCourses]);
+
   const selectedVoucherCourse = useMemo(
     () => {
       if (voucherForm.courseId === VOUCHER_ALL_COURSES_ID) {
         return {
           id: VOUCHER_ALL_COURSES_ID,
           name: 'Todos os cursos',
-          paymentOptions: [],
+          paymentOptions: allVoucherPaymentOptions,
         } satisfies VoucherCourse;
       }
       return voucherCourses.find((item) => item.id === voucherForm.courseId) ?? null;
     },
-    [voucherCourses, voucherForm.courseId],
+    [allVoucherPaymentOptions, voucherCourses, voucherForm.courseId],
   );
   const isAllCoursesVoucher = voucherForm.courseId === VOUCHER_ALL_COURSES_ID;
 
@@ -530,11 +547,11 @@ export function FinanceNative({ token }: FinanceNativeProps) {
       setVoucherFormError('Percentual deve estar entre 0,01% e 100%.');
       return;
     }
-    if (!isAllCoursesVoucher && voucherForm.allowedPaymentOptionIds.length === 0) {
+    if (voucherForm.allowedPaymentOptionIds.length === 0) {
       setVoucherFormError('Selecione ao menos uma opção de pagamento.');
       return;
     }
-    if (voucherForm.appliesTo === 'INSTALLMENT' && !isAllCoursesVoucher) {
+    if (voucherForm.appliesTo === 'INSTALLMENT') {
       const hasInstallment = (selectedVoucherCourse?.paymentOptions ?? []).some(
         (option) =>
           voucherForm.allowedPaymentOptionIds.includes(option.id) &&
@@ -572,8 +589,9 @@ export function FinanceNative({ token }: FinanceNativeProps) {
             voucherForm.appliesTo === 'INSTALLMENT'
               ? voucherForm.installmentScope
               : 'ALL',
+          appliesToEnrollmentFee: voucherForm.appliesToEnrollmentFee,
           maxUses,
-          allowedPaymentOptionIds: isAllCoursesVoucher ? [] : voucherForm.allowedPaymentOptionIds,
+          allowedPaymentOptionIds: voucherForm.allowedPaymentOptionIds,
           active: true,
         }),
       });
@@ -984,7 +1002,9 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                     const nextCourseId = event.target.value;
                     const course =
                       nextCourseId === VOUCHER_ALL_COURSES_ID
-                        ? null
+                        ? {
+                            paymentOptions: allVoucherPaymentOptions,
+                          }
                         : voucherCourses.find((item) => item.id === nextCourseId);
                     setVoucherForm((current) => ({
                       ...current,
@@ -1004,6 +1024,20 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                     </option>
                   ))}
                 </select>
+              </label>
+
+              <label className="native-finance-voucher-option-item">
+                <input
+                  type="checkbox"
+                  checked={voucherForm.appliesToEnrollmentFee}
+                  onChange={(event) =>
+                    setVoucherForm((current) => ({
+                      ...current,
+                      appliesToEnrollmentFee: event.target.checked,
+                    }))
+                  }
+                />
+                <span>Aplicar desconto também na matrícula</span>
               </label>
 
               <label>
@@ -1128,7 +1162,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                 />
               </label>
 
-              {selectedVoucherCourse && !isAllCoursesVoucher ? (
+              {selectedVoucherCourse ? (
                 <fieldset className="native-finance-voucher-options">
                   <legend>Opções de pagamento permitidas</legend>
                   {selectedVoucherCourse.paymentOptions.map((option) => {
@@ -1165,10 +1199,14 @@ export function FinanceNative({ token }: FinanceNativeProps) {
 
               {isAllCoursesVoucher ? (
                 <p className="native-info">
-                  O voucher valera para qualquer curso. As formas de pagamento serao validadas
-                  automaticamente em cada curso.
+                  O voucher valerá para qualquer curso.
                 </p>
               ) : null}
+
+              <p className="native-info">
+                Voucher não acumula com desconto promocional. Quando aplicado, o desconto é
+                calculado sobre o valor original do curso.
+              </p>
 
               {voucherFormError ? <p className="native-error">{voucherFormError}</p> : null}
 

@@ -731,6 +731,7 @@ model FinanceVoucher {
   discountType            FinanceVoucherDiscountType @map("discount_type")
   discountValue           Decimal                   @map("discount_value") @db.Decimal(12, 2)
   appliesTo               FinanceVoucherAppliesTo   @map("applies_to")
+  appliesToEnrollmentFee  Boolean                   @default(false) @map("applies_to_enrollment_fee")
   installmentScope        FinanceVoucherInstallmentScope @default(ALL) @map("installment_scope")
   maxUses                 Int?                      @map("max_uses")
   usageCount              Int                       @default(0) @map("usage_count")

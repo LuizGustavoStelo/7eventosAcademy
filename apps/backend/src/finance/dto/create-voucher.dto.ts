@@ -62,4 +62,9 @@ export class CreateVoucherDto {
   @IsInt()
   @Min(1)
   maxUses?: number;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  appliesToEnrollmentFee?: boolean;
 }
