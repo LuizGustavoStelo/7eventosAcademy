@@ -4054,6 +4054,29 @@ table button:disabled {
   cursor: not-allowed;
 }
 
+.native-voucher-delete-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(220, 38, 38, 0.28) !important;
+  border-radius: 8px;
+  background: #fff5f5 !important;
+  color: #b91c1c !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.native-voucher-delete-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.native-voucher-delete-btn:hover:not(:disabled) {
+  background: #fee2e2 !important;
+  border-color: rgba(220, 38, 38, 0.46) !important;
+}
+
 .native-user-initials {
   width: 34px;
   height: 34px;

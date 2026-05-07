@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -106,5 +107,14 @@ export class FinanceController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.financeService.updateVoucherStatus(voucherId, dto, request.user);
+  }
+
+  @RequirePermissions('finance.write')
+  @Delete('vouchers/:voucherId')
+  async deleteVoucher(
+    @Param('voucherId') voucherId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.financeService.deleteVoucher(voucherId, request.user);
   }
 }

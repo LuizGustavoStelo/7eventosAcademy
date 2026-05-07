@@ -725,7 +725,7 @@ model FinanceVoucher {
   id                      String                    @id @default(uuid()) @db.Uuid
   institutionId           String                    @map("institution_id") @db.Uuid
   ownerAdminId            String?                   @map("owner_admin_id") @db.Uuid
-  courseId                String                    @map("course_id") @db.Uuid
+  courseId                String?                   @map("course_id") @db.Uuid
   code                    String
   title                   String?
   discountType            FinanceVoucherDiscountType @map("discount_type")
@@ -740,7 +740,7 @@ model FinanceVoucher {
   updatedAt               DateTime                  @updatedAt @map("updated_at")
   institution             Institution               @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   ownerAdmin              User?                     @relation("finance_voucher_owner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
-  course                  Course                    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course                  Course?                   @relation(fields: [courseId], references: [id], onDelete: SetNull)
 
   @@unique([institutionId, code], map: "finance_vouchers_institution_code_key")
   @@index([institutionId], map: "finance_vouchers_institution_idx")

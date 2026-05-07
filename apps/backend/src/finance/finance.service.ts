@@ -674,7 +674,7 @@ export class FinanceService {
     return vouchers.map((voucher) => ({
       id: voucher.id,
       courseId: voucher.courseId,
-      courseName: voucher.course.name,
+      courseName: voucher.course?.name ?? 'Todos os cursos',
       code: voucher.code,
       title: voucher.title,
       discountType: voucher.discountType,
@@ -701,11 +701,16 @@ export class FinanceService {
   }
 
   async createVoucher(dto: CreateVoucherDto, user: JwtPayload) {
-    const course = await this.prisma.course.findFirst({
+    const allCourses = dto.allCourses === true;
+    if (!allCourses && !dto.courseId) {
+      throw new BadRequestException('Selecione o curso do voucher.');
+    }
+
+    const availableCourses = await this.prisma.course.findMany({
       where: {
-        id: dto.courseId,
         status: 'ACTIVE',
         ...this.buildCourseWhere(user),
+        ...(allCourses ? {} : { id: dto.courseId }),
       },
       select: {
         id: true,
@@ -718,33 +723,50 @@ export class FinanceService {
       },
     });
 
-    if (!course) {
-      throw new NotFoundException('Curso não encontrado para criar voucher.');
+    if (!allCourses && availableCourses.length === 0) {
+      throw new NotFoundException('Curso nao encontrado para criar voucher.');
     }
+
+    if (allCourses && availableCourses.length === 0) {
+      throw new NotFoundException('Nenhum curso ativo encontrado para criar voucher global.');
+    }
+
+    const institutionIds = Array.from(
+      new Set(availableCourses.map((course) => course.institutionId)),
+    );
+    if (institutionIds.length !== 1) {
+      throw new BadRequestException('Nao foi possivel determinar a instituicao do voucher. Selecione uma instituicao ativa.');
+    }
+    const voucherInstitutionId = institutionIds[0]!;
+
+    const allCoursePaymentOptions = availableCourses.flatMap((course) =>
+      this.extractVoucherCoursePaymentOptions(course),
+    );
 
     const normalizedAllowedOptionIds = this.normalizePaymentOptionIdList(
       dto.allowedPaymentOptionIds,
     );
-    if (normalizedAllowedOptionIds.length === 0) {
+    if (!allCourses && normalizedAllowedOptionIds.length === 0) {
+      throw new BadRequestException('Selecione pelo menos uma opcao de pagamento para o voucher.');
+    }
+
+    if (allCoursePaymentOptions.length === 0) {
       throw new BadRequestException(
-        'Selecione pelo menos uma opção de pagamento para o voucher.',
+        allCourses
+          ? 'Nenhum curso ativo possui opcoes de pagamento para vincular voucher.'
+          : 'Este curso nao possui opcoes de pagamento ativas para vincular voucher.',
       );
     }
 
-    const coursePaymentOptions = this.extractVoucherCoursePaymentOptions(course);
-    if (coursePaymentOptions.length === 0) {
-      throw new BadRequestException(
-        'Este curso não possui opções de pagamento ativas para vincular voucher.',
-      );
-    }
-
-    const availableOptionIds = new Set(coursePaymentOptions.map((item) => item.id));
+    const availableOptionIds = new Set(allCoursePaymentOptions.map((item) => item.id));
     const invalidOptionId = normalizedAllowedOptionIds.find(
       (item) => !availableOptionIds.has(item),
     );
     if (invalidOptionId) {
       throw new BadRequestException(
-        'Uma ou mais opções de pagamento selecionadas não são válidas para este curso.',
+        allCourses
+          ? 'Uma ou mais opcoes de pagamento selecionadas nao sao validas para os cursos ativos.'
+          : 'Uma ou mais opcoes de pagamento selecionadas nao sao validas para este curso.',
       );
     }
 
@@ -757,9 +779,7 @@ export class FinanceService {
     const discountValue = this.toMoneyValue(dto.discountValue);
     const maxUses = this.normalizeVoucherMaxUses(dto.maxUses);
     if (discountValue <= 0) {
-      throw new BadRequestException(
-        'Informe um valor de desconto maior que zero para o voucher.',
-      );
+      throw new BadRequestException('Informe um valor de desconto maior que zero para o voucher.');
     }
     if (discountType === 'PERCENT' && discountValue > 100) {
       throw new BadRequestException(
@@ -768,13 +788,18 @@ export class FinanceService {
     }
 
     if (appliesTo === 'INSTALLMENT') {
-      const hasInstallmentOption = normalizedAllowedOptionIds.some((optionId) => {
-        const option = coursePaymentOptions.find((item) => item.id === optionId);
-        return option?.type === 'INSTALLMENTS';
-      });
+      const optionIdsForInstallmentValidation =
+        normalizedAllowedOptionIds.length > 0
+          ? new Set(normalizedAllowedOptionIds)
+          : new Set(allCoursePaymentOptions.map((item) => item.id));
+      const hasInstallmentOption = allCoursePaymentOptions.some(
+        (option) =>
+          optionIdsForInstallmentValidation.has(option.id) &&
+          option.type === 'INSTALLMENTS',
+      );
       if (!hasInstallmentOption) {
         throw new BadRequestException(
-          'Para desconto em mensalidade, selecione ao menos uma opção parcelada.',
+          'Para desconto em mensalidade, selecione ao menos uma opcao parcelada.',
         );
       }
     }
@@ -782,13 +807,13 @@ export class FinanceService {
     const requestedCode = String(dto.code || '').trim();
     const normalizedCode = requestedCode
       ? this.normalizeVoucherCode(requestedCode)
-      : await this.generateVoucherCode(course.institutionId);
+      : await this.generateVoucherCode(voucherInstitutionId);
 
     const createdVoucher = await this.prisma.financeVoucher.create({
       data: {
-        institutionId: course.institutionId,
+        institutionId: voucherInstitutionId,
         ownerAdminId: this.resolveVoucherOwnerAdminId(user),
-        courseId: course.id,
+        courseId: allCourses ? null : dto.courseId!,
         code: normalizedCode,
         title: String(dto.title || '').trim() || null,
         discountType,
@@ -797,7 +822,10 @@ export class FinanceService {
         installmentScope,
         maxUses,
         usageCount: 0,
-        allowedPaymentOptionIds: normalizedAllowedOptionIds as Prisma.InputJsonValue,
+        allowedPaymentOptionIds:
+          normalizedAllowedOptionIds.length > 0
+            ? (normalizedAllowedOptionIds as Prisma.InputJsonValue)
+            : undefined,
         active: dto.active !== false,
       },
       include: {
@@ -813,7 +841,7 @@ export class FinanceService {
     return {
       id: createdVoucher.id,
       courseId: createdVoucher.courseId,
-      courseName: createdVoucher.course.name,
+      courseName: createdVoucher.course?.name ?? 'Todos os cursos',
       code: createdVoucher.code,
       title: createdVoucher.title,
       discountType: createdVoucher.discountType,
@@ -876,7 +904,7 @@ export class FinanceService {
     return {
       id: updatedVoucher.id,
       courseId: updatedVoucher.courseId,
-      courseName: updatedVoucher.course.name,
+      courseName: updatedVoucher.course?.name ?? 'Todos os cursos',
       code: updatedVoucher.code,
       title: updatedVoucher.title,
       discountType: updatedVoucher.discountType,
@@ -900,6 +928,35 @@ export class FinanceService {
       createdAt: updatedVoucher.createdAt,
       updatedAt: updatedVoucher.updatedAt,
     };
+  }
+
+  async deleteVoucher(voucherId: string, user: JwtPayload) {
+    const voucher = await this.prisma.financeVoucher.findFirst({
+      where: {
+        id: voucherId,
+        ...this.buildVoucherWhere(user),
+      },
+      select: {
+        id: true,
+        active: true,
+      },
+    });
+
+    if (!voucher) {
+      throw new NotFoundException('Voucher não encontrado.');
+    }
+
+    if (voucher.active) {
+      throw new BadRequestException(
+        'Somente vouchers inativos podem ser excluídos.',
+      );
+    }
+
+    await this.prisma.financeVoucher.delete({
+      where: { id: voucherId },
+    });
+
+    return { success: true };
   }
 
   async validatePublicVoucherForCourse(courseId: string, code: string) {
@@ -927,9 +984,9 @@ export class FinanceService {
     const voucher = await this.prisma.financeVoucher.findFirst({
       where: {
         institutionId: course.institutionId,
-        courseId: course.id,
         active: true,
         code: normalizedCode,
+        OR: [{ courseId: course.id }, { courseId: null }],
       },
       select: {
         id: true,
@@ -1964,9 +2021,9 @@ export class FinanceService {
     return db.financeVoucher.findFirst({
       where: {
         institutionId: input.institutionId,
-        courseId: input.courseId,
         active: true,
         code: input.code,
+        OR: [{ courseId: input.courseId }, { courseId: null }],
       },
       select: {
         id: true,

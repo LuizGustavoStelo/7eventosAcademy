@@ -3,18 +3,24 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
-  IsNumber,
   IsOptional,
+  IsNumber,
+  IsInt,
   IsString,
   IsUUID,
-  IsInt,
   MaxLength,
   Min,
 } from 'class-validator';
 
 export class CreateVoucherDto {
+  @IsOptional()
   @IsUUID()
-  courseId!: string;
+  courseId?: string;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  allCourses?: boolean;
 
   @IsOptional()
   @IsString()

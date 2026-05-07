@@ -95,7 +95,7 @@ type VoucherCourse = {
 
 type Voucher = {
   id: string;
-  courseId: string;
+  courseId: string | null;
   courseName: string;
   code: string;
   title: string | null;
@@ -128,6 +128,8 @@ type VoucherFormState = {
 type FinanceNativeProps = {
   token: string;
 };
+
+const VOUCHER_ALL_COURSES_ID = '__ALL__';
 
 function defaultChargeForm(): ChargeFormState {
   const now = new Date();
@@ -281,6 +283,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
   const [voucherFormError, setVoucherFormError] = useState('');
   const [voucherSubmitting, setVoucherSubmitting] = useState(false);
   const [updatingVoucherId, setUpdatingVoucherId] = useState<string | null>(null);
+  const [deletingVoucherId, setDeletingVoucherId] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showFinanceValues, setShowFinanceValues] = useState(false);
@@ -387,9 +390,19 @@ export function FinanceNative({ token }: FinanceNativeProps) {
   );
 
   const selectedVoucherCourse = useMemo(
-    () => voucherCourses.find((item) => item.id === voucherForm.courseId) ?? null,
+    () => {
+      if (voucherForm.courseId === VOUCHER_ALL_COURSES_ID) {
+        return {
+          id: VOUCHER_ALL_COURSES_ID,
+          name: 'Todos os cursos',
+          paymentOptions: [],
+        } satisfies VoucherCourse;
+      }
+      return voucherCourses.find((item) => item.id === voucherForm.courseId) ?? null;
+    },
     [voucherCourses, voucherForm.courseId],
   );
+  const isAllCoursesVoucher = voucherForm.courseId === VOUCHER_ALL_COURSES_ID;
 
   const openChargeModal = () => {
     setChargeForm(defaultChargeForm());
@@ -517,11 +530,11 @@ export function FinanceNative({ token }: FinanceNativeProps) {
       setVoucherFormError('Percentual deve estar entre 0,01% e 100%.');
       return;
     }
-    if (voucherForm.allowedPaymentOptionIds.length === 0) {
+    if (!isAllCoursesVoucher && voucherForm.allowedPaymentOptionIds.length === 0) {
       setVoucherFormError('Selecione ao menos uma opção de pagamento.');
       return;
     }
-    if (voucherForm.appliesTo === 'INSTALLMENT') {
+    if (voucherForm.appliesTo === 'INSTALLMENT' && !isAllCoursesVoucher) {
       const hasInstallment = (selectedVoucherCourse?.paymentOptions ?? []).some(
         (option) =>
           voucherForm.allowedPaymentOptionIds.includes(option.id) &&
@@ -548,7 +561,8 @@ export function FinanceNative({ token }: FinanceNativeProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          courseId: voucherForm.courseId,
+          courseId: isAllCoursesVoucher ? undefined : voucherForm.courseId,
+          allCourses: isAllCoursesVoucher,
           code: voucherForm.code.trim() || undefined,
           title: voucherForm.title.trim() || undefined,
           discountType: voucherForm.discountType,
@@ -559,7 +573,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
               ? voucherForm.installmentScope
               : 'ALL',
           maxUses,
-          allowedPaymentOptionIds: voucherForm.allowedPaymentOptionIds,
+          allowedPaymentOptionIds: isAllCoursesVoucher ? [] : voucherForm.allowedPaymentOptionIds,
           active: true,
         }),
       });
@@ -602,6 +616,28 @@ export function FinanceNative({ token }: FinanceNativeProps) {
       );
     } finally {
       setUpdatingVoucherId(null);
+    }
+  };
+
+  const deleteVoucher = async (voucher: Voucher) => {
+    if (voucher.active) return;
+    setDeletingVoucherId(voucher.id);
+    setError('');
+    setFeedback('');
+    try {
+      await apiRequest(token, `/finance/vouchers/${voucher.id}`, {
+        method: 'DELETE',
+      });
+      await loadData(false);
+      setFeedback('Voucher excluído com sucesso.');
+    } catch (voucherError) {
+      setError(
+        voucherError instanceof Error
+          ? voucherError.message
+          : 'Falha ao excluir voucher.',
+      );
+    } finally {
+      setDeletingVoucherId(null);
     }
   };
 
@@ -755,20 +791,52 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                       </span>
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => {
-                          void toggleVoucherStatus(voucher);
-                        }}
-                        disabled={updatingVoucherId === voucher.id}
-                      >
-                        {updatingVoucherId === voucher.id
-                          ? 'Salvando...'
-                          : voucher.active
-                            ? 'Desativar'
-                            : 'Ativar'}
-                      </button>
+                      <div className="native-finance-row-actions">
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => {
+                            void toggleVoucherStatus(voucher);
+                          }}
+                          disabled={
+                            updatingVoucherId === voucher.id ||
+                            deletingVoucherId === voucher.id
+                          }
+                        >
+                          {updatingVoucherId === voucher.id
+                            ? 'Salvando...'
+                            : voucher.active
+                              ? 'Desativar'
+                              : 'Ativar'}
+                        </button>
+                        {!voucher.active ? (
+                          <button
+                            type="button"
+                            className="native-voucher-delete-btn"
+                            title="Excluir voucher"
+                            aria-label="Excluir voucher"
+                            onClick={() => {
+                              void deleteVoucher(voucher);
+                            }}
+                            disabled={deletingVoucherId === voucher.id}
+                          >
+                            {deletingVoucherId === voucher.id ? (
+                              '...'
+                            ) : (
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                  d="M4 7h16M9 7V5h6v2m-8 0 1 12h8l1-12"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            )}
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -914,17 +982,22 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                   value={voucherForm.courseId}
                   onChange={(event) => {
                     const nextCourseId = event.target.value;
-                    const course = voucherCourses.find((item) => item.id === nextCourseId);
+                    const course =
+                      nextCourseId === VOUCHER_ALL_COURSES_ID
+                        ? null
+                        : voucherCourses.find((item) => item.id === nextCourseId);
                     setVoucherForm((current) => ({
                       ...current,
                       courseId: nextCourseId,
-                      allowedPaymentOptionIds:
-                        course?.paymentOptions.map((item) => item.id) ?? [],
+                      allowedPaymentOptionIds: course
+                        ? course.paymentOptions.map((item) => item.id)
+                        : [],
                     }));
                   }}
                   required
                 >
                   <option value="">Selecione</option>
+                  <option value={VOUCHER_ALL_COURSES_ID}>Todos os cursos</option>
                   {voucherCourses.map((course) => (
                     <option key={course.id} value={course.id}>
                       {course.name}
@@ -1055,7 +1128,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                 />
               </label>
 
-              {selectedVoucherCourse ? (
+              {selectedVoucherCourse && !isAllCoursesVoucher ? (
                 <fieldset className="native-finance-voucher-options">
                   <legend>Opções de pagamento permitidas</legend>
                   {selectedVoucherCourse.paymentOptions.map((option) => {
@@ -1088,6 +1161,13 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                     );
                   })}
                 </fieldset>
+              ) : null}
+
+              {isAllCoursesVoucher ? (
+                <p className="native-info">
+                  O voucher valera para qualquer curso. As formas de pagamento serao validadas
+                  automaticamente em cada curso.
+                </p>
               ) : null}
 
               {voucherFormError ? <p className="native-error">{voucherFormError}</p> : null}
@@ -1336,3 +1416,4 @@ export function FinanceNative({ token }: FinanceNativeProps) {
     </section>
   );
 }
+
