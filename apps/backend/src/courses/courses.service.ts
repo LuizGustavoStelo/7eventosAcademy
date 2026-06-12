@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { MultipartFile } from '@fastify/multipart';
 import {
   CoursePaymentModel,
+  CourseStatus,
+  EnrollmentStatus,
   Prisma,
   StudentCourseStatus,
   UploadOwnerType,
@@ -462,6 +464,66 @@ export class CoursesService {
         ? new Date(input.installmentStartDate)
         : null,
     };
+  }
+
+  async findAllForPublicRegistration() {
+    const courses = (await this.findAll()).filter(
+      (course) => course.status === CourseStatus.ACTIVE,
+    );
+    const courseIds = courses.map((course) => course.id);
+
+    if (courseIds.length === 0) return courses;
+
+    const promotionalEnrollments = await this.prisma.enrollment.findMany({
+      where: {
+        status: EnrollmentStatus.ACTIVE,
+        selectedPaymentOption: {
+          path: ['promotionalApplied'],
+          equals: true,
+        },
+        schoolClass: {
+          courseId: { in: courseIds },
+        },
+      },
+      select: {
+        schoolClass: {
+          select: { courseId: true },
+        },
+      },
+    });
+    const promotionalUsesByCourseId = new Map<string, number>();
+    promotionalEnrollments.forEach(({ schoolClass }) => {
+      promotionalUsesByCourseId.set(
+        schoolClass.courseId,
+        (promotionalUsesByCourseId.get(schoolClass.courseId) ?? 0) + 1,
+      );
+    });
+
+    return courses.map((course) => ({
+      ...course,
+      paymentOptions: course.paymentOptions.map((option) => {
+        if (!option.isPromotional) return option;
+
+        const promotionalSlots = Number(option.promotionalSlots ?? 0);
+        const usedPromotionalSlots = promotionalUsesByCourseId.get(course.id) ?? 0;
+        if (promotionalSlots > 0 && usedPromotionalSlots < promotionalSlots) {
+          return option;
+        }
+
+        return {
+          ...option,
+          isPromotional: false,
+          promotionalSlots: null,
+          promotionalTotalAmount: null,
+          promotionalInstallmentAmount: null,
+          promotionalDiscountEnabled: false,
+          promotionalDiscountTotalAmount: null,
+          promotionalDiscountInstallmentAmount: null,
+          promotionalDiscountDeadlineDay: null,
+          promotionalDiscountRequiresActiveCrf: false,
+        };
+      }),
+    }));
   }
 
   private normalizePaymentOptions(

@@ -125,10 +125,10 @@ type VoucherValidationResponse = {
 };
 
 const steps = [
+  { title: 'Matrícula', description: 'Curso no IES e forma de pagamento' },
   { title: 'Identificação', description: 'Dados pessoais, documentação e endereço' },
   { title: 'Formação', description: 'Filiação e graduação' },
   { title: 'Profissional', description: 'Empresa, cargo e acesso' },
-  { title: 'Matrícula', description: 'Curso no IES' },
 ];
 
 const maritalStatusOptions = [
@@ -318,51 +318,6 @@ function getActivePaymentOptions(course: CourseCatalogItem) {
     : [];
 }
 
-function installmentLabel(course: CourseCatalogItem) {
-  const paymentOptions = getActivePaymentOptions(course);
-  if (paymentOptions.length > 1) {
-    return `${paymentOptions.length} opções de pagamento disponíveis`;
-  }
-  if (paymentOptions.length === 1) {
-    const firstOption = paymentOptions[0];
-    const method = String(firstOption.method || '').toUpperCase();
-    const methodLabel =
-      method === 'BANK_SLIP'
-        ? 'Boleto'
-        : method === 'CREDIT_CARD'
-          ? 'Cartão'
-          : 'Pix';
-    const type = String(firstOption.type || '').toUpperCase();
-    if (type === 'INSTALLMENTS') {
-      const countRaw = Number(firstOption.installmentCount || 0);
-      const hasCount = Number.isFinite(countRaw) && countRaw > 0;
-      const count = hasCount ? Math.trunc(countRaw) : 1;
-      const installmentAmount =
-        Number(firstOption.installmentAmount || 0) ||
-        (Number(firstOption.totalAmount || 0) > 0
-          ? Number(firstOption.totalAmount || 0) / count
-          : 0);
-      return hasCount
-        ? `${methodLabel} ${count}x de ${currencyFormatter.format(installmentAmount)}`
-        : `${methodLabel} mensalidade de ${currencyFormatter.format(installmentAmount)}`;
-    }
-    return `${methodLabel} à vista ${currencyFormatter.format(Number(firstOption.totalAmount || 0))}`;
-  }
-
-  const paymentModel = String(course.paymentModel || '').toUpperCase();
-  if (paymentModel !== 'INSTALLMENTS') {
-    return 'Pagamento à vista';
-  }
-
-  const months = Number(course.installmentMonths || 0);
-  const installmentValue = Number(course.installmentValue || 0);
-  if (months > 0 && installmentValue > 0) {
-    return months + 'x de ' + currencyFormatter.format(installmentValue);
-  }
-
-  return 'Pagamento parcelado';
-}
-
 function paymentMethodLabel(value?: string | null) {
   const normalized = String(value || '').toUpperCase();
   if (normalized === 'BANK_SLIP') return 'Boleto';
@@ -456,8 +411,8 @@ function paymentOptionDetailLines(option: PaymentOptionItem): PaymentOptionDetai
   }
   if (option.isPromotional) {
     lines.push({
-      text: `Promoção para ${promotionalSlots || 0} primeiros inscritos.`,
-      tone: 'default',
+      text: `Valores exclusivos para os ${promotionalSlots || 0} primeiros inscritos.`,
+      tone: 'highlight',
     });
   }
 
@@ -928,7 +883,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
   useEffect(() => {
     if (
-      currentStep === 3 &&
+      currentStep === 0 &&
       !selectedCourseId &&
       error === 'Selecione um curso para concluir o cadastro.'
     ) {
@@ -1099,11 +1054,11 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     setError('');
     const validation =
       currentStep === 0
-        ? validateStepOne()
+        ? validateStepFour()
         : currentStep === 1
-          ? validateStepTwo()
+          ? validateStepOne()
           : currentStep === 2
-            ? validateStepThree()
+            ? validateStepTwo()
             : '';
 
     if (validation) {
@@ -1161,7 +1116,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     setSuccess('');
     setCodeError('');
 
-    const allValidations = [validateStepOne(), validateStepTwo(), validateStepThree(), validateStepFour()].filter(Boolean);
+    const allValidations = [validateStepFour(), validateStepOne(), validateStepTwo(), validateStepThree()].filter(Boolean);
     if (allValidations.length > 0) {
       setError(allValidations[0] || 'Revise os campos obrigatórios.');
       return;
@@ -1304,7 +1259,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
         </ol>
 
         <form className="native-form-grid native-student-register-form" onSubmit={submit} noValidate>
-          {currentStep === 0 ? (
+          {currentStep === 1 ? (
             <>
               <label>
                 Nome completo *
@@ -1500,7 +1455,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
             </>
           ) : null}
 
-          {currentStep === 1 ? (
+          {currentStep === 2 ? (
             <>
               <label>
                 Nome do pai *
@@ -1549,7 +1504,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
               </label>
             </>
           ) : null}
-          {currentStep === 2 ? (
+          {currentStep === 3 ? (
             <>
               <label>
                 Empresa onde trabalha
@@ -1603,12 +1558,12 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
             </>
           ) : null}
 
-          {currentStep === 3 ? (
+          {currentStep === 0 ? (
             <>
               <section className="native-student-register-courses full" aria-label="Escolha do curso">
                 <header className="native-student-register-courses-header">
                   <h3>Curso no IES</h3>
-                  <p>Selecione o curso para finalizar sua matrícula.</p>
+                  <p>Selecione o curso e a forma de pagamento para continuar.</p>
                 </header>
 
                 {coursesLoading ? <p className="native-info">Carregando cursos...</p> : null}
@@ -1632,11 +1587,13 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                   <div className="native-public-course-grid">
                     {courses.map((course) => {
                       const selected = selectedCourseId === course.id;
+                      const coursePaymentOptions = getActivePaymentOptions(course);
                       return (
                         <button
                           key={course.id}
                           type="button"
                           className={`native-public-course-card ${selected ? 'is-selected' : ''}`}
+                          aria-pressed={selected}
                           onClick={() => {
                             setSelectedCourseId(course.id);
                             if (
@@ -1676,11 +1633,39 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                                 <dt>Professor</dt>
                                 <dd>{course.coordinator || 'Não informado'}</dd>
                               </div>
-                              <div>
-                                <dt>Pagamento</dt>
-                                <dd>{installmentLabel(course)}</dd>
-                              </div>
                             </dl>
+                            <section className="native-public-course-payments" aria-label={`Opções de pagamento de ${course.name}`}>
+                              <strong>Opções de pagamento</strong>
+                              {coursePaymentOptions.length > 0 ? (
+                                <div>
+                                  {coursePaymentOptions.map((option) => {
+                                    const detailLines = paymentOptionDetailLines(option);
+                                    return (
+                                      <article key={String(option.id || paymentOptionSummary(option))}>
+                                        <span>{option.title || paymentOptionSummary(option)}</span>
+                                        <b>{paymentOptionSummary(option)}</b>
+                                        {detailLines.map((line, index) => (
+                                          <small
+                                            key={`${String(option.id || '')}-${line.text}-${index}`}
+                                            className={
+                                              line.tone === 'highlight'
+                                                ? 'is-highlight'
+                                                : line.tone === 'secondary'
+                                                  ? 'is-secondary'
+                                                  : undefined
+                                            }
+                                          >
+                                            {line.text}
+                                          </small>
+                                        ))}
+                                      </article>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <small>Consulte as condições de pagamento.</small>
+                              )}
+                            </section>
                           </div>
                         </button>
                       );

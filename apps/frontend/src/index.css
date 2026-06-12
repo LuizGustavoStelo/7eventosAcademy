@@ -9008,6 +9008,60 @@ table button {
   font-weight: 600;
 }
 
+.native-public-course-payments {
+  border-top: 1px solid rgba(15, 23, 42, 0.1);
+  padding-top: 0.55rem;
+  display: grid;
+  gap: 0.42rem;
+}
+
+.native-public-course-payments > strong {
+  color: #64748b;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.native-public-course-payments > div {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.native-public-course-payments article {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 9px;
+  background: #f8fafc;
+  padding: 0.48rem 0.52rem;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.native-public-course-payments article > span {
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.native-public-course-payments article > b {
+  color: #0f172a;
+  font-size: 0.8rem;
+}
+
+.native-public-course-payments small {
+  color: #475569;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.native-public-course-payments small.is-highlight {
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.native-public-course-payments small.is-secondary {
+  color: #64748b;
+}
+
 .native-public-course-empty {
   border: 1px dashed rgba(15, 23, 42, 0.2);
   border-radius: 12px;

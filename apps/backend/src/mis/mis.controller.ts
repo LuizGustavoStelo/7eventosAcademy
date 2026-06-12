@@ -132,10 +132,7 @@ export class MisController {
   @Public()
   @Get('public/cursos')
   async publicCourses() {
-    const courses = await this.coursesService.findAll();
-    return courses.filter(
-      (course) => String(course.status || '').toUpperCase() === 'ACTIVE',
-    );
+    return this.coursesService.findAllForPublicRegistration();
   }
 
   @Throttle({ 'public-mis': { limit: 25, ttl: 60_000 } })
