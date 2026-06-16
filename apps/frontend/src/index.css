@@ -34,6 +34,16 @@ body {
   min-height: 100vh;
 }
 
+html.is-student-register-embedded,
+body.is-student-register-embedded {
+  background: #f4f8fb;
+}
+
+body.is-student-register-embedded #root {
+  min-height: 0;
+  background: #f4f8fb;
+}
+
 .auth-shell {
   min-height: 100vh;
   display: grid;

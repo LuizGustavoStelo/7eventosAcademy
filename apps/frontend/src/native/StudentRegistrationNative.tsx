@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { API_BASE_URL } from './api';
 import { toPtBrApiMessage } from '../errorMessages';
@@ -734,6 +734,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const [codeError, setCodeError] = useState('');
   const [coursesError, setCoursesError] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
+  const hasMountedRef = useRef(false);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -825,6 +826,34 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     setVoucherFeedback('');
     setAppliedVoucher(null);
   }, [selectedCourseId]);
+
+  useEffect(() => {
+    if (!embedded) return undefined;
+
+    document.body.classList.add('is-student-register-embedded');
+    document.documentElement.classList.add('is-student-register-embedded');
+
+    return () => {
+      document.body.classList.remove('is-student-register-embedded');
+      document.documentElement.classList.remove('is-student-register-embedded');
+    };
+  }, [embedded]);
+
+  useEffect(() => {
+    if (!embedded) return;
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+
+    const requestScrollTop = () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.parent.postMessage({ type: 'seven-academy:scroll-top' }, '*');
+    };
+
+    window.requestAnimationFrame(requestScrollTop);
+    window.setTimeout(requestScrollTop, 80);
+  }, [embedded, currentStep]);
 
   useEffect(() => {
     const zipDigits = onlyDigits(zipCode);
