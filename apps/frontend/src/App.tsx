@@ -717,8 +717,17 @@ export default function App() {
       const doc = document.documentElement;
       const isStudentMobileViewport =
         appMode === 'student' && window.matchMedia('(max-width: 980px)').matches;
+      const studentRegisterRoot = appMode === 'student-register'
+        ? document.querySelector<HTMLElement>('.native-student-register')
+        : null;
 
-      const nextHeight = isStudentMobileViewport
+      const nextHeight = studentRegisterRoot
+        ? Math.max(
+            studentRegisterRoot.scrollHeight,
+            studentRegisterRoot.offsetHeight,
+            Math.ceil(studentRegisterRoot.getBoundingClientRect().height),
+          )
+        : isStudentMobileViewport
         ? Math.max(window.innerHeight || 0, doc?.clientHeight ?? 0, 620)
         : Math.max(
             body?.scrollHeight ?? 0,

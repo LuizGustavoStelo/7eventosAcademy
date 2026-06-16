@@ -8719,8 +8719,9 @@ table button {
 }
 
 .native-student-register.is-embedded {
-  min-height: calc(100vh - 8px);
+  min-height: 0;
   padding: 12px;
+  place-items: start center;
 }
 
 .native-student-register-card {

@@ -95,12 +95,12 @@ class Seven_Academy_Shortcodes
      * Shortcode [formulario-cadastro-aluno]
      *
      * Atributos opcionais:
-     *   height - Altura minima do iframe (padrao: 1120px)
+     *   height - Altura minima do iframe (padrao: 0px; ajuste automatico pelo conteudo)
      */
     public static function render_formulario_cadastro_aluno(array $atts = []): string
     {
         $atts = shortcode_atts(
-            ['height' => '1120px'],
+            ['height' => '0px'],
             $atts,
             'formulario-cadastro-aluno'
         );
