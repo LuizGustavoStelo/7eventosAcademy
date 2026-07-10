@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { apiRequest, formatCurrency } from './api';
 
@@ -946,7 +946,10 @@ export function CoursesNative({ token }: CoursesNativeProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [generatingSummaryPdf, setGeneratingSummaryPdf] = useState(false);
+  const [summaryPdfError, setSummaryPdfError] = useState('');
   const [duplicating, setDuplicating] = useState(false);
+  const summaryRef = useRef<HTMLElement>(null);
   const [form, setForm] = useState<CourseFormState>(() => emptyForm());
   const [selectedBannerFile, setSelectedBannerFile] = useState<File | null>(null);
   const [previewBannerUrl, setPreviewBannerUrl] = useState(FALLBACK_BANNER);
@@ -1712,6 +1715,126 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       );
     } finally {
       setDuplicating(false);
+    }
+  };
+
+  const downloadSummaryPdf = async () => {
+    const source = summaryRef.current;
+    if (!source || generatingSummaryPdf) return;
+
+    setGeneratingSummaryPdf(true);
+    setSummaryPdfError('');
+
+    const exportHost = document.createElement('div');
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const summaryClone = source.cloneNode(true) as HTMLElement;
+      summaryClone.classList.add('is-pdf-export');
+      summaryClone.querySelectorAll('[data-pdf-ignore]').forEach((element) => element.remove());
+      exportHost.className = 'native-course-summary-pdf-host';
+      exportHost.appendChild(summaryClone);
+      document.body.appendChild(exportHost);
+
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+      const canvas = await html2canvas(summaryClone, {
+        backgroundColor: '#ffffff',
+        logging: false,
+        scale: 2,
+        useCORS: true,
+        windowWidth: 794,
+      });
+
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const printableWidth = pageWidth - margin * 2;
+      const printableHeight = pageHeight - margin * 2;
+      const maximumSliceHeight = Math.floor(
+        canvas.width * (printableHeight / printableWidth),
+      );
+      const cloneBounds = summaryClone.getBoundingClientRect();
+      const scale = canvas.width / cloneBounds.width;
+      const preferredBreaks = Array.from(
+        summaryClone.querySelectorAll(
+          '.native-course-summary-content > section:not(.is-full), .native-course-summary-payment-list > article',
+        ),
+      )
+        .map((element) =>
+          Math.round(
+            ((element as HTMLElement).getBoundingClientRect().top - cloneBounds.top) * scale,
+          ),
+        )
+        .filter((position) => position > 0)
+        .sort((first, second) => first - second);
+
+      let sliceStart = 0;
+      let pageIndex = 0;
+      while (sliceStart < canvas.height) {
+        const maximumSliceEnd = Math.min(sliceStart + maximumSliceHeight, canvas.height);
+        const minimumUsefulBreak = sliceStart + Math.floor(maximumSliceHeight * 0.45);
+        const preferredSliceEnd = preferredBreaks
+          .filter((position) => position > minimumUsefulBreak && position < maximumSliceEnd)
+          .at(-1);
+        const sliceEnd = preferredSliceEnd || maximumSliceEnd;
+        const sliceHeight = sliceEnd - sliceStart;
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sliceHeight;
+        const context = pageCanvas.getContext('2d');
+        if (!context) throw new Error('Não foi possível preparar a página do PDF.');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        context.drawImage(
+          canvas,
+          0,
+          sliceStart,
+          canvas.width,
+          sliceHeight,
+          0,
+          0,
+          canvas.width,
+          sliceHeight,
+        );
+
+        if (pageIndex > 0) pdf.addPage();
+        const renderedHeight = (sliceHeight / canvas.width) * printableWidth;
+        pdf.addImage(
+          pageCanvas.toDataURL('image/jpeg', 0.94),
+          'JPEG',
+          margin,
+          margin,
+          printableWidth,
+          renderedHeight,
+          undefined,
+          'FAST',
+        );
+        sliceStart = sliceEnd;
+        pageIndex += 1;
+      }
+
+      const courseName = form.name.trim() || 'curso-sem-nome';
+      const fileName = courseName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .toLowerCase();
+      pdf.setProperties({ title: `Visão geral - ${courseName}` });
+      pdf.save(`visao-geral-${fileName || 'curso'}.pdf`);
+    } catch (pdfError) {
+      setSummaryPdfError(
+        pdfError instanceof Error
+          ? pdfError.message
+          : 'Não foi possível gerar o PDF da visão geral.',
+      );
+    } finally {
+      exportHost.remove();
+      setGeneratingSummaryPdf(false);
     }
   };
 
@@ -3009,7 +3132,10 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                   <button
                     type="button"
                     className="ghost"
-                    onClick={() => setSummaryOpen(true)}
+                    onClick={() => {
+                      setSummaryPdfError('');
+                      setSummaryOpen(true);
+                    }}
                     disabled={saving || duplicating}
                   >
                     Resumo
@@ -3083,6 +3209,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
               >
                 <section
                   className="native-course-summary"
+                  ref={summaryRef}
                   onClick={(event) => event.stopPropagation()}
                 >
                   <header>
@@ -3090,10 +3217,25 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       <small>VISÃO GERAL</small>
                       <h3>{form.name.trim() || 'Curso sem nome'}</h3>
                     </div>
-                    <button type="button" onClick={() => setSummaryOpen(false)}>
-                      Fechar
-                    </button>
+                    <div className="native-course-summary-actions" data-pdf-ignore>
+                      <button
+                        type="button"
+                        onClick={() => void downloadSummaryPdf()}
+                        disabled={generatingSummaryPdf}
+                      >
+                        {generatingSummaryPdf ? 'Gerando PDF...' : 'Baixar PDF'}
+                      </button>
+                      <button type="button" onClick={() => setSummaryOpen(false)}>
+                        Fechar
+                      </button>
+                    </div>
                   </header>
+
+                  {summaryPdfError ? (
+                    <p className="native-course-summary-pdf-error" data-pdf-ignore>
+                      {summaryPdfError}
+                    </p>
+                  ) : null}
 
                   <div className="native-course-summary-content">
                     <section>

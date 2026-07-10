@@ -3620,8 +3620,8 @@ table button:disabled {
   width: min(980px, 100%);
   max-height: calc(100vh - 48px);
   overflow: hidden;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   border-radius: 8px;
   background: #fff;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
@@ -3661,6 +3661,50 @@ table button:disabled {
   color: #334155;
   font-weight: 700;
   cursor: pointer;
+}
+
+.native-course-summary > header button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.native-course-summary-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.native-course-summary-pdf-error {
+  margin: 0;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.native-course-summary-pdf-host {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  z-index: -1;
+  width: 794px;
+  background: #fff;
+}
+
+.native-course-summary.is-pdf-export {
+  width: 794px;
+  max-height: none;
+  overflow: visible;
+  display: block;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.native-course-summary.is-pdf-export .native-course-summary-content {
+  overflow: visible;
 }
 
 .native-course-summary-content {
