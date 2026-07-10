@@ -924,6 +924,17 @@ function mapCoursePaymentOptionsToForm(course: Course): CoursePaymentOptionForm[
   return source.map((option) => mapCoursePaymentOptionToForm(option));
 }
 
+function resolvePromotionalInstallmentValue(option: CoursePaymentOptionForm) {
+  const configuredValue = parseNumberSafe(option.promotionalInstallmentAmount) || 0;
+  if (configuredValue > 0) return configuredValue;
+
+  const promotionalTotal = parseNumberSafe(option.promotionalTotalAmount) || 0;
+  const installmentCount = parseIntSafe(option.installmentCount) || 0;
+  return promotionalTotal > 0 && installmentCount > 0
+    ? promotionalTotal / installmentCount
+    : 0;
+}
+
 export function CoursesNative({ token }: CoursesNativeProps) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [search, setSearch] = useState('');
@@ -3166,7 +3177,28 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                 <div><dt>Desconto antecipado</dt><dd>{option.type === 'INSTALLMENTS' ? formatCurrency(parseNumberSafe(option.discountInstallmentAmount) || 0) : formatCurrency(parseNumberSafe(option.discountTotalAmount) || 0)}{option.discountDeadlineDay ? ` até o dia ${option.discountDeadlineDay}` : ''}</dd></div>
                               ) : null}
                               {option.isPromotional ? (
-                                <div><dt>Promocional</dt><dd>{formatCurrency(parseNumberSafe(option.promotionalTotalAmount) || 0)} para {option.promotionalSlots || 0} vaga(s)</dd></div>
+                                <>
+                                  <div>
+                                    <dt>Valor promocional</dt>
+                                    <dd>
+                                      {formatCurrency(
+                                        parseNumberSafe(option.promotionalTotalAmount) || 0,
+                                      )}{' '}
+                                      para {option.promotionalSlots || 0} vaga(s)
+                                    </dd>
+                                  </div>
+                                  {option.type === 'INSTALLMENTS' ? (
+                                    <div>
+                                      <dt>Parcelamento promocional</dt>
+                                      <dd>
+                                        {option.installmentCount}x de{' '}
+                                        {formatCurrency(
+                                          resolvePromotionalInstallmentValue(option),
+                                        )}
+                                      </dd>
+                                    </div>
+                                  ) : null}
+                                </>
                               ) : null}
                             </dl>
                             {option.note.trim() ? <p>{option.note}</p> : null}
