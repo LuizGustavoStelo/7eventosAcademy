@@ -219,6 +219,35 @@ export class CoursePaymentOptionDto {
   promotionalDiscountRequiresActiveCrf?: boolean;
 }
 
+export class CourseEnrollmentPaymentOptionDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsEnum(CoursePaymentOptionMethodDto)
+  method!: CoursePaymentOptionMethodDto;
+
+  @IsOptional()
+  @IsEnum(CoursePaymentCollectionModeDto)
+  collectionMode?: CoursePaymentCollectionModeDto;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(24)
+  installmentCount?: number;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  active?: boolean;
+}
+
 export class CreateCourseDto {
   @IsString()
   name!: string;
@@ -291,4 +320,10 @@ export class CreateCourseDto {
   @ValidateNested({ each: true })
   @Type(() => CoursePaymentOptionDto)
   paymentOptions?: CoursePaymentOptionDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CourseEnrollmentPaymentOptionDto)
+  enrollmentPaymentOptions?: CourseEnrollmentPaymentOptionDto[];
 }

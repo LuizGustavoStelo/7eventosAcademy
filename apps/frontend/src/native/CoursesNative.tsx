@@ -13,6 +13,24 @@ type CoursePaymentCollectionMode = 'INSTALLMENT_CHARGES' | 'MANUAL_LINK';
 type CoursePaymentDiscountType = 'FIXED' | 'PERCENT';
 type CoursePaymentDiscountAppliesTo = 'INSTALLMENT' | 'TOTAL';
 
+type EnrollmentPaymentOption = {
+  id?: string | null;
+  title?: string | null;
+  method?: CoursePaymentOptionMethod | null;
+  collectionMode?: CoursePaymentCollectionMode | null;
+  installmentCount?: number | null;
+  active?: boolean | null;
+};
+
+type EnrollmentPaymentOptionForm = {
+  id: string;
+  title: string;
+  method: CoursePaymentOptionMethod;
+  collectionMode: CoursePaymentCollectionMode;
+  installmentCount: string;
+  active: boolean;
+};
+
 type CoursePaymentOption = {
   id?: string | null;
   title?: string | null;
@@ -96,6 +114,7 @@ type Course = {
   installmentValue?: number | null;
   installmentStartDate?: string | null;
   paymentOptions?: CoursePaymentOption[] | null;
+  enrollmentPaymentOptions?: EnrollmentPaymentOption[] | null;
   bannerUrl?: string | null;
   enrolledStudentsCount?: number;
 };
@@ -114,6 +133,7 @@ type CourseFormState = {
   paymentModel: CoursePaymentModel;
   hasEnrollmentFee: boolean;
   enrollmentFee: string;
+  enrollmentPaymentOptions: EnrollmentPaymentOptionForm[];
   installmentMonths: string;
   installmentValue: string;
   installmentStartMode: InstallmentStartMode;
@@ -168,6 +188,58 @@ function createPaymentOptionId() {
   }
 
   return `payment-option-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createDefaultEnrollmentPaymentOptions(): EnrollmentPaymentOptionForm[] {
+  return [
+    {
+      id: 'enrollment-pix',
+      title: 'Pix',
+      method: 'PIX',
+      collectionMode: 'INSTALLMENT_CHARGES',
+      installmentCount: '1',
+      active: true,
+    },
+    {
+      id: 'enrollment-bank-slip',
+      title: 'Boleto',
+      method: 'BANK_SLIP',
+      collectionMode: 'INSTALLMENT_CHARGES',
+      installmentCount: '1',
+      active: false,
+    },
+    {
+      id: 'enrollment-credit-card',
+      title: 'Cartão de crédito',
+      method: 'CREDIT_CARD',
+      collectionMode: 'MANUAL_LINK',
+      installmentCount: '3',
+      active: false,
+    },
+  ];
+}
+
+function mapEnrollmentPaymentOptionsToForm(
+  options?: EnrollmentPaymentOption[] | null,
+): EnrollmentPaymentOptionForm[] {
+  const defaults = createDefaultEnrollmentPaymentOptions();
+  if (!Array.isArray(options) || options.length === 0) return defaults;
+
+  return defaults.map((fallback) => {
+    const stored = options.find((option) => option.method === fallback.method);
+    if (!stored) return { ...fallback, active: false };
+    return {
+      ...fallback,
+      id: stored.id || fallback.id,
+      title: stored.title || fallback.title,
+      collectionMode:
+        stored.method === 'CREDIT_CARD' || stored.collectionMode === 'MANUAL_LINK'
+          ? 'MANUAL_LINK'
+          : 'INSTALLMENT_CHARGES',
+      installmentCount: String(Math.max(1, Number(stored.installmentCount || 1))),
+      active: stored.active !== false,
+    };
+  });
 }
 
 function createPaymentOptionForm(
@@ -596,6 +668,7 @@ function emptyForm(): CourseFormState {
     paymentModel: 'CASH',
     hasEnrollmentFee: false,
     enrollmentFee: '0,00',
+    enrollmentPaymentOptions: createDefaultEnrollmentPaymentOptions(),
     installmentMonths: '',
     installmentValue: '0,00',
     installmentStartMode: 'ON_ENROLLMENT',
@@ -961,6 +1034,9 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       paymentModel: (course.paymentModel as CoursePaymentModel) || 'CASH',
       hasEnrollmentFee: enrollmentFee > 0,
       enrollmentFee: formatMoneyValue(enrollmentFee),
+      enrollmentPaymentOptions: mapEnrollmentPaymentOptionsToForm(
+        course.enrollmentPaymentOptions,
+      ),
       installmentMonths: months ? String(months) : '',
       installmentValue: formatMoneyValue(installmentValue),
       installmentStartMode: installmentStartDate ? 'SCHEDULED' : 'ON_ENROLLMENT',
@@ -1035,6 +1111,21 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     }));
   };
 
+  const updateEnrollmentPaymentOption = <
+    K extends keyof EnrollmentPaymentOptionForm,
+  >(
+    method: CoursePaymentOptionMethod,
+    key: K,
+    value: EnrollmentPaymentOptionForm[K],
+  ) => {
+    setForm((current) => ({
+      ...current,
+      enrollmentPaymentOptions: current.enrollmentPaymentOptions.map((option) =>
+        option.method === method ? { ...option, [key]: value } : option,
+      ),
+    }));
+  };
+
   const recalculatePaymentOptionInstallment = (
     optionId: string,
     totalAmountValue: string,
@@ -1091,6 +1182,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       installmentStartDate: '',
       hasEnrollmentFee: true,
       enrollmentFee: formatMoneyValue('450'),
+      enrollmentPaymentOptions: createDefaultEnrollmentPaymentOptions(),
       paymentOptions: buildPdfTemplatePaymentOptions(),
     }));
   };
@@ -1158,6 +1250,33 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       (payloadBase.enrollmentFee === undefined || payloadBase.enrollmentFee === null)
     ) {
       setFormError('Informe um valor de matrícula válido.');
+      return;
+    }
+
+    const enrollmentPaymentOptionsPayload = form.hasEnrollmentFee
+      ? form.enrollmentPaymentOptions
+          .filter((option) => option.active)
+          .map((option) => ({
+            id: option.id,
+            title:
+              option.method === 'CREDIT_CARD' && Number(option.installmentCount) > 1
+                ? `Cartão de crédito em até ${Number(option.installmentCount)}x`
+                : option.title,
+            method: option.method,
+            collectionMode:
+              option.method === 'CREDIT_CARD'
+                ? ('MANUAL_LINK' as const)
+                : option.collectionMode,
+            installmentCount:
+              option.method === 'CREDIT_CARD'
+                ? Math.max(1, Number(option.installmentCount || 1))
+                : 1,
+            active: true,
+          }))
+      : [];
+
+    if (form.hasEnrollmentFee && enrollmentPaymentOptionsPayload.length === 0) {
+      setFormError('Selecione pelo menos uma forma de pagamento para a matrícula.');
       return;
     }
 
@@ -1491,6 +1610,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         ...payloadBase,
         ...installments,
         paymentOptions: paymentOptionsPayload,
+        enrollmentPaymentOptions: enrollmentPaymentOptionsPayload,
       };
 
       if (form.id) {
@@ -1725,6 +1845,12 @@ export function CoursesNative({ token }: CoursesNativeProps) {
               const enrollmentFeeSummary = hasPositiveNumber(course.enrollmentFee)
                 ? formatCurrency(Number(course.enrollmentFee || 0))
                 : '';
+              const enrollmentPaymentMethodsSummary = (
+                course.enrollmentPaymentOptions ?? []
+              )
+                .filter((option) => option.active !== false)
+                .map((option) => paymentMethodLabel[option.method || 'PIX'])
+                .join(', ');
               const installmentStartSummary =
                 paymentModel === 'INSTALLMENTS' && hasTextValue(course.installmentStartDate)
                   ? formatDateLabel(course.installmentStartDate)
@@ -1781,7 +1907,13 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       ) : null}
                       {showEnrollmentFee ? (
                         <small className="full">
-                          Matrícula: <strong>{enrollmentFeeSummary}</strong>
+                          Matrícula:{' '}
+                          <strong>
+                            {enrollmentFeeSummary}
+                            {enrollmentPaymentMethodsSummary
+                              ? ` (${enrollmentPaymentMethodsSummary})`
+                              : ''}
+                          </strong>
                         </small>
                       ) : null}
                       {showInstallmentStart ? (
@@ -1909,32 +2041,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                 </label>
 
                 <label>
-                  Cobrar matrícula
-                  <select
-                    value={form.hasEnrollmentFee ? 'YES' : 'NO'}
-                    onChange={(event) =>
-                      updateForm('hasEnrollmentFee', event.target.value === 'YES')
-                    }
-                  >
-                    <option value="NO">Não</option>
-                    <option value="YES">Sim</option>
-                  </select>
-                </label>
-
-                {form.hasEnrollmentFee ? (
-                  <label>
-                    Valor da matrícula (R$)
-                    <input
-                      type="text"
-                      value={form.enrollmentFee}
-                      onChange={(event) =>
-                        updateForm('enrollmentFee', event.target.value)
-                      }
-                    />
-                  </label>
-                ) : null}
-
-                <label>
                   Modelo de cobrança operacional
                   <select
                     value={form.paymentModel}
@@ -2056,6 +2162,115 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                       </button>
                     </div>
                   </header>
+
+                  <details className="native-payment-option-card native-enrollment-fee-card">
+                    <summary className="native-payment-option-summary">
+                      <span className="native-payment-option-summary-title">
+                        <strong>Matrícula</strong>
+                        <small>
+                          {form.hasEnrollmentFee
+                            ? previewEnrollmentFee || 'Valor não informado'
+                            : 'Opcional'}
+                        </small>
+                      </span>
+                      <span className="native-enrollment-summary-actions">
+                        <label
+                          className="native-inline-switch"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            role="switch"
+                            checked={form.hasEnrollmentFee}
+                            onChange={(event) =>
+                              updateForm('hasEnrollmentFee', event.target.checked)
+                            }
+                            onClick={(event) => event.stopPropagation()}
+                          />
+                          <span aria-hidden="true" />
+                          <b>{form.hasEnrollmentFee ? 'Ativada' : 'Desativada'}</b>
+                        </label>
+                        <span className="native-payment-option-chevron" aria-hidden="true" />
+                      </span>
+                    </summary>
+
+                    <div className="native-payment-option-body">
+                      {!form.hasEnrollmentFee ? (
+                        <p className="native-enrollment-fee-disabled-copy">
+                          Ative a matrícula no cabeçalho para configurar o valor e as formas de pagamento.
+                        </p>
+                      ) : (
+                        <div className="native-payment-option-groups">
+                          <fieldset className="native-payment-option-group">
+                            <legend>Valor da matrícula</legend>
+                            <div className="native-payment-option-grid">
+                              <label>
+                                Valor cobrado (R$)
+                                <input
+                                  type="text"
+                                  value={form.enrollmentFee}
+                                  onChange={(event) =>
+                                    updateForm('enrollmentFee', event.target.value)
+                                  }
+                                />
+                              </label>
+                            </div>
+                          </fieldset>
+
+                          <fieldset className="native-payment-option-group">
+                            <legend>Formas de pagamento aceitas</legend>
+                            <div className="native-enrollment-method-list">
+                              {form.enrollmentPaymentOptions.map((option) => (
+                                <div key={option.method} className="native-enrollment-method-row">
+                                  <label className="native-inline-switch">
+                                    <input
+                                      type="checkbox"
+                                      role="switch"
+                                      checked={option.active}
+                                      onChange={(event) =>
+                                        updateEnrollmentPaymentOption(
+                                          option.method,
+                                          'active',
+                                          event.target.checked,
+                                        )
+                                      }
+                                    />
+                                    <span aria-hidden="true" />
+                                    <b>{paymentMethodLabel[option.method]}</b>
+                                  </label>
+
+                                  {option.method === 'CREDIT_CARD' && option.active ? (
+                                    <label className="native-enrollment-installments-field">
+                                      Parcelamento máximo
+                                      <select
+                                        value={option.installmentCount}
+                                        onChange={(event) =>
+                                          updateEnrollmentPaymentOption(
+                                            option.method,
+                                            'installmentCount',
+                                            event.target.value,
+                                          )
+                                        }
+                                      >
+                                        {Array.from({ length: 12 }, (_, index) => index + 1).map(
+                                          (count) => (
+                                            <option key={count} value={count}>
+                                              {count === 1 ? 'À vista' : `Até ${count}x`}
+                                            </option>
+                                          ),
+                                        )}
+                                      </select>
+                                      <small>O link será enviado manualmente pelo financeiro.</small>
+                                    </label>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          </fieldset>
+                        </div>
+                      )}
+                    </div>
+                  </details>
 
                   <div className="native-payment-options-list">
                     {form.paymentOptions.map((option, index) => (

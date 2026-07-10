@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 import {
   CourseModalityDto,
+  CourseEnrollmentPaymentOptionDto,
   CoursePaymentOptionDto,
   CoursePaymentModelDto,
   CourseStatusDto,
@@ -91,4 +92,10 @@ export class UpdateCourseDto {
   @ValidateNested({ each: true })
   @Type(() => CoursePaymentOptionDto)
   paymentOptions?: CoursePaymentOptionDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CourseEnrollmentPaymentOptionDto)
+  enrollmentPaymentOptions?: CourseEnrollmentPaymentOptionDto[];
 }

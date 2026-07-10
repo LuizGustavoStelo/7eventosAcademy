@@ -3513,6 +3513,99 @@ table button:disabled {
   gap: 0.6rem;
 }
 
+.native-enrollment-fee-card {
+  border-color: rgba(37, 99, 235, 0.28);
+}
+
+.native-enrollment-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.native-inline-switch {
+  display: inline-flex !important;
+  align-items: center;
+  grid-template-columns: none !important;
+  gap: 0.45rem !important;
+  cursor: pointer;
+  font-size: 0.76rem !important;
+}
+
+.native-inline-switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.native-inline-switch > span {
+  width: 34px;
+  height: 19px;
+  position: relative;
+  flex: 0 0 34px;
+  border-radius: 10px;
+  background: #cbd5e1;
+  transition: background 160ms ease;
+}
+
+.native-inline-switch > span::after {
+  content: '';
+  width: 15px;
+  height: 15px;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+  transition: transform 160ms ease;
+}
+
+.native-inline-switch input:checked + span {
+  background: #2563eb;
+}
+
+.native-inline-switch input:checked + span::after {
+  transform: translateX(15px);
+}
+
+.native-inline-switch input:focus-visible + span {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.native-inline-switch b {
+  color: #334155;
+  font-size: 0.76rem;
+}
+
+.native-enrollment-fee-disabled-copy {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.native-enrollment-method-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.native-enrollment-method-row {
+  min-height: 48px;
+  padding: 0.55rem 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.native-enrollment-installments-field {
+  width: min(260px, 100%);
+}
+
 .native-payment-option-card {
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 8px;
@@ -5771,6 +5864,20 @@ table button {
 
   .native-payment-option-grid {
     grid-template-columns: 1fr;
+  }
+
+  .native-payment-option-summary,
+  .native-enrollment-method-row {
+    align-items: stretch;
+  }
+
+  .native-enrollment-summary-actions,
+  .native-enrollment-method-row {
+    flex-wrap: wrap;
+  }
+
+  .native-enrollment-installments-field {
+    width: 100%;
   }
 
   .native-notices-split {
@@ -9194,6 +9301,51 @@ table button {
   gap: 0.65rem;
 }
 
+.native-enrollment-payment-selector {
+  border-left: 3px solid #2563eb;
+}
+
+.native-enrollment-payment-choice-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.native-enrollment-payment-choice-list > button {
+  min-height: 68px;
+  padding: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  text-align: left;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 6px;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.native-enrollment-payment-choice-list > button.is-selected {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+.native-enrollment-payment-choice-list span {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.native-enrollment-payment-choice-list small {
+  color: #64748b;
+}
+
+.native-enrollment-payment-choice-list b {
+  color: #2563eb;
+  font-size: 0.72rem;
+}
+
 .native-course-voucher-validator {
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 12px;
@@ -9501,6 +9653,10 @@ table button {
   }
 
   .native-public-course-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .native-enrollment-payment-choice-list {
     grid-template-columns: 1fr;
   }
 }

@@ -15,6 +15,7 @@ import {
   CoursePaymentDiscountAppliesToDto,
   CoursePaymentDiscountTypeDto,
   CoursePaymentCollectionModeDto,
+  CourseEnrollmentPaymentOptionDto,
   CourseInstallmentStartModeDto,
   CoursePaymentOptionDto,
   CoursePaymentOptionMethodDto,
@@ -60,6 +61,15 @@ type NormalizedCoursePaymentOption = {
   promotionalDiscountRequiresActiveCrf: boolean;
 };
 
+type NormalizedEnrollmentPaymentOption = {
+  id: string;
+  title: string;
+  method: CoursePaymentOptionMethodDto;
+  collectionMode: CoursePaymentCollectionModeDto;
+  installmentCount: number;
+  active: boolean;
+};
+
 @Injectable()
 export class CoursesService {
   constructor(
@@ -94,6 +104,10 @@ export class CoursesService {
       normalizedPaymentOptions.length > 0
         ? normalizedPaymentOptions
         : fallbackPaymentOptions;
+    const enrollmentPaymentOptions = this.normalizeEnrollmentPaymentOptions(
+      dto.enrollmentPaymentOptions,
+      Number(paymentData.enrollmentFee ?? 0) > 0,
+    );
 
     const course = await this.prisma.course.create({
       data: {
@@ -108,6 +122,8 @@ export class CoursesService {
         price: this.toDecimal(dto.price),
         ...paymentData,
         paymentOptions: paymentOptionsToPersist as Prisma.InputJsonValue,
+        enrollmentPaymentOptions:
+          enrollmentPaymentOptions as Prisma.InputJsonValue,
         modality: dto.modality,
         status: dto.status,
       },
@@ -202,6 +218,12 @@ export class CoursesService {
       dto.paymentOptions === undefined
         ? undefined
         : this.normalizePaymentOptions(dto.paymentOptions);
+    const enrollmentPaymentOptions = this.normalizeEnrollmentPaymentOptions(
+      dto.enrollmentPaymentOptions === undefined
+        ? this.parseStoredEnrollmentPaymentOptions(current.enrollmentPaymentOptions)
+        : dto.enrollmentPaymentOptions,
+      Number(paymentData.enrollmentFee ?? 0) > 0,
+    );
 
     const course = await this.prisma.course.update({
       where: { id },
@@ -226,6 +248,8 @@ export class CoursesService {
           paymentOptions === undefined
             ? undefined
             : (paymentOptions as Prisma.InputJsonValue),
+        enrollmentPaymentOptions:
+          enrollmentPaymentOptions as Prisma.InputJsonValue,
         modality: dto.modality,
         status: dto.status,
       },
@@ -405,6 +429,7 @@ export class CoursesService {
         ? course.installmentStartDate.toISOString()
         : null,
       paymentOptions: this.resolvePaymentOptionsForRead(course),
+      enrollmentPaymentOptions: this.resolveEnrollmentPaymentOptionsForRead(course),
       bannerAssetId: banner?.assetId ?? null,
       bannerUrl: banner?.url ?? null,
     };
@@ -731,6 +756,130 @@ export class CoursesService {
             : false,
       };
     });
+  }
+
+  private normalizeEnrollmentPaymentOptions(
+    options:
+      | Array<CourseEnrollmentPaymentOptionDto | NormalizedEnrollmentPaymentOption>
+      | null
+      | undefined,
+    enabled: boolean,
+  ): NormalizedEnrollmentPaymentOption[] {
+    if (!enabled) return [];
+
+    const source = Array.isArray(options) ? options : [];
+    const normalized = source
+      .filter((option) => option?.active !== false)
+      .map((option, index) => {
+        const method =
+          option.method === CoursePaymentOptionMethodDto.BANK_SLIP
+            ? CoursePaymentOptionMethodDto.BANK_SLIP
+            : option.method === CoursePaymentOptionMethodDto.CREDIT_CARD
+              ? CoursePaymentOptionMethodDto.CREDIT_CARD
+              : CoursePaymentOptionMethodDto.PIX;
+        const installmentCount =
+          method === CoursePaymentOptionMethodDto.CREDIT_CARD
+            ? Math.min(24, Math.max(1, Math.trunc(Number(option.installmentCount ?? 1))))
+            : 1;
+        const methodLabel =
+          method === CoursePaymentOptionMethodDto.BANK_SLIP
+            ? 'Boleto'
+            : method === CoursePaymentOptionMethodDto.CREDIT_CARD
+              ? 'Cartão de crédito'
+              : 'Pix';
+
+        return {
+          id: option.id?.trim() || `enrollment-${method.toLowerCase()}-${index + 1}`,
+          title:
+            option.title?.trim() ||
+            (installmentCount > 1 ? `${methodLabel} em até ${installmentCount}x` : methodLabel),
+          method,
+          collectionMode:
+            method === CoursePaymentOptionMethodDto.CREDIT_CARD ||
+            option.collectionMode === CoursePaymentCollectionModeDto.MANUAL_LINK
+              ? CoursePaymentCollectionModeDto.MANUAL_LINK
+              : CoursePaymentCollectionModeDto.INSTALLMENT_CHARGES,
+          installmentCount,
+          active: true,
+        };
+      });
+
+    const uniqueByMethod = new Map<
+      CoursePaymentOptionMethodDto,
+      NormalizedEnrollmentPaymentOption
+    >();
+    for (const option of normalized) {
+      uniqueByMethod.set(option.method, option);
+    }
+
+    if (uniqueByMethod.size > 0) {
+      return [...uniqueByMethod.values()];
+    }
+
+    return [
+      {
+        id: 'enrollment-pix',
+        title: 'Pix',
+        method: CoursePaymentOptionMethodDto.PIX,
+        collectionMode: CoursePaymentCollectionModeDto.INSTALLMENT_CHARGES,
+        installmentCount: 1,
+        active: true,
+      },
+    ];
+  }
+
+  private parseStoredEnrollmentPaymentOptions(
+    raw: Prisma.JsonValue | null | undefined,
+  ): NormalizedEnrollmentPaymentOption[] {
+    if (!Array.isArray(raw)) return [];
+
+    return raw
+      .map((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+        const record = item as Record<string, unknown>;
+        const methodRaw = String(record.method || '').trim().toUpperCase();
+        const method =
+          methodRaw === CoursePaymentOptionMethodDto.BANK_SLIP
+            ? CoursePaymentOptionMethodDto.BANK_SLIP
+            : methodRaw === CoursePaymentOptionMethodDto.CREDIT_CARD
+              ? CoursePaymentOptionMethodDto.CREDIT_CARD
+              : CoursePaymentOptionMethodDto.PIX;
+        const installmentCount =
+          method === CoursePaymentOptionMethodDto.CREDIT_CARD
+            ? Math.min(24, Math.max(1, Math.trunc(Number(record.installmentCount ?? 1))))
+            : 1;
+        return {
+          id: String(record.id || '').trim() || `enrollment-${method.toLowerCase()}`,
+          title: String(record.title || '').trim() ||
+            (method === CoursePaymentOptionMethodDto.CREDIT_CARD && installmentCount > 1
+              ? `Cartão de crédito em até ${installmentCount}x`
+              : method === CoursePaymentOptionMethodDto.BANK_SLIP
+                ? 'Boleto'
+                : method === CoursePaymentOptionMethodDto.CREDIT_CARD
+                  ? 'Cartão de crédito'
+                  : 'Pix'),
+          method,
+          collectionMode:
+            method === CoursePaymentOptionMethodDto.CREDIT_CARD ||
+            String(record.collectionMode || '').toUpperCase() ===
+              CoursePaymentCollectionModeDto.MANUAL_LINK
+              ? CoursePaymentCollectionModeDto.MANUAL_LINK
+              : CoursePaymentCollectionModeDto.INSTALLMENT_CHARGES,
+          installmentCount,
+          active: record.active !== false,
+        };
+      })
+      .filter((item): item is NormalizedEnrollmentPaymentOption => item !== null);
+  }
+
+  private resolveEnrollmentPaymentOptionsForRead(
+    course: Prisma.CourseGetPayload<Record<string, never>>,
+  ): NormalizedEnrollmentPaymentOption[] {
+    if (Number(course.enrollmentFee ?? 0) <= 0) return [];
+    return this.normalizeEnrollmentPaymentOptions(
+      this.parseStoredEnrollmentPaymentOptions(course.enrollmentPaymentOptions),
+      true,
+    );
   }
 
   private resolvePaymentOptionsForRead(

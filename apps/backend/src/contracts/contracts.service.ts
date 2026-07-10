@@ -831,6 +831,7 @@ export class ContractsService {
     let courseInstallmentValue = 0;
     let enrollmentClassStartDate: Date | null = null;
     let enrollmentSelectedPaymentOption: Prisma.JsonValue | null = null;
+    let enrollmentSelectedFeePaymentOption: Prisma.JsonValue | null = null;
     if (dto.courseId) {
       const course = await this.prisma.course.findFirst({
         where: { id: dto.courseId, institutionId },
@@ -876,6 +877,7 @@ export class ContractsService {
         select: {
           id: true,
           selectedPaymentOption: true,
+          selectedEnrollmentPaymentOption: true,
           schoolClass: {
             select: {
               id: true,
@@ -906,6 +908,8 @@ export class ContractsService {
       }
       enrollmentClassStartDate = enrollment.schoolClass?.startDate ?? null;
       enrollmentSelectedPaymentOption = enrollment.selectedPaymentOption ?? null;
+      enrollmentSelectedFeePaymentOption =
+        enrollment.selectedEnrollmentPaymentOption ?? null;
       if (!courseName) {
         courseName = enrollment.schoolClass?.course?.name || courseName;
       }
@@ -937,6 +941,9 @@ export class ContractsService {
     const now = new Date();
     const selectedPaymentOption = this.parseInstallmentOptionFromJson(
       enrollmentSelectedPaymentOption,
+    );
+    const selectedEnrollmentPaymentOption = this.parseInstallmentOptionFromJson(
+      enrollmentSelectedFeePaymentOption,
     );
     const installments = await this.resolveInstallmentsForContract(
       institutionId,
@@ -1028,6 +1035,14 @@ export class ContractsService {
       `Valor total: ${this.formatCurrencyPtBr(financialTotal)}`,
       `Taxa de matrícula: ${this.formatCurrencyPtBr(courseEnrollmentFee)}`,
     ];
+    if (courseEnrollmentFee > 0 && selectedEnrollmentPaymentOption) {
+      formsAndValuesSummaryLines.push(
+        `Pagamento da matrícula: ${
+          selectedEnrollmentPaymentOption.title ||
+          this.paymentMethodLabelPtBr(selectedEnrollmentPaymentOption.method)
+        }`,
+      );
+    }
     if (!hideScheduleForCreditCard) {
       formsAndValuesSummaryLines.push(
         `Quantidade de parcelas: ${installmentCountForSummary}`,
@@ -2307,6 +2322,7 @@ export class ContractsService {
         ownerAdminId: enrollment.schoolClass.course.ownerAdminId,
         dueDate: item.dueDate,
         amount: item.amount,
+        kind: item.kind,
         status: item.status,
       })),
     });
@@ -2324,6 +2340,7 @@ export class ContractsService {
     const result: Array<{
       dueDate: Date;
       amount: number;
+      kind: 'COURSE_PAYMENT' | 'ENROLLMENT_FEE';
       status: 'PENDING' | 'OVERDUE';
     }> = [];
     const now = new Date();
@@ -2344,6 +2361,7 @@ export class ContractsService {
       result.push({
         dueDate: feeDate,
         amount: this.toMoneyValue(enrollmentFee),
+        kind: 'ENROLLMENT_FEE',
         status: feeStart < startOfToday ? 'OVERDUE' : 'PENDING',
       });
     }
@@ -2367,6 +2385,7 @@ export class ContractsService {
         result.push({
           dueDate,
           amount: this.toMoneyValue(totalAmount),
+          kind: 'COURSE_PAYMENT',
           status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
         });
         return result;
@@ -2397,6 +2416,7 @@ export class ContractsService {
         result.push({
           dueDate: firstDueDate,
           amount: this.toMoneyValue(value),
+          kind: 'COURSE_PAYMENT',
           status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
         });
 
@@ -2414,6 +2434,7 @@ export class ContractsService {
           result.push({
             dueDate,
             amount: this.toMoneyValue(value),
+            kind: 'COURSE_PAYMENT',
             status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
           });
         }
@@ -2437,6 +2458,7 @@ export class ContractsService {
         result.push({
           dueDate,
           amount: this.toMoneyValue(value),
+          kind: 'COURSE_PAYMENT',
           status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
         });
       }
@@ -2460,6 +2482,7 @@ export class ContractsService {
       result.push({
         dueDate,
         amount: this.toMoneyValue(value),
+        kind: 'COURSE_PAYMENT',
         status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
       });
     }
@@ -3033,6 +3056,13 @@ export class ContractsService {
       return 'À vista';
     }
     return installmentsCount > 1 ? 'Parcelado' : 'À vista';
+  }
+
+  private paymentMethodLabelPtBr(method?: string | null) {
+    const normalized = String(method || '').trim().toUpperCase();
+    if (normalized === 'BANK_SLIP') return 'Boleto';
+    if (normalized === 'CREDIT_CARD') return 'Cartão de crédito';
+    return 'Pix';
   }
 
   private buildInstallmentsTableHtml(

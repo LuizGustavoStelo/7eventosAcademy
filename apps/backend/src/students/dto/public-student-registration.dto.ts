@@ -113,6 +113,11 @@ export class PublicStudentRegistrationDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
+  selectedEnrollmentPaymentOptionId?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(40)
   selectedVoucherCode?: string;
 }

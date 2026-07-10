@@ -104,6 +104,7 @@ export class EnrollmentsService {
             paymentModel: true,
             price: true,
             enrollmentFee: true,
+            enrollmentPaymentOptions: true,
             paymentOptions: true,
             installmentMonths: true,
             installmentValue: true,
@@ -186,6 +187,12 @@ export class EnrollmentsService {
           requestedVoucherCode: dto.voucherCode,
           course: schoolClass.course,
         });
+        const selectedEnrollmentPaymentOption =
+          this.resolveEnrollmentFeePaymentOption({
+            enrollmentFee: Number(schoolClass.course.enrollmentFee ?? 0),
+            rawOptions: schoolClass.course.enrollmentPaymentOptions,
+            requestedOptionId: dto.enrollmentPaymentOptionId,
+          });
 
         const createdEnrollment = await tx.enrollment.create({
           data: {
@@ -196,6 +203,11 @@ export class EnrollmentsService {
             selectedPaymentOptionId: selectedPaymentOption.id,
             selectedPaymentOption:
               selectedPaymentOption as Prisma.InputJsonValue,
+            selectedEnrollmentPaymentOptionId:
+              selectedEnrollmentPaymentOption?.id ?? null,
+            selectedEnrollmentPaymentOption: selectedEnrollmentPaymentOption
+              ? (selectedEnrollmentPaymentOption as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
           },
           include: {
             student: {
@@ -251,6 +263,7 @@ export class EnrollmentsService {
               ownerAdminId: schoolClass.course.ownerAdminId,
               dueDate: charge.dueDate,
               amount: charge.amount,
+              kind: charge.kind,
               status: charge.status,
             })),
           });
@@ -673,7 +686,7 @@ export class EnrollmentsService {
       installmentMonths: input.installmentMonths,
       installmentValue: input.installmentValue,
       selectedPaymentOption: input.selectedPaymentOption,
-    });
+    }).map((charge) => ({ ...charge, kind: 'COURSE_PAYMENT' as const }));
     const enrollmentGraceDueDate = this.addHours(input.enrollmentCreatedAt, 48);
     const chargesWithGrace =
       Boolean(input.selectedPaymentOption) &&
@@ -712,6 +725,7 @@ export class EnrollmentsService {
       {
         dueDate: new Date(enrollmentGraceDueDate),
         amount: enrollmentFee,
+        kind: 'ENROLLMENT_FEE' as const,
         status: this.resolveChargeStatusByDueDate(enrollmentGraceDueDate),
       },
       ...chargesWithGrace,
@@ -767,6 +781,95 @@ export class EnrollmentsService {
     return dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING';
   }
 
+  private resolveEnrollmentFeePaymentOption(input: {
+    enrollmentFee: number;
+    rawOptions: Prisma.JsonValue | null | undefined;
+    requestedOptionId?: string;
+  }): EnrollmentPaymentOption | null {
+    const amount = this.toMoneyValue(input.enrollmentFee);
+    if (amount <= 0) return null;
+
+    const source = Array.isArray(input.rawOptions) ? input.rawOptions : [];
+    const options = source
+      .map((item, index): EnrollmentPaymentOption | null => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+        const record = item as Record<string, unknown>;
+        if (record.active === false) return null;
+        const methodRaw = String(record.method || '').trim().toUpperCase();
+        const method: EnrollmentPaymentOptionMethod =
+          methodRaw === 'BANK_SLIP'
+            ? 'BANK_SLIP'
+            : methodRaw === 'CREDIT_CARD'
+              ? 'CREDIT_CARD'
+              : 'PIX';
+        const installmentCount =
+          method === 'CREDIT_CARD'
+            ? Math.min(
+                24,
+                Math.max(1, Math.trunc(this.toFiniteNumber(record.installmentCount) ?? 1)),
+              )
+            : 1;
+
+        return {
+          id:
+            String(record.id || '').trim() ||
+            `enrollment-${method.toLowerCase()}-${index + 1}`,
+          title:
+            String(record.title || '').trim() ||
+            (method === 'CREDIT_CARD' && installmentCount > 1
+              ? `Cartão de crédito em até ${installmentCount}x`
+              : method === 'BANK_SLIP'
+                ? 'Boleto'
+                : method === 'CREDIT_CARD'
+                  ? 'Cartão de crédito'
+                  : 'Pix'),
+          method,
+          type: installmentCount > 1 ? 'INSTALLMENTS' : 'CASH',
+          collectionMode: method === 'CREDIT_CARD' ? 'MANUAL_LINK' : 'INSTALLMENT_CHARGES',
+          totalAmount: amount,
+          installmentCount,
+          installmentAmount: this.toMoneyValue(amount / installmentCount),
+          dueDay: null,
+          installmentStartMode: 'ON_ENROLLMENT',
+          installmentStartDate: null,
+          note: null,
+          isPromotional: false,
+          promotionalSlots: null,
+          promotionalTotalAmount: null,
+          promotionalInstallmentAmount: null,
+          active: true,
+          discountEnabled: false,
+          discountTotalAmount: null,
+          discountInstallmentAmount: null,
+          discountType: null,
+          discountValue: null,
+          discountDeadlineDay: null,
+          discountRequiresActiveCrf: false,
+          discountAppliesTo: null,
+          promotionalDiscountEnabled: false,
+          promotionalDiscountTotalAmount: null,
+          promotionalDiscountInstallmentAmount: null,
+          promotionalDiscountDeadlineDay: null,
+          promotionalDiscountRequiresActiveCrf: false,
+        };
+      })
+      .filter((option): option is EnrollmentPaymentOption => option !== null);
+
+    const fallback = options[0];
+    if (!fallback) {
+      throw new BadRequestException(
+        'Este curso cobra matrícula, mas não possui forma de pagamento ativa para ela.',
+      );
+    }
+
+    if (!input.requestedOptionId) return fallback;
+    const requested = options.find((option) => option.id === input.requestedOptionId);
+    if (!requested) {
+      throw new BadRequestException('Forma de pagamento da matrícula inválida.');
+    }
+    return requested;
+  }
+
   private async resolveEnrollmentPaymentOption(input: {
     tx: Prisma.TransactionClient;
     institutionId: string;
@@ -790,7 +893,7 @@ export class EnrollmentsService {
 
     if (availableOptions.length === 0) {
       throw new BadRequestException(
-        'Este curso n?o possui op??es de pagamento ativas.',
+        'Este curso não possui opções de pagamento ativas.',
       );
     }
 
@@ -799,7 +902,7 @@ export class EnrollmentsService {
         (option) => option.id === input.requestedPaymentOptionId,
       );
       if (!requestedOption) {
-        throw new BadRequestException('Op??o de pagamento inv?lida para este curso.');
+        throw new BadRequestException('Opção de pagamento inválida para este curso.');
       }
 
       const optionWithPromotion = hasRequestedVoucher

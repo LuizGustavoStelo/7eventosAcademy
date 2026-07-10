@@ -129,6 +129,7 @@ type WebhookProcessingResult = {
 
 type StudentChargePaymentContext = {
   id: string;
+  kind: 'COURSE_PAYMENT' | 'ENROLLMENT_FEE';
   amount: Prisma.Decimal;
   createdAt: Date;
   dueDate: Date;
@@ -139,6 +140,7 @@ type StudentChargePaymentContext = {
     id: string;
     createdAt: Date;
     selectedPaymentOption: Prisma.JsonValue | null;
+    selectedEnrollmentPaymentOption: Prisma.JsonValue | null;
     schoolClass: {
       name: string;
       course: {
@@ -399,7 +401,9 @@ export class MisService {
     }
 
     const method = this.resolveEnrollmentPaymentMethod(
-      charge.enrollment.selectedPaymentOption,
+      charge.kind === 'ENROLLMENT_FEE'
+        ? charge.enrollment.selectedEnrollmentPaymentOption
+        : charge.enrollment.selectedPaymentOption,
     );
     const chargePricing = this.resolveStudentChargePricingForPayment(charge);
     const payableAmount = chargePricing.payableAmount;
@@ -798,6 +802,7 @@ export class MisService {
       },
       select: {
         id: true,
+        kind: true,
         enrollmentId: true,
         dueDate: true,
         amount: true,
@@ -808,6 +813,7 @@ export class MisService {
           select: {
             createdAt: true,
             selectedPaymentOption: true,
+            selectedEnrollmentPaymentOption: true,
             schoolClass: {
               select: {
                 name: true,
@@ -877,6 +883,7 @@ export class MisService {
   private mapStudentChargesForResponse(
     charges: Array<{
       id: string;
+      kind: 'COURSE_PAYMENT' | 'ENROLLMENT_FEE';
       enrollmentId: string;
       dueDate: Date;
       amount: Prisma.Decimal;
@@ -884,6 +891,7 @@ export class MisService {
       externalChargeId: string | null;
       enrollment: {
         selectedPaymentOption: Prisma.JsonValue | null;
+        selectedEnrollmentPaymentOption: Prisma.JsonValue | null;
         schoolClass: {
           name: string;
           course: {
@@ -920,7 +928,9 @@ export class MisService {
       );
       const gatewayIsActive = Boolean(financialConfig?.isActive);
       const paymentMethod = this.resolveEnrollmentPaymentMethod(
-        charge.enrollment.selectedPaymentOption,
+        charge.kind === 'ENROLLMENT_FEE'
+          ? charge.enrollment.selectedEnrollmentPaymentOption
+          : charge.enrollment.selectedPaymentOption,
       );
       const creditCardUnsupported =
         paymentMethod === 'CREDIT_CARD' &&
@@ -949,13 +959,16 @@ export class MisService {
           : null,
         status: charge.status,
         description:
+          (charge.kind === 'ENROLLMENT_FEE' ? 'Taxa de matrícula' : null) ??
           descriptionByChargeId.get(charge.id) ??
           this.buildStudentChargeDefaultDescription(
             charge.enrollment.selectedPaymentOption,
           ),
         paymentMethod,
         paymentOptionTitle: this.resolveEnrollmentPaymentOptionTitle(
-          charge.enrollment.selectedPaymentOption,
+          charge.kind === 'ENROLLMENT_FEE'
+            ? charge.enrollment.selectedEnrollmentPaymentOption
+            : charge.enrollment.selectedPaymentOption,
         ),
         appliedVoucher: this.resolveEnrollmentAppliedVoucher(
           charge.enrollment.selectedPaymentOption,
@@ -2564,6 +2577,7 @@ export class MisService {
       where: { externalChargeId: normalized },
       select: {
         id: true,
+        kind: true,
         amount: true,
         createdAt: true,
         dueDate: true,
@@ -2575,6 +2589,7 @@ export class MisService {
             id: true,
             createdAt: true,
             selectedPaymentOption: true,
+            selectedEnrollmentPaymentOption: true,
             schoolClass: {
               select: {
                 name: true,
@@ -2630,6 +2645,7 @@ export class MisService {
       where: { id: normalized },
       select: {
         id: true,
+        kind: true,
         amount: true,
         createdAt: true,
         dueDate: true,
@@ -2641,6 +2657,7 @@ export class MisService {
             id: true,
             createdAt: true,
             selectedPaymentOption: true,
+            selectedEnrollmentPaymentOption: true,
             schoolClass: {
               select: {
                 name: true,
@@ -2701,6 +2718,7 @@ export class MisService {
       },
       select: {
         id: true,
+        kind: true,
         amount: true,
         createdAt: true,
         dueDate: true,
@@ -2712,6 +2730,7 @@ export class MisService {
             id: true,
             createdAt: true,
             selectedPaymentOption: true,
+            selectedEnrollmentPaymentOption: true,
             schoolClass: {
               select: {
                 name: true,

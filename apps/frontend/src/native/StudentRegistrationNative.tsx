@@ -17,6 +17,15 @@ type CourseCatalogItem = {
   paymentModel?: string | null;
   installmentMonths?: number | null;
   installmentValue?: number | null;
+  enrollmentFee?: number | null;
+  enrollmentPaymentOptions?: Array<{
+    id?: string | null;
+    title?: string | null;
+    method?: string | null;
+    collectionMode?: string | null;
+    installmentCount?: number | null;
+    active?: boolean | null;
+  }> | null;
   paymentOptions?: Array<{
     id?: string | null;
     title?: string | null;
@@ -89,6 +98,7 @@ type RegistrationPayload = {
   state?: string;
   courseIds?: string[];
   selectedPaymentOptionId?: string;
+  selectedEnrollmentPaymentOptionId?: string;
   selectedVoucherCode?: string;
 };
 
@@ -312,6 +322,13 @@ function modalityLabel(value?: string | null) {
   if (normalized === 'HYBRID') return 'Híbrido';
   if (normalized === 'EAD') return 'EAD';
   return 'Não informado';
+}
+
+function enrollmentPaymentMethodLabel(method?: string | null) {
+  const normalized = String(method || '').trim().toUpperCase();
+  if (normalized === 'BANK_SLIP') return 'Boleto';
+  if (normalized === 'CREDIT_CARD') return 'Cartão de crédito';
+  return 'Pix';
 }
 
 function getActivePaymentOptions(course: CourseCatalogItem) {
@@ -775,6 +792,8 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const [zipLookupError, setZipLookupError] = useState('');
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedPaymentOptionId, setSelectedPaymentOptionId] = useState('');
+  const [selectedEnrollmentPaymentOptionId, setSelectedEnrollmentPaymentOptionId] =
+    useState('');
   const [expandedPaymentOptions, setExpandedPaymentOptions] = useState<Record<string, boolean>>({});
   const [voucherCode, setVoucherCode] = useState('');
   const [voucherValidating, setVoucherValidating] = useState(false);
@@ -810,6 +829,13 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       ) ?? null,
     [selectedCoursePaymentOptions, selectedPaymentOptionId],
   );
+  const selectedEnrollmentPaymentOptions = useMemo(
+    () =>
+      (selectedCourse?.enrollmentPaymentOptions ?? []).filter(
+        (option) => option?.active !== false,
+      ),
+    [selectedCourse],
+  );
 
   useEffect(() => {
     if (!selectedCourseId) {
@@ -827,6 +853,25 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       setSelectedPaymentOptionId(String(selectedCoursePaymentOptions[0]?.id || ''));
     }
   }, [selectedCourseId, selectedCoursePaymentOptions, selectedPaymentOptionId]);
+
+  useEffect(() => {
+    if (Number(selectedCourse?.enrollmentFee || 0) <= 0) {
+      setSelectedEnrollmentPaymentOptionId('');
+      return;
+    }
+    const hasCurrent = selectedEnrollmentPaymentOptions.some(
+      (option) => String(option.id || '') === selectedEnrollmentPaymentOptionId,
+    );
+    if (!hasCurrent) {
+      setSelectedEnrollmentPaymentOptionId(
+        String(selectedEnrollmentPaymentOptions[0]?.id || ''),
+      );
+    }
+  }, [
+    selectedCourse,
+    selectedEnrollmentPaymentOptions,
+    selectedEnrollmentPaymentOptionId,
+  ]);
 
   useEffect(() => {
     setVoucherCode('');
@@ -1083,6 +1128,12 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     if (selectedCoursePaymentOptions.length > 0 && !selectedPaymentOptionId) {
       return 'Selecione a forma de pagamento para concluir a matrícula.';
     }
+    if (
+      Number(selectedCourse?.enrollmentFee || 0) > 0 &&
+      !selectedEnrollmentPaymentOptionId
+    ) {
+      return 'Selecione a forma de pagamento da matrícula.';
+    }
     return '';
   };
 
@@ -1140,6 +1191,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     setZipLookupError('');
     setSelectedCourseId('');
     setSelectedPaymentOptionId('');
+    setSelectedEnrollmentPaymentOptionId('');
     setVoucherCode('');
     setVoucherError('');
     setVoucherFeedback('');
@@ -1188,6 +1240,8 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       state: state.trim().toUpperCase(),
       courseIds: selectedCourseId ? [selectedCourseId] : undefined,
       selectedPaymentOptionId: selectedPaymentOptionId || undefined,
+      selectedEnrollmentPaymentOptionId:
+        selectedEnrollmentPaymentOptionId || undefined,
       selectedVoucherCode:
         appliedVoucher &&
         selectedPaymentOption &&
@@ -1708,6 +1762,44 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
                       );
                     })}
                   </div>
+                ) : null}
+
+                {selectedCourse && Number(selectedCourse.enrollmentFee || 0) > 0 ? (
+                  <section className="native-course-payment-selector native-enrollment-payment-selector">
+                    <header>
+                      <h4>Pagamento da matrícula</h4>
+                      <p>
+                        Valor: {currencyFormatter.format(Number(selectedCourse.enrollmentFee || 0))}.
+                        Escolha como deseja pagar a matrícula.
+                      </p>
+                    </header>
+                    <div className="native-enrollment-payment-choice-list">
+                      {selectedEnrollmentPaymentOptions.map((option) => {
+                        const optionId = String(option.id || '');
+                        const selected = selectedEnrollmentPaymentOptionId === optionId;
+                        const installments = Math.max(1, Number(option.installmentCount || 1));
+                        return (
+                          <button
+                            key={optionId || String(option.method)}
+                            type="button"
+                            className={selected ? 'is-selected' : ''}
+                            onClick={() => setSelectedEnrollmentPaymentOptionId(optionId)}
+                            disabled={loading}
+                          >
+                            <span>
+                              <strong>{option.title || enrollmentPaymentMethodLabel(option.method)}</strong>
+                              <small>
+                                {installments > 1
+                                  ? `Até ${installments}x no cartão`
+                                  : enrollmentPaymentMethodLabel(option.method)}
+                              </small>
+                            </span>
+                            <b>{selected ? 'Selecionada' : 'Selecionar'}</b>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
                 ) : null}
 
                 {selectedCourse ? (

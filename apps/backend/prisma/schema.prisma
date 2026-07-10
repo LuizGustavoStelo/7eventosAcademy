@@ -61,6 +61,13 @@ enum CreditCardPaymentRequestStatus {
   @@map("credit_card_payment_request_status")
 }
 
+enum MonthlyChargeKind {
+  COURSE_PAYMENT @map("course_payment")
+  ENROLLMENT_FEE @map("enrollment_fee")
+
+  @@map("monthly_charge_kind")
+}
+
 enum CourseStatus {
   ACTIVE   @map("active")
   DRAFT    @map("draft")
@@ -411,6 +418,7 @@ model Course {
   installmentValue  Decimal?           @map("installment_value") @db.Decimal(12, 2)
   installmentStartDate DateTime?       @map("installment_start_date")
   paymentOptions    Json?              @map("payment_options")
+  enrollmentPaymentOptions Json?       @map("enrollment_payment_options")
   modality          CourseModality     @default(PRESENTIAL)
   status            CourseStatus       @default(ACTIVE)
   createdAt         DateTime           @default(now()) @map("created_at")
@@ -541,6 +549,8 @@ model Enrollment {
   institutionId  String           @map("institution_id") @db.Uuid
   selectedPaymentOptionId String? @map("selected_payment_option_id")
   selectedPaymentOption Json?     @map("selected_payment_option")
+  selectedEnrollmentPaymentOptionId String? @map("selected_enrollment_payment_option_id")
+  selectedEnrollmentPaymentOption Json? @map("selected_enrollment_payment_option")
   status         EnrollmentStatus @default(ACTIVE)
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
@@ -554,6 +564,7 @@ model Enrollment {
   @@unique([classId, studentId])
   @@index([institutionId], map: "enrollments_institution_idx")
   @@index([selectedPaymentOptionId], map: "enrollments_selected_payment_option_idx")
+  @@index([selectedEnrollmentPaymentOptionId], map: "enrollments_selected_enrollment_payment_option_idx")
   @@map("enrollments")
 }
 
@@ -772,6 +783,7 @@ model MonthlyCharge {
   ownerAdminId        String?              @map("owner_admin_id") @db.Uuid
   dueDate             DateTime             @map("due_date")
   amount              Decimal              @db.Decimal(12, 2)
+  kind                MonthlyChargeKind     @default(COURSE_PAYMENT)
   status              ChargeStatus         @default(PENDING)
   externalChargeId    String?              @map("external_charge_id")
   createdAt           DateTime             @default(now()) @map("created_at")

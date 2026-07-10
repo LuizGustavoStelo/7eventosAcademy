@@ -1133,7 +1133,9 @@ export class FinanceService {
     }
 
     const selectedOption = this.parseEnrollmentSelectedPaymentOption(
-      charge.enrollment.selectedPaymentOption,
+      charge.kind === 'ENROLLMENT_FEE'
+        ? charge.enrollment.selectedEnrollmentPaymentOption
+        : charge.enrollment.selectedPaymentOption,
     );
     if (selectedOption?.method !== 'CREDIT_CARD') {
       throw new BadRequestException(
