@@ -481,6 +481,55 @@ export class MisService {
     );
   }
 
+  async getAlunoCreditCardPaymentRequests(userId: string) {
+    if (!userId) {
+      throw new NotFoundException('Aluno nÃ£o encontrado.');
+    }
+
+    return this.financeService.listStudentCreditCardPaymentRequests(userId);
+  }
+
+  async requestAlunoCreditCardPaymentLink(userId: string, chargeId: string) {
+    if (!userId) {
+      throw new NotFoundException('Aluno nÃ£o encontrado.');
+    }
+
+    return this.financeService.requestCreditCardPaymentForStudent(
+      userId,
+      chargeId,
+    );
+  }
+
+  async markAlunoCreditCardPaymentLinkViewed(
+    userId: string,
+    requestId: string,
+  ) {
+    if (!userId) {
+      throw new NotFoundException('Aluno nÃ£o encontrado.');
+    }
+
+    return this.financeService.markStudentCreditCardPaymentRequestAction(
+      userId,
+      requestId,
+      'VIEWED',
+    );
+  }
+
+  async markAlunoCreditCardPaymentLinkCopied(
+    userId: string,
+    requestId: string,
+  ) {
+    if (!userId) {
+      throw new NotFoundException('Aluno nÃ£o encontrado.');
+    }
+
+    return this.financeService.markStudentCreditCardPaymentRequestAction(
+      userId,
+      requestId,
+      'COPIED',
+    );
+  }
+
   async handlePaymentWebhook(
     providerRaw: string,
     payload: unknown,

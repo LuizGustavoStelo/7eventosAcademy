@@ -10,6 +10,7 @@ import { PrismaService } from '../database/prisma.service';
 import { CreateChargeDto } from './dto/create-charge.dto';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { CreateVoucherDto } from './dto/create-voucher.dto';
+import { SendCreditCardPaymentLinkDto } from './dto/send-credit-card-payment-link.dto';
 import { UpdateChargeStatusDto } from './dto/update-charge-status.dto';
 import { UpdateVoucherStatusDto } from './dto/update-voucher-status.dto';
 
@@ -19,6 +20,7 @@ type VoucherDiscountTypeInput = 'PERCENT' | 'FIXED';
 type VoucherAppliesToInput = 'TOTAL' | 'INSTALLMENT';
 type VoucherInstallmentScopeInput = 'ALL' | 'SINGLE';
 type VoucherPaymentOptionTypeInput = 'CASH' | 'INSTALLMENTS';
+type CreditCardRequestAction = 'VIEWED' | 'COPIED';
 
 export type VoucherPaymentOptionShape = {
   id: string;
@@ -418,6 +420,10 @@ export class FinanceService {
         paymentTransactions: {
           orderBy: { createdAt: 'desc' },
         },
+        creditCardPaymentRequests: {
+          orderBy: { requestedAt: 'desc' },
+          take: 1,
+        },
       },
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
     });
@@ -432,6 +438,9 @@ export class FinanceService {
         ...transaction,
         amount: Number(transaction.amount),
       })),
+      creditCardPaymentRequest: charge.creditCardPaymentRequests[0]
+        ? this.mapCreditCardPaymentRequest(charge.creditCardPaymentRequests[0])
+        : null,
     }));
   }
 
@@ -522,6 +531,10 @@ export class FinanceService {
     });
 
     if (updatedCharge.status === 'PAID') {
+      await this.markCreditCardRequestApprovedByCharge(
+        updatedCharge.id,
+        user.sub,
+      );
       await this.tryReleaseAutomaticContractsAfterEnrollmentFeePayment(
         updatedCharge.id,
       );
@@ -607,6 +620,18 @@ export class FinanceService {
           where: { id: dto.monthlyChargeId },
           data: {
             status: 'PAID',
+          },
+        });
+
+        await tx.creditCardPaymentRequest.updateMany({
+          where: {
+            monthlyChargeId: dto.monthlyChargeId,
+            status: { notIn: ['APPROVED', 'CANCELED'] },
+          },
+          data: {
+            status: 'APPROVED',
+            approvedAt: new Date(),
+            approvedByUserId: user.sub,
           },
         });
       }
@@ -934,6 +959,288 @@ export class FinanceService {
       createdAt: updatedVoucher.createdAt,
       updatedAt: updatedVoucher.updatedAt,
     };
+  }
+
+  async listCreditCardPaymentRequests(user: JwtPayload) {
+    const where = this.buildCreditCardPaymentRequestWhere(user);
+    const requests = await this.prisma.creditCardPaymentRequest.findMany({
+      where,
+      include: this.creditCardPaymentRequestInclude(),
+      orderBy: [{ requestedAt: 'desc' }],
+    });
+
+    return requests.map((request) => this.mapCreditCardPaymentRequest(request));
+  }
+
+  async sendCreditCardPaymentLink(
+    requestId: string,
+    dto: SendCreditCardPaymentLinkDto,
+    user: JwtPayload,
+  ) {
+    const request = await this.prisma.creditCardPaymentRequest.findFirst({
+      where: {
+        id: requestId,
+        ...this.buildCreditCardPaymentRequestWhere(user),
+        status: { notIn: ['APPROVED', 'CANCELED'] },
+      },
+      select: { id: true },
+    });
+
+    if (!request) {
+      throw new NotFoundException('SolicitaÃ§Ã£o de cartÃ£o nÃ£o encontrada.');
+    }
+
+    const updated = await this.prisma.creditCardPaymentRequest.update({
+      where: { id: requestId },
+      data: {
+        paymentLinkUrl: dto.paymentLinkUrl.trim(),
+        adminNote: dto.adminNote?.trim() || null,
+        status: 'LINK_SENT',
+        linkSentAt: new Date(),
+      },
+      include: this.creditCardPaymentRequestInclude(),
+    });
+
+    return this.mapCreditCardPaymentRequest(updated);
+  }
+
+  async approveCreditCardPaymentRequest(requestId: string, user: JwtPayload) {
+    const request = await this.prisma.creditCardPaymentRequest.findFirst({
+      where: {
+        id: requestId,
+        ...this.buildCreditCardPaymentRequestWhere(user),
+        status: { not: 'CANCELED' },
+      },
+      include: {
+        monthlyCharge: {
+          select: {
+            id: true,
+            status: true,
+            ownerAdminId: true,
+          },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('SolicitaÃ§Ã£o de cartÃ£o nÃ£o encontrada.');
+    }
+
+    if (request.status === 'APPROVED' || request.monthlyCharge.status === 'PAID') {
+      const current = await this.prisma.creditCardPaymentRequest.findUnique({
+        where: { id: request.id },
+        include: this.creditCardPaymentRequestInclude(),
+      });
+      return current ? this.mapCreditCardPaymentRequest(current) : { success: true };
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.paymentTransaction.create({
+        data: {
+          monthlyChargeId: request.monthlyChargeId,
+          provider: 'sicoob_manual_card_link',
+          amount: request.amount,
+          status: 'SUCCESS',
+          externalTransactionId: `manual-card-link:${request.id}`,
+          paidAt: new Date(),
+        },
+      });
+
+      await tx.monthlyCharge.update({
+        where: { id: request.monthlyChargeId },
+        data: { status: 'PAID' },
+      });
+
+      await tx.creditCardPaymentRequest.update({
+        where: { id: request.id },
+        data: {
+          status: 'APPROVED',
+          approvedAt: new Date(),
+          approvedByUserId: user.sub,
+        },
+      });
+    });
+
+    await this.tryReleaseAutomaticContractsAfterEnrollmentFeePayment(
+      request.monthlyChargeId,
+    );
+    this.invalidateDashboardSummaryCache();
+
+    const updated = await this.prisma.creditCardPaymentRequest.findUnique({
+      where: { id: request.id },
+      include: this.creditCardPaymentRequestInclude(),
+    });
+
+    return updated ? this.mapCreditCardPaymentRequest(updated) : { success: true };
+  }
+
+  async cancelCreditCardPaymentRequest(requestId: string, user: JwtPayload) {
+    const request = await this.prisma.creditCardPaymentRequest.findFirst({
+      where: {
+        id: requestId,
+        ...this.buildCreditCardPaymentRequestWhere(user),
+        status: { not: 'APPROVED' },
+      },
+      select: { id: true },
+    });
+
+    if (!request) {
+      throw new NotFoundException('SolicitaÃ§Ã£o de cartÃ£o nÃ£o encontrada.');
+    }
+
+    const updated = await this.prisma.creditCardPaymentRequest.update({
+      where: { id: requestId },
+      data: { status: 'CANCELED' },
+      include: this.creditCardPaymentRequestInclude(),
+    });
+
+    return this.mapCreditCardPaymentRequest(updated);
+  }
+
+  async requestCreditCardPaymentForStudent(userId: string, chargeId: string) {
+    const charge = await this.prisma.monthlyCharge.findFirst({
+      where: {
+        id: chargeId,
+        status: { in: ['PENDING', 'OVERDUE'] },
+        enrollment: {
+          studentId: userId,
+        },
+      },
+      include: {
+        enrollment: {
+          include: {
+            student: {
+              select: { id: true, name: true, email: true },
+            },
+            schoolClass: {
+              include: {
+                course: {
+                  select: {
+                    id: true,
+                    name: true,
+                    ownerAdminId: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!charge) {
+      throw new NotFoundException('CobranÃ§a nÃ£o encontrada.');
+    }
+
+    const selectedOption = this.parseEnrollmentSelectedPaymentOption(
+      charge.enrollment.selectedPaymentOption,
+    );
+    if (selectedOption?.method !== 'CREDIT_CARD') {
+      throw new BadRequestException(
+        'Esta cobranÃ§a nÃ£o corresponde a uma forma de pagamento por cartÃ£o.',
+      );
+    }
+
+    const existing = await this.prisma.creditCardPaymentRequest.findUnique({
+      where: { monthlyChargeId: charge.id },
+      include: this.creditCardPaymentRequestInclude(),
+    });
+
+    if (existing && existing.status !== 'CANCELED') {
+      return this.mapCreditCardPaymentRequest(existing);
+    }
+
+    const data = {
+      monthlyChargeId: charge.id,
+      enrollmentId: charge.enrollmentId,
+      studentId: charge.enrollment.studentId,
+      ownerAdminId:
+        charge.ownerAdminId || charge.enrollment.schoolClass.course.ownerAdminId,
+      institutionId: charge.enrollment.institutionId,
+      amount: charge.amount,
+      installmentCount:
+        selectedOption.installmentCount > 0
+          ? Math.trunc(selectedOption.installmentCount)
+          : null,
+      installmentAmount:
+        selectedOption.installmentAmount > 0
+          ? new Prisma.Decimal(selectedOption.installmentAmount)
+          : null,
+      status: 'REQUESTED' as const,
+      paymentLinkUrl: null,
+      adminNote: null,
+      requestedAt: new Date(),
+      linkSentAt: null,
+      viewedAt: null,
+      copiedAt: null,
+      approvedAt: null,
+      approvedByUserId: null,
+    };
+
+    const request = existing
+      ? await this.prisma.creditCardPaymentRequest.update({
+          where: { id: existing.id },
+          data,
+          include: this.creditCardPaymentRequestInclude(),
+        })
+      : await this.prisma.creditCardPaymentRequest.create({
+          data,
+          include: this.creditCardPaymentRequestInclude(),
+        });
+
+    return this.mapCreditCardPaymentRequest(request);
+  }
+
+  async listStudentCreditCardPaymentRequests(userId: string) {
+    const requests = await this.prisma.creditCardPaymentRequest.findMany({
+      where: { studentId: userId },
+      include: this.creditCardPaymentRequestInclude(),
+      orderBy: [{ requestedAt: 'desc' }],
+    });
+
+    return requests.map((request) => this.mapCreditCardPaymentRequest(request));
+  }
+
+  async markStudentCreditCardPaymentRequestAction(
+    userId: string,
+    requestId: string,
+    action: CreditCardRequestAction,
+  ) {
+    const request = await this.prisma.creditCardPaymentRequest.findFirst({
+      where: {
+        id: requestId,
+        studentId: userId,
+        status: { in: ['LINK_SENT', 'VIEWED', 'COPIED'] },
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('SolicitaÃ§Ã£o de cartÃ£o nÃ£o encontrada.');
+    }
+
+    const data =
+      action === 'COPIED'
+        ? {
+            copiedAt: new Date(),
+            status: 'COPIED' as const,
+          }
+        : {
+            viewedAt: new Date(),
+            status:
+              request.status === 'COPIED' ? ('COPIED' as const) : ('VIEWED' as const),
+          };
+
+    const updated = await this.prisma.creditCardPaymentRequest.update({
+      where: { id: requestId },
+      data,
+      include: this.creditCardPaymentRequestInclude(),
+    });
+
+    return this.mapCreditCardPaymentRequest(updated);
   }
 
   async deleteVoucher(voucherId: string, user: JwtPayload) {
@@ -1358,12 +1665,25 @@ export class FinanceService {
       String(record.type || '').toUpperCase() === 'INSTALLMENTS'
         ? 'INSTALLMENTS'
         : 'CASH';
+    const methodRaw = String(record.method || '').toUpperCase();
+    const method =
+      methodRaw === 'BANK_SLIP'
+        ? 'BANK_SLIP'
+        : methodRaw === 'CREDIT_CARD'
+          ? 'CREDIT_CARD'
+          : 'PIX';
+    const collectionModeRaw = String(record.collectionMode || '').toUpperCase();
     const installmentCount = Number(record.installmentCount ?? 0);
     const installmentAmount = Number(record.installmentAmount ?? 0);
     const totalAmount = Number(record.totalAmount ?? 0);
 
     return {
+      method,
       type,
+      collectionMode:
+        collectionModeRaw === 'MANUAL_LINK'
+          ? 'MANUAL_LINK'
+          : 'INSTALLMENT_CHARGES',
       installmentCount:
         Number.isFinite(installmentCount) && installmentCount > 0
           ? installmentCount
@@ -1413,6 +1733,158 @@ export class FinanceService {
     }
 
     return 'manual';
+  }
+
+  private async markCreditCardRequestApprovedByCharge(
+    chargeId: string,
+    approvedByUserId: string,
+  ) {
+    await this.prisma.creditCardPaymentRequest.updateMany({
+      where: {
+        monthlyChargeId: chargeId,
+        status: { notIn: ['APPROVED', 'CANCELED'] },
+      },
+      data: {
+        status: 'APPROVED',
+        approvedAt: new Date(),
+        approvedByUserId,
+      },
+    });
+  }
+
+  private buildCreditCardPaymentRequestWhere(
+    user: JwtPayload,
+  ): Prisma.CreditCardPaymentRequestWhereInput {
+    if (user.activeInstitutionId) {
+      return { institutionId: user.activeInstitutionId };
+    }
+
+    if (user.role === 'superadmin') {
+      return {};
+    }
+
+    return { ownerAdminId: user.sub };
+  }
+
+  private creditCardPaymentRequestInclude() {
+    return {
+      monthlyCharge: {
+        select: {
+          id: true,
+          amount: true,
+          dueDate: true,
+          status: true,
+        },
+      },
+      enrollment: {
+        select: {
+          id: true,
+          schoolClass: {
+            select: {
+              id: true,
+              name: true,
+              course: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      student: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      ownerAdmin: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      approvedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    } satisfies Prisma.CreditCardPaymentRequestInclude;
+  }
+
+  private mapCreditCardPaymentRequest(request: {
+    id: string;
+    monthlyChargeId: string;
+    enrollmentId: string;
+    studentId: string;
+    ownerAdminId: string | null;
+    institutionId: string;
+    amount: Prisma.Decimal | number;
+    installmentCount: number | null;
+    installmentAmount: Prisma.Decimal | number | null;
+    status: string;
+    paymentLinkUrl: string | null;
+    adminNote: string | null;
+    requestedAt: Date;
+    linkSentAt: Date | null;
+    viewedAt: Date | null;
+    copiedAt: Date | null;
+    approvedAt: Date | null;
+    approvedByUserId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    monthlyCharge?: {
+      id: string;
+      amount: Prisma.Decimal | number;
+      dueDate: Date;
+      status: string;
+    } | null;
+    enrollment?: {
+      id: string;
+      schoolClass?: {
+        id: string;
+        name: string;
+        course?: {
+          id: string;
+          name: string;
+        } | null;
+      } | null;
+    } | null;
+    student?: {
+      id: string;
+      name: string;
+      email: string;
+    } | null;
+    ownerAdmin?: {
+      id: string;
+      name: string;
+      email: string;
+    } | null;
+    approvedBy?: {
+      id: string;
+      name: string;
+      email: string;
+    } | null;
+  }) {
+    return {
+      ...request,
+      amount: Number(request.amount),
+      installmentAmount:
+        request.installmentAmount === null
+          ? null
+          : Number(request.installmentAmount),
+      monthlyCharge: request.monthlyCharge
+        ? {
+            ...request.monthlyCharge,
+            amount: Number(request.monthlyCharge.amount),
+          }
+        : null,
+    };
   }
 
   private buildChargeWhere(user: JwtPayload): Prisma.MonthlyChargeWhereInput {

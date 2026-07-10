@@ -191,6 +191,23 @@ type StudentChargePaymentResponse = {
   message: string;
 };
 
+type CreditCardPaymentRequest = {
+  id: string;
+  monthlyChargeId: string;
+  enrollmentId: string;
+  amount: number;
+  installmentCount: number | null;
+  installmentAmount: number | null;
+  status: 'REQUESTED' | 'LINK_SENT' | 'VIEWED' | 'COPIED' | 'APPROVED' | 'CANCELED' | string;
+  paymentLinkUrl: string | null;
+  adminNote: string | null;
+  requestedAt: string;
+  linkSentAt: string | null;
+  viewedAt: string | null;
+  copiedAt: string | null;
+  approvedAt: string | null;
+};
+
 type StudentAreaNativeProps = {
   token: string;
   user: {
@@ -1033,6 +1050,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const [chargePaymentInfoById, setChargePaymentInfoById] = useState<
     Record<string, string>
   >({});
+  const [creditCardRequestsByChargeId, setCreditCardRequestsByChargeId] = useState<
+    Record<string, CreditCardPaymentRequest>
+  >({});
   const [pendingContractNotificationCount, setPendingContractNotificationCount] = useState(0);
   const [availableContractCount, setAvailableContractCount] = useState(0);
   const [signedContractCount, setSignedContractCount] = useState(0);
@@ -1143,6 +1163,26 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       }
 
       setDashboard(payload);
+      try {
+        const creditCardRequests = await apiRequest<CreditCardPaymentRequest[]>(
+          token,
+          '/mis/v1/aluno/cartao-solicitacoes',
+          undefined,
+          {
+            cacheTtlMs: STUDENT_CACHE_TTL_MS,
+            bypassCache,
+          },
+        );
+        setCreditCardRequestsByChargeId(
+          Object.fromEntries(
+            (Array.isArray(creditCardRequests) ? creditCardRequests : []).map(
+              (request) => [request.monthlyChargeId, request],
+            ),
+          ),
+        );
+      } catch {
+        setCreditCardRequestsByChargeId({});
+      }
       try {
         const summary = await apiRequest<StudentAttendanceSummary>(
           token,
@@ -2084,6 +2124,116 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     }
   };
 
+  const handleRequestCreditCardLink = async (charge: StudentCharge) => {
+    setPayingChargeId(charge.id);
+    setChargePaymentErrorById((current) => ({
+      ...current,
+      [charge.id]: '',
+    }));
+    setChargePaymentInfoById((current) => ({
+      ...current,
+      [charge.id]: '',
+    }));
+
+    try {
+      const request = await apiRequest<CreditCardPaymentRequest>(
+        token,
+        `/mis/v1/aluno/cobrancas/${charge.id}/cartao/solicitar`,
+        { method: 'POST' },
+      );
+      setCreditCardRequestsByChargeId((current) => ({
+        ...current,
+        [charge.id]: request,
+      }));
+      setChargePaymentInfoById((current) => ({
+        ...current,
+        [charge.id]:
+          request.paymentLinkUrl
+            ? 'Link de pagamento disponÃ­vel.'
+            : 'SolicitaÃ§Ã£o enviada ao financeiro. Aguarde o envio do link.',
+      }));
+      void loadDashboard({ bypassCache: true });
+    } catch (requestError) {
+      setChargePaymentErrorById((current) => ({
+        ...current,
+        [charge.id]:
+          requestError instanceof Error
+            ? requestError.message
+            : 'NÃ£o foi possÃ­vel solicitar o link de pagamento.',
+      }));
+    } finally {
+      setPayingChargeId((current) => (current === charge.id ? null : current));
+    }
+  };
+
+  const handleOpenCreditCardLink = async (
+    chargeId: string,
+    request: CreditCardPaymentRequest,
+  ) => {
+    const paymentLink = request.paymentLinkUrl?.trim();
+    if (!paymentLink) return;
+
+    try {
+      await apiRequest<CreditCardPaymentRequest>(
+        token,
+        `/mis/v1/aluno/cartao-solicitacoes/${request.id}/visualizar`,
+        { method: 'POST' },
+      );
+      setCreditCardRequestsByChargeId((current) => ({
+        ...current,
+        [chargeId]: {
+          ...request,
+          status: request.status === 'COPIED' ? 'COPIED' : 'VIEWED',
+          viewedAt: request.viewedAt || new Date().toISOString(),
+        },
+      }));
+    } catch {
+      // O link ainda pode ser aberto mesmo se o registro de visualizaÃ§Ã£o falhar.
+    }
+
+    if (typeof window !== 'undefined') {
+      window.open(paymentLink, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleCopyCreditCardLink = async (
+    chargeId: string,
+    request: CreditCardPaymentRequest,
+  ) => {
+    const paymentLink = request.paymentLinkUrl?.trim();
+    if (!paymentLink) return;
+
+    try {
+      if (
+        typeof navigator === 'undefined' ||
+        !navigator.clipboard ||
+        typeof navigator.clipboard.writeText !== 'function'
+      ) {
+        throw new Error('Clipboard indisponÃ­vel');
+      }
+
+      await navigator.clipboard.writeText(paymentLink);
+      const updated = await apiRequest<CreditCardPaymentRequest>(
+        token,
+        `/mis/v1/aluno/cartao-solicitacoes/${request.id}/copiar`,
+        { method: 'POST' },
+      );
+      setCreditCardRequestsByChargeId((current) => ({
+        ...current,
+        [chargeId]: updated,
+      }));
+      setChargePaymentInfoById((current) => ({
+        ...current,
+        [chargeId]: 'Link de pagamento copiado.',
+      }));
+    } catch {
+      setChargePaymentErrorById((current) => ({
+        ...current,
+        [chargeId]: 'NÃ£o foi possÃ­vel copiar o link automaticamente.',
+      }));
+    }
+  };
+
   const handleCopyPixCode = async (chargeId: string) => {
     const pixCode = chargePaymentDataById[chargeId]?.pixCopyPaste?.trim() || '';
     if (!pixCode) return;
@@ -2554,9 +2704,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     normalizedStatus !== 'PAID' &&
                     normalizedStatus !== 'CANCELED' &&
                     normalizedStatus !== 'CANCELLED';
-                  const commercialUrlForCharge = requiresCommercialContact
-                    ? buildCommercialCreditUrl([charge])
-                    : null;
+                  const creditCardRequest = creditCardRequestsByChargeId[charge.id];
+                  const creditCardPaymentLink = creditCardRequest?.paymentLinkUrl?.trim() || '';
+                  const creditCardRequestStatus = String(
+                    creditCardRequest?.status || '',
+                  ).toUpperCase();
                   return (
                     <article key={charge.id} className={`student-page-list-item ${isOverdue ? 'is-overdue' : ''}`}>
                     <div>
@@ -2618,14 +2770,47 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                         {normalizeChargeStatus(charge.status)}
                       </span>
                       {requiresCommercialContact ? (
-                        <button
-                          type="button"
-                          className="student-charge-commercial-action"
-                          onClick={() => openExternalContact(commercialUrlForCharge)}
-                          disabled={!commercialUrlForCharge}
-                        >
-                          Solicitar no crédito
-                        </button>
+                        <>
+                          {creditCardPaymentLink && creditCardRequest ? (
+                            <>
+                              <button
+                                type="button"
+                                className="student-charge-commercial-action"
+                                onClick={() =>
+                                  void handleOpenCreditCardLink(charge.id, creditCardRequest)
+                                }
+                              >
+                                Abrir link
+                              </button>
+                              <button
+                                type="button"
+                                className="student-charge-commercial-action"
+                                onClick={() =>
+                                  void handleCopyCreditCardLink(charge.id, creditCardRequest)
+                                }
+                              >
+                                Copiar link
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              className="student-charge-commercial-action"
+                              onClick={() => void handleRequestCreditCardLink(charge)}
+                              disabled={
+                                isPaying ||
+                                creditCardRequestStatus === 'REQUESTED' ||
+                                creditCardRequestStatus === 'LINK_SENT'
+                              }
+                            >
+                              {isPaying
+                                ? 'Enviando...'
+                                : creditCardRequest
+                                  ? 'Solicitado'
+                                  : 'Solicitar link'}
+                            </button>
+                          )}
+                        </>
                       ) : null}
                       {canPay && !isSearchingExistingBankSlip ? (
                         <button

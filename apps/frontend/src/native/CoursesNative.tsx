@@ -9,6 +9,7 @@ type CoursePaymentModel = 'CASH' | 'INSTALLMENTS';
 type InstallmentStartMode = 'ON_ENROLLMENT' | 'SCHEDULED';
 type CoursePaymentOptionMethod = 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD';
 type CoursePaymentOptionType = 'CASH' | 'INSTALLMENTS';
+type CoursePaymentCollectionMode = 'INSTALLMENT_CHARGES' | 'MANUAL_LINK';
 type CoursePaymentDiscountType = 'FIXED' | 'PERCENT';
 type CoursePaymentDiscountAppliesTo = 'INSTALLMENT' | 'TOTAL';
 
@@ -17,6 +18,7 @@ type CoursePaymentOption = {
   title?: string | null;
   method?: CoursePaymentOptionMethod | null;
   type?: CoursePaymentOptionType | null;
+  collectionMode?: CoursePaymentCollectionMode | null;
   totalAmount?: number | null;
   installmentCount?: number | null;
   installmentAmount?: number | null;
@@ -48,6 +50,7 @@ type CoursePaymentOptionForm = {
   title: string;
   method: CoursePaymentOptionMethod;
   type: CoursePaymentOptionType;
+  collectionMode: CoursePaymentCollectionMode;
   totalAmount: string;
   installmentCount: string;
   installmentAmount: string;
@@ -174,6 +177,9 @@ function createPaymentOptionForm(
     title: input?.title || '',
     method: input?.method || 'PIX',
     type: input?.type || 'CASH',
+    collectionMode:
+      input?.collectionMode ||
+      (input?.method === 'CREDIT_CARD' ? 'MANUAL_LINK' : 'INSTALLMENT_CHARGES'),
     totalAmount: formatMoneyValue(input?.totalAmount) || '0,00',
     installmentCount: input?.installmentCount || '12',
     installmentAmount: formatMoneyValue(input?.installmentAmount) || '0,00',
@@ -229,6 +235,10 @@ function normalizeCoursePaymentOptions(
         title: option.title || '',
         method: option.method || 'PIX',
         type,
+        collectionMode:
+          option.collectionMode === 'MANUAL_LINK' || option.method === 'CREDIT_CARD'
+            ? 'MANUAL_LINK'
+            : 'INSTALLMENT_CHARGES',
         totalAmount,
         installmentCount,
         installmentAmount,
@@ -307,6 +317,7 @@ function normalizeCoursePaymentOptions(
 function formatPaymentOptionLabel(option: {
   method?: CoursePaymentOptionMethod | null;
   type?: CoursePaymentOptionType | null;
+  collectionMode?: CoursePaymentCollectionMode | null;
   totalAmount?: number | null;
   installmentCount?: number | null;
   installmentAmount?: number | null;
@@ -347,6 +358,8 @@ function formatPaymentOptionLabel(option: {
   const promotionalDiscountInstallmentAmount = Number(option.promotionalDiscountInstallmentAmount || 0);
   const promotionalDiscountDeadlineDay = Number(option.promotionalDiscountDeadlineDay || 0);
   const promotionalDiscountRequiresActiveCrf = Boolean(option.promotionalDiscountRequiresActiveCrf);
+  const collectionSuffix =
+    option.collectionMode === 'MANUAL_LINK' ? ' · link manual' : '';
 
   const promoSuffix = (() => {
     if (!option.isPromotional) return '';
@@ -423,6 +436,7 @@ function formatPaymentOptionLabel(option: {
         ? `${String(safeCount)}x de `
         : '') +
       formatCurrency(safeInstallmentAmount) +
+      collectionSuffix +
       promoSuffix +
       discountSuffix +
       promotionalDiscountSuffix
@@ -433,6 +447,7 @@ function formatPaymentOptionLabel(option: {
     paymentMethodLabel[method] +
     ' à vista ' +
     formatCurrency(totalAmount) +
+    collectionSuffix +
     promoSuffix +
     discountSuffix +
     promotionalDiscountSuffix
@@ -456,6 +471,7 @@ function buildLegacyPaymentOptionFromCourse(course: Course): CoursePaymentOption
       title: installmentCount ? `${installmentCount}x (Boleto)` : 'Mensalidades (Boleto)',
       method: 'BANK_SLIP',
       type: 'INSTALLMENTS',
+      collectionMode: 'INSTALLMENT_CHARGES',
       totalAmount: price > 0 ? price : installmentAmount * (installmentCount || 1),
       installmentCount,
       installmentAmount,
@@ -469,6 +485,7 @@ function buildLegacyPaymentOptionFromCourse(course: Course): CoursePaymentOption
     title: 'À vista (Pix)',
     method: 'PIX',
     type: 'CASH',
+    collectionMode: 'INSTALLMENT_CHARGES',
     totalAmount: price,
     isPromotional: false,
     active: true,
@@ -729,6 +746,10 @@ function mapCoursePaymentOptionToForm(
     title: option.title || '',
     method: (option.method as CoursePaymentOptionMethod) || 'PIX',
     type,
+    collectionMode:
+      option.collectionMode === 'MANUAL_LINK' || option.method === 'CREDIT_CARD'
+        ? 'MANUAL_LINK'
+        : 'INSTALLMENT_CHARGES',
     totalAmount: formatMoneyValue(totalAmount),
     installmentCount: String(installmentCount),
     installmentAmount: formatMoneyValue(installmentAmount),
@@ -1166,6 +1187,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       title: string;
       method: CoursePaymentOptionMethod;
       type: CoursePaymentOptionType;
+      collectionMode: CoursePaymentCollectionMode;
       totalAmount: number;
       installmentCount?: number;
       installmentAmount?: number;
@@ -1205,6 +1227,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         title: string;
         method: CoursePaymentOptionMethod;
         type: CoursePaymentOptionType;
+        collectionMode: CoursePaymentCollectionMode;
         totalAmount: number;
         installmentCount?: number;
       installmentAmount?: number;
@@ -1234,6 +1257,10 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         title: option.title.trim() || `Opção ${index + 1}`,
         method: option.method,
         type: option.type,
+        collectionMode:
+          option.collectionMode === 'MANUAL_LINK' || option.method === 'CREDIT_CARD'
+            ? 'MANUAL_LINK'
+            : 'INSTALLMENT_CHARGES',
         totalAmount,
         isPromotional: option.isPromotional,
         active: option.active,
@@ -1562,6 +1589,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
           formatPaymentOptionLabel({
             method: option.method,
             type: option.type,
+            collectionMode: option.collectionMode,
             totalAmount: parseNumberSafe(option.totalAmount) || 0,
             installmentCount: parseIntSafe(option.installmentCount) || 0,
             installmentAmount: parseNumberSafe(option.installmentAmount) || 0,
@@ -2045,18 +2073,54 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                             Forma de pagamento
                             <select
                               value={option.method}
-                              onChange={(event) =>
-                                updatePaymentOption(
-                                  option.id,
-                                  'method',
-                                  event.target.value as CoursePaymentOptionMethod,
-                                )
-                              }
+                              onChange={(event) => {
+                                const nextMethod = event.target.value as CoursePaymentOptionMethod;
+                                setForm((current) => ({
+                                  ...current,
+                                  paymentOptions: current.paymentOptions.map((item) =>
+                                    item.id === option.id
+                                      ? {
+                                          ...item,
+                                          method: nextMethod,
+                                          collectionMode:
+                                            nextMethod === 'CREDIT_CARD'
+                                              ? 'MANUAL_LINK'
+                                              : item.collectionMode === 'MANUAL_LINK'
+                                                ? 'INSTALLMENT_CHARGES'
+                                                : item.collectionMode,
+                                        }
+                                      : item,
+                                  ),
+                                }));
+                              }}
                             >
                               <option value="PIX">Pix</option>
                               <option value="BANK_SLIP">Boleto</option>
                               <option value="CREDIT_CARD">Cartão de crédito</option>
                             </select>
+                          </label>
+
+                          <label>
+                            CobranÃ§a no sistema
+                            <select
+                              value={option.collectionMode}
+                              onChange={(event) =>
+                                updatePaymentOption(
+                                  option.id,
+                                  'collectionMode',
+                                  event.target.value as CoursePaymentCollectionMode,
+                                )
+                              }
+                              disabled={option.method === 'PIX'}
+                            >
+                              <option value="INSTALLMENT_CHARGES">Gerar cobranÃ§as</option>
+                              <option value="MANUAL_LINK">Link manual no financeiro</option>
+                            </select>
+                            {option.collectionMode === 'MANUAL_LINK' ? (
+                              <small>
+                                O aluno solicita o link, o financeiro envia e aprova manualmente.
+                              </small>
+                            ) : null}
                           </label>
 
                           <label>

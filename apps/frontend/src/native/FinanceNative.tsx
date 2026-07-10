@@ -51,6 +51,42 @@ type Charge = {
   }>;
 };
 
+type CreditCardPaymentRequest = {
+  id: string;
+  monthlyChargeId: string;
+  enrollmentId: string;
+  amount: number;
+  installmentCount: number | null;
+  installmentAmount: number | null;
+  status: 'REQUESTED' | 'LINK_SENT' | 'VIEWED' | 'COPIED' | 'APPROVED' | 'CANCELED' | string;
+  paymentLinkUrl: string | null;
+  adminNote: string | null;
+  requestedAt: string;
+  linkSentAt: string | null;
+  viewedAt: string | null;
+  copiedAt: string | null;
+  approvedAt: string | null;
+  monthlyCharge?: {
+    id: string;
+    amount: number;
+    dueDate: string;
+    status: string;
+  } | null;
+  enrollment?: {
+    id: string;
+    schoolClass?: {
+      id: string;
+      name: string;
+      course?: { id: string; name: string } | null;
+    } | null;
+  } | null;
+  student?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+};
+
 type Enrollment = {
   id: string;
   status: 'ACTIVE' | 'CANCELED' | 'COMPLETED';
@@ -261,6 +297,25 @@ function voucherUsageLabel(voucher: Voucher) {
   return `${used}/${max}`;
 }
 
+function creditCardRequestStatusLabel(status: string): string {
+  switch (String(status || '').toUpperCase()) {
+    case 'REQUESTED':
+      return 'Solicitado';
+    case 'LINK_SENT':
+      return 'Link enviado';
+    case 'VIEWED':
+      return 'Visualizado';
+    case 'COPIED':
+      return 'Copiado';
+    case 'APPROVED':
+      return 'Aprovado';
+    case 'CANCELED':
+      return 'Cancelado';
+    default:
+      return status || '-';
+  }
+}
+
 export function FinanceNative({ token }: FinanceNativeProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -268,6 +323,9 @@ export function FinanceNative({ token }: FinanceNativeProps) {
   const [overview, setOverview] = useState<FinanceOverview | null>(null);
   const [gateway, setGateway] = useState<GatewayConfig | null>(null);
   const [charges, setCharges] = useState<Charge[]>([]);
+  const [creditCardRequests, setCreditCardRequests] = useState<CreditCardPaymentRequest[]>([]);
+  const [creditCardLinkDraft, setCreditCardLinkDraft] = useState<Record<string, string>>({});
+  const [creditCardActionId, setCreditCardActionId] = useState<string | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | Charge['status']>('ALL');
@@ -302,6 +360,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
         gatewayData,
         vouchersData,
         voucherCoursesData,
+        creditCardRequestsData,
       ] = await Promise.all([
         apiRequest<FinanceOverview>(token, '/finance/overview'),
         apiRequest<Charge[]>(token, '/finance/charges'),
@@ -309,6 +368,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
         apiRequest<GatewayConfig>(token, '/finance/gateway-config'),
         apiRequest<Voucher[]>(token, '/finance/vouchers'),
         apiRequest<VoucherCourse[]>(token, '/finance/voucher-courses'),
+        apiRequest<CreditCardPaymentRequest[]>(token, '/finance/credit-card-requests'),
       ]);
 
       setOverview(overviewData);
@@ -317,6 +377,18 @@ export function FinanceNative({ token }: FinanceNativeProps) {
       setGateway(gatewayData);
       setVouchers(Array.isArray(vouchersData) ? vouchersData : []);
       setVoucherCourses(Array.isArray(voucherCoursesData) ? voucherCoursesData : []);
+      const normalizedCreditRequests = Array.isArray(creditCardRequestsData)
+        ? creditCardRequestsData
+        : [];
+      setCreditCardRequests(normalizedCreditRequests);
+      setCreditCardLinkDraft(
+        Object.fromEntries(
+          normalizedCreditRequests.map((item) => [
+            item.id,
+            item.paymentLinkUrl || '',
+          ]),
+        ),
+      );
       setStatusDraft(
         Object.fromEntries(
           (Array.isArray(chargesData) ? chargesData : []).map((item) => [
@@ -686,6 +758,77 @@ export function FinanceNative({ token }: FinanceNativeProps) {
     }
   };
 
+  const sendCreditCardLink = async (request: CreditCardPaymentRequest) => {
+    const paymentLinkUrl = String(creditCardLinkDraft[request.id] || '').trim();
+    if (!paymentLinkUrl) {
+      setError('Cole o link de pagamento antes de enviar ao aluno.');
+      return;
+    }
+
+    setCreditCardActionId(request.id);
+    setError('');
+    setFeedback('');
+    try {
+      await apiRequest(token, `/finance/credit-card-requests/${request.id}/link`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentLinkUrl }),
+      });
+      await loadData(false);
+      setFeedback('Link de pagamento enviado ao aluno.');
+    } catch (linkError) {
+      setError(
+        linkError instanceof Error
+          ? linkError.message
+          : 'Falha ao enviar link de pagamento.',
+      );
+    } finally {
+      setCreditCardActionId(null);
+    }
+  };
+
+  const approveCreditCardRequest = async (request: CreditCardPaymentRequest) => {
+    setCreditCardActionId(request.id);
+    setError('');
+    setFeedback('');
+    try {
+      await apiRequest(token, `/finance/credit-card-requests/${request.id}/approve`, {
+        method: 'PATCH',
+      });
+      await loadData(false);
+      setFeedback('Pagamento por cartão aprovado.');
+    } catch (approveError) {
+      setError(
+        approveError instanceof Error
+          ? approveError.message
+          : 'Falha ao aprovar pagamento por cartão.',
+      );
+    } finally {
+      setCreditCardActionId(null);
+    }
+  };
+
+  const cancelCreditCardRequest = async (request: CreditCardPaymentRequest) => {
+    setCreditCardActionId(request.id);
+    setError('');
+    setFeedback('');
+    try {
+      await apiRequest(token, `/finance/credit-card-requests/${request.id}/cancel`, {
+        method: 'PATCH',
+      });
+      await loadData(false);
+      setFeedback('Solicitação de cartão cancelada.');
+    } catch (cancelError) {
+      setError(
+        cancelError instanceof Error
+          ? cancelError.message
+          : 'Falha ao cancelar solicitação de cartão.',
+      );
+    } finally {
+      setCreditCardActionId(null);
+    }
+  };
+
   const financeSensitiveClass = showFinanceValues
     ? 'native-finance-sensitive'
     : 'native-finance-sensitive is-hidden';
@@ -858,6 +1001,125 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="native-panel native-finance-vouchers">
+        <div className="native-finance-vouchers-header">
+          <div>
+            <h3>Solicitações de cartão</h3>
+            <p>Receba pedidos, cole o link gerado no Sicoob e aprove manualmente após a confirmação.</p>
+          </div>
+          <small>{creditCardRequests.length} solicitação(ões)</small>
+        </div>
+        {creditCardRequests.length === 0 ? (
+          <p className="native-info">Nenhuma solicitação de cartão pendente.</p>
+        ) : (
+          <div className="native-table-wrap">
+            <table className="native-table">
+              <thead>
+                <tr>
+                  <th>Aluno</th>
+                  <th>Curso/Turma</th>
+                  <th>Valor</th>
+                  <th>Parcelas</th>
+                  <th>Status</th>
+                  <th>Link do Sicoob</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {creditCardRequests.map((request) => {
+                  const normalizedStatus = String(request.status || '').toUpperCase();
+                  const canEdit =
+                    normalizedStatus !== 'APPROVED' &&
+                    normalizedStatus !== 'CANCELED';
+                  const isBusy = creditCardActionId === request.id;
+                  const studentName = request.student?.name || 'Aluno não identificado';
+                  const studentEmail = request.student?.email || '-';
+                  const courseName =
+                    request.enrollment?.schoolClass?.course?.name || 'Curso não informado';
+                  const className =
+                    request.enrollment?.schoolClass?.name || 'Turma não informada';
+                  return (
+                    <tr key={request.id}>
+                      <td>
+                        <div className="native-student-cell">
+                          <div className="native-user-initials">{getInitials(studentName)}</div>
+                          <div>
+                            <strong>{studentName}</strong>
+                            <small>{studentEmail}</small>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <strong>{courseName}</strong>
+                        <small>{className}</small>
+                      </td>
+                      <td className={financeSensitiveClass}>{formatCurrency(request.amount)}</td>
+                      <td>
+                        {request.installmentCount && request.installmentAmount
+                          ? `${request.installmentCount}x de ${formatCurrency(request.installmentAmount)}`
+                          : 'À vista'}
+                      </td>
+                      <td>
+                        <span className={`native-status-chip ${chipClass(
+                          normalizedStatus === 'APPROVED'
+                            ? 'PAID'
+                            : normalizedStatus === 'CANCELED'
+                              ? 'CANCELED'
+                              : 'PENDING',
+                        )}`}>
+                          {creditCardRequestStatusLabel(request.status)}
+                        </span>
+                      </td>
+                      <td>
+                        <input
+                          className="native-finance-select"
+                          value={creditCardLinkDraft[request.id] || ''}
+                          onChange={(event) =>
+                            setCreditCardLinkDraft((current) => ({
+                              ...current,
+                              [request.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Cole o link de pagamento"
+                          disabled={!canEdit || isBusy}
+                        />
+                      </td>
+                      <td>
+                        <div className="native-finance-row-actions">
+                          <button
+                            type="button"
+                            onClick={() => void sendCreditCardLink(request)}
+                            disabled={!canEdit || isBusy}
+                          >
+                            {isBusy ? 'Salvando...' : 'Enviar link'}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => void approveCreditCardRequest(request)}
+                            disabled={!canEdit || isBusy}
+                          >
+                            Aprovar
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => void cancelCreditCardRequest(request)}
+                            disabled={!canEdit || isBusy}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

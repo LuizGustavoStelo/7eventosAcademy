@@ -50,6 +50,17 @@ enum TransactionStatus {
   @@map("transaction_status")
 }
 
+enum CreditCardPaymentRequestStatus {
+  REQUESTED @map("requested")
+  LINK_SENT @map("link_sent")
+  VIEWED    @map("viewed")
+  COPIED    @map("copied")
+  APPROVED  @map("approved")
+  CANCELED  @map("canceled")
+
+  @@map("credit_card_payment_request_status")
+}
+
 enum CourseStatus {
   ACTIVE   @map("active")
   DRAFT    @map("draft")
@@ -185,6 +196,9 @@ model User {
   contractAuditEntries ContractAuditLog[] @relation("contract_audit_actor")
   institutionAuditEntries InstitutionAuditLog[] @relation("institution_audit_actor")
   ownedFinanceVouchers FinanceVoucher[] @relation("finance_voucher_owner")
+  requestedCreditCardPayments CreditCardPaymentRequest[] @relation("credit_card_payment_request_student")
+  approvedCreditCardPayments CreditCardPaymentRequest[] @relation("credit_card_payment_request_approved_by")
+  ownedCreditCardPaymentRequests CreditCardPaymentRequest[] @relation("credit_card_payment_request_owner")
 
   @@index([ownerAdminId], map: "users_owner_admin_idx")
   @@index([institutionId], map: "users_institution_idx")
@@ -226,6 +240,7 @@ model Institution {
   auditLogs      InstitutionAuditLog[]
   integrations  InstitutionIntegration[]
   integrationDispatchLogs InstitutionIntegrationDispatchLog[]
+  creditCardPaymentRequests CreditCardPaymentRequest[]
 
   @@index([status], map: "institutions_status_idx")
   @@map("institutions")
@@ -534,6 +549,7 @@ model Enrollment {
   student        User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
   monthlyCharges MonthlyCharge[]
   contractInstances ContractInstance[]
+  creditCardPaymentRequests CreditCardPaymentRequest[]
 
   @@unique([classId, studentId])
   @@index([institutionId], map: "enrollments_institution_idx")
@@ -763,10 +779,46 @@ model MonthlyCharge {
   enrollment          Enrollment           @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   ownerAdmin          User?                @relation("monthly_charge_owner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
   paymentTransactions PaymentTransaction[]
+  creditCardPaymentRequests CreditCardPaymentRequest[]
 
   @@unique([externalChargeId])
   @@index([ownerAdminId], map: "monthly_charges_owner_admin_idx")
   @@map("monthly_charges")
+}
+
+model CreditCardPaymentRequest {
+  id                String                         @id @default(uuid()) @db.Uuid
+  monthlyChargeId   String                         @map("monthly_charge_id") @db.Uuid
+  enrollmentId      String                         @map("enrollment_id") @db.Uuid
+  studentId         String                         @map("student_id") @db.Uuid
+  ownerAdminId      String?                        @map("owner_admin_id") @db.Uuid
+  institutionId     String                         @map("institution_id") @db.Uuid
+  amount            Decimal                        @db.Decimal(12, 2)
+  installmentCount  Int?                           @map("installment_count")
+  installmentAmount Decimal?                       @map("installment_amount") @db.Decimal(12, 2)
+  status            CreditCardPaymentRequestStatus @default(REQUESTED)
+  paymentLinkUrl    String?                        @map("payment_link_url")
+  adminNote         String?                        @map("admin_note")
+  requestedAt       DateTime                       @default(now()) @map("requested_at")
+  linkSentAt        DateTime?                      @map("link_sent_at")
+  viewedAt          DateTime?                      @map("viewed_at")
+  copiedAt          DateTime?                      @map("copied_at")
+  approvedAt        DateTime?                      @map("approved_at")
+  approvedByUserId  String?                        @map("approved_by_user_id") @db.Uuid
+  createdAt         DateTime                       @default(now()) @map("created_at")
+  updatedAt         DateTime                       @updatedAt @map("updated_at")
+  monthlyCharge     MonthlyCharge                  @relation(fields: [monthlyChargeId], references: [id], onDelete: Cascade)
+  enrollment        Enrollment                     @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  student           User                           @relation("credit_card_payment_request_student", fields: [studentId], references: [id], onDelete: Cascade)
+  ownerAdmin        User?                          @relation("credit_card_payment_request_owner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
+  institution       Institution                    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  approvedBy        User?                          @relation("credit_card_payment_request_approved_by", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([monthlyChargeId], map: "credit_card_payment_requests_charge_key")
+  @@index([ownerAdminId, status], map: "credit_card_payment_requests_owner_status_idx")
+  @@index([studentId, status], map: "credit_card_payment_requests_student_status_idx")
+  @@index([institutionId, requestedAt], map: "credit_card_payment_requests_institution_requested_idx")
+  @@map("credit_card_payment_requests")
 }
 
 model PaymentTransaction {

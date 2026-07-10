@@ -14,6 +14,7 @@ import { UploadsService } from '../uploads/uploads.service';
 import {
   CoursePaymentDiscountAppliesToDto,
   CoursePaymentDiscountTypeDto,
+  CoursePaymentCollectionModeDto,
   CoursePaymentOptionDto,
   CoursePaymentOptionMethodDto,
   CoursePaymentOptionTypeDto,
@@ -30,6 +31,7 @@ type NormalizedCoursePaymentOption = {
   title: string;
   method: CoursePaymentOptionMethodDto;
   type: CoursePaymentOptionTypeDto;
+  collectionMode: CoursePaymentCollectionModeDto;
   totalAmount: number;
   installmentCount: number | null;
   installmentAmount: number | null;
@@ -537,6 +539,11 @@ export class CoursesService {
           ? CoursePaymentOptionTypeDto.INSTALLMENTS
           : CoursePaymentOptionTypeDto.CASH;
       const totalAmount = this.normalizeMoneyValue(option.totalAmount);
+      const collectionMode =
+        option.collectionMode === CoursePaymentCollectionModeDto.MANUAL_LINK ||
+        option.method === CoursePaymentOptionMethodDto.CREDIT_CARD
+          ? CoursePaymentCollectionModeDto.MANUAL_LINK
+          : CoursePaymentCollectionModeDto.INSTALLMENT_CHARGES;
       const installmentCount =
         type === CoursePaymentOptionTypeDto.INSTALLMENTS
           ? Math.max(1, Math.trunc(Number(option.installmentCount ?? 1)))
@@ -653,6 +660,7 @@ export class CoursesService {
           }),
         method: option.method,
         type,
+        collectionMode,
         totalAmount,
         installmentCount,
         installmentAmount,
@@ -749,6 +757,10 @@ export class CoursesService {
     const objectItem = item as Record<string, unknown>;
     const method = this.normalizeOptionMethod(objectItem.method);
     const type = this.normalizeOptionType(objectItem.type);
+    const collectionMode = this.normalizeCollectionMode(
+      objectItem.collectionMode,
+      method,
+    );
     const totalAmount = this.normalizeMoneyValue(objectItem.totalAmount);
     const installmentCountRaw = this.toFiniteNumber(objectItem.installmentCount);
     const installmentCount =
@@ -887,6 +899,7 @@ export class CoursesService {
         }),
       method,
       type,
+      collectionMode,
       totalAmount,
       installmentCount,
       installmentAmount,
@@ -958,6 +971,21 @@ export class CoursesService {
     return CoursePaymentOptionTypeDto.CASH;
   }
 
+  private normalizeCollectionMode(
+    value: unknown,
+    method: CoursePaymentOptionMethodDto,
+  ): CoursePaymentCollectionModeDto {
+    const normalized = String(value || '').toUpperCase();
+    if (
+      normalized === CoursePaymentCollectionModeDto.MANUAL_LINK ||
+      method === CoursePaymentOptionMethodDto.CREDIT_CARD
+    ) {
+      return CoursePaymentCollectionModeDto.MANUAL_LINK;
+    }
+
+    return CoursePaymentCollectionModeDto.INSTALLMENT_CHARGES;
+  }
+
   private buildDefaultPaymentOptionTitle(input: {
     method?: CoursePaymentOptionMethodDto;
     type: CoursePaymentOptionTypeDto;
@@ -1009,6 +1037,7 @@ export class CoursesService {
           title: installmentCount ? `${installmentCount}x (Boleto)` : 'Mensalidades (Boleto)',
           method: CoursePaymentOptionMethodDto.BANK_SLIP,
           type: CoursePaymentOptionTypeDto.INSTALLMENTS,
+          collectionMode: CoursePaymentCollectionModeDto.INSTALLMENT_CHARGES,
           totalAmount: installmentTotal,
           installmentCount,
           installmentAmount,
@@ -1043,6 +1072,7 @@ export class CoursesService {
         title: 'À vista (Pix)',
         method: CoursePaymentOptionMethodDto.PIX,
         type: CoursePaymentOptionTypeDto.CASH,
+        collectionMode: CoursePaymentCollectionModeDto.INSTALLMENT_CHARGES,
         totalAmount,
         installmentCount: null,
         installmentAmount: null,

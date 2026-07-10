@@ -21,12 +21,14 @@ type EnrollmentContext = {
 
 type EnrollmentPaymentOptionMethod = 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD';
 type EnrollmentPaymentOptionType = 'CASH' | 'INSTALLMENTS';
+type EnrollmentPaymentCollectionMode = 'INSTALLMENT_CHARGES' | 'MANUAL_LINK';
 
 type EnrollmentPaymentOption = {
   id: string;
   title: string;
   method: EnrollmentPaymentOptionMethod;
   type: EnrollmentPaymentOptionType;
+  collectionMode: EnrollmentPaymentCollectionMode;
   totalAmount: number;
   installmentCount: number | null;
   installmentAmount: number | null;
@@ -452,6 +454,36 @@ export class EnrollmentsService {
     selectedPaymentOption?: EnrollmentPaymentOption;
   }) {
     if (input.selectedPaymentOption) {
+      const selectedCollectionMode = String(
+        input.selectedPaymentOption.collectionMode || '',
+      ).toUpperCase();
+      if (
+        input.selectedPaymentOption.method === 'CREDIT_CARD' &&
+        selectedCollectionMode === 'MANUAL_LINK'
+      ) {
+        const totalAmount = Number(input.selectedPaymentOption.totalAmount ?? 0);
+        if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+          return [] as Array<{
+            dueDate: Date;
+            amount: number;
+            status: 'PENDING' | 'OVERDUE';
+          }>;
+        }
+
+        const dueDate = new Date(input.enrollmentCreatedAt);
+        return [
+          {
+            dueDate,
+            amount: this.toMoneyValue(totalAmount),
+            status: this.resolveChargeStatusByDueDate(dueDate),
+          },
+        ] as Array<{
+          dueDate: Date;
+          amount: number;
+          status: 'PENDING' | 'OVERDUE';
+        }>;
+      }
+
       if (input.selectedPaymentOption.type !== 'INSTALLMENTS') {
         const totalAmount = Number(input.selectedPaymentOption.totalAmount ?? 0);
         if (
@@ -1013,10 +1045,16 @@ export class EnrollmentsService {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
 
     const objectItem = item as Record<string, unknown>;
+    const method = this.normalizePaymentMethod(objectItem.method);
     const type =
       String(objectItem.type || '').toUpperCase() === 'INSTALLMENTS'
         ? 'INSTALLMENTS'
         : 'CASH';
+    const collectionModeRaw = String(objectItem.collectionMode || '').toUpperCase();
+    const collectionMode: EnrollmentPaymentCollectionMode =
+      collectionModeRaw === 'MANUAL_LINK' || method === 'CREDIT_CARD'
+        ? 'MANUAL_LINK'
+        : 'INSTALLMENT_CHARGES';
     const totalAmount = this.toMoneyValue(objectItem.totalAmount);
     const installmentCount =
       type === 'INSTALLMENTS'
@@ -1138,8 +1176,9 @@ export class EnrollmentsService {
       title:
         String(objectItem.title || '').trim() ||
         (type === 'INSTALLMENTS' ? `${installmentCount || 1}x` : 'À vista'),
-      method: this.normalizePaymentMethod(objectItem.method),
+      method,
       type,
+      collectionMode,
       totalAmount,
       installmentCount,
       installmentAmount,
@@ -1210,6 +1249,7 @@ export class EnrollmentsService {
         title: `${installmentCount}x (Boleto)`,
         method: 'BANK_SLIP',
         type: 'INSTALLMENTS',
+        collectionMode: 'INSTALLMENT_CHARGES',
         totalAmount:
           input.price > 0
             ? this.toMoneyValue(input.price)
@@ -1245,6 +1285,7 @@ export class EnrollmentsService {
       title: 'À vista (Pix)',
       method: 'PIX',
       type: 'CASH',
+      collectionMode: 'INSTALLMENT_CHARGES',
       totalAmount: this.toMoneyValue(input.price),
       installmentCount: null,
       installmentAmount: null,

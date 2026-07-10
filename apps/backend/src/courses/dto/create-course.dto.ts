@@ -42,6 +42,11 @@ export enum CoursePaymentOptionTypeDto {
   INSTALLMENTS = 'INSTALLMENTS',
 }
 
+export enum CoursePaymentCollectionModeDto {
+  INSTALLMENT_CHARGES = 'INSTALLMENT_CHARGES',
+  MANUAL_LINK = 'MANUAL_LINK',
+}
+
 export enum CoursePaymentDiscountTypeDto {
   FIXED = 'FIXED',
   PERCENT = 'PERCENT',
@@ -66,6 +71,10 @@ export class CoursePaymentOptionDto {
 
   @IsEnum(CoursePaymentOptionTypeDto)
   type!: CoursePaymentOptionTypeDto;
+
+  @IsOptional()
+  @IsEnum(CoursePaymentCollectionModeDto)
+  collectionMode?: CoursePaymentCollectionModeDto;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })

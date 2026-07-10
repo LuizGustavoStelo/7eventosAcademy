@@ -67,6 +67,53 @@ export class MisController {
   }
 
   @SkipThrottle()
+  @Roles('user', 'admin', 'superadmin')
+  @Get('aluno/cartao-solicitacoes')
+  async getCreditCardPaymentRequests(@Req() req: FastifyRequest) {
+    const user = (req as any).user;
+    return this.misService.getAlunoCreditCardPaymentRequests(user?.sub);
+  }
+
+  @SkipThrottle()
+  @Roles('user', 'admin', 'superadmin')
+  @Post('aluno/cobrancas/:chargeId/cartao/solicitar')
+  async requestCreditCardPaymentLink(
+    @Req() req: FastifyRequest,
+    @Param('chargeId') chargeId: string,
+  ) {
+    const user = (req as any).user;
+    return this.misService.requestAlunoCreditCardPaymentLink(user?.sub, chargeId);
+  }
+
+  @SkipThrottle()
+  @Roles('user', 'admin', 'superadmin')
+  @Post('aluno/cartao-solicitacoes/:requestId/visualizar')
+  async markCreditCardPaymentLinkViewed(
+    @Req() req: FastifyRequest,
+    @Param('requestId') requestId: string,
+  ) {
+    const user = (req as any).user;
+    return this.misService.markAlunoCreditCardPaymentLinkViewed(
+      user?.sub,
+      requestId,
+    );
+  }
+
+  @SkipThrottle()
+  @Roles('user', 'admin', 'superadmin')
+  @Post('aluno/cartao-solicitacoes/:requestId/copiar')
+  async markCreditCardPaymentLinkCopied(
+    @Req() req: FastifyRequest,
+    @Param('requestId') requestId: string,
+  ) {
+    const user = (req as any).user;
+    return this.misService.markAlunoCreditCardPaymentLinkCopied(
+      user?.sub,
+      requestId,
+    );
+  }
+
+  @SkipThrottle()
   @Public()
   @Post('public/payments/webhook/:provider')
   async paymentWebhook(

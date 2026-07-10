@@ -14,6 +14,7 @@ import { JwtPayload } from '../auth/types/app-role.type';
 import { CreateChargeDto } from './dto/create-charge.dto';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { CreateVoucherDto } from './dto/create-voucher.dto';
+import { SendCreditCardPaymentLinkDto } from './dto/send-credit-card-payment-link.dto';
 import { UpdateChargeStatusDto } from './dto/update-charge-status.dto';
 import { UpdateVoucherStatusDto } from './dto/update-voucher-status.dto';
 import { FinanceService } from './finance.service';
@@ -42,6 +43,50 @@ export class FinanceController {
   @Get('charges')
   async findCharges(@Req() request: AuthenticatedRequest) {
     return this.financeService.findCharges(request.user);
+  }
+
+  @RequirePermissions('finance.read')
+  @Get('credit-card-requests')
+  async listCreditCardRequests(@Req() request: AuthenticatedRequest) {
+    return this.financeService.listCreditCardPaymentRequests(request.user);
+  }
+
+  @RequirePermissions('finance.write')
+  @Patch('credit-card-requests/:requestId/link')
+  async sendCreditCardPaymentLink(
+    @Param('requestId') requestId: string,
+    @Body() dto: SendCreditCardPaymentLinkDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.financeService.sendCreditCardPaymentLink(
+      requestId,
+      dto,
+      request.user,
+    );
+  }
+
+  @RequirePermissions('finance.write')
+  @Patch('credit-card-requests/:requestId/approve')
+  async approveCreditCardPaymentRequest(
+    @Param('requestId') requestId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.financeService.approveCreditCardPaymentRequest(
+      requestId,
+      request.user,
+    );
+  }
+
+  @RequirePermissions('finance.write')
+  @Patch('credit-card-requests/:requestId/cancel')
+  async cancelCreditCardPaymentRequest(
+    @Param('requestId') requestId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.financeService.cancelCreditCardPaymentRequest(
+      requestId,
+      request.user,
+    );
   }
 
   @RequirePermissions('finance.write')
