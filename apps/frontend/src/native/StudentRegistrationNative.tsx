@@ -434,6 +434,17 @@ function paymentOptionDetailLines(option: PaymentOptionItem): PaymentOptionDetai
       tone: 'default',
     });
   }
+  if (option.installmentStartMode === 'SCHEDULED' && option.installmentStartDate) {
+    const startDate = new Date(option.installmentStartDate);
+    if (!Number.isNaN(startDate.getTime())) {
+      lines.push({
+        text: `Primeira cobrança em ${startDate.toLocaleDateString('pt-BR', {
+          timeZone: 'UTC',
+        })}.`,
+        tone: 'default',
+      });
+    }
+  }
   if (option.isPromotional) {
     lines.push({
       text: `Valores exclusivos para os ${promotionalSlots || 0} primeiros inscritos.`,

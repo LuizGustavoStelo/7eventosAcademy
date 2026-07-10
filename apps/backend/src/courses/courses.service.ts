@@ -264,6 +264,54 @@ export class CoursesService {
     return this.mapCourseWithBanner(course, banner);
   }
 
+  async duplicate(id: string, actor: CourseActor) {
+    const current = await this.ensureCourseExists(id, actor);
+    const institutionId = await this.resolveInstitutionIdForWrite(actor);
+    const ownerAdminId = await this.resolveCourseOwnerAdminId(actor, institutionId);
+
+    const course = await this.prisma.course.create({
+      data: {
+        ownerAdminId,
+        institutionId,
+        name: `${current.name} (Cópia)`,
+        description: current.description,
+        workloadHours: current.workloadHours,
+        category: current.category,
+        coordinator: current.coordinator,
+        kobayashiOfertaCursoId: current.kobayashiOfertaCursoId,
+        price: current.price,
+        paymentModel: current.paymentModel,
+        enrollmentFee: current.enrollmentFee,
+        installmentMonths: current.installmentMonths,
+        installmentValue: current.installmentValue,
+        installmentStartDate: current.installmentStartDate,
+        paymentOptions:
+          current.paymentOptions === null
+            ? Prisma.JsonNull
+            : (current.paymentOptions as Prisma.InputJsonValue),
+        enrollmentPaymentOptions:
+          current.enrollmentPaymentOptions === null
+            ? Prisma.JsonNull
+            : (current.enrollmentPaymentOptions as Prisma.InputJsonValue),
+        modality: current.modality,
+        status: CourseStatus.DRAFT,
+      },
+    });
+
+    try {
+      const banner = await this.uploadsService.duplicateOwnerAsset({
+        ownerType: UploadOwnerType.COURSE,
+        sourceOwnerId: current.id,
+        targetOwnerId: course.id,
+        kind: COURSE_BANNER_KIND,
+      });
+      return this.mapCourseWithBanner(course, banner);
+    } catch (error) {
+      await this.prisma.course.delete({ where: { id: course.id } });
+      throw error;
+    }
+  }
+
   async remove(id: string, actor: CourseActor) {
     await this.ensureCourseExists(id, actor);
 
@@ -586,7 +634,6 @@ export class CoursesService {
           ? null
           : Math.min(31, Math.max(1, Math.trunc(Number(option.dueDay))));
       const installmentStartDate =
-        type === CoursePaymentOptionTypeDto.INSTALLMENTS &&
         option.installmentStartDate
           ? (() => {
               const parsed = new Date(option.installmentStartDate);
@@ -594,9 +641,7 @@ export class CoursesService {
             })()
           : null;
       const installmentStartMode =
-        type !== CoursePaymentOptionTypeDto.INSTALLMENTS
-          ? null
-          : option.installmentStartMode === CourseInstallmentStartModeDto.COURSE_START
+        option.installmentStartMode === CourseInstallmentStartModeDto.COURSE_START
             ? CourseInstallmentStartModeDto.COURSE_START
             : option.installmentStartMode === CourseInstallmentStartModeDto.SCHEDULED ||
                 installmentStartDate
@@ -948,7 +993,7 @@ export class CoursesService {
         : Math.min(31, Math.max(1, Math.trunc(dueDayRaw)));
     const installmentStartDateRaw = String(objectItem.installmentStartDate || '').trim();
     const installmentStartDate =
-      type === CoursePaymentOptionTypeDto.INSTALLMENTS && installmentStartDateRaw
+      installmentStartDateRaw
         ? (() => {
             const parsed = new Date(installmentStartDateRaw);
             return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
@@ -958,9 +1003,7 @@ export class CoursesService {
       .trim()
       .toUpperCase();
     const installmentStartMode =
-      type !== CoursePaymentOptionTypeDto.INSTALLMENTS
-        ? null
-        : installmentStartModeRaw === CourseInstallmentStartModeDto.COURSE_START
+      installmentStartModeRaw === CourseInstallmentStartModeDto.COURSE_START
           ? CourseInstallmentStartModeDto.COURSE_START
           : installmentStartModeRaw === CourseInstallmentStartModeDto.SCHEDULED ||
               installmentStartDate
@@ -1258,7 +1301,7 @@ export class CoursesService {
         installmentCount: null,
         installmentAmount: null,
         dueDay: null,
-        installmentStartMode: null,
+        installmentStartMode: CourseInstallmentStartModeDto.ON_ENROLLMENT,
         installmentStartDate: null,
         note: null,
         isPromotional: false,

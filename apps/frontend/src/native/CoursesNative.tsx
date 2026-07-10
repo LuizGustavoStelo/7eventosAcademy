@@ -182,6 +182,12 @@ const paymentTypeLabel: Record<CoursePaymentOptionType, string> = {
   INSTALLMENTS: 'Parcelado',
 };
 
+const installmentStartModeLabel: Record<InstallmentStartMode, string> = {
+  ON_ENROLLMENT: 'Na matrícula',
+  COURSE_START: 'No início do curso (data a definir)',
+  SCHEDULED: 'Em uma data definida',
+};
+
 function createPaymentOptionId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -317,15 +323,13 @@ function normalizeCoursePaymentOptions(
         installmentAmount,
         dueDay: option.dueDay ?? null,
         installmentStartMode:
-          type !== 'INSTALLMENTS'
-            ? null
-            : option.installmentStartMode === 'COURSE_START'
+          option.installmentStartMode === 'COURSE_START'
               ? 'COURSE_START'
               : option.installmentStartMode === 'SCHEDULED' || option.installmentStartDate
                 ? 'SCHEDULED'
                 : 'ON_ENROLLMENT',
         installmentStartDate:
-          type === 'INSTALLMENTS' ? (option.installmentStartDate ?? null) : null,
+          option.installmentStartDate ?? null,
         note: option.note || '',
         isPromotional: Boolean(option.isPromotional),
         promotionalSlots: option.promotionalSlots ?? null,
@@ -837,15 +841,13 @@ function mapCoursePaymentOptionToForm(
     installmentAmount: formatMoneyValue(installmentAmount),
     dueDay: option.dueDay ? String(option.dueDay) : '',
     installmentStartMode:
-      option.type === 'INSTALLMENTS' && option.installmentStartMode === 'COURSE_START'
+      option.installmentStartMode === 'COURSE_START'
         ? 'COURSE_START'
-        : option.type === 'INSTALLMENTS' && option.installmentStartDate
+        : option.installmentStartDate
           ? 'SCHEDULED'
           : 'ON_ENROLLMENT',
     installmentStartDate:
-      option.type === 'INSTALLMENTS'
-        ? toDateInputValue(option.installmentStartDate)
-        : '',
+      toDateInputValue(option.installmentStartDate),
     note: option.note || '',
     isPromotional: Boolean(option.isPromotional),
     promotionalSlots: option.promotionalSlots
@@ -932,6 +934,8 @@ export function CoursesNative({ token }: CoursesNativeProps) {
   const [formError, setFormError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const [form, setForm] = useState<CourseFormState>(() => emptyForm());
   const [selectedBannerFile, setSelectedBannerFile] = useState<File | null>(null);
   const [previewBannerUrl, setPreviewBannerUrl] = useState(FALLBACK_BANNER);
@@ -1001,6 +1005,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     setSelectedBannerFile(null);
     setFormError('');
     setDeleteConfirm(false);
+    setSummaryOpen(false);
     setModalOpen(true);
   };
 
@@ -1047,6 +1052,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
     setSelectedBannerFile(null);
     setFormError('');
     setDeleteConfirm(false);
+    setSummaryOpen(false);
     setModalOpen(true);
   };
 
@@ -1398,6 +1404,17 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         active: option.active,
       };
 
+      payloadOption.installmentStartMode = option.installmentStartMode;
+      if (option.installmentStartMode === 'SCHEDULED') {
+        if (!option.installmentStartDate) {
+          setFormError(
+            `Informe a data da primeira cobrança na opção ${index + 1}.`,
+          );
+          return;
+        }
+        payloadOption.installmentStartDate = `${option.installmentStartDate}T00:00:00.000Z`;
+      }
+
       if (option.type === 'INSTALLMENTS') {
         const installmentCount = parseIntSafe(option.installmentCount);
         if (!installmentCount) {
@@ -1409,21 +1426,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
           parseNumberSafe(option.installmentAmount) ?? totalAmount / installmentCount;
         payloadOption.installmentCount = installmentCount;
         payloadOption.installmentAmount = installmentAmount;
-        payloadOption.installmentStartMode = option.installmentStartMode;
-
-        const canConfigureOptionInstallmentStart = hasPositiveNumber(installmentAmount);
-        if (
-          canConfigureOptionInstallmentStart &&
-          option.installmentStartMode === 'SCHEDULED'
-        ) {
-          if (!option.installmentStartDate) {
-            setFormError(
-              `Informe a data de início das mensalidades na opção ${index + 1}.`,
-            );
-            return;
-          }
-          payloadOption.installmentStartDate = `${option.installmentStartDate}T00:00:00.000Z`;
-        }
       }
 
       if (option.dueDay.trim()) {
@@ -1673,6 +1675,32 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const duplicateCourse = async () => {
+    if (!form.id || duplicating) return;
+    setDuplicating(true);
+    setFormError('');
+    setFeedback('');
+    try {
+      const duplicated = await apiRequest<Course>(
+        token,
+        `/courses/${form.id}/duplicate`,
+        { method: 'POST' },
+      );
+      await loadCourses(false);
+      setModalOpen(false);
+      setSummaryOpen(false);
+      setFeedback(`Curso duplicado como "${duplicated.name}".`);
+    } catch (duplicateError) {
+      setFormError(
+        duplicateError instanceof Error
+          ? duplicateError.message
+          : 'Falha ao duplicar curso.',
+      );
+    } finally {
+      setDuplicating(false);
     }
   };
 
@@ -2556,6 +2584,59 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                             </>
                           ) : null}
 
+                          {option.type === 'CASH' ? (
+                            <>
+                              <label>
+                                Quando será feita a cobrança?
+                                <select
+                                  value={option.installmentStartMode}
+                                  onChange={(event) => {
+                                    const nextMode = event.target.value as InstallmentStartMode;
+                                    updatePaymentOption(
+                                      option.id,
+                                      'installmentStartMode',
+                                      nextMode,
+                                    );
+                                    if (nextMode !== 'SCHEDULED') {
+                                      updatePaymentOption(
+                                        option.id,
+                                        'installmentStartDate',
+                                        '',
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <option value="ON_ENROLLMENT">Pagamento na matrícula</option>
+                                  <option value="COURSE_START">Pagamento no início do curso</option>
+                                  <option value="SCHEDULED">Pagamento em uma data definida</option>
+                                </select>
+                                {option.installmentStartMode === 'COURSE_START' ? (
+                                  <small>
+                                    O contrato informará que o pagamento será feito no início do
+                                    curso, ainda sem uma data definida.
+                                  </small>
+                                ) : null}
+                              </label>
+
+                              {option.installmentStartMode === 'SCHEDULED' ? (
+                                <label>
+                                  Data da cobrança
+                                  <input
+                                    type="date"
+                                    value={option.installmentStartDate}
+                                    onChange={(event) =>
+                                      updatePaymentOption(
+                                        option.id,
+                                        'installmentStartDate',
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </label>
+                              ) : null}
+                            </>
+                          ) : null}
+
                           <label>
                             Valor normal tem desconto por pagamento antecipado?
                             <select
@@ -2889,21 +2970,39 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
                 <div className="native-modal-actions">
                   {form.id ? (
-                    <button
-                      type="button"
-                      className={deleteConfirm ? 'danger' : 'ghost'}
-                      onClick={() => {
-                        if (!deleteConfirm) {
-                          setDeleteConfirm(true);
-                          return;
-                        }
-                        void removeCourse();
-                      }}
-                      disabled={saving}
-                    >
-                      {deleteConfirm ? 'Confirmar exclusão' : 'Excluir curso'}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className={deleteConfirm ? 'danger' : 'ghost'}
+                        onClick={() => {
+                          if (!deleteConfirm) {
+                            setDeleteConfirm(true);
+                            return;
+                          }
+                          void removeCourse();
+                        }}
+                        disabled={saving || duplicating}
+                      >
+                        {deleteConfirm ? 'Confirmar exclusão' : 'Excluir curso'}
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => void duplicateCourse()}
+                        disabled={saving || duplicating}
+                      >
+                        {duplicating ? 'Duplicando...' : 'Duplicar curso'}
+                      </button>
+                    </>
                   ) : null}
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => setSummaryOpen(true)}
+                    disabled={saving || duplicating}
+                  >
+                    Resumo
+                  </button>
                   <button
                     type="button"
                     className="ghost"
@@ -2965,6 +3064,120 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                 </article>
               </aside>
             </div>
+
+            {summaryOpen ? (
+              <div
+                className="native-course-summary-backdrop"
+                onClick={() => setSummaryOpen(false)}
+              >
+                <section
+                  className="native-course-summary"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <header>
+                    <div>
+                      <small>VISÃO GERAL</small>
+                      <h3>{form.name.trim() || 'Curso sem nome'}</h3>
+                    </div>
+                    <button type="button" onClick={() => setSummaryOpen(false)}>
+                      Fechar
+                    </button>
+                  </header>
+
+                  <div className="native-course-summary-content">
+                    <section>
+                      <h4>Informações do curso</h4>
+                      <dl>
+                        <div><dt>Categoria</dt><dd>{form.category || 'Não informada'}</dd></div>
+                        <div><dt>Modalidade</dt><dd>{modalityLabel[form.modality]}</dd></div>
+                        <div><dt>Status</dt><dd>{statusLabel[form.status]}</dd></div>
+                        <div><dt>Coordenador</dt><dd>{form.coordinator || 'Não informado'}</dd></div>
+                        <div><dt>Carga horária</dt><dd>{form.workloadHours ? `${form.workloadHours}h` : 'Não informada'}</dd></div>
+                        <div><dt>OfertaCursoID</dt><dd>{form.kobayashiOfertaCursoId || 'Padrão da instituição'}</dd></div>
+                      </dl>
+                      {form.description.trim() ? <p>{form.description}</p> : null}
+                    </section>
+
+                    <section>
+                      <h4>Condições gerais</h4>
+                      <dl>
+                        <div><dt>Valor total</dt><dd>{formatCurrency(parseNumberSafe(form.price) || 0)}</dd></div>
+                        <div><dt>Modelo operacional</dt><dd>{paymentLabel[form.paymentModel]}</dd></div>
+                        {form.paymentModel === 'INSTALLMENTS' ? (
+                          <>
+                            <div><dt>Duração</dt><dd>{form.installmentMonths || 'Não informada'} meses</dd></div>
+                            <div><dt>Mensalidade</dt><dd>{formatCurrency(parseNumberSafe(form.installmentValue) || 0)}</dd></div>
+                            <div><dt>Início</dt><dd>{previewInstallmentStart || 'Não definido'}</dd></div>
+                          </>
+                        ) : null}
+                      </dl>
+                    </section>
+
+                    <section>
+                      <h4>Matrícula</h4>
+                      {!form.hasEnrollmentFee ? (
+                        <p>Não será cobrada taxa de matrícula.</p>
+                      ) : (
+                        <>
+                          <dl>
+                            <div><dt>Valor</dt><dd>{previewEnrollmentFee || 'Não informado'}</dd></div>
+                          </dl>
+                          <div className="native-course-summary-chips">
+                            {form.enrollmentPaymentOptions
+                              .filter((option) => option.active)
+                              .map((option) => (
+                                <span key={option.method}>
+                                  {paymentMethodLabel[option.method]}
+                                  {option.method === 'CREDIT_CARD' && Number(option.installmentCount) > 1
+                                    ? ` - até ${option.installmentCount}x`
+                                    : ''}
+                                </span>
+                              ))}
+                          </div>
+                        </>
+                      )}
+                    </section>
+
+                    <section className="is-full">
+                      <h4>Formas de pagamento do curso</h4>
+                      <div className="native-course-summary-payment-list">
+                        {form.paymentOptions.map((option, index) => (
+                          <article key={option.id}>
+                            <header>
+                              <div>
+                                <strong>{option.title || `Opção ${index + 1}`}</strong>
+                                <small>{paymentMethodLabel[option.method]} · {paymentTypeLabel[option.type]}</small>
+                              </div>
+                              <span className={option.active ? 'is-active' : ''}>
+                                {option.active ? 'Disponível' : 'Oculta'}
+                              </span>
+                            </header>
+                            <dl>
+                              <div><dt>Valor normal</dt><dd>{formatCurrency(parseNumberSafe(option.totalAmount) || 0)}</dd></div>
+                              {option.type === 'INSTALLMENTS' ? (
+                                <>
+                                  <div><dt>Parcelamento</dt><dd>{option.installmentCount}x de {formatCurrency(parseNumberSafe(option.installmentAmount) || 0)}</dd></div>
+                                  <div><dt>Vencimento</dt><dd>{option.dueDay ? `Dia ${option.dueDay}` : 'Não definido'}</dd></div>
+                                </>
+                              ) : null}
+                              <div><dt>Primeira cobrança</dt><dd>{installmentStartModeLabel[option.installmentStartMode]}{option.installmentStartMode === 'SCHEDULED' && option.installmentStartDate ? ` em ${formatDateLabel(option.installmentStartDate)}` : ''}</dd></div>
+                              <div><dt>Cobrança</dt><dd>{option.collectionMode === 'MANUAL_LINK' ? 'Link manual pelo financeiro' : 'Gerada pelo sistema'}</dd></div>
+                              {option.discountEnabled ? (
+                                <div><dt>Desconto antecipado</dt><dd>{option.type === 'INSTALLMENTS' ? formatCurrency(parseNumberSafe(option.discountInstallmentAmount) || 0) : formatCurrency(parseNumberSafe(option.discountTotalAmount) || 0)}{option.discountDeadlineDay ? ` até o dia ${option.discountDeadlineDay}` : ''}</dd></div>
+                              ) : null}
+                              {option.isPromotional ? (
+                                <div><dt>Promocional</dt><dd>{formatCurrency(parseNumberSafe(option.promotionalTotalAmount) || 0)} para {option.promotionalSlots || 0} vaga(s)</dd></div>
+                              ) : null}
+                            </dl>
+                            {option.note.trim() ? <p>{option.note}</p> : null}
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                </section>
+              </div>
+            ) : null}
           </section>
         </div>
       ) : null}

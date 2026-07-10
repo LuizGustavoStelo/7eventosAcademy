@@ -47,6 +47,15 @@ export class CoursesController {
     return this.coursesService.update(id, dto, request.user);
   }
 
+  @RequirePermissions('courses.create')
+  @Post(':id/duplicate')
+  async duplicate(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.coursesService.duplicate(id, request.user);
+  }
+
   @RequirePermissions('courses.delete')
   @Delete(':id')
   async remove(@Param('id') id: string, @Req() request: AuthenticatedRequest) {

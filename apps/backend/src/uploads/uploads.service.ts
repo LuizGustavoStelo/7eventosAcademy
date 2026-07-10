@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { createReadStream } from 'fs';
-import { access, mkdir, unlink, writeFile } from 'fs/promises';
+import { access, copyFile, mkdir, unlink, writeFile } from 'fs/promises';
 import {
   BadRequestException,
   Injectable,
@@ -242,6 +242,68 @@ export class UploadsService implements OnModuleInit {
 
   private buildAssetUrl(assetId: string) {
     return `/api/uploads/assets/${assetId}`;
+  }
+
+  async duplicateOwnerAsset(input: {
+    ownerType: UploadOwnerType;
+    sourceOwnerId: string;
+    targetOwnerId: string;
+    kind: string;
+  }) {
+    const sourceBinding = await this.prisma.uploadBinding.findUnique({
+      where: {
+        ownerType_ownerId_kind: {
+          ownerType: input.ownerType,
+          ownerId: input.sourceOwnerId,
+          kind: input.kind,
+        },
+      },
+      include: { asset: true },
+    });
+    if (!sourceBinding) return null;
+
+    const extension = extname(sourceBinding.asset.storagePath) || '';
+    const relativePath = await this.buildRelativePath({
+      ownerType: input.ownerType,
+      ownerId: input.targetOwnerId,
+      kind: input.kind,
+      extension,
+      originalName: sourceBinding.asset.originalName,
+    });
+    const sourcePath = join(
+      this.uploadRoot,
+      ...sourceBinding.asset.storagePath.split('/'),
+    );
+    const targetPath = join(this.uploadRoot, ...relativePath.split('/'));
+    await mkdir(dirname(targetPath), { recursive: true });
+    await copyFile(sourcePath, targetPath);
+
+    try {
+      const asset = await this.prisma.$transaction(async (tx) => {
+        const createdAsset = await tx.uploadAsset.create({
+          data: {
+            storagePath: relativePath,
+            originalName: sourceBinding.asset.originalName,
+            mimeType: sourceBinding.asset.mimeType,
+            sizeBytes: sourceBinding.asset.sizeBytes,
+          },
+        });
+        await tx.uploadBinding.create({
+          data: {
+            ownerType: input.ownerType,
+            ownerId: input.targetOwnerId,
+            kind: input.kind,
+            assetId: createdAsset.id,
+          },
+        });
+        return createdAsset;
+      });
+
+      return { assetId: asset.id, url: this.buildAssetUrl(asset.id) };
+    } catch (error) {
+      await this.safeUnlink(targetPath);
+      throw error;
+    }
   }
   private assertAllowedByKind(file: MultipartFile, kind: string) {
     if (

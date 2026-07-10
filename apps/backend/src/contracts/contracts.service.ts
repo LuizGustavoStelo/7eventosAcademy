@@ -1064,7 +1064,7 @@ export class ContractsService {
           selectedPaymentOption.installmentStartDate,
         )}.`,
       );
-    } else if (selectedPaymentOption?.type === 'INSTALLMENTS') {
+    } else if (selectedPaymentOption) {
       formsAndValuesSummaryLines.push('Início dos pagamentos: na matrícula.');
     }
 
@@ -2371,12 +2371,23 @@ export class ContractsService {
     );
 
     if (selectedOption) {
+      const selectedStartDate = selectedOption.installmentStartDate
+        ? new Date(selectedOption.installmentStartDate)
+        : null;
+      const configuredFirstDueDate =
+        selectedOption.installmentStartMode === 'SCHEDULED' &&
+        selectedStartDate &&
+        !Number.isNaN(selectedStartDate.getTime())
+          ? selectedStartDate
+          : selectedOption.installmentStartMode === 'COURSE_START' && input.classStartDate
+            ? new Date(input.classStartDate)
+            : new Date(input.signedAt);
       if (selectedOption.type !== 'INSTALLMENTS') {
         const totalAmount = Number(selectedOption.totalAmount ?? 0);
         if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
           return result;
         }
-        const dueDate = new Date(input.signedAt);
+        const dueDate = new Date(configuredFirstDueDate);
         const dueDateStart = new Date(
           dueDate.getFullYear(),
           dueDate.getMonth(),
@@ -2400,30 +2411,19 @@ export class ContractsService {
       ) {
         return result;
       }
-      const scheduledBase = selectedOption.installmentStartDate
-        ? new Date(selectedOption.installmentStartDate)
-        : null;
+      const scheduledBase =
+        selectedOption.installmentStartMode === 'SCHEDULED' ||
+        selectedOption.installmentStartMode === 'COURSE_START'
+          ? new Date(configuredFirstDueDate)
+          : null;
       const hasScheduledStart =
         scheduledBase !== null && !Number.isNaN(scheduledBase.getTime());
 
       if (hasScheduledStart) {
-        const firstDueDate = new Date(input.signedAt);
-        const dueDateStart = new Date(
-          firstDueDate.getFullYear(),
-          firstDueDate.getMonth(),
-          firstDueDate.getDate(),
-        );
-        result.push({
-          dueDate: firstDueDate,
-          amount: this.toMoneyValue(value),
-          kind: 'COURSE_PAYMENT',
-          status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
-        });
-
-        for (let index = 1; index < months; index += 1) {
+        for (let index = 0; index < months; index += 1) {
           const dueDate = this.buildChargeDueDate(
             scheduledBase,
-            index - 1,
+            index,
             selectedOption.dueDay ?? undefined,
           );
           const dueDateStart = new Date(
@@ -2525,9 +2525,7 @@ export class ContractsService {
       .trim()
       .toUpperCase();
     const installmentStartMode: ContractSelectedPaymentOption['installmentStartMode'] =
-      normalizedType !== 'INSTALLMENTS'
-        ? 'ON_ENROLLMENT'
-        : installmentStartModeRaw === 'COURSE_START'
+      installmentStartModeRaw === 'COURSE_START'
           ? 'COURSE_START'
           : installmentStartModeRaw === 'SCHEDULED' || installmentStartDate
             ? 'SCHEDULED'

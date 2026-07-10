@@ -468,6 +468,18 @@ export class EnrollmentsService {
     selectedPaymentOption?: EnrollmentPaymentOption;
   }) {
     if (input.selectedPaymentOption) {
+      const startMode = input.selectedPaymentOption.installmentStartMode;
+      const scheduledDate = input.selectedPaymentOption.installmentStartDate
+        ? new Date(input.selectedPaymentOption.installmentStartDate)
+        : null;
+      const configuredFirstDueDate =
+        startMode === 'SCHEDULED' &&
+        scheduledDate &&
+        !Number.isNaN(scheduledDate.getTime())
+          ? scheduledDate
+          : startMode === 'COURSE_START' && input.classStartDate
+            ? new Date(input.classStartDate)
+            : new Date(input.enrollmentCreatedAt);
       const selectedCollectionMode = String(
         input.selectedPaymentOption.collectionMode || '',
       ).toUpperCase();
@@ -484,7 +496,7 @@ export class EnrollmentsService {
           }>;
         }
 
-        const dueDate = new Date(input.enrollmentCreatedAt);
+        const dueDate = new Date(configuredFirstDueDate);
         return [
           {
             dueDate,
@@ -505,7 +517,7 @@ export class EnrollmentsService {
           Number.isFinite(totalAmount) &&
           totalAmount > 0
         ) {
-          const dueDate = new Date(input.enrollmentCreatedAt);
+          const dueDate = new Date(configuredFirstDueDate);
           const dueDateStart = new Date(
             dueDate.getFullYear(),
             dueDate.getMonth(),
@@ -553,9 +565,10 @@ export class EnrollmentsService {
         now.getMonth(),
         now.getDate(),
       );
-      const scheduledBase = input.selectedPaymentOption.installmentStartDate
-        ? new Date(input.selectedPaymentOption.installmentStartDate)
-        : null;
+      const scheduledBase =
+        startMode === 'SCHEDULED' || startMode === 'COURSE_START'
+          ? new Date(configuredFirstDueDate)
+          : null;
       const hasScheduledStart =
         scheduledBase !== null && !Number.isNaN(scheduledBase.getTime());
       const result: Array<{
@@ -579,22 +592,10 @@ export class EnrollmentsService {
       };
 
       if (hasScheduledStart) {
-        const firstDueDate = new Date(input.enrollmentCreatedAt);
-        const dueDateStart = new Date(
-          firstDueDate.getFullYear(),
-          firstDueDate.getMonth(),
-          firstDueDate.getDate(),
-        );
-        result.push({
-          dueDate: firstDueDate,
-          amount: resolveInstallmentAmount(0),
-          status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
-        });
-
-        for (let index = 1; index < months; index += 1) {
+        for (let index = 0; index < months; index += 1) {
           const dueDate = this.buildChargeDueDate(
             scheduledBase,
-            index - 1,
+            index,
             input.selectedPaymentOption.dueDay ?? undefined,
           );
           const dueDateStart = new Date(
@@ -1181,7 +1182,7 @@ export class EnrollmentsService {
         : Math.min(31, Math.max(1, Math.trunc(dueDayRaw)));
     const installmentStartDateRaw = String(objectItem.installmentStartDate || '').trim();
     const installmentStartDate =
-      type === 'INSTALLMENTS' && installmentStartDateRaw
+      installmentStartDateRaw
         ? (() => {
             const parsed = new Date(installmentStartDateRaw);
             return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
@@ -1191,9 +1192,7 @@ export class EnrollmentsService {
       .trim()
       .toUpperCase();
     const installmentStartMode: EnrollmentPaymentOption['installmentStartMode'] =
-      type !== 'INSTALLMENTS'
-        ? 'ON_ENROLLMENT'
-        : installmentStartModeRaw === 'COURSE_START'
+      installmentStartModeRaw === 'COURSE_START'
           ? 'COURSE_START'
           : installmentStartModeRaw === 'SCHEDULED' || installmentStartDate
             ? 'SCHEDULED'

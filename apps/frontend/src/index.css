@@ -3606,6 +3606,185 @@ table button:disabled {
   width: min(260px, 100%);
 }
 
+.native-course-summary-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.native-course-summary {
+  width: min(980px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+}
+
+.native-course-summary > header {
+  padding: 0.9rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.native-course-summary > header div {
+  min-width: 0;
+}
+
+.native-course-summary > header small {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.native-course-summary > header h3 {
+  margin: 0.15rem 0 0;
+  color: #0f172a;
+  font-size: 1.08rem;
+  overflow-wrap: anywhere;
+}
+
+.native-course-summary > header button {
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 6px;
+  padding: 0.42rem 0.7rem;
+  background: #fff;
+  color: #334155;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.native-course-summary-content {
+  min-height: 0;
+  padding: 1rem;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 1rem 1.25rem;
+}
+
+.native-course-summary-content > section {
+  min-width: 0;
+  padding-top: 0.15rem;
+}
+
+.native-course-summary-content > section.is-full {
+  grid-column: 1 / -1;
+}
+
+.native-course-summary-content h4 {
+  margin: 0 0 0.65rem;
+  padding-bottom: 0.42rem;
+  border-bottom: 2px solid #e2e8f0;
+  color: #0f172a;
+  font-size: 0.86rem;
+}
+
+.native-course-summary-content dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.8rem;
+}
+
+.native-course-summary-content dl div {
+  min-width: 0;
+}
+
+.native-course-summary-content dt {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.native-course-summary-content dd {
+  margin: 0.12rem 0 0;
+  color: #0f172a;
+  font-size: 0.79rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.native-course-summary-content p {
+  margin: 0.65rem 0 0;
+  color: #475569;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.native-course-summary-chips {
+  margin-top: 0.65rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.native-course-summary-chips span {
+  padding: 0.28rem 0.48rem;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 5px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.native-course-summary-payment-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.native-course-summary-payment-list > article {
+  padding: 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.native-course-summary-payment-list > article > header {
+  margin-bottom: 0.65rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.native-course-summary-payment-list header div {
+  min-width: 0;
+  display: grid;
+  gap: 0.14rem;
+}
+
+.native-course-summary-payment-list header strong {
+  color: #0f172a;
+  font-size: 0.8rem;
+}
+
+.native-course-summary-payment-list header small {
+  color: #64748b;
+  font-size: 0.69rem;
+}
+
+.native-course-summary-payment-list header > span {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.native-course-summary-payment-list header > span.is-active {
+  color: #15803d;
+}
+
 .native-payment-option-card {
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 8px;
@@ -5878,6 +6057,22 @@ table button {
 
   .native-enrollment-installments-field {
     width: 100%;
+  }
+
+  .native-course-summary-backdrop {
+    padding: 10px;
+  }
+
+  .native-course-summary {
+    max-height: calc(100vh - 20px);
+  }
+
+  .native-course-summary-content {
+    grid-template-columns: 1fr;
+  }
+
+  .native-course-summary-content > section.is-full {
+    grid-column: auto;
   }
 
   .native-notices-split {
