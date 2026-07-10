@@ -33,6 +33,7 @@ type EnrollmentPaymentOption = {
   installmentCount: number | null;
   installmentAmount: number | null;
   dueDay: number | null;
+  installmentStartMode: 'ON_ENROLLMENT' | 'SCHEDULED' | 'COURSE_START';
   installmentStartDate: string | null;
   note: string | null;
   isPromotional: boolean;
@@ -1083,6 +1084,17 @@ export class EnrollmentsService {
             return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
           })()
         : null;
+    const installmentStartModeRaw = String(objectItem.installmentStartMode || '')
+      .trim()
+      .toUpperCase();
+    const installmentStartMode: EnrollmentPaymentOption['installmentStartMode'] =
+      type !== 'INSTALLMENTS'
+        ? 'ON_ENROLLMENT'
+        : installmentStartModeRaw === 'COURSE_START'
+          ? 'COURSE_START'
+          : installmentStartModeRaw === 'SCHEDULED' || installmentStartDate
+            ? 'SCHEDULED'
+            : 'ON_ENROLLMENT';
     const isPromotional = Boolean(objectItem.isPromotional);
     const promotionalSlots = isPromotional
       ? Math.max(
@@ -1183,7 +1195,9 @@ export class EnrollmentsService {
       installmentCount,
       installmentAmount,
       dueDay,
-      installmentStartDate,
+      installmentStartMode,
+      installmentStartDate:
+        installmentStartMode === 'SCHEDULED' ? installmentStartDate : null,
       note: String(objectItem.note || '').trim() || null,
       isPromotional: hasPromotionalValue,
       promotionalSlots: hasPromotionalValue ? promotionalSlots : null,
@@ -1257,6 +1271,7 @@ export class EnrollmentsService {
         installmentCount,
         installmentAmount: this.toMoneyValue(installmentAmount),
         dueDay: null,
+        installmentStartMode: 'ON_ENROLLMENT',
         installmentStartDate: null,
         note: null,
         isPromotional: false,
@@ -1290,6 +1305,7 @@ export class EnrollmentsService {
       installmentCount: null,
       installmentAmount: null,
       dueDay: null,
+      installmentStartMode: 'ON_ENROLLMENT',
       installmentStartDate: null,
       note: null,
       isPromotional: false,

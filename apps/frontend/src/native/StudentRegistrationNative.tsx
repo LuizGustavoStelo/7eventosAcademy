@@ -26,6 +26,8 @@ type CourseCatalogItem = {
     installmentCount?: number | null;
     installmentAmount?: number | null;
     dueDay?: number | null;
+    installmentStartMode?: 'ON_ENROLLMENT' | 'SCHEDULED' | 'COURSE_START' | null;
+    installmentStartDate?: string | null;
     isPromotional?: boolean | null;
     promotionalSlots?: number | null;
     promotionalTotalAmount?: number | null;
@@ -408,6 +410,12 @@ function paymentOptionDetailLines(option: PaymentOptionItem): PaymentOptionDetai
 
   if (dueDay > 0) {
     lines.push({ text: `Vencimento padrão: dia ${dueDay}.`, tone: 'default' });
+  }
+  if (option.installmentStartMode === 'COURSE_START') {
+    lines.push({
+      text: 'Pagamento no início do curso (data a definir).',
+      tone: 'default',
+    });
   }
   if (option.isPromotional) {
     lines.push({

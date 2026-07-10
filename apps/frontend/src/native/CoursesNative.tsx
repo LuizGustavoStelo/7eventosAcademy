@@ -6,7 +6,7 @@ import { apiRequest, formatCurrency } from './api';
 type CourseStatus = 'ACTIVE' | 'DRAFT' | 'INACTIVE';
 type CourseModality = 'PRESENTIAL' | 'HYBRID' | 'EAD';
 type CoursePaymentModel = 'CASH' | 'INSTALLMENTS';
-type InstallmentStartMode = 'ON_ENROLLMENT' | 'SCHEDULED';
+type InstallmentStartMode = 'ON_ENROLLMENT' | 'SCHEDULED' | 'COURSE_START';
 type CoursePaymentOptionMethod = 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD';
 type CoursePaymentOptionType = 'CASH' | 'INSTALLMENTS';
 type CoursePaymentCollectionMode = 'INSTALLMENT_CHARGES' | 'MANUAL_LINK';
@@ -23,6 +23,7 @@ type CoursePaymentOption = {
   installmentCount?: number | null;
   installmentAmount?: number | null;
   dueDay?: number | null;
+  installmentStartMode?: InstallmentStartMode | null;
   installmentStartDate?: string | null;
   note?: string | null;
   isPromotional?: boolean | null;
@@ -243,6 +244,14 @@ function normalizeCoursePaymentOptions(
         installmentCount,
         installmentAmount,
         dueDay: option.dueDay ?? null,
+        installmentStartMode:
+          type !== 'INSTALLMENTS'
+            ? null
+            : option.installmentStartMode === 'COURSE_START'
+              ? 'COURSE_START'
+              : option.installmentStartMode === 'SCHEDULED' || option.installmentStartDate
+                ? 'SCHEDULED'
+                : 'ON_ENROLLMENT',
         installmentStartDate:
           type === 'INSTALLMENTS' ? (option.installmentStartDate ?? null) : null,
         note: option.note || '',
@@ -755,9 +764,11 @@ function mapCoursePaymentOptionToForm(
     installmentAmount: formatMoneyValue(installmentAmount),
     dueDay: option.dueDay ? String(option.dueDay) : '',
     installmentStartMode:
-      option.type === 'INSTALLMENTS' && option.installmentStartDate
-        ? 'SCHEDULED'
-        : 'ON_ENROLLMENT',
+      option.type === 'INSTALLMENTS' && option.installmentStartMode === 'COURSE_START'
+        ? 'COURSE_START'
+        : option.type === 'INSTALLMENTS' && option.installmentStartDate
+          ? 'SCHEDULED'
+          : 'ON_ENROLLMENT',
     installmentStartDate:
       option.type === 'INSTALLMENTS'
         ? toDateInputValue(option.installmentStartDate)
@@ -1192,6 +1203,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
       installmentCount?: number;
       installmentAmount?: number;
       dueDay?: number;
+      installmentStartMode?: InstallmentStartMode;
       installmentStartDate?: string;
       note?: string;
       isPromotional: boolean;
@@ -1230,10 +1242,11 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         collectionMode: CoursePaymentCollectionMode;
         totalAmount: number;
         installmentCount?: number;
-      installmentAmount?: number;
-      dueDay?: number;
-      installmentStartDate?: string;
-      note?: string;
+        installmentAmount?: number;
+        dueDay?: number;
+        installmentStartMode?: InstallmentStartMode;
+        installmentStartDate?: string;
+        note?: string;
         isPromotional: boolean;
         promotionalSlots?: number;
         promotionalTotalAmount?: number;
@@ -1277,6 +1290,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
           parseNumberSafe(option.installmentAmount) ?? totalAmount / installmentCount;
         payloadOption.installmentCount = installmentCount;
         payloadOption.installmentAmount = installmentAmount;
+        payloadOption.installmentStartMode = option.installmentStartMode;
 
         const canConfigureOptionInstallmentStart = hasPositiveNumber(installmentAmount);
         if (
@@ -2045,9 +2059,21 @@ export function CoursesNative({ token }: CoursesNativeProps) {
 
                   <div className="native-payment-options-list">
                     {form.paymentOptions.map((option, index) => (
-                      <article key={option.id} className="native-payment-option-card">
-                        <div className="native-payment-option-card-head">
-                          <strong>Opção {index + 1}</strong>
+                      <details
+                        key={option.id}
+                        className="native-payment-option-card"
+                      >
+                        <summary className="native-payment-option-summary">
+                          <span className="native-payment-option-summary-title">
+                            <strong>{option.title.trim() || `Opção ${index + 1}`}</strong>
+                            <small>{paymentMethodLabel[option.method]}</small>
+                          </span>
+                          <span className="native-payment-option-chevron" aria-hidden="true" />
+                        </summary>
+
+                        <div className="native-payment-option-body">
+                          <div className="native-payment-option-card-head">
+                            <strong>Editar opção {index + 1}</strong>
                           <button
                             type="button"
                             className="ghost"
@@ -2055,9 +2081,12 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                           >
                             Remover
                           </button>
-                        </div>
+                          </div>
 
-                        <div className="native-payment-option-grid">
+                        <div className="native-payment-option-groups">
+                          <fieldset className="native-payment-option-group">
+                            <legend>Configuração da opção</legend>
+                            <div className="native-payment-option-grid">
                           <label>
                             Nome da opção
                             <input
@@ -2101,7 +2130,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                           </label>
 
                           <label>
-                            CobranÃ§a no sistema
+                            Cobrança no sistema
                             <select
                               value={option.collectionMode}
                               onChange={(event) =>
@@ -2113,7 +2142,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               }
                               disabled={option.method === 'PIX'}
                             >
-                              <option value="INSTALLMENT_CHARGES">Gerar cobranÃ§as</option>
+                              <option value="INSTALLMENT_CHARGES">Gerar cobranças</option>
                               <option value="MANUAL_LINK">Link manual no financeiro</option>
                             </select>
                             {option.collectionMode === 'MANUAL_LINK' ? (
@@ -2145,6 +2174,32 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               </option>
                             </select>
                           </label>
+
+                          <label>
+                            Exibir esta opção na matrícula
+                            <select
+                              value={option.active ? 'YES' : 'NO'}
+                              onChange={(event) =>
+                                updatePaymentOption(
+                                  option.id,
+                                  'active',
+                                  event.target.value === 'YES',
+                                )
+                              }
+                            >
+                              <option value="YES">Sim</option>
+                              <option value="NO">Não</option>
+                            </select>
+                            <small>
+                              Quando ativada, o aluno poderá escolhê-la durante a matrícula.
+                            </small>
+                          </label>
+                            </div>
+                          </fieldset>
+
+                          <fieldset className="native-payment-option-group">
+                            <legend>Valores normais e cobrança</legend>
+                            <div className="native-payment-option-grid">
 
                           <label>
                             Valor total (R$)
@@ -2223,7 +2278,7 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               </label>
 
                               <label>
-                                Início das mensalidades (opção)
+                                Quando começa o pagamento?
                                 <select
                                   value={option.installmentStartMode}
                                   disabled={
@@ -2231,16 +2286,25 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                       parseNumberSafe(option.installmentAmount) || 0,
                                     )
                                   }
-                                  onChange={(event) =>
+                                  onChange={(event) => {
+                                    const nextMode = event.target.value as InstallmentStartMode;
                                     updatePaymentOption(
                                       option.id,
                                       'installmentStartMode',
-                                      event.target.value as InstallmentStartMode,
-                                    )
-                                  }
+                                      nextMode,
+                                    );
+                                    if (nextMode !== 'SCHEDULED') {
+                                      updatePaymentOption(
+                                        option.id,
+                                        'installmentStartDate',
+                                        '',
+                                      );
+                                    }
+                                  }}
                                 >
-                                  <option value="ON_ENROLLMENT">Na matrícula</option>
-                                  <option value="SCHEDULED">Agendar início</option>
+                                  <option value="ON_ENROLLMENT">Pagamento na matrícula</option>
+                                  <option value="COURSE_START">Pagamento no início do curso</option>
+                                  <option value="SCHEDULED">Pagamento em uma data definida</option>
                                 </select>
                                 {!hasPositiveNumber(
                                   parseNumberSafe(option.installmentAmount) || 0,
@@ -2249,12 +2313,18 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                     Informe o valor da parcela para liberar o agendamento.
                                   </small>
                                 ) : null}
+                                {option.installmentStartMode === 'COURSE_START' ? (
+                                  <small>
+                                    O contrato informará que o pagamento começa no início do curso,
+                                    ainda sem uma data definida.
+                                  </small>
+                                ) : null}
                               </label>
 
                               {hasPositiveNumber(parseNumberSafe(option.installmentAmount) || 0) &&
                               option.installmentStartMode === 'SCHEDULED' ? (
                                 <label>
-                                  Data de início da opção parcelada
+                                  Data do primeiro pagamento
                                   <input
                                     type="date"
                                     value={option.installmentStartDate}
@@ -2270,94 +2340,6 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               ) : null}
                             </>
                           ) : null}
-
-                          <label>
-                            Disponível para matrícula
-                            <select
-                              value={option.active ? 'YES' : 'NO'}
-                              onChange={(event) =>
-                                updatePaymentOption(
-                                  option.id,
-                                  'active',
-                                  event.target.value === 'YES',
-                                )
-                              }
-                            >
-                              <option value="YES">Sim</option>
-                              <option value="NO">Não</option>
-                            </select>
-                          </label>
-                          <label>
-                            Tem valor promocional?
-                            <select
-                              value={option.isPromotional ? 'YES' : 'NO'}
-                              onChange={(event) =>
-                                updatePaymentOption(
-                                  option.id,
-                                  'isPromotional',
-                                  event.target.value === 'YES',
-                                )
-                              }
-                            >
-                              <option value="NO">Não</option>
-                              <option value="YES">Sim</option>
-                            </select>
-                          </label>
-
-                          {option.isPromotional ? (
-                            <>
-                              <label>
-                                Limite de vagas promocionais
-                                <input
-                                  type="number"
-                                  min={1}
-                                  step={1}
-                                  value={option.promotionalSlots}
-                                  onChange={(event) =>
-                                    updatePaymentOption(
-                                      option.id,
-                                      'promotionalSlots',
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
-
-                              <label>
-                                Valor total promocional (R$)
-                                <input
-                                  type="text"
-                                  value={option.promotionalTotalAmount}
-                                  onChange={(event) =>
-                                    updatePaymentOption(
-                                      option.id,
-                                      'promotionalTotalAmount',
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
-
-                              {option.type === 'INSTALLMENTS' ? (
-                                <label>
-                                  Valor da parcela promocional (R$)
-                                  <input
-                                    type="text"
-                                    value={option.promotionalInstallmentAmount}
-                                    onChange={(event) =>
-                                      updatePaymentOption(
-                                        option.id,
-                                        'promotionalInstallmentAmount',
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </label>
-                              ) : null}
-                            </>
-                          ) : null}
-
-
 
                           <label>
                             Valor normal tem desconto por pagamento antecipado?
@@ -2451,6 +2433,81 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               </label>
                             </>
                           ) : null}
+                            </div>
+                          </fieldset>
+
+                          <fieldset className="native-payment-option-group is-promotional">
+                            <legend>Valores promocionais</legend>
+                            <div className="native-payment-option-grid">
+                              <label>
+                                Esta opção tem valor promocional?
+                                <select
+                                  value={option.isPromotional ? 'YES' : 'NO'}
+                                  onChange={(event) =>
+                                    updatePaymentOption(
+                                      option.id,
+                                      'isPromotional',
+                                      event.target.value === 'YES',
+                                    )
+                                  }
+                                >
+                                  <option value="NO">Não</option>
+                                  <option value="YES">Sim</option>
+                                </select>
+                              </label>
+
+                              {option.isPromotional ? (
+                                <>
+                                  <label>
+                                    Limite de vagas promocionais
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      step={1}
+                                      value={option.promotionalSlots}
+                                      onChange={(event) =>
+                                        updatePaymentOption(
+                                          option.id,
+                                          'promotionalSlots',
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+
+                                  <label>
+                                    Valor total promocional (R$)
+                                    <input
+                                      type="text"
+                                      value={option.promotionalTotalAmount}
+                                      onChange={(event) =>
+                                        updatePaymentOption(
+                                          option.id,
+                                          'promotionalTotalAmount',
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+
+                                  {option.type === 'INSTALLMENTS' ? (
+                                    <label>
+                                      Valor da parcela promocional (R$)
+                                      <input
+                                        type="text"
+                                        value={option.promotionalInstallmentAmount}
+                                        onChange={(event) =>
+                                          updatePaymentOption(
+                                            option.id,
+                                            'promotionalInstallmentAmount',
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </label>
+                                  ) : null}
+                                </>
+                              ) : null}
 
                           {option.isPromotional ? (
                             <>
@@ -2548,20 +2605,28 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                               ) : null}
                             </>
                           ) : null}
+                            </div>
+                          </fieldset>
 
-                          <label className="native-payment-option-field-full">
-                            Observações / regra
-                            <textarea
-                              rows={2}
-                              value={option.note}
-                              onChange={(event) =>
-                                updatePaymentOption(option.id, 'note', event.target.value)
-                              }
-                              placeholder="Ex.: Pagamento dia 7 com CRF ativo."
-                            />
-                          </label>
+                          <fieldset className="native-payment-option-group">
+                            <legend>Observações</legend>
+                            <div className="native-payment-option-grid">
+                              <label className="native-payment-option-field-full">
+                                Regra ou observação adicional
+                                <textarea
+                                  rows={2}
+                                  value={option.note}
+                                  onChange={(event) =>
+                                    updatePaymentOption(option.id, 'note', event.target.value)
+                                  }
+                                  placeholder="Ex.: Pagamento até o dia 7 exige CRF ativo."
+                                />
+                              </label>
+                            </div>
+                          </fieldset>
                         </div>
-                      </article>
+                        </div>
+                      </details>
                     ))}
                   </div>
                 </section>

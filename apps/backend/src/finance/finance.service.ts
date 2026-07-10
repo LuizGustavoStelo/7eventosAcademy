@@ -987,7 +987,7 @@ export class FinanceService {
     });
 
     if (!request) {
-      throw new NotFoundException('SolicitaÃ§Ã£o de cartÃ£o nÃ£o encontrada.');
+      throw new NotFoundException('Solicitação de cartão não encontrada.');
     }
 
     const updated = await this.prisma.creditCardPaymentRequest.update({
@@ -1023,7 +1023,7 @@ export class FinanceService {
     });
 
     if (!request) {
-      throw new NotFoundException('SolicitaÃ§Ã£o de cartÃ£o nÃ£o encontrada.');
+      throw new NotFoundException('Solicitação de cartão não encontrada.');
     }
 
     if (request.status === 'APPROVED' || request.monthlyCharge.status === 'PAID') {
@@ -1085,7 +1085,7 @@ export class FinanceService {
     });
 
     if (!request) {
-      throw new NotFoundException('SolicitaÃ§Ã£o de cartÃ£o nÃ£o encontrada.');
+      throw new NotFoundException('Solicitação de cartão não encontrada.');
     }
 
     const updated = await this.prisma.creditCardPaymentRequest.update({
@@ -1129,7 +1129,7 @@ export class FinanceService {
     });
 
     if (!charge) {
-      throw new NotFoundException('CobranÃ§a nÃ£o encontrada.');
+      throw new NotFoundException('Cobrança não encontrada.');
     }
 
     const selectedOption = this.parseEnrollmentSelectedPaymentOption(
@@ -1137,7 +1137,7 @@ export class FinanceService {
     );
     if (selectedOption?.method !== 'CREDIT_CARD') {
       throw new BadRequestException(
-        'Esta cobranÃ§a nÃ£o corresponde a uma forma de pagamento por cartÃ£o.',
+        'Esta cobrança não corresponde a uma forma de pagamento por cartão.',
       );
     }
 
@@ -1219,7 +1219,7 @@ export class FinanceService {
     });
 
     if (!request) {
-      throw new NotFoundException('SolicitaÃ§Ã£o de cartÃ£o nÃ£o encontrada.');
+      throw new NotFoundException('Solicitação de cartão não encontrada.');
     }
 
     const data =

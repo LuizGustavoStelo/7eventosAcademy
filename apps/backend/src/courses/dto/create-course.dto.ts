@@ -47,6 +47,12 @@ export enum CoursePaymentCollectionModeDto {
   MANUAL_LINK = 'MANUAL_LINK',
 }
 
+export enum CourseInstallmentStartModeDto {
+  ON_ENROLLMENT = 'ON_ENROLLMENT',
+  SCHEDULED = 'SCHEDULED',
+  COURSE_START = 'COURSE_START',
+}
+
 export enum CoursePaymentDiscountTypeDto {
   FIXED = 'FIXED',
   PERCENT = 'PERCENT',
@@ -103,6 +109,10 @@ export class CoursePaymentOptionDto {
   @IsOptional()
   @IsISO8601()
   installmentStartDate?: string;
+
+  @IsOptional()
+  @IsEnum(CourseInstallmentStartModeDto)
+  installmentStartMode?: CourseInstallmentStartModeDto;
 
   @IsOptional()
   @IsString()

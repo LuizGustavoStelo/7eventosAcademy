@@ -3515,11 +3515,67 @@ table button:disabled {
 
 .native-payment-option-card {
   border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fff;
-  padding: 0.62rem;
-  display: grid;
+  overflow: hidden;
+}
+
+.native-payment-option-summary {
+  min-height: 52px;
+  padding: 0.7rem 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.native-payment-option-summary::-webkit-details-marker {
+  display: none;
+}
+
+.native-payment-option-summary-title {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
   gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.native-payment-option-summary-title strong {
+  color: #0f172a;
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.native-payment-option-summary-title small {
+  color: #475569;
+  font-size: 0.78rem;
+}
+
+.native-payment-option-chevron {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-right: 2px solid #64748b;
+  border-bottom: 2px solid #64748b;
+  transform: rotate(45deg);
+  transition: transform 160ms ease;
+}
+
+.native-payment-option-card[open] .native-payment-option-chevron {
+  transform: rotate(225deg);
+}
+
+.native-payment-option-card[open] .native-payment-option-summary {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.native-payment-option-body {
+  padding: 0.72rem 0.8rem 0.85rem;
+  display: grid;
+  gap: 0.65rem;
 }
 
 .native-payment-option-card-head {
@@ -3532,6 +3588,37 @@ table button:disabled {
 .native-payment-option-card-head strong {
   color: #0f172a;
   font-size: 0.86rem;
+}
+
+.native-payment-option-groups {
+  display: grid;
+}
+
+.native-payment-option-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0.8rem 0;
+  border: 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.native-payment-option-group:first-child {
+  border-top: 0;
+  padding-top: 0.2rem;
+}
+
+.native-payment-option-group legend {
+  width: 100%;
+  padding: 0 0 0.55rem;
+  color: #0f172a;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.native-payment-option-group.is-promotional {
+  background: #f6faf8;
+  margin-inline: -0.8rem;
+  padding-inline: 0.8rem;
 }
 
 .native-payment-option-grid {

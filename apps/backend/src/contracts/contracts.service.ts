@@ -79,6 +79,7 @@ type ContractSelectedPaymentOption = {
   installmentCount: number | null;
   installmentAmount: number;
   dueDay: number | null;
+  installmentStartMode: 'ON_ENROLLMENT' | 'SCHEDULED' | 'COURSE_START';
   installmentStartDate: string | null;
   note: string | null;
   discountEnabled: boolean;
@@ -1034,6 +1035,22 @@ export class ContractsService {
       formsAndValuesSummaryLines.push(
         `Valor da parcela: ${this.formatCurrencyPtBr(installmentValueForSummary)}`,
       );
+    }
+    if (selectedPaymentOption?.installmentStartMode === 'COURSE_START') {
+      formsAndValuesSummaryLines.push(
+        'Início dos pagamentos: no início do curso (data a definir).',
+      );
+    } else if (
+      selectedPaymentOption?.installmentStartMode === 'SCHEDULED' &&
+      selectedPaymentOption.installmentStartDate
+    ) {
+      formsAndValuesSummaryLines.push(
+        `Início dos pagamentos: ${this.formatDatePtBr(
+          selectedPaymentOption.installmentStartDate,
+        )}.`,
+      );
+    } else if (selectedPaymentOption?.type === 'INSTALLMENTS') {
+      formsAndValuesSummaryLines.push('Início dos pagamentos: na matrícula.');
     }
 
     if (selectedPaymentOption?.appliedVoucher) {
@@ -2481,6 +2498,17 @@ export class ContractsService {
       const parsed = new Date(value);
       return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
     })();
+    const installmentStartModeRaw = String(source.installmentStartMode || '')
+      .trim()
+      .toUpperCase();
+    const installmentStartMode: ContractSelectedPaymentOption['installmentStartMode'] =
+      normalizedType !== 'INSTALLMENTS'
+        ? 'ON_ENROLLMENT'
+        : installmentStartModeRaw === 'COURSE_START'
+          ? 'COURSE_START'
+          : installmentStartModeRaw === 'SCHEDULED' || installmentStartDate
+            ? 'SCHEDULED'
+            : 'ON_ENROLLMENT';
     const note = String(source.note || '').trim() || null;
     const discountEnabled = Boolean(source.discountEnabled);
     const discountTotalAmountRaw = this.toMoneyValue(source.discountTotalAmount);
@@ -2581,7 +2609,9 @@ export class ContractsService {
       installmentCount,
       installmentAmount,
       dueDay,
-      installmentStartDate,
+      installmentStartMode,
+      installmentStartDate:
+        installmentStartMode === 'SCHEDULED' ? installmentStartDate : null,
       note,
       discountEnabled,
       discountTotalAmount,

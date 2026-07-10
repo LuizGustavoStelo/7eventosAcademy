@@ -2149,8 +2149,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         ...current,
         [charge.id]:
           request.paymentLinkUrl
-            ? 'Link de pagamento disponÃ­vel.'
-            : 'SolicitaÃ§Ã£o enviada ao financeiro. Aguarde o envio do link.',
+            ? 'Link de pagamento disponível.'
+            : 'Solicitação enviada ao financeiro. Aguarde o envio do link.',
       }));
       void loadDashboard({ bypassCache: true });
     } catch (requestError) {
@@ -2159,7 +2159,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         [charge.id]:
           requestError instanceof Error
             ? requestError.message
-            : 'NÃ£o foi possÃ­vel solicitar o link de pagamento.',
+            : 'Não foi possível solicitar o link de pagamento.',
       }));
     } finally {
       setPayingChargeId((current) => (current === charge.id ? null : current));
@@ -2188,7 +2188,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         },
       }));
     } catch {
-      // O link ainda pode ser aberto mesmo se o registro de visualizaÃ§Ã£o falhar.
+      // O link ainda pode ser aberto mesmo se o registro de visualização falhar.
     }
 
     if (typeof window !== 'undefined') {
@@ -2209,7 +2209,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         !navigator.clipboard ||
         typeof navigator.clipboard.writeText !== 'function'
       ) {
-        throw new Error('Clipboard indisponÃ­vel');
+        throw new Error('Clipboard indisponível');
       }
 
       await navigator.clipboard.writeText(paymentLink);
@@ -2229,7 +2229,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     } catch {
       setChargePaymentErrorById((current) => ({
         ...current,
-        [chargeId]: 'NÃ£o foi possÃ­vel copiar o link automaticamente.',
+        [chargeId]: 'Não foi possível copiar o link automaticamente.',
       }));
     }
   };

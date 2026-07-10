@@ -28,7 +28,7 @@ const ignoredDirs = new Set([
 ]);
 const normalizePath = (value) => value.split(path.sep).join('/');
 const ignoredFiles = new Set(['scripts/check-encoding.mjs']);
-const mojibakePattern = /(?:Ãƒ[\u0080-\u00BF]|Ã‚[^\s]|ï¿½)/u;
+const mojibakePattern = /(?:\u00c3\u0192[\u0080-\u00bf]|\u00c3\u201a[^\s]|\u00ef\u00bf\u00bd)/u;
 const stagedOnly = process.argv.includes('--staged');
 
 const bomFindings = [];

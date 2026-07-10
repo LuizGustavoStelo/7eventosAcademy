@@ -483,7 +483,7 @@ export class MisService {
 
   async getAlunoCreditCardPaymentRequests(userId: string) {
     if (!userId) {
-      throw new NotFoundException('Aluno nÃ£o encontrado.');
+      throw new NotFoundException('Aluno não encontrado.');
     }
 
     return this.financeService.listStudentCreditCardPaymentRequests(userId);
@@ -491,7 +491,7 @@ export class MisService {
 
   async requestAlunoCreditCardPaymentLink(userId: string, chargeId: string) {
     if (!userId) {
-      throw new NotFoundException('Aluno nÃ£o encontrado.');
+      throw new NotFoundException('Aluno não encontrado.');
     }
 
     return this.financeService.requestCreditCardPaymentForStudent(
@@ -505,7 +505,7 @@ export class MisService {
     requestId: string,
   ) {
     if (!userId) {
-      throw new NotFoundException('Aluno nÃ£o encontrado.');
+      throw new NotFoundException('Aluno não encontrado.');
     }
 
     return this.financeService.markStudentCreditCardPaymentRequestAction(
@@ -520,7 +520,7 @@ export class MisService {
     requestId: string,
   ) {
     if (!userId) {
-      throw new NotFoundException('Aluno nÃ£o encontrado.');
+      throw new NotFoundException('Aluno não encontrado.');
     }
 
     return this.financeService.markStudentCreditCardPaymentRequestAction(

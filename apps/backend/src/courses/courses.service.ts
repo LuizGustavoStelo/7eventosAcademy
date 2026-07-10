@@ -15,6 +15,7 @@ import {
   CoursePaymentDiscountAppliesToDto,
   CoursePaymentDiscountTypeDto,
   CoursePaymentCollectionModeDto,
+  CourseInstallmentStartModeDto,
   CoursePaymentOptionDto,
   CoursePaymentOptionMethodDto,
   CoursePaymentOptionTypeDto,
@@ -36,6 +37,7 @@ type NormalizedCoursePaymentOption = {
   installmentCount: number | null;
   installmentAmount: number | null;
   dueDay: number | null;
+  installmentStartMode: CourseInstallmentStartModeDto | null;
   installmentStartDate: string | null;
   note: string | null;
   isPromotional: boolean;
@@ -566,6 +568,15 @@ export class CoursesService {
               return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
             })()
           : null;
+      const installmentStartMode =
+        type !== CoursePaymentOptionTypeDto.INSTALLMENTS
+          ? null
+          : option.installmentStartMode === CourseInstallmentStartModeDto.COURSE_START
+            ? CourseInstallmentStartModeDto.COURSE_START
+            : option.installmentStartMode === CourseInstallmentStartModeDto.SCHEDULED ||
+                installmentStartDate
+              ? CourseInstallmentStartModeDto.SCHEDULED
+              : CourseInstallmentStartModeDto.ON_ENROLLMENT;
       const isPromotional = Boolean(option.isPromotional);
       const promotionalSlots = isPromotional
         ? Math.max(1, Math.trunc(Number(option.promotionalSlots ?? 20)))
@@ -665,7 +676,11 @@ export class CoursesService {
         installmentCount,
         installmentAmount,
         dueDay,
-        installmentStartDate,
+        installmentStartMode,
+        installmentStartDate:
+          installmentStartMode === CourseInstallmentStartModeDto.SCHEDULED
+            ? installmentStartDate
+            : null,
         note: option.note?.trim() || null,
         isPromotional: hasPromotionalValue,
         promotionalSlots: hasPromotionalValue ? promotionalSlots : null,
@@ -790,6 +805,18 @@ export class CoursesService {
             return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
           })()
         : null;
+    const installmentStartModeRaw = String(objectItem.installmentStartMode || '')
+      .trim()
+      .toUpperCase();
+    const installmentStartMode =
+      type !== CoursePaymentOptionTypeDto.INSTALLMENTS
+        ? null
+        : installmentStartModeRaw === CourseInstallmentStartModeDto.COURSE_START
+          ? CourseInstallmentStartModeDto.COURSE_START
+          : installmentStartModeRaw === CourseInstallmentStartModeDto.SCHEDULED ||
+              installmentStartDate
+            ? CourseInstallmentStartModeDto.SCHEDULED
+            : CourseInstallmentStartModeDto.ON_ENROLLMENT;
     const isPromotional = Boolean(objectItem.isPromotional);
     const promotionalSlots =
       isPromotional && this.toFiniteNumber(objectItem.promotionalSlots)
@@ -904,7 +931,11 @@ export class CoursesService {
       installmentCount,
       installmentAmount,
       dueDay,
-      installmentStartDate,
+      installmentStartMode,
+      installmentStartDate:
+        installmentStartMode === CourseInstallmentStartModeDto.SCHEDULED
+          ? installmentStartDate
+          : null,
       note: String(objectItem.note || '').trim() || null,
       isPromotional: hasPromotionalValue,
       promotionalSlots: hasPromotionalValue ? promotionalSlots : null,
@@ -1042,6 +1073,7 @@ export class CoursesService {
           installmentCount,
           installmentAmount,
           dueDay: null,
+          installmentStartMode: CourseInstallmentStartModeDto.ON_ENROLLMENT,
           installmentStartDate: null,
           note: null,
           isPromotional: false,
@@ -1077,6 +1109,7 @@ export class CoursesService {
         installmentCount: null,
         installmentAmount: null,
         dueDay: null,
+        installmentStartMode: null,
         installmentStartDate: null,
         note: null,
         isPromotional: false,
