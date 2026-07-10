@@ -3163,44 +3163,74 @@ export function CoursesNative({ token }: CoursesNativeProps) {
                                 {option.active ? 'Disponível' : 'Oculta'}
                               </span>
                             </header>
-                            <dl>
-                              <div><dt>Valor normal</dt><dd>{formatCurrency(parseNumberSafe(option.totalAmount) || 0)}</dd></div>
+                            <dl className="native-course-summary-payment-context">
                               {option.type === 'INSTALLMENTS' ? (
-                                <>
-                                  <div><dt>Parcelamento</dt><dd>{option.installmentCount}x de {formatCurrency(parseNumberSafe(option.installmentAmount) || 0)}</dd></div>
-                                  <div><dt>Vencimento</dt><dd>{option.dueDay ? `Dia ${option.dueDay}` : 'Não definido'}</dd></div>
-                                </>
+                                <div><dt>Vencimento</dt><dd>{option.dueDay ? `Dia ${option.dueDay}` : 'Não definido'}</dd></div>
                               ) : null}
                               <div><dt>Primeira cobrança</dt><dd>{installmentStartModeLabel[option.installmentStartMode]}{option.installmentStartMode === 'SCHEDULED' && option.installmentStartDate ? ` em ${formatDateLabel(option.installmentStartDate)}` : ''}</dd></div>
                               <div><dt>Cobrança</dt><dd>{option.collectionMode === 'MANUAL_LINK' ? 'Link manual pelo financeiro' : 'Gerada pelo sistema'}</dd></div>
-                              {option.discountEnabled ? (
-                                <div><dt>Desconto antecipado</dt><dd>{option.type === 'INSTALLMENTS' ? formatCurrency(parseNumberSafe(option.discountInstallmentAmount) || 0) : formatCurrency(parseNumberSafe(option.discountTotalAmount) || 0)}{option.discountDeadlineDay ? ` até o dia ${option.discountDeadlineDay}` : ''}</dd></div>
-                              ) : null}
-                              {option.isPromotional ? (
-                                <>
-                                  <div>
-                                    <dt>Valor promocional</dt>
-                                    <dd>
-                                      {formatCurrency(
-                                        parseNumberSafe(option.promotionalTotalAmount) || 0,
-                                      )}{' '}
-                                      para {option.promotionalSlots || 0} vaga(s)
-                                    </dd>
-                                  </div>
+                            </dl>
+
+                            <div className="native-course-summary-payment-columns">
+                              <section className="is-normal">
+                                <h5>Valores normais</h5>
+                                <dl>
+                                  <div><dt>Valor total</dt><dd>{formatCurrency(parseNumberSafe(option.totalAmount) || 0)}</dd></div>
                                   {option.type === 'INSTALLMENTS' ? (
+                                    <div><dt>Parcelamento</dt><dd>{option.installmentCount}x de {formatCurrency(parseNumberSafe(option.installmentAmount) || 0)}</dd></div>
+                                  ) : null}
+                                  {option.discountEnabled ? (
                                     <div>
-                                      <dt>Parcelamento promocional</dt>
+                                      <dt>Desconto por antecipação</dt>
                                       <dd>
-                                        {option.installmentCount}x de{' '}
-                                        {formatCurrency(
-                                          resolvePromotionalInstallmentValue(option),
-                                        )}
+                                        {option.type === 'INSTALLMENTS'
+                                          ? formatCurrency(parseNumberSafe(option.discountInstallmentAmount) || 0)
+                                          : formatCurrency(parseNumberSafe(option.discountTotalAmount) || 0)}
+                                        {option.discountDeadlineDay ? ` até o dia ${option.discountDeadlineDay}` : ''}
+                                        {option.discountRequiresActiveCrf ? ' · exige CRF ativo' : ''}
                                       </dd>
                                     </div>
-                                  ) : null}
-                                </>
-                              ) : null}
-                            </dl>
+                                  ) : (
+                                    <div><dt>Desconto</dt><dd>Sem desconto adicional</dd></div>
+                                  )}
+                                </dl>
+                              </section>
+
+                              <section className="is-promotional">
+                                <h5>Valores promocionais</h5>
+                                {option.isPromotional ? (
+                                  <dl>
+                                    <div>
+                                      <dt>Valor total promocional</dt>
+                                      <dd>{formatCurrency(parseNumberSafe(option.promotionalTotalAmount) || 0)}</dd>
+                                    </div>
+                                    <div><dt>Limite da promoção</dt><dd>{option.promotionalSlots || 0} vaga(s)</dd></div>
+                                    {option.type === 'INSTALLMENTS' ? (
+                                      <div>
+                                        <dt>Parcelamento promocional</dt>
+                                        <dd>{option.installmentCount}x de {formatCurrency(resolvePromotionalInstallmentValue(option))}</dd>
+                                      </div>
+                                    ) : null}
+                                    {option.promotionalDiscountEnabled ? (
+                                      <div>
+                                        <dt>Desconto promocional por antecipação</dt>
+                                        <dd>
+                                          {option.type === 'INSTALLMENTS'
+                                            ? formatCurrency(parseNumberSafe(option.promotionalDiscountInstallmentAmount) || 0)
+                                            : formatCurrency(parseNumberSafe(option.promotionalDiscountTotalAmount) || 0)}
+                                          {option.promotionalDiscountDeadlineDay ? ` até o dia ${option.promotionalDiscountDeadlineDay}` : ''}
+                                          {option.promotionalDiscountRequiresActiveCrf ? ' · exige CRF ativo' : ''}
+                                        </dd>
+                                      </div>
+                                    ) : (
+                                      <div><dt>Desconto adicional</dt><dd>Sem desconto adicional</dd></div>
+                                    )}
+                                  </dl>
+                                ) : (
+                                  <p>Esta opção não possui valor promocional.</p>
+                                )}
+                              </section>
+                            </div>
                             {option.note.trim() ? <p>{option.note}</p> : null}
                           </article>
                         ))}
