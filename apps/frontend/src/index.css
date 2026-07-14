@@ -3705,6 +3705,32 @@ table button:disabled {
 
 .native-course-summary.is-pdf-export .native-course-summary-content {
   overflow: visible;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.native-course-summary.is-pdf-export .native-course-summary-content > section.is-full {
+  grid-column: 1 / -1;
+}
+
+.native-course-summary.is-pdf-export .native-course-summary-payment-context {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.native-course-summary.is-pdf-export .native-course-summary-payment-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.native-course-summary.is-pdf-export .native-course-summary-payment-columns > section {
+  padding: 0.2rem 0.8rem 0.3rem 0;
+}
+
+.native-course-summary.is-pdf-export
+  .native-course-summary-payment-columns
+  > section.is-promotional {
+  margin: -0.2rem -0.7rem -0.3rem 0;
+  padding: 0.4rem 0.7rem 0.45rem 0.8rem;
+  border-top: 0;
+  border-left: 2px solid #86efac;
 }
 
 .native-course-summary-content {

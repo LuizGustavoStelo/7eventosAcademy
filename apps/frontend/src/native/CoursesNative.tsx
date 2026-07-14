@@ -1745,77 +1745,30 @@ export function CoursesNative({ token }: CoursesNativeProps) {
         logging: false,
         scale: 2,
         useCORS: true,
-        windowWidth: 794,
+        windowWidth: 1200,
       });
 
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
+      const pageWidth = 210;
       const margin = 10;
       const printableWidth = pageWidth - margin * 2;
-      const printableHeight = pageHeight - margin * 2;
-      const maximumSliceHeight = Math.floor(
-        canvas.width * (printableHeight / printableWidth),
+      const renderedHeight = (canvas.height / canvas.width) * printableWidth;
+      const pageHeight = renderedHeight + margin * 2;
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [pageWidth, pageHeight],
+        compress: true,
+      });
+      pdf.addImage(
+        canvas.toDataURL('image/jpeg', 0.94),
+        'JPEG',
+        margin,
+        margin,
+        printableWidth,
+        renderedHeight,
+        undefined,
+        'FAST',
       );
-      const cloneBounds = summaryClone.getBoundingClientRect();
-      const scale = canvas.width / cloneBounds.width;
-      const preferredBreaks = Array.from(
-        summaryClone.querySelectorAll(
-          '.native-course-summary-content > section:not(.is-full), .native-course-summary-payment-list > article',
-        ),
-      )
-        .map((element) =>
-          Math.round(
-            ((element as HTMLElement).getBoundingClientRect().top - cloneBounds.top) * scale,
-          ),
-        )
-        .filter((position) => position > 0)
-        .sort((first, second) => first - second);
-
-      let sliceStart = 0;
-      let pageIndex = 0;
-      while (sliceStart < canvas.height) {
-        const maximumSliceEnd = Math.min(sliceStart + maximumSliceHeight, canvas.height);
-        const minimumUsefulBreak = sliceStart + Math.floor(maximumSliceHeight * 0.45);
-        const preferredSliceEnd = preferredBreaks
-          .filter((position) => position > minimumUsefulBreak && position < maximumSliceEnd)
-          .at(-1);
-        const sliceEnd = preferredSliceEnd || maximumSliceEnd;
-        const sliceHeight = sliceEnd - sliceStart;
-        const pageCanvas = document.createElement('canvas');
-        pageCanvas.width = canvas.width;
-        pageCanvas.height = sliceHeight;
-        const context = pageCanvas.getContext('2d');
-        if (!context) throw new Error('Não foi possível preparar a página do PDF.');
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-        context.drawImage(
-          canvas,
-          0,
-          sliceStart,
-          canvas.width,
-          sliceHeight,
-          0,
-          0,
-          canvas.width,
-          sliceHeight,
-        );
-
-        if (pageIndex > 0) pdf.addPage();
-        const renderedHeight = (sliceHeight / canvas.width) * printableWidth;
-        pdf.addImage(
-          pageCanvas.toDataURL('image/jpeg', 0.94),
-          'JPEG',
-          margin,
-          margin,
-          printableWidth,
-          renderedHeight,
-          undefined,
-          'FAST',
-        );
-        sliceStart = sliceEnd;
-        pageIndex += 1;
-      }
 
       const courseName = form.name.trim() || 'curso-sem-nome';
       const fileName = courseName
