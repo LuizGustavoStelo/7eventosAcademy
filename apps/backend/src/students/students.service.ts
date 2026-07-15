@@ -90,7 +90,7 @@ export class StudentsService {
       },
     });
 
-    await this.authService.sendEmailVerificationCodeByUserId(student.id, {
+    await this.authService.sendEmailVerificationLinkByUserId(student.id, {
       ignoreCooldown: true,
       throwOnDeliveryFailure: false,
     });
@@ -250,21 +250,33 @@ export class StudentsService {
     });
 
     if (uniqueCourseIds.length > 0) {
-      await this.autoEnrollStudentInEligibleClasses({
-        studentId: student.id,
-        courseIds: uniqueCourseIds,
-        paymentOptionId:
-          uniqueCourseIds.length === 1
-            ? dto.selectedPaymentOptionId
-            : undefined,
-        enrollmentPaymentOptionId:
-          uniqueCourseIds.length === 1
-            ? dto.selectedEnrollmentPaymentOptionId
-            : undefined,
-        voucherCode:
-          uniqueCourseIds.length === 1 ? dto.selectedVoucherCode : undefined,
-        actor,
-      });
+      try {
+        for (const courseId of uniqueCourseIds) {
+          await this.enrollmentsService.prepareStudentCourseCommercialSelection({
+            studentId: student.id,
+            courseId,
+            institutionId,
+            paymentOptionId:
+              uniqueCourseIds.length === 1
+                ? dto.selectedPaymentOptionId
+                : undefined,
+            enrollmentPaymentOptionId:
+              uniqueCourseIds.length === 1
+                ? dto.selectedEnrollmentPaymentOptionId
+                : undefined,
+            voucherCode:
+              uniqueCourseIds.length === 1 ? dto.selectedVoucherCode : undefined,
+          });
+        }
+        await this.autoEnrollStudentInEligibleClasses({
+          studentId: student.id,
+          courseIds: uniqueCourseIds,
+          actor,
+        });
+      } catch (error) {
+        await this.prisma.user.delete({ where: { id: student.id } }).catch(() => undefined);
+        throw error;
+      }
     }
 
     if (avatar) {
@@ -276,7 +288,7 @@ export class StudentsService {
       });
     }
 
-    await this.authService.sendEmailVerificationCodeByUserId(student.id, {
+    await this.authService.sendEmailVerificationLinkByUserId(student.id, {
       ignoreCooldown: true,
       throwOnDeliveryFailure: false,
     });
@@ -979,9 +991,6 @@ export class StudentsService {
   private async autoEnrollStudentInEligibleClasses(input: {
     studentId: string;
     courseIds: string[];
-    paymentOptionId?: string;
-    enrollmentPaymentOptionId?: string;
-    voucherCode?: string;
     actor?: StudentActor;
   }) {
     if (input.courseIds.length === 0) return;
@@ -1016,9 +1025,6 @@ export class StudentsService {
           {
             classId,
             studentId: input.studentId,
-            paymentOptionId: input.paymentOptionId,
-            enrollmentPaymentOptionId: input.enrollmentPaymentOptionId,
-            voucherCode: input.voucherCode,
           },
           {
             actorUserId: input.actor?.sub,

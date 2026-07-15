@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma, UploadOwnerType, UserRole } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
-import { randomInt } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { type AccountVerificationAudience } from '../mail/templates/account-verification-email.template';
@@ -18,11 +18,11 @@ import { UploadsService } from '../uploads/uploads.service';
 import { LoginDto } from './dto/login.dto';
 import { RequestPasswordResetCodeDto } from './dto/request-password-reset-code.dto';
 import { ResetPasswordWithCodeDto } from './dto/reset-password-with-code.dto';
-import { ResendVerificationCodeDto } from './dto/resend-verification-code.dto';
+import { ResendVerificationEmailDto } from './dto/resend-verification-email.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateInstitutionContactsDto } from './dto/update-institution-contacts.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
-import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
+import { VerifyEmailLinkDto } from './dto/verify-email-link.dto';
 import { VerifyPasswordResetCodeDto } from './dto/verify-password-reset-code.dto';
 
 type AppRole = 'user' | 'admin' | 'superadmin';
@@ -115,9 +115,9 @@ type PendingAdminRegistration = {
   name: string;
   email: string;
   passwordHash: string;
-  codeHash: string | null;
-  codeExpiresAt: string | null;
-  codeSentAt: string | null;
+  verificationTokenHash: string | null;
+  verificationTokenExpiresAt: string | null;
+  verificationEmailSentAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -368,7 +368,6 @@ const BRANDING_COLOR_FIELDS: Array<keyof InstitutionBrandingPalette> = [
   'mutedColor',
 ];
 const ACCESS_TOKEN_TTL_SECONDS = 86_400;
-const EMAIL_VERIFICATION_CODE_LENGTH = 6;
 const DEFAULT_VERIFICATION_TTL_MINUTES = 15;
 const DEFAULT_VERIFICATION_COOLDOWN_SECONDS = 60;
 const PASSWORD_RESET_CODE_LENGTH = 6;
@@ -419,7 +418,7 @@ export class AuthService {
         },
       });
 
-      const dispatch = await this.sendEmailVerificationCodeByUserId(existingUser.id, {
+      const dispatch = await this.sendEmailVerificationLinkByUserId(existingUser.id, {
         ignoreCooldown: false,
         throwOnDeliveryFailure: false,
       });
@@ -429,7 +428,7 @@ export class AuthService {
           requiresEmailVerification: true,
           email,
           expiresAt: dispatch.expiresAt.toISOString(),
-          message: `Cadastro pendente de confirmação. Aguarde ${dispatch.waitSeconds ?? 1} segundo(s) para solicitar novo código.`,
+          message: `Cadastro pendente de confirmação. Aguarde ${dispatch.waitSeconds ?? 1} segundo(s) para solicitar um novo e-mail.`,
         };
       }
 
@@ -439,7 +438,7 @@ export class AuthService {
           email,
           expiresAt: dispatch.expiresAt.toISOString(),
           message:
-            'Cadastro pendente de confirmação, mas não foi possível enviar o código agora. Use a opção de reenviar código para tentar novamente.',
+            'Cadastro pendente de confirmação, mas não foi possível enviar o e-mail agora. Use a opção de reenviar para tentar novamente.',
         };
       }
 
@@ -448,12 +447,12 @@ export class AuthService {
         email,
         expiresAt: dispatch.expiresAt.toISOString(),
         message:
-          'Cadastro pendente de confirmação. Enviamos um código de confirmação para o seu e-mail.',
+          'Enviamos um link de confirmação para o seu e-mail. Abra a mensagem e confirme para acessar sua conta.',
       };
     }
 
     const previousPending = await this.findPendingAdminRegistration(email);
-    const dispatch = await this.sendPendingAdminVerificationCode({
+    const dispatch = await this.sendPendingAdminVerificationLink({
       name: trimmedName,
       email,
       passwordHash,
@@ -467,7 +466,7 @@ export class AuthService {
         requiresEmailVerification: true,
         email,
         expiresAt: dispatch.expiresAt.toISOString(),
-        message: `Cadastro pendente de confirmação. Aguarde ${dispatch.waitSeconds ?? 1} segundo(s) para solicitar novo código.`,
+        message: `Cadastro pendente de confirmação. Aguarde ${dispatch.waitSeconds ?? 1} segundo(s) para solicitar um novo e-mail.`,
       };
     }
 
@@ -477,7 +476,7 @@ export class AuthService {
         email,
         expiresAt: dispatch.expiresAt.toISOString(),
         message:
-          'Cadastro pendente de confirmação, mas não foi possível enviar o código agora. Use a opção de reenviar código para tentar novamente.',
+          'Cadastro pendente de confirmação, mas não foi possível enviar o e-mail agora. Use a opção de reenviar para tentar novamente.',
       };
     }
 
@@ -486,7 +485,7 @@ export class AuthService {
       email,
       expiresAt: dispatch.expiresAt.toISOString(),
       message:
-        'Cadastro pendente de confirmação. Enviamos um código de confirmação para o seu e-mail.',
+        'Enviamos um link de confirmação para o seu e-mail. Abra a mensagem e confirme para acessar sua conta.',
     };
   }
 
@@ -496,7 +495,7 @@ export class AuthService {
     if (!user) {
       const pending = await this.findPendingAdminRegistration(email);
       if (pending) {
-        await this.sendPendingAdminVerificationCode({
+        await this.sendPendingAdminVerificationLink({
           name: pending.name,
           email: pending.email,
           passwordHash: pending.passwordHash,
@@ -509,7 +508,7 @@ export class AuthService {
           code: 'EMAIL_NAO_CONFIRMADO',
           email,
           message:
-            'Seu e-mail ainda não foi confirmado. Digite o código enviado para continuar.',
+            'Seu e-mail ainda não foi confirmado. Enviamos uma confirmação para o seu e-mail.',
         });
       }
 
@@ -522,7 +521,7 @@ export class AuthService {
     }
 
     if (!user.emailConfirmedAt) {
-      await this.sendEmailVerificationCodeByUserId(user.id, {
+      await this.sendEmailVerificationLinkByUserId(user.id, {
         ignoreCooldown: false,
         throwOnDeliveryFailure: false,
       });
@@ -531,7 +530,7 @@ export class AuthService {
         code: 'EMAIL_NAO_CONFIRMADO',
         email: user.email,
         message:
-          'Seu e-mail ainda não foi confirmado. Digite o código enviado para continuar.',
+          'Seu e-mail ainda não foi confirmado. Enviamos uma confirmação para o seu e-mail.',
       });
     }
 
@@ -617,29 +616,29 @@ export class AuthService {
     };
   }
 
-  async verifyEmailCode(dto: VerifyEmailCodeDto) {
+  async verifyEmailLink(dto: VerifyEmailLinkDto) {
     const email = dto.email.trim().toLowerCase();
-    const code = dto.code.trim();
+    const token = dto.token.trim();
 
     const pending = await this.findPendingAdminRegistration(email);
     if (pending) {
-      if (!pending.codeHash || !pending.codeExpiresAt) {
+      if (!pending.verificationTokenHash || !pending.verificationTokenExpiresAt) {
         throw new BadRequestException(
-          'Nenhum código ativo foi encontrado para este e-mail. Solicite um novo código.',
+          'Nenhum link ativo foi encontrado para este e-mail. Solicite uma nova confirmação.',
         );
       }
 
-      const pendingExpiresAt = new Date(pending.codeExpiresAt);
+      const pendingExpiresAt = new Date(pending.verificationTokenExpiresAt);
       if (
         Number.isNaN(pendingExpiresAt.getTime()) ||
         pendingExpiresAt.getTime() < Date.now()
       ) {
-        throw new BadRequestException('Código inválido ou expirado.');
+        throw new BadRequestException('Link de confirmação inválido ou expirado.');
       }
 
-      const validPendingCode = await compare(code, pending.codeHash);
-      if (!validPendingCode) {
-        throw new BadRequestException('Código inválido ou expirado.');
+      const validPendingToken = await compare(token, pending.verificationTokenHash);
+      if (!validPendingToken) {
+        throw new BadRequestException('Link de confirmação inválido ou expirado.');
       }
 
       const existingUser = await this.prisma.user.findUnique({
@@ -654,7 +653,7 @@ export class AuthService {
         await this.deletePendingAdminRegistration(email);
         return {
           verified: true,
-          message: 'Este e-mail já está confirmado. Faça login para continuar.',
+          message: 'Este e-mail já está confirmado. Você já pode entrar na sua conta.',
         };
       }
 
@@ -665,9 +664,9 @@ export class AuthService {
             name: pending.name,
             passwordHash: pending.passwordHash,
             emailConfirmedAt: new Date(),
-            emailVerificationCodeHash: null,
-            emailVerificationCodeExpiresAt: null,
-            emailVerificationCodeSentAt: null,
+            emailVerificationTokenHash: null,
+            emailVerificationTokenExpiresAt: null,
+            emailVerificationEmailSentAt: null,
           },
         });
       } else {
@@ -685,7 +684,7 @@ export class AuthService {
       await this.deletePendingAdminRegistration(email);
       return {
         verified: true,
-        message: 'E-mail confirmado com sucesso. Faça login para continuar.',
+        message: 'E-mail confirmado com sucesso. Agora você pode entrar na sua conta.',
       };
     }
 
@@ -694,54 +693,54 @@ export class AuthService {
       select: {
         id: true,
         emailConfirmedAt: true,
-        emailVerificationCodeHash: true,
-        emailVerificationCodeExpiresAt: true,
+        emailVerificationTokenHash: true,
+        emailVerificationTokenExpiresAt: true,
       },
     });
 
     if (!user) {
-      throw new BadRequestException('Código inválido ou expirado.');
+      throw new BadRequestException('Link de confirmação inválido ou expirado.');
     }
 
     if (user.emailConfirmedAt) {
       return {
         verified: true,
-        message: 'Este e-mail já está confirmado. Faça login para continuar.',
+        message: 'Este e-mail já está confirmado. Você já pode entrar na sua conta.',
       };
     }
 
-    if (!user.emailVerificationCodeHash || !user.emailVerificationCodeExpiresAt) {
+    if (!user.emailVerificationTokenHash || !user.emailVerificationTokenExpiresAt) {
       throw new BadRequestException(
-        'Nenhum código ativo foi encontrado para este e-mail. Solicite um novo código.',
+        'Nenhum link ativo foi encontrado para este e-mail. Solicite uma nova confirmação.',
       );
     }
 
-    if (user.emailVerificationCodeExpiresAt.getTime() < Date.now()) {
-      throw new BadRequestException('Código inválido ou expirado.');
+    if (user.emailVerificationTokenExpiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Link de confirmação inválido ou expirado.');
     }
 
-    const validCode = await compare(code, user.emailVerificationCodeHash);
-    if (!validCode) {
-      throw new BadRequestException('Código inválido ou expirado.');
+    const validToken = await compare(token, user.emailVerificationTokenHash);
+    if (!validToken) {
+      throw new BadRequestException('Link de confirmação inválido ou expirado.');
     }
 
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
         emailConfirmedAt: new Date(),
-        emailVerificationCodeHash: null,
-        emailVerificationCodeExpiresAt: null,
-        emailVerificationCodeSentAt: null,
+        emailVerificationTokenHash: null,
+        emailVerificationTokenExpiresAt: null,
+        emailVerificationEmailSentAt: null,
       },
     });
 
     return {
       verified: true,
-      message: 'E-mail confirmado com sucesso. Faça login para continuar.',
+      message: 'E-mail confirmado com sucesso. Agora você pode entrar na sua conta.',
     };
   }
 
-  async resendVerificationCode(dto: ResendVerificationCodeDto) {
+  async resendVerificationEmail(dto: ResendVerificationEmailDto) {
     const email = dto.email.trim().toLowerCase();
     const pending = await this.findPendingAdminRegistration(email);
 
@@ -755,7 +754,7 @@ export class AuthService {
 
     if (!user) {
       if (pending) {
-        const dispatch = await this.sendPendingAdminVerificationCode({
+        const dispatch = await this.sendPendingAdminVerificationLink({
           name: pending.name,
           email: pending.email,
           passwordHash: pending.passwordHash,
@@ -767,7 +766,7 @@ export class AuthService {
         if (dispatch.status === 'cooldown') {
           return {
             sent: false,
-            message: `Aguarde ${dispatch.waitSeconds ?? 1} segundo(s) antes de solicitar outro código.`,
+            message: `Aguarde ${dispatch.waitSeconds ?? 1} segundo(s) antes de solicitar outro e-mail.`,
             expiresAt: dispatch.expiresAt.toISOString(),
           };
         }
@@ -783,7 +782,7 @@ export class AuthService {
 
         return {
           sent: true,
-          message: 'Enviamos um novo código de confirmação para o seu e-mail.',
+          message: 'Enviamos um novo link de confirmação para o seu e-mail.',
           expiresAt: dispatch.expiresAt.toISOString(),
         };
       }
@@ -791,7 +790,7 @@ export class AuthService {
       return {
         sent: true,
         message:
-          'Se este e-mail existir na plataforma, um novo código de confirmação será enviado.',
+          'Se este e-mail existir na plataforma, um novo link de confirmação será enviado.',
       };
     }
 
@@ -802,7 +801,7 @@ export class AuthService {
       };
     }
 
-    const dispatch = await this.sendEmailVerificationCodeByUserId(user.id, {
+    const dispatch = await this.sendEmailVerificationLinkByUserId(user.id, {
       ignoreCooldown: false,
       throwOnDeliveryFailure: false,
     });
@@ -810,7 +809,7 @@ export class AuthService {
     if (dispatch.status === 'cooldown') {
       return {
         sent: false,
-        message: `Aguarde ${dispatch.waitSeconds ?? 1} segundo(s) antes de solicitar outro código.`,
+        message: `Aguarde ${dispatch.waitSeconds ?? 1} segundo(s) antes de solicitar outro e-mail.`,
         expiresAt: dispatch.expiresAt.toISOString(),
       };
     }
@@ -826,7 +825,7 @@ export class AuthService {
 
     return {
       sent: true,
-      message: 'Enviamos um novo código de confirmação para o seu e-mail.',
+      message: 'Enviamos um novo link de confirmação para o seu e-mail.',
       expiresAt: dispatch.expiresAt.toISOString(),
     };
   }
@@ -1005,7 +1004,7 @@ export class AuthService {
     return this.buildAuthPayload(updatedUser);
   }
 
-  async sendEmailVerificationCodeByUserId(
+  async sendEmailVerificationLinkByUserId(
     userId: string,
     options?: {
       ignoreCooldown?: boolean;
@@ -1019,7 +1018,7 @@ export class AuthService {
         name: true,
         email: true,
         role: true,
-        emailVerificationCodeSentAt: true,
+        emailVerificationEmailSentAt: true,
       },
     });
 
@@ -1029,7 +1028,7 @@ export class AuthService {
 
     const now = Date.now();
     const cooldownMs = this.getEmailVerificationCooldownSeconds() * 1000;
-    const lastSentAt = user.emailVerificationCodeSentAt?.getTime() ?? 0;
+    const lastSentAt = user.emailVerificationEmailSentAt?.getTime() ?? 0;
 
     if (!options?.ignoreCooldown && lastSentAt && now - lastSentAt < cooldownMs) {
       const waitSeconds = Math.max(1, Math.ceil((cooldownMs - (now - lastSentAt)) / 1000));
@@ -1044,19 +1043,25 @@ export class AuthService {
       };
     }
 
-    const code = this.generateEmailVerificationCode();
-    const codeHash = await hash(code, 10);
+    const token = this.generateEmailVerificationToken();
+    const tokenHash = await hash(token, 10);
     const expiresAt = new Date(
       now + this.getEmailVerificationTtlMinutes() * 60 * 1000,
     );
+    const audience = this.resolveVerificationAudience(user.role);
+    const verificationLink = this.buildEmailVerificationLink({
+      email: user.email,
+      token,
+      audience,
+    });
 
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
         emailConfirmedAt: null,
-        emailVerificationCodeHash: codeHash,
-        emailVerificationCodeExpiresAt: expiresAt,
-        emailVerificationCodeSentAt: new Date(),
+        emailVerificationTokenHash: tokenHash,
+        emailVerificationTokenExpiresAt: expiresAt,
+        emailVerificationEmailSentAt: new Date(),
       },
     });
 
@@ -1064,9 +1069,9 @@ export class AuthService {
       await this.mailService.sendAccountVerificationEmail({
         to: user.email,
         recipientName: user.name,
-        verificationCode: code,
+        verificationLink,
         expiresInMinutes: this.getEmailVerificationTtlMinutes(),
-        audience: this.resolveVerificationAudience(user.role),
+        audience,
       });
 
       return {
@@ -1077,7 +1082,7 @@ export class AuthService {
       await this.prisma.user.update({
         where: { id: user.id },
         data: {
-          emailVerificationCodeSentAt: null,
+          emailVerificationEmailSentAt: null,
         },
       });
 
@@ -1092,7 +1097,7 @@ export class AuthService {
     }
   }
 
-  private async sendPendingAdminVerificationCode(input: {
+  private async sendPendingAdminVerificationLink(input: {
     name: string;
     email: string;
     passwordHash: string;
@@ -1102,8 +1107,8 @@ export class AuthService {
   }): Promise<EmailVerificationDispatchResult> {
     const nowMs = Date.now();
     const cooldownMs = this.getEmailVerificationCooldownSeconds() * 1000;
-    const lastSentAt = input.previous?.codeSentAt
-      ? new Date(input.previous.codeSentAt).getTime()
+    const lastSentAt = input.previous?.verificationEmailSentAt
+      ? new Date(input.previous.verificationEmailSentAt).getTime()
       : 0;
 
     if (
@@ -1116,8 +1121,8 @@ export class AuthService {
         1,
         Math.ceil((cooldownMs - (nowMs - lastSentAt)) / 1000),
       );
-      const fallbackExpiry = input.previous?.codeExpiresAt
-        ? new Date(input.previous.codeExpiresAt)
+      const fallbackExpiry = input.previous?.verificationTokenExpiresAt
+        ? new Date(input.previous.verificationTokenExpiresAt)
         : new Date(nowMs + this.getEmailVerificationTtlMinutes() * 60 * 1000);
 
       return {
@@ -1127,20 +1132,25 @@ export class AuthService {
       };
     }
 
-    const code = this.generateEmailVerificationCode();
-    const codeHash = await hash(code, 10);
+    const token = this.generateEmailVerificationToken();
+    const tokenHash = await hash(token, 10);
     const expiresAt = new Date(
       nowMs + this.getEmailVerificationTtlMinutes() * 60 * 1000,
     );
     const nowIso = new Date(nowMs).toISOString();
+    const verificationLink = this.buildEmailVerificationLink({
+      email: input.email,
+      token,
+      audience: 'professor',
+    });
 
     const payload: PendingAdminRegistration = {
       name: input.name,
       email: input.email,
       passwordHash: input.passwordHash,
-      codeHash,
-      codeExpiresAt: expiresAt.toISOString(),
-      codeSentAt: nowIso,
+      verificationTokenHash: tokenHash,
+      verificationTokenExpiresAt: expiresAt.toISOString(),
+      verificationEmailSentAt: nowIso,
       createdAt: input.previous?.createdAt ?? nowIso,
       updatedAt: nowIso,
     };
@@ -1151,7 +1161,7 @@ export class AuthService {
       await this.mailService.sendAccountVerificationEmail({
         to: input.email,
         recipientName: input.name,
-        verificationCode: code,
+        verificationLink,
         expiresInMinutes: this.getEmailVerificationTtlMinutes(),
         audience: 'professor',
       });
@@ -1163,7 +1173,7 @@ export class AuthService {
     } catch (error) {
       await this.savePendingAdminRegistration({
         ...payload,
-        codeSentAt: null,
+        verificationEmailSentAt: null,
         updatedAt: new Date().toISOString(),
       });
 
@@ -2016,11 +2026,42 @@ export class AuthService {
     return /[A-Za-z]/.test(normalized) && /\d/.test(normalized);
   }
 
-  private generateEmailVerificationCode(): string {
-    return String(randomInt(0, 1_000_000)).padStart(
-      EMAIL_VERIFICATION_CODE_LENGTH,
-      '0',
-    );
+  private generateEmailVerificationToken(): string {
+    return randomBytes(32).toString('base64url');
+  }
+
+  private buildEmailVerificationLink(input: {
+    email: string;
+    token: string;
+    audience: AccountVerificationAudience;
+  }): string {
+    const audienceUrl =
+      input.audience === 'aluno'
+        ? this.configService.get<string>('EMAIL_VERIFICATION_STUDENT_PUBLIC_URL')
+        : this.configService.get<string>('EMAIL_VERIFICATION_ADMIN_PUBLIC_URL');
+    const configuredUrl =
+      audienceUrl?.trim() ||
+      this.configService.get<string>('EMAIL_VERIFICATION_PUBLIC_URL')?.trim() ||
+      this.configService.get<string>('APP_PUBLIC_URL')?.trim() ||
+      this.configService.get<string>('FRONTEND_PUBLIC_URL')?.trim();
+    const fallbackUrl =
+      this.configService.get<string>('NODE_ENV') === 'production'
+        ? 'https://academy.7eventos.com/'
+        : 'http://localhost:5173/';
+
+    let verificationUrl: URL;
+    try {
+      verificationUrl = new URL(configuredUrl || fallbackUrl);
+    } catch {
+      verificationUrl = new URL(fallbackUrl);
+    }
+
+    verificationUrl.hash = new URLSearchParams({
+      emailVerificationToken: input.token,
+      emailVerificationEmail: input.email,
+    }).toString();
+
+    return verificationUrl.toString();
   }
 
   private generatePasswordResetCode(): string {

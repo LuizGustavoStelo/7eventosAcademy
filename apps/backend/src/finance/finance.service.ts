@@ -1019,6 +1019,9 @@ export class FinanceService {
             ownerAdminId: true,
           },
         },
+        studentCourse: {
+          select: { id: true },
+        },
       },
     });
 
@@ -1026,7 +1029,7 @@ export class FinanceService {
       throw new NotFoundException('Solicitação de cartão não encontrada.');
     }
 
-    if (request.status === 'APPROVED' || request.monthlyCharge.status === 'PAID') {
+    if (request.status === 'APPROVED' || request.monthlyCharge?.status === 'PAID') {
       const current = await this.prisma.creditCardPaymentRequest.findUnique({
         where: { id: request.id },
         include: this.creditCardPaymentRequestInclude(),
@@ -1035,35 +1038,50 @@ export class FinanceService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.paymentTransaction.create({
-        data: {
-          monthlyChargeId: request.monthlyChargeId,
-          provider: 'sicoob_manual_card_link',
-          amount: request.amount,
-          status: 'SUCCESS',
-          externalTransactionId: `manual-card-link:${request.id}`,
-          paidAt: new Date(),
-        },
-      });
+      const approvedAt = new Date();
+      if (request.monthlyChargeId) {
+        await tx.paymentTransaction.create({
+          data: {
+            monthlyChargeId: request.monthlyChargeId,
+            provider: 'sicoob_manual_card_link',
+            amount: request.amount,
+            status: 'SUCCESS',
+            externalTransactionId: `manual-card-link:${request.id}`,
+            paidAt: approvedAt,
+          },
+        });
 
-      await tx.monthlyCharge.update({
-        where: { id: request.monthlyChargeId },
-        data: { status: 'PAID' },
-      });
+        await tx.monthlyCharge.update({
+          where: { id: request.monthlyChargeId },
+          data: { status: 'PAID' },
+        });
+      }
+
+      if (request.studentCourseId) {
+        await tx.studentCourse.update({
+          where: { id: request.studentCourseId },
+          data:
+            request.kind === 'ENROLLMENT_FEE'
+              ? { enrollmentFeePaidAt: approvedAt }
+              : { coursePaymentPaidAt: approvedAt },
+        });
+      }
 
       await tx.creditCardPaymentRequest.update({
         where: { id: request.id },
         data: {
           status: 'APPROVED',
-          approvedAt: new Date(),
+          approvedAt,
           approvedByUserId: user.sub,
         },
       });
     });
 
-    await this.tryReleaseAutomaticContractsAfterEnrollmentFeePayment(
-      request.monthlyChargeId,
-    );
+    if (request.monthlyChargeId) {
+      await this.tryReleaseAutomaticContractsAfterEnrollmentFeePayment(
+        request.monthlyChargeId,
+      );
+    }
     this.invalidateDashboardSummaryCache();
 
     const updated = await this.prisma.creditCardPaymentRequest.findUnique({
@@ -1143,6 +1161,16 @@ export class FinanceService {
       );
     }
 
+    const studentCourse = await this.prisma.studentCourse.findUnique({
+      where: {
+        studentId_courseId: {
+          studentId: charge.enrollment.studentId,
+          courseId: charge.enrollment.schoolClass.course.id,
+        },
+      },
+      select: { id: true },
+    });
+
     const existing = await this.prisma.creditCardPaymentRequest.findUnique({
       where: { monthlyChargeId: charge.id },
       include: this.creditCardPaymentRequestInclude(),
@@ -1155,11 +1183,13 @@ export class FinanceService {
     const data = {
       monthlyChargeId: charge.id,
       enrollmentId: charge.enrollmentId,
+      studentCourseId: studentCourse?.id ?? null,
       studentId: charge.enrollment.studentId,
       ownerAdminId:
         charge.ownerAdminId || charge.enrollment.schoolClass.course.ownerAdminId,
       institutionId: charge.enrollment.institutionId,
       amount: charge.amount,
+      kind: charge.kind,
       installmentCount:
         selectedOption.installmentCount > 0
           ? Math.trunc(selectedOption.installmentCount)
@@ -1795,6 +1825,18 @@ export class FinanceService {
           },
         },
       },
+      studentCourse: {
+        select: {
+          id: true,
+          selectedPaymentOption: true,
+          course: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
       student: {
         select: {
           id: true,
@@ -1821,12 +1863,14 @@ export class FinanceService {
 
   private mapCreditCardPaymentRequest(request: {
     id: string;
-    monthlyChargeId: string;
-    enrollmentId: string;
+    monthlyChargeId: string | null;
+    enrollmentId: string | null;
+    studentCourseId: string | null;
     studentId: string;
     ownerAdminId: string | null;
     institutionId: string;
     amount: Prisma.Decimal | number;
+    kind: string;
     installmentCount: number | null;
     installmentAmount: Prisma.Decimal | number | null;
     status: string;
@@ -1855,6 +1899,14 @@ export class FinanceService {
           id: string;
           name: string;
         } | null;
+      } | null;
+    } | null;
+    studentCourse?: {
+      id: string;
+      selectedPaymentOption?: Prisma.JsonValue | null;
+      course?: {
+        id: string;
+        name: string;
       } | null;
     } | null;
     student?: {

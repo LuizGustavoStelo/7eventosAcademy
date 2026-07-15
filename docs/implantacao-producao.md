@@ -73,6 +73,9 @@ JWT_SECRET=trocar_em_producao
 JWT_REFRESH_SECRET=trocar_em_producao
 SECRETS_MASTER_KEY_FILE=/run/secrets/academy_master_key
 APP_VERSION=latest
+EMAIL_VERIFICATION_PUBLIC_URL=https://academy.7eventos.com/
+# O link de confirmação expira em 15 minutos por padrão.
+# EMAIL_VERIFICATION_TTL_MINUTES=15
 # Ajuste apenas se necessário:
 # BACKEND_IMAGE=ghcr.io/luizgustavostelo/7eventosacademy-backend
 # FRONTEND_IMAGE=ghcr.io/luizgustavostelo/7eventosacademy-frontend

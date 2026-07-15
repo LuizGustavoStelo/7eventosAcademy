@@ -15,12 +15,12 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RequestPasswordResetCodeDto } from './dto/request-password-reset-code.dto';
 import { ResetPasswordWithCodeDto } from './dto/reset-password-with-code.dto';
-import { ResendVerificationCodeDto } from './dto/resend-verification-code.dto';
+import { ResendVerificationEmailDto } from './dto/resend-verification-email.dto';
 import { RegisterDto } from './dto/register.dto';
 import { SwitchInstitutionDto } from './dto/switch-institution.dto';
 import { UpdateInstitutionContactsDto } from './dto/update-institution-contacts.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
-import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
+import { VerifyEmailLinkDto } from './dto/verify-email-link.dto';
 import { VerifyPasswordResetCodeDto } from './dto/verify-password-reset-code.dto';
 import { JwtPayload } from './types/app-role.type';
 
@@ -64,15 +64,21 @@ export class AuthController {
   }
 
   @Public()
-  @Post('verify-email-code')
-  async verifyEmailCode(@Body() dto: VerifyEmailCodeDto) {
-    return this.authService.verifyEmailCode(dto);
+  @Post('verify-email')
+  async verifyEmail(@Body() dto: VerifyEmailLinkDto) {
+    return this.authService.verifyEmailLink(dto);
+  }
+
+  @Public()
+  @Post('resend-verification-email')
+  async resendVerificationEmail(@Body() dto: ResendVerificationEmailDto) {
+    return this.authService.resendVerificationEmail(dto);
   }
 
   @Public()
   @Post('resend-verification-code')
-  async resendVerificationCode(@Body() dto: ResendVerificationCodeDto) {
-    return this.authService.resendVerificationCode(dto);
+  async resendVerificationEmailLegacy(@Body() dto: ResendVerificationEmailDto) {
+    return this.authService.resendVerificationEmail(dto);
   }
 
   @Public()

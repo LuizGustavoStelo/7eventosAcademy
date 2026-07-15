@@ -18,7 +18,7 @@ import { buildPasswordResetCodeEmail } from './templates/password-reset-code-ema
 type SendAccountVerificationEmailParams = {
   to: string;
   recipientName: string;
-  verificationCode: string;
+  verificationLink: string;
   expiresInMinutes: number;
   audience: AccountVerificationAudience;
 };
@@ -58,7 +58,7 @@ export class MailService {
   ): Promise<void> {
     const template = buildAccountVerificationEmail({
       recipientName: params.recipientName,
-      verificationCode: params.verificationCode,
+      verificationLink: params.verificationLink,
       expiresInMinutes: params.expiresInMinutes,
       audience: params.audience,
     });

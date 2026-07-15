@@ -73,11 +73,11 @@ type RegisterResponse = {
   expiresAt: string;
   message: string;
 };
-type VerifyEmailCodeResponse = {
+type VerifyEmailLinkResponse = {
   verified: boolean;
   message: string;
 };
-type ResendVerificationCodeResponse = {
+type ResendVerificationEmailResponse = {
   sent: boolean;
   message: string;
   expiresAt?: string;
@@ -632,7 +632,6 @@ export default function App() {
   const [confirmacaoSenha, setConfirmacaoSenha] = useState('');
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
-  const [codigoConfirmacao, setCodigoConfirmacao] = useState('');
   const [confirmacaoEmailPendente, setConfirmacaoEmailPendente] =
     useState<EmailVerificationPendingState | null>(null);
   const [modalRecuperacaoAberto, setModalRecuperacaoAberto] = useState(false);
@@ -671,11 +670,15 @@ export default function App() {
     }
   });
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const emailVerificationHandledRef = useRef(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [hasTopbarNotification, setHasTopbarNotification] = useState(false);
 
   const queryParams = new URLSearchParams(window.location.search);
+  const fragmentParams = new URLSearchParams(
+    (window.location.hash || '').replace(/^#/, ''),
+  );
   const normalizedPathname =
     (window.location.pathname || '/').replace(/\/+$/, '') || '/';
   const isContractEditorPath = normalizedPathname === '/editar-contrato';
@@ -685,6 +688,14 @@ export default function App() {
   const isStudentPortalMode = appMode === 'student';
   const isStudentRegisterMode = appMode === 'student-register';
   const isPublicStudentPortal = isStudentPortalMode || isStudentRegisterMode;
+  const emailVerificationToken =
+    fragmentParams.get('emailVerificationToken') ??
+    queryParams.get('emailVerificationToken') ??
+    '';
+  const emailVerificationEmail =
+    fragmentParams.get('emailVerificationEmail') ??
+    queryParams.get('emailVerificationEmail') ??
+    '';
   const portalLicenseToken =
     queryParams.get('licenseToken') ??
     queryParams.get('activationToken') ??
@@ -879,13 +890,82 @@ export default function App() {
     );
   };
 
+  useEffect(() => {
+    if (
+      !emailVerificationToken ||
+      !emailVerificationEmail ||
+      emailVerificationHandledRef.current
+    ) {
+      return;
+    }
+
+    emailVerificationHandledRef.current = true;
+    const normalizedEmail = emailVerificationEmail.trim().toLowerCase();
+    setModoCadastro(false);
+    setConfirmacaoEmailPendente(null);
+    setPasswordResetFlow(null);
+    setEmail(normalizedEmail);
+    setErro('');
+    setAviso('Confirmando seu e-mail...');
+    setCarregando(true);
+
+    const cleanVerificationDataFromUrl = () => {
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.delete('emailVerificationToken');
+      currentUrl.searchParams.delete('emailVerificationEmail');
+      const currentFragment = new URLSearchParams(currentUrl.hash.replace(/^#/, ''));
+      currentFragment.delete('emailVerificationToken');
+      currentFragment.delete('emailVerificationEmail');
+      currentUrl.hash = currentFragment.toString();
+      window.history.replaceState({}, document.title, currentUrl.toString());
+    };
+
+    void (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: normalizedEmail,
+            token: emailVerificationToken,
+          }),
+        });
+        const payload = (await response
+          .json()
+          .catch(() => null)) as VerifyEmailLinkResponse | ApiErrorResponse | null;
+
+        if (!response.ok) {
+          setAviso('');
+          setErro(
+            obterMensagemApi(
+              payload as ApiErrorResponse | null,
+              'Não foi possível confirmar o e-mail. Solicite um novo link.',
+            ),
+          );
+          return;
+        }
+
+        setAviso(
+          payload && 'message' in payload
+            ? String(payload.message)
+            : 'E-mail confirmado com sucesso. Agora você pode entrar na sua conta.',
+        );
+      } catch {
+        setAviso('');
+        setErro('Não foi possível conectar com o backend para confirmar o e-mail.');
+      } finally {
+        cleanVerificationDataFromUrl();
+        setCarregando(false);
+      }
+    })();
+  }, [emailVerificationEmail, emailVerificationToken]);
+
   const abrirFluxoConfirmacaoEmail = (emailAlvo: string, mensagem: string) => {
     setConfirmacaoEmailPendente({
       email: emailAlvo.trim().toLowerCase(),
       message: mensagem,
     });
     setModoCadastro(false);
-    setCodigoConfirmacao('');
     setSenha('');
     setConfirmacaoSenha('');
     setErro('');
@@ -1140,14 +1220,12 @@ export default function App() {
     setSecaoAtiva('');
     setErro('');
     setAviso('');
-    setCodigoConfirmacao('');
     setConfirmacaoEmailPendente(null);
     limparFluxoRecuperacaoSenha();
   };
 
   const limparFluxoConfirmacaoEmail = () => {
     setConfirmacaoEmailPendente(null);
-    setCodigoConfirmacao('');
     setPasswordResetFlow(null);
   };
 
@@ -1180,7 +1258,7 @@ export default function App() {
         if (response.status === 403 && apiError?.code === 'EMAIL_NAO_CONFIRMADO') {
           const mensagem = obterMensagemApi(
             apiError,
-            'Seu e-mail ainda não foi confirmado. Digite o código enviado para continuar.',
+            'Seu e-mail ainda não foi confirmado. Enviamos uma confirmação para o seu e-mail.',
           );
 
           abrirFluxoConfirmacaoEmail(
@@ -1253,7 +1331,7 @@ export default function App() {
       limparFluxoRecuperacaoSenha();
       abrirFluxoConfirmacaoEmail(
         registerData.email,
-        registerData.message || 'Enviamos um código de confirmação para o seu e-mail.',
+        registerData.message || 'Enviamos um link de confirmação para o seu e-mail.',
       );
     } catch {
       setErro('Não foi possível conectar com o backend.');
@@ -1262,64 +1340,7 @@ export default function App() {
     }
   };
 
-  const confirmarCodigoEmail = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setErro('');
-    setAviso('');
-
-    if (!confirmacaoEmailPendente) {
-      setErro('Nenhum e-mail pendente de confirmação no momento.');
-      return;
-    }
-
-    if (codigoConfirmacao.trim().length !== 6) {
-      setErro('Digite o código de 6 dígitos enviado para seu e-mail.');
-      return;
-    }
-
-    setCarregando(true);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/verify-email-code`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: confirmacaoEmailPendente.email,
-          code: codigoConfirmacao.trim(),
-        }),
-      });
-
-      const payload = (await response
-        .json()
-        .catch(() => null)) as VerifyEmailCodeResponse | ApiErrorResponse | null;
-
-      if (!response.ok) {
-        setErro(
-          obterMensagemApi(
-            payload as ApiErrorResponse | null,
-            'Não foi possível confirmar o e-mail.',
-          ),
-        );
-        return;
-      }
-
-      const mensagem =
-        payload && 'message' in payload
-          ? String(payload.message)
-          : 'E-mail confirmado com sucesso. Faça login para continuar.';
-
-      setAviso(mensagem);
-      setEmail(confirmacaoEmailPendente.email);
-      limparFluxoConfirmacaoEmail();
-      setModoCadastro(false);
-    } catch {
-      setErro('Não foi possível conectar com o backend.');
-    } finally {
-      setCarregando(false);
-    }
-  };
-
-  const reenviarCodigoConfirmacao = async () => {
+  const reenviarConfirmacaoEmail = async () => {
     if (!confirmacaoEmailPendente) {
       return;
     }
@@ -1329,7 +1350,7 @@ export default function App() {
     setCarregando(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/resend-verification-code`, {
+      const response = await fetch(`${API_BASE_URL}/auth/resend-verification-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: confirmacaoEmailPendente.email }),
@@ -1337,13 +1358,13 @@ export default function App() {
 
       const payload = (await response
         .json()
-        .catch(() => null)) as ResendVerificationCodeResponse | ApiErrorResponse | null;
+        .catch(() => null)) as ResendVerificationEmailResponse | ApiErrorResponse | null;
 
       if (!response.ok) {
         setErro(
           obterMensagemApi(
             payload as ApiErrorResponse | null,
-            'Não foi possível reenviar o código.',
+            'Não foi possível reenviar o e-mail de confirmação.',
           ),
         );
         return;
@@ -1352,7 +1373,7 @@ export default function App() {
       const mensagem =
         payload && 'message' in payload
           ? String(payload.message)
-          : 'Enviamos um novo código de confirmação para seu e-mail.';
+          : 'Enviamos um novo link de confirmação para seu e-mail.';
 
       if (payload && 'sent' in payload && payload.sent === false) {
         setErro(mensagem);
@@ -1594,14 +1615,14 @@ export default function App() {
     const modoConfirmacaoEmailAtivo = Boolean(confirmacaoEmailPendente);
     const modoRedefinirSenhaAtivo = Boolean(passwordResetFlow);
     const tituloAutenticacao = modoConfirmacaoEmailAtivo
-      ? 'Confirmar e-mail'
+      ? 'Verifique seu e-mail'
       : modoRedefinirSenhaAtivo
         ? 'Criar nova senha'
         : modoCadastroAtivo
           ? 'Criar conta'
           : 'Entrar';
     const subtituloAutenticacao = modoConfirmacaoEmailAtivo
-      ? 'Digite o código de 6 dígitos enviado para o seu e-mail.'
+      ? 'Enviamos um link para confirmar que este e-mail pertence a você.'
       : modoCadastroAtivo
         ? 'Cadastre-se para acessar o painel da instituição.'
         : 'Acesse com suas credenciais para continuar.';
@@ -1684,7 +1705,7 @@ export default function App() {
             className="auth-form"
             onSubmit={
               modoConfirmacaoEmailAtivo
-                ? confirmarCodigoEmail
+                ? (event) => event.preventDefault()
                 : modoRedefinirSenhaAtivo
                   ? redefinirSenhaComCodigo
                 : modoCadastroAtivo
@@ -1702,20 +1723,13 @@ export default function App() {
                   readOnly
                   disabled={carregando}
                 />
-
-                <label htmlFor="codigoConfirmacao">Código de confirmação</label>
-                <input
-                  id="codigoConfirmacao"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  value={codigoConfirmacao}
-                  onChange={(event) =>
-                    setCodigoConfirmacao(event.target.value.replace(/\D+/g, '').slice(0, 6))
-                  }
-                  disabled={carregando}
-                />
+                <div className="auth-email-verification-waiting">
+                  <strong>Confirmação enviada</strong>
+                  <p>
+                    Abra a mensagem recebida e clique em “Confirmar meu e-mail”. Depois da
+                    confirmação, você será direcionado novamente para o login.
+                  </p>
+                </div>
               </>
             ) : modoCadastroAtivo ? (
               <>
@@ -1802,17 +1816,17 @@ export default function App() {
             {erro ? <div className="auth-error">{erro}</div> : null}
             {aviso ? <div className="auth-info">{aviso}</div> : null}
 
-            <button type="submit" disabled={carregando}>
-              {carregando
-                ? 'Processando...'
-                : modoConfirmacaoEmailAtivo
-                  ? 'Confirmar e-mail'
+            {modoConfirmacaoEmailAtivo ? null : (
+              <button type="submit" disabled={carregando}>
+                {carregando
+                  ? 'Processando...'
                   : modoRedefinirSenhaAtivo
                     ? 'Alterar senha e entrar'
-                  : modoCadastroAtivo
-                    ? 'Cadastrar e continuar'
-                    : 'Entrar na plataforma'}
-            </button>
+                    : modoCadastroAtivo
+                      ? 'Cadastrar e continuar'
+                      : 'Entrar na plataforma'}
+              </button>
+            )}
 
             {!modoCadastroAtivo && !modoConfirmacaoEmailAtivo && !modoRedefinirSenhaAtivo && isStudentPortalMode ? (
               <button
@@ -1830,10 +1844,10 @@ export default function App() {
                 <button
                   type="button"
                   className="auth-secondary-btn"
-                  onClick={reenviarCodigoConfirmacao}
+                  onClick={reenviarConfirmacaoEmail}
                   disabled={carregando}
                 >
-                  Reenviar código
+                  Reenviar e-mail
                 </button>
                 <button
                   type="button"

@@ -53,12 +53,14 @@ type Charge = {
 
 type CreditCardPaymentRequest = {
   id: string;
-  monthlyChargeId: string;
-  enrollmentId: string;
+  monthlyChargeId: string | null;
+  enrollmentId: string | null;
+  studentCourseId: string | null;
+  kind: 'COURSE_PAYMENT' | 'ENROLLMENT_FEE' | string;
   amount: number;
   installmentCount: number | null;
   installmentAmount: number | null;
-  status: 'REQUESTED' | 'LINK_SENT' | 'VIEWED' | 'COPIED' | 'APPROVED' | 'CANCELED' | string;
+  status: 'WAITING_COURSE_START' | 'REQUESTED' | 'LINK_SENT' | 'VIEWED' | 'COPIED' | 'APPROVED' | 'CANCELED' | string;
   paymentLinkUrl: string | null;
   adminNote: string | null;
   requestedAt: string;
@@ -79,6 +81,16 @@ type CreditCardPaymentRequest = {
       name: string;
       course?: { id: string; name: string } | null;
     } | null;
+  } | null;
+  studentCourse?: {
+    id: string;
+    selectedPaymentOption?: {
+      appliedVoucher?: {
+        code?: string;
+        discountLabel?: string;
+      } | null;
+    } | null;
+    course?: { id: string; name: string } | null;
   } | null;
   student?: {
     id: string;
@@ -299,6 +311,8 @@ function voucherUsageLabel(voucher: Voucher) {
 
 function creditCardRequestStatusLabel(status: string): string {
   switch (String(status || '').toUpperCase()) {
+    case 'WAITING_COURSE_START':
+      return 'Aguardando início do curso';
     case 'REQUESTED':
       return 'Solicitado';
     case 'LINK_SENT':
@@ -314,6 +328,12 @@ function creditCardRequestStatusLabel(status: string): string {
     default:
       return status || '-';
   }
+}
+
+function creditCardRequestKindLabel(kind: string): string {
+  return String(kind || '').toUpperCase() === 'ENROLLMENT_FEE'
+    ? 'Matrícula'
+    : 'Curso';
 }
 
 export function FinanceNative({ token }: FinanceNativeProps) {
@@ -1041,9 +1061,14 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                   const studentName = request.student?.name || 'Aluno não identificado';
                   const studentEmail = request.student?.email || '-';
                   const courseName =
-                    request.enrollment?.schoolClass?.course?.name || 'Curso não informado';
+                    request.enrollment?.schoolClass?.course?.name ||
+                    request.studentCourse?.course?.name ||
+                    'Curso não informado';
                   const className =
-                    request.enrollment?.schoolClass?.name || 'Turma não informada';
+                    request.enrollment?.schoolClass?.name || 'Turma a definir';
+                  const requestKindLabel = creditCardRequestKindLabel(request.kind);
+                  const voucher =
+                    request.studentCourse?.selectedPaymentOption?.appliedVoucher;
                   return (
                     <tr key={request.id}>
                       <td>
@@ -1057,7 +1082,13 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                       </td>
                       <td>
                         <strong>{courseName}</strong>
-                        <small>{className}</small>
+                        <small>{requestKindLabel} • {className}</small>
+                        {voucher?.code ? (
+                          <small>
+                            Voucher {voucher.code}
+                            {voucher.discountLabel ? ` • ${voucher.discountLabel}` : ''}
+                          </small>
+                        ) : null}
                       </td>
                       <td className={financeSensitiveClass}>{formatCurrency(request.amount)}</td>
                       <td>
@@ -1089,6 +1120,9 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                           placeholder="Cole o link de pagamento"
                           disabled={!canEdit || isBusy}
                         />
+                        {normalizedStatus === 'WAITING_COURSE_START' ? (
+                          <small>Envie o link quando o curso iniciar.</small>
+                        ) : null}
                       </td>
                       <td>
                         <div className="native-finance-row-actions">
@@ -1716,4 +1750,3 @@ export function FinanceNative({ token }: FinanceNativeProps) {
     </section>
   );
 }
-

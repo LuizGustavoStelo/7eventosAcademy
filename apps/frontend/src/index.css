@@ -414,6 +414,26 @@ table button:disabled {
   padding: 0.62rem 0.68rem;
 }
 
+.auth-email-verification-waiting {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border: 1px solid #bae6fd;
+  border-radius: 0.65rem;
+  background: #f0f9ff;
+  color: #0c4a6e;
+}
+
+.auth-email-verification-waiting strong {
+  font-size: 0.88rem;
+}
+
+.auth-email-verification-waiting p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .auth-verify-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -8400,6 +8420,81 @@ table button {
   color: #92400e;
 }
 
+.student-card-payment-requests {
+  border-color: #b8d9d5;
+}
+
+.student-card-payment-request-list {
+  margin-top: 0.8rem;
+  border-top: 1px solid #dbe7eb;
+}
+
+.student-card-payment-request-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(11rem, 0.36fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid #dbe7eb;
+}
+
+.student-card-payment-request-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.student-card-payment-request-row strong,
+.student-card-payment-request-row small {
+  display: block;
+}
+
+.student-card-payment-request-row > div > strong {
+  color: #173f55;
+  font-size: 0.92rem;
+}
+
+.student-card-payment-request-row small {
+  margin-top: 0.14rem;
+  color: #6e8299;
+  font-size: 0.75rem;
+}
+
+.student-card-payment-request-row p {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+}
+
+.student-card-payment-request-row .student-card-payment-voucher {
+  color: #14764f;
+  font-weight: 700;
+}
+
+.student-card-payment-request-values {
+  text-align: right;
+}
+
+.student-card-payment-request-values .student-charge-inline-actions {
+  justify-content: flex-end;
+}
+
+.student-card-payment-request-values button {
+  border: 1px solid #aacfd0;
+  border-radius: 0.45rem;
+  background: #ffffff;
+  color: #0f6f72;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.4rem 0.62rem;
+  cursor: pointer;
+}
+
+.student-card-payment-request-values button.student-charge-commercial-action {
+  border-color: #0f7f81;
+  background: #0f7f81;
+  color: #ffffff;
+}
+
 .student-page-contact-actions {
   margin-top: 0.72rem;
   display: flex;
@@ -9221,6 +9316,19 @@ table button {
     grid-template-columns: 1fr;
   }
 
+  .student-card-payment-request-row {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+
+  .student-card-payment-request-values {
+    text-align: left;
+  }
+
+  .student-card-payment-request-values .student-charge-inline-actions {
+    justify-content: flex-start;
+  }
+
   .student-page-card.is-live-highlight {
     flex-direction: column;
     align-items: flex-start;
@@ -9968,6 +10076,34 @@ table button {
   padding: 0.6rem 0.8rem;
   text-align: center;
   text-decoration: none;
+}
+
+.native-student-register-verification-note {
+  padding: 0.65rem 0.7rem;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  background: #f0f9ff;
+  color: #0c4a6e !important;
+  font-size: 0.84rem;
+}
+
+.native-student-register-verification-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.native-student-register-modal .native-student-register-verification-actions .ghost {
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: #fff;
+  color: #334155;
+  box-shadow: none;
+}
+
+@media (max-width: 520px) {
+  .native-student-register-verification-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 860px) {

@@ -19,6 +19,15 @@ type EnrollmentContext = {
   actorInstitutionId?: string | null;
 };
 
+type PrepareStudentCourseCommercialSelectionInput = {
+  studentId: string;
+  courseId: string;
+  institutionId: string;
+  paymentOptionId?: string;
+  enrollmentPaymentOptionId?: string;
+  voucherCode?: string;
+};
+
 type EnrollmentPaymentOptionMethod = 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD';
 type EnrollmentPaymentOptionType = 'CASH' | 'INSTALLMENTS';
 type EnrollmentPaymentCollectionMode = 'INSTALLMENT_CHARGES' | 'MANUAL_LINK';
@@ -80,6 +89,119 @@ export class EnrollmentsService {
     private readonly financeService: FinanceService,
     private readonly superadminIntegrationsService: SuperadminIntegrationsService,
   ) {}
+
+  async prepareStudentCourseCommercialSelection(
+    input: PrepareStudentCourseCommercialSelectionInput,
+  ) {
+    const course = await this.prisma.course.findFirst({
+      where: {
+        id: input.courseId,
+        institutionId: input.institutionId,
+      },
+      select: {
+        id: true,
+        institutionId: true,
+        ownerAdminId: true,
+        paymentModel: true,
+        price: true,
+        enrollmentFee: true,
+        enrollmentPaymentOptions: true,
+        paymentOptions: true,
+        installmentMonths: true,
+        installmentValue: true,
+      },
+    });
+
+    if (!course) {
+      throw new NotFoundException('Curso não encontrado.');
+    }
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const studentCourse = await tx.studentCourse.findFirst({
+          where: {
+            studentId: input.studentId,
+            courseId: input.courseId,
+            institutionId: input.institutionId,
+          },
+          select: { id: true },
+        });
+
+        if (!studentCourse) {
+          throw new NotFoundException('Vínculo do aluno com o curso não encontrado.');
+        }
+
+        const selectedPaymentOption = await this.resolveEnrollmentPaymentOption({
+          tx,
+          institutionId: course.institutionId,
+          courseId: course.id,
+          requestedPaymentOptionId: input.paymentOptionId,
+          requestedVoucherCode: input.voucherCode,
+          course,
+        });
+        const selectedEnrollmentPaymentOption =
+          this.resolveEnrollmentFeePaymentOption({
+            enrollmentFee: Number(course.enrollmentFee ?? 0),
+            rawOptions: course.enrollmentPaymentOptions,
+            requestedOptionId: input.enrollmentPaymentOptionId,
+          });
+
+        await tx.studentCourse.update({
+          where: { id: studentCourse.id },
+          data: {
+            selectedPaymentOptionId: selectedPaymentOption.id,
+            selectedPaymentOption: selectedPaymentOption as Prisma.InputJsonValue,
+            selectedEnrollmentPaymentOptionId:
+              selectedEnrollmentPaymentOption?.id ?? null,
+            selectedEnrollmentPaymentOption: selectedEnrollmentPaymentOption
+              ? (selectedEnrollmentPaymentOption as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+          },
+        });
+
+        const appliedVoucher = selectedPaymentOption.appliedVoucher;
+        const enrollmentFeeBase = this.toMoneyValue(Number(course.enrollmentFee ?? 0));
+        const enrollmentFeeAmount = appliedVoucher?.appliesToEnrollmentFee
+          ? this.applyVoucherDiscountToAmount({
+              amount: enrollmentFeeBase,
+              discountType: appliedVoucher.discountType,
+              discountValue: appliedVoucher.discountValue,
+            })
+          : enrollmentFeeBase;
+
+        await this.syncPreEnrollmentCreditCardRequest({
+          tx,
+          studentCourseId: studentCourse.id,
+          studentId: input.studentId,
+          institutionId: input.institutionId,
+          ownerAdminId: course.ownerAdminId,
+          kind: 'ENROLLMENT_FEE',
+          option: selectedEnrollmentPaymentOption,
+          amount: enrollmentFeeAmount,
+          waitingCourseStart: false,
+        });
+        await this.syncPreEnrollmentCreditCardRequest({
+          tx,
+          studentCourseId: studentCourse.id,
+          studentId: input.studentId,
+          institutionId: input.institutionId,
+          ownerAdminId: course.ownerAdminId,
+          kind: 'COURSE_PAYMENT',
+          option: selectedPaymentOption,
+          amount: selectedPaymentOption.totalAmount,
+          waitingCourseStart:
+            selectedPaymentOption.installmentStartMode === 'COURSE_START',
+        });
+
+        return {
+          studentCourseId: studentCourse.id,
+          selectedPaymentOption,
+          selectedEnrollmentPaymentOption,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
 
   async create(
     dto: CreateEnrollmentDto,
@@ -150,6 +272,12 @@ export class EnrollmentsService {
       select: {
         id: true,
         status: true,
+        selectedPaymentOptionId: true,
+        selectedPaymentOption: true,
+        selectedEnrollmentPaymentOptionId: true,
+        selectedEnrollmentPaymentOption: true,
+        enrollmentFeePaidAt: true,
+        coursePaymentPaidAt: true,
       },
     });
 
@@ -179,20 +307,37 @@ export class EnrollmentsService {
 
     const enrollment = await this.prisma.$transaction(
       async (tx) => {
-        const selectedPaymentOption = await this.resolveEnrollmentPaymentOption({
-          tx,
-          institutionId: schoolClass.institutionId,
-          courseId: schoolClass.course.id,
-          requestedPaymentOptionId: dto.paymentOptionId,
-          requestedVoucherCode: dto.voucherCode,
-          course: schoolClass.course,
-        });
+        const storedPaymentOption = this.parseStoredPaymentOption(
+          studentCourse.selectedPaymentOption,
+        );
+        const useStoredPaymentOption = Boolean(
+          storedPaymentOption &&
+            !dto.voucherCode &&
+            (!dto.paymentOptionId || dto.paymentOptionId === storedPaymentOption.id),
+        );
+        const selectedPaymentOption = useStoredPaymentOption
+          ? storedPaymentOption!
+          : await this.resolveEnrollmentPaymentOption({
+              tx,
+              institutionId: schoolClass.institutionId,
+              courseId: schoolClass.course.id,
+              requestedPaymentOptionId: dto.paymentOptionId,
+              requestedVoucherCode: dto.voucherCode,
+              course: schoolClass.course,
+            });
+        const storedEnrollmentPaymentOption = this.parseStoredPaymentOption(
+          studentCourse.selectedEnrollmentPaymentOption,
+        );
         const selectedEnrollmentPaymentOption =
-          this.resolveEnrollmentFeePaymentOption({
-            enrollmentFee: Number(schoolClass.course.enrollmentFee ?? 0),
-            rawOptions: schoolClass.course.enrollmentPaymentOptions,
-            requestedOptionId: dto.enrollmentPaymentOptionId,
-          });
+          storedEnrollmentPaymentOption &&
+          (!dto.enrollmentPaymentOptionId ||
+            dto.enrollmentPaymentOptionId === storedEnrollmentPaymentOption.id)
+            ? storedEnrollmentPaymentOption
+            : this.resolveEnrollmentFeePaymentOption({
+                enrollmentFee: Number(schoolClass.course.enrollmentFee ?? 0),
+                rawOptions: schoolClass.course.enrollmentPaymentOptions,
+                requestedOptionId: dto.enrollmentPaymentOptionId,
+              });
 
         const createdEnrollment = await tx.enrollment.create({
           data: {
@@ -243,6 +388,13 @@ export class EnrollmentsService {
           },
           data: {
             status: StudentCourseStatus.ACTIVE,
+            selectedPaymentOptionId: selectedPaymentOption.id,
+            selectedPaymentOption: selectedPaymentOption as Prisma.InputJsonValue,
+            selectedEnrollmentPaymentOptionId:
+              selectedEnrollmentPaymentOption?.id ?? null,
+            selectedEnrollmentPaymentOption: selectedEnrollmentPaymentOption
+              ? (selectedEnrollmentPaymentOption as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
           },
         });
 
@@ -254,7 +406,15 @@ export class EnrollmentsService {
           installmentMonths: schoolClass.course.installmentMonths,
           installmentValue: schoolClass.course.installmentValue,
           selectedPaymentOption,
-        });
+        }).map((charge) => ({
+          ...charge,
+          status:
+            charge.kind === 'ENROLLMENT_FEE' && studentCourse.enrollmentFeePaidAt
+              ? ('PAID' as const)
+              : charge.kind === 'COURSE_PAYMENT' && studentCourse.coursePaymentPaidAt
+                ? ('PAID' as const)
+                : charge.status,
+        }));
 
         if (onboardingCharges.length > 0) {
           await tx.monthlyCharge.createMany({
@@ -268,6 +428,14 @@ export class EnrollmentsService {
             })),
           });
         }
+
+        await this.reconcilePreEnrollmentCreditCardRequests({
+          tx,
+          studentCourseId: studentCourse.id,
+          enrollmentId: createdEnrollment.id,
+          enrollmentFeePaidAt: studentCourse.enrollmentFeePaidAt,
+          coursePaymentPaidAt: studentCourse.coursePaymentPaidAt,
+        });
 
         return createdEnrollment;
       },
@@ -472,6 +640,21 @@ export class EnrollmentsService {
       const scheduledDate = input.selectedPaymentOption.installmentStartDate
         ? new Date(input.selectedPaymentOption.installmentStartDate)
         : null;
+      const selectedCollectionMode = String(
+        input.selectedPaymentOption.collectionMode || '',
+      ).toUpperCase();
+      if (
+        startMode === 'COURSE_START' &&
+        !input.classStartDate &&
+        input.selectedPaymentOption.method === 'CREDIT_CARD' &&
+        selectedCollectionMode === 'MANUAL_LINK'
+      ) {
+        return [] as Array<{
+          dueDate: Date;
+          amount: number;
+          status: 'PENDING' | 'OVERDUE';
+        }>;
+      }
       const configuredFirstDueDate =
         startMode === 'SCHEDULED' &&
         scheduledDate &&
@@ -480,9 +663,6 @@ export class EnrollmentsService {
           : startMode === 'COURSE_START' && input.classStartDate
             ? new Date(input.classStartDate)
             : new Date(input.enrollmentCreatedAt);
-      const selectedCollectionMode = String(
-        input.selectedPaymentOption.collectionMode || '',
-      ).toUpperCase();
       if (
         input.selectedPaymentOption.method === 'CREDIT_CARD' &&
         selectedCollectionMode === 'MANUAL_LINK'
@@ -782,6 +962,161 @@ export class EnrollmentsService {
     return dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING';
   }
 
+  private async syncPreEnrollmentCreditCardRequest(input: {
+    tx: Prisma.TransactionClient;
+    studentCourseId: string;
+    studentId: string;
+    institutionId: string;
+    ownerAdminId: string | null;
+    kind: 'COURSE_PAYMENT' | 'ENROLLMENT_FEE';
+    option: EnrollmentPaymentOption | null;
+    amount: number;
+    waitingCourseStart: boolean;
+  }) {
+    const amount = this.toMoneyValue(input.amount);
+    const isManualCreditCard =
+      input.option?.method === 'CREDIT_CARD' &&
+      input.option.collectionMode === 'MANUAL_LINK' &&
+      amount > 0;
+
+    if (!isManualCreditCard || !input.option) {
+      await input.tx.creditCardPaymentRequest.updateMany({
+        where: {
+          studentCourseId: input.studentCourseId,
+          kind: input.kind,
+          status: { not: 'APPROVED' },
+        },
+        data: { status: 'CANCELED' },
+      });
+      return;
+    }
+
+    const existing = await input.tx.creditCardPaymentRequest.findUnique({
+      where: {
+        studentCourseId_kind: {
+          studentCourseId: input.studentCourseId,
+          kind: input.kind,
+        },
+      },
+      select: { id: true, status: true },
+    });
+    const installmentCount = Math.max(
+      1,
+      Math.trunc(Number(input.option.installmentCount ?? 1)),
+    );
+    const configuredInstallmentAmount = Number(input.option.installmentAmount ?? 0);
+    const configuredTotalAmount = this.toMoneyValue(Number(input.option.totalAmount ?? 0));
+    const installmentAmount = this.toMoneyValue(
+      configuredInstallmentAmount > 0 && configuredTotalAmount === amount
+        ? configuredInstallmentAmount
+        : amount / installmentCount,
+    );
+    const isApproved = existing?.status === 'APPROVED';
+    const status = isApproved
+      ? ('APPROVED' as const)
+      : input.waitingCourseStart
+        ? ('WAITING_COURSE_START' as const)
+        : ('REQUESTED' as const);
+    const data = {
+      monthlyChargeId: null,
+      enrollmentId: null,
+      studentCourseId: input.studentCourseId,
+      studentId: input.studentId,
+      ownerAdminId: input.ownerAdminId,
+      institutionId: input.institutionId,
+      amount: new Prisma.Decimal(amount),
+      kind: input.kind,
+      installmentCount,
+      installmentAmount: new Prisma.Decimal(installmentAmount),
+      status,
+      paymentLinkUrl: isApproved ? undefined : null,
+      adminNote: isApproved ? undefined : null,
+      requestedAt: isApproved ? undefined : new Date(),
+      linkSentAt: isApproved ? undefined : null,
+      viewedAt: isApproved ? undefined : null,
+      copiedAt: isApproved ? undefined : null,
+      approvedAt: isApproved ? undefined : null,
+      approvedByUserId: isApproved ? undefined : null,
+    };
+
+    if (existing) {
+      await input.tx.creditCardPaymentRequest.update({
+        where: { id: existing.id },
+        data,
+      });
+      return;
+    }
+
+    await input.tx.creditCardPaymentRequest.create({ data });
+  }
+
+  private async reconcilePreEnrollmentCreditCardRequests(input: {
+    tx: Prisma.TransactionClient;
+    studentCourseId: string;
+    enrollmentId: string;
+    enrollmentFeePaidAt: Date | null;
+    coursePaymentPaidAt: Date | null;
+  }) {
+    const requests = await input.tx.creditCardPaymentRequest.findMany({
+      where: { studentCourseId: input.studentCourseId },
+      select: {
+        id: true,
+        kind: true,
+        status: true,
+        amount: true,
+        approvedAt: true,
+      },
+    });
+    if (requests.length === 0) return;
+
+    const charges = await input.tx.monthlyCharge.findMany({
+      where: { enrollmentId: input.enrollmentId },
+      select: { id: true, kind: true },
+      orderBy: [{ createdAt: 'asc' }],
+    });
+
+    for (const request of requests) {
+      const charge = charges.find((item) => item.kind === request.kind) ?? null;
+      await input.tx.creditCardPaymentRequest.update({
+        where: { id: request.id },
+        data: {
+          enrollmentId: input.enrollmentId,
+          monthlyChargeId: charge?.id ?? null,
+        },
+      });
+
+      const paidAt =
+        request.kind === 'ENROLLMENT_FEE'
+          ? input.enrollmentFeePaidAt
+          : input.coursePaymentPaidAt;
+      if (!charge || !paidAt) continue;
+
+      await input.tx.monthlyCharge.update({
+        where: { id: charge.id },
+        data: { status: 'PAID' },
+      });
+      if (request.status === 'APPROVED') {
+        await input.tx.paymentTransaction.upsert({
+          where: { externalTransactionId: `manual-card-link:${request.id}` },
+          create: {
+            monthlyChargeId: charge.id,
+            provider: 'sicoob_manual_card_link',
+            amount: request.amount,
+            status: 'SUCCESS',
+            externalTransactionId: `manual-card-link:${request.id}`,
+            paidAt: request.approvedAt ?? paidAt,
+          },
+          update: {
+            monthlyChargeId: charge.id,
+            amount: request.amount,
+            status: 'SUCCESS',
+            paidAt: request.approvedAt ?? paidAt,
+          },
+        });
+      }
+    }
+  }
+
   private resolveEnrollmentFeePaymentOption(input: {
     enrollmentFee: number;
     rawOptions: Prisma.JsonValue | null | undefined;
@@ -999,19 +1334,33 @@ export class EnrollmentsService {
     const slots = Number(input.option.promotionalSlots ?? 0);
     if (!Number.isFinite(slots) || slots <= 0) return false;
 
-    const used = await input.tx.enrollment.count({
-      where: {
-        institutionId: input.institutionId,
-        status: 'ACTIVE',
-        selectedPaymentOption: {
-          path: ['promotionalApplied'],
-          equals: true,
+    const [enrollmentUsed, studentCourseUsed] = await Promise.all([
+      input.tx.enrollment.count({
+        where: {
+          institutionId: input.institutionId,
+          status: 'ACTIVE',
+          selectedPaymentOption: {
+            path: ['promotionalApplied'],
+            equals: true,
+          },
+          schoolClass: {
+            courseId: input.courseId,
+          },
         },
-        schoolClass: {
+      }),
+      input.tx.studentCourse.count({
+        where: {
+          institutionId: input.institutionId,
           courseId: input.courseId,
+          status: { in: ['INTERESTED', 'ACTIVE'] },
+          selectedPaymentOption: {
+            path: ['promotionalApplied'],
+            equals: true,
+          },
         },
-      },
-    });
+      }),
+    ]);
+    const used = Math.max(enrollmentUsed, studentCourseUsed);
 
     return used < slots;
   }
@@ -1114,6 +1463,23 @@ export class EnrollmentsService {
       }
     }
     return Number.MAX_SAFE_INTEGER;
+  }
+
+  private parseStoredPaymentOption(
+    raw: Prisma.JsonValue | null | undefined,
+  ): EnrollmentPaymentOption | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const option = raw as Record<string, unknown>;
+    const id = String(option.id || '').trim();
+    const method = String(option.method || '').trim().toUpperCase();
+    if (
+      !id ||
+      (method !== 'PIX' && method !== 'BANK_SLIP' && method !== 'CREDIT_CARD')
+    ) {
+      return null;
+    }
+
+    return raw as unknown as EnrollmentPaymentOption;
   }
 
   private normalizeCoursePaymentOptionsForEnrollment(course: {

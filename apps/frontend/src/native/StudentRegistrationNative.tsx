@@ -764,10 +764,10 @@ async function readError(response: Response) {
 export function StudentRegistrationNative({ embedded }: StudentRegistrationNativeProps) {
   const [loading, setLoading] = useState(false);
   const [coursesLoading, setCoursesLoading] = useState(false);
-  const [codeLoading, setCodeLoading] = useState(false);
+  const [verificationEmailLoading, setVerificationEmailLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [codeError, setCodeError] = useState('');
+  const [verificationEmailError, setVerificationEmailError] = useState('');
+  const [verificationEmailFeedback, setVerificationEmailFeedback] = useState('');
   const [coursesError, setCoursesError] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
   const hasMountedRef = useRef(false);
@@ -813,7 +813,6 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const [appliedVoucher, setAppliedVoucher] = useState<VoucherValidationResponse | null>(null);
 
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
   const [courses, setCourses] = useState<CourseCatalogItem[]>([]);
 
   const strength = useMemo(() => passwordStrength(password), [password]);
@@ -1072,19 +1071,6 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     return STUDENT_PORTAL_LOGIN_URL;
   };
 
-  const redirectToPortal = () => {
-    const portalLink = buildPortalLink();
-    try {
-      if (embedded && window.top) {
-        window.top.location.href = portalLink;
-        return;
-      }
-    } catch {
-      // fallback para navegação local quando não houver acesso ao top
-    }
-    window.location.href = portalLink;
-  };
-
   const validateStepOne = () => {
     if (!name.trim() || name.trim().length < 3) return 'Informe seu nome completo.';
     if (!isValidPersonName(name)) return 'O nome deve conter nome e sobrenome, usando apenas letras.';
@@ -1213,8 +1199,8 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
-    setSuccess('');
-    setCodeError('');
+    setVerificationEmailError('');
+    setVerificationEmailFeedback('');
 
     const allValidations = [validateStepFour(), validateStepOne(), validateStepTwo(), validateStepThree()].filter(Boolean);
     if (allValidations.length > 0) {
@@ -1271,7 +1257,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
       if (!response.ok) throw new Error(await readError(response));
       setPendingVerificationEmail(payload.email);
-      setVerificationCode('');
+      resetForm();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Não foi possível concluir o cadastro.');
     } finally {
@@ -1279,44 +1265,42 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
     }
   };
 
-  const confirmVerificationCode = async () => {
-    setCodeError('');
+  const resendVerificationEmail = async () => {
+    setVerificationEmailError('');
+    setVerificationEmailFeedback('');
     if (!pendingVerificationEmail) return;
 
-    const code = verificationCode.trim();
-    if (code.length !== 6) {
-      setCodeError('Digite o código de 6 dígitos enviado para o seu e-mail.');
-      return;
-    }
-
-    setCodeLoading(true);
+    setVerificationEmailLoading(true);
     try {
-      const response = await requestWithRetry(`${API_BASE_URL}/auth/verify-email-code`, {
+      const response = await requestWithRetry(`${API_BASE_URL}/auth/resend-verification-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: pendingVerificationEmail, code }),
+        body: JSON.stringify({ email: pendingVerificationEmail }),
       });
 
-      if (!response.ok) throw new Error(await readError(response));
+      const payload = (await response.json().catch(() => null)) as {
+        sent?: boolean;
+        message?: string | string[];
+      } | null;
+      const message = toPtBrApiMessage(
+        payload?.message,
+        'Enviamos um novo link de confirmação para o seu e-mail.',
+      );
+      if (!response.ok || payload?.sent === false) {
+        throw new Error(message);
+      }
 
-      setPendingVerificationEmail('');
-      setVerificationCode('');
-      setSuccess('Cadastro realizado com sucesso. Seu e-mail foi confirmado.');
-      resetForm();
-    } catch (confirmError) {
-      setCodeError(confirmError instanceof Error ? confirmError.message : 'Não foi possível confirmar o código.');
+      setVerificationEmailFeedback(message);
+    } catch (resendError) {
+      setVerificationEmailError(
+        resendError instanceof Error
+          ? resendError.message
+          : 'Não foi possível reenviar o e-mail de confirmação.',
+      );
     } finally {
-      setCodeLoading(false);
+      setVerificationEmailLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (!success) return undefined;
-    const redirectTimer = window.setTimeout(() => {
-      redirectToPortal();
-    }, 1400);
-    return () => window.clearTimeout(redirectTimer);
-  }, [success, embedded]);
 
   return (
     <section className={`native-student-register ${embedded ? 'is-embedded' : ''}`}>
@@ -1984,7 +1968,7 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
             {isFinalStep ? (
               <button
                 type="submit"
-                disabled={loading || coursesLoading || codeLoading || Boolean(pendingVerificationEmail) || Boolean(success)}
+                disabled={loading || coursesLoading || verificationEmailLoading || Boolean(pendingVerificationEmail)}
               >
                 {loading ? 'Concluindo cadastro...' : 'Finalizar matrícula e criar acesso'}
               </button>
@@ -2000,37 +1984,29 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
       {pendingVerificationEmail ? (
         <div className="native-student-register-modal-backdrop" role="presentation">
           <div className="native-student-register-modal" role="dialog" aria-modal="true" aria-labelledby="student-register-confirm-title">
-            <h3 id="student-register-confirm-title">Confirme seu e-mail</h3>
+            <h3 id="student-register-confirm-title">Verifique seu e-mail</h3>
             <p>
-              Digite o código de 6 dígitos enviado para <strong>{pendingVerificationEmail}</strong>.
+              Enviamos uma confirmação para <strong>{pendingVerificationEmail}</strong>.
+              Abra a mensagem e clique em “Confirmar meu e-mail”.
             </p>
-            <label>
-              Código de confirmação
-              <input
-                type="text"
-                value={verificationCode}
-                onChange={(event) => setVerificationCode(event.target.value.replace(/\D+/g, '').slice(0, 6))}
-                inputMode="numeric"
-                placeholder="000000"
-                autoFocus
-              />
-            </label>
-            {codeError ? <p className="native-error">{codeError}</p> : null}
-            <button type="button" onClick={() => void confirmVerificationCode()} disabled={codeLoading}>
-              {codeLoading ? 'Confirmando código...' : 'Confirmar código'}
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {success ? (
-        <div className="native-student-register-modal-backdrop" role="presentation">
-          <div className="native-student-register-modal" role="dialog" aria-modal="true" aria-labelledby="student-register-success-title">
-            <h3 id="student-register-success-title">Cadastro concluído</h3>
-            <p>{success}</p>
-            <a className="native-student-register-login-link" href={buildPortalLink()} target="_top" rel="noreferrer">
-              Ir para login
-            </a>
+            <p className="native-student-register-verification-note">
+              Após a confirmação, você será direcionado para o login e poderá acessar sua conta.
+            </p>
+            {verificationEmailError ? <p className="native-error">{verificationEmailError}</p> : null}
+            {verificationEmailFeedback ? <p className="native-success">{verificationEmailFeedback}</p> : null}
+            <div className="native-student-register-verification-actions">
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => void resendVerificationEmail()}
+                disabled={verificationEmailLoading}
+              >
+                {verificationEmailLoading ? 'Reenviando...' : 'Reenviar e-mail'}
+              </button>
+              <a className="native-student-register-login-link" href={buildPortalLink()} target="_top" rel="noreferrer">
+                Ir para login
+              </a>
+            </div>
           </div>
         </div>
       ) : null}

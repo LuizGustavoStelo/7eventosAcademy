@@ -193,12 +193,14 @@ type StudentChargePaymentResponse = {
 
 type CreditCardPaymentRequest = {
   id: string;
-  monthlyChargeId: string;
-  enrollmentId: string;
+  monthlyChargeId: string | null;
+  enrollmentId: string | null;
+  studentCourseId: string | null;
+  kind: 'COURSE_PAYMENT' | 'ENROLLMENT_FEE' | string;
   amount: number;
   installmentCount: number | null;
   installmentAmount: number | null;
-  status: 'REQUESTED' | 'LINK_SENT' | 'VIEWED' | 'COPIED' | 'APPROVED' | 'CANCELED' | string;
+  status: 'WAITING_COURSE_START' | 'REQUESTED' | 'LINK_SENT' | 'VIEWED' | 'COPIED' | 'APPROVED' | 'CANCELED' | string;
   paymentLinkUrl: string | null;
   adminNote: string | null;
   requestedAt: string;
@@ -206,6 +208,21 @@ type CreditCardPaymentRequest = {
   viewedAt: string | null;
   copiedAt: string | null;
   approvedAt: string | null;
+  studentCourse?: {
+    id: string;
+    selectedPaymentOption?: {
+      appliedVoucher?: {
+        code?: string;
+        discountLabel?: string;
+        discountType?: 'PERCENT' | 'FIXED' | string;
+        discountValue?: number | null;
+        appliesTo?: 'TOTAL' | 'INSTALLMENT' | string;
+        installmentScope?: 'ALL' | 'SINGLE' | string;
+        targetLabel?: string | null;
+      } | null;
+    } | null;
+    course?: { id: string; name: string } | null;
+  } | null;
 };
 
 type StudentAreaNativeProps = {
@@ -688,6 +705,32 @@ function paymentMethodLabel(value: string | null | undefined) {
   return 'Pagamento';
 }
 
+function creditCardRequestKindLabel(kind: string) {
+  return String(kind || '').toUpperCase() === 'ENROLLMENT_FEE'
+    ? 'Matrícula'
+    : 'Pagamento do curso';
+}
+
+function creditCardRequestStudentStatus(request: CreditCardPaymentRequest) {
+  const status = String(request.status || '').toUpperCase();
+  if (status === 'WAITING_COURSE_START') {
+    return 'Registrado para cobrança no início do curso. O financeiro enviará o link quando a turma começar.';
+  }
+  if (status === 'REQUESTED') {
+    return 'Solicitação enviada ao financeiro. Aguarde a geração do link de pagamento.';
+  }
+  if (status === 'LINK_SENT' || status === 'VIEWED' || status === 'COPIED') {
+    return 'O link de pagamento está disponível.';
+  }
+  if (status === 'APPROVED') {
+    return 'Pagamento aprovado pelo financeiro.';
+  }
+  if (status === 'CANCELED') {
+    return 'Solicitação cancelada.';
+  }
+  return 'Solicitação em análise pelo financeiro.';
+}
+
 function normalizePhoneForWhatsApp(value: string | null | undefined) {
   const digits = String(value || '').replace(/\D+/g, '');
   if (!digits) return null;
@@ -1053,6 +1096,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const [creditCardRequestsByChargeId, setCreditCardRequestsByChargeId] = useState<
     Record<string, CreditCardPaymentRequest>
   >({});
+  const [creditCardRequests, setCreditCardRequests] = useState<CreditCardPaymentRequest[]>([]);
   const [pendingContractNotificationCount, setPendingContractNotificationCount] = useState(0);
   const [availableContractCount, setAvailableContractCount] = useState(0);
   const [signedContractCount, setSignedContractCount] = useState(0);
@@ -1164,7 +1208,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
 
       setDashboard(payload);
       try {
-        const creditCardRequests = await apiRequest<CreditCardPaymentRequest[]>(
+        const creditCardRequestsResponse = await apiRequest<CreditCardPaymentRequest[]>(
           token,
           '/mis/v1/aluno/cartao-solicitacoes',
           undefined,
@@ -1173,14 +1217,19 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
             bypassCache,
           },
         );
+        const normalizedCreditCardRequests = Array.isArray(creditCardRequestsResponse)
+          ? creditCardRequestsResponse
+          : [];
+        setCreditCardRequests(normalizedCreditCardRequests);
         setCreditCardRequestsByChargeId(
           Object.fromEntries(
-            (Array.isArray(creditCardRequests) ? creditCardRequests : []).map(
-              (request) => [request.monthlyChargeId, request],
-            ),
+            normalizedCreditCardRequests
+              .filter((request) => Boolean(request.monthlyChargeId))
+              .map((request) => [request.monthlyChargeId as string, request]),
           ),
         );
       } catch {
+        setCreditCardRequests([]);
         setCreditCardRequestsByChargeId({});
       }
       try {
@@ -1619,7 +1668,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   }, [cobrancas]);
 
   const activeVoucher = useMemo(() => {
-    const voucher = cobrancas.find((item) => item.appliedVoucher)?.appliedVoucher;
+    const voucher =
+      cobrancas.find((item) => item.appliedVoucher)?.appliedVoucher ||
+      creditCardRequests.find(
+        (request) => request.studentCourse?.selectedPaymentOption?.appliedVoucher,
+      )?.studentCourse?.selectedPaymentOption?.appliedVoucher;
     if (!voucher) return null;
     const label = String(voucher.discountLabel || '').trim();
     if (label) {
@@ -1642,7 +1695,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           ? generatedLabel
           : `${generatedLabel} de desconto`,
     };
-  }, [cobrancas]);
+  }, [cobrancas, creditCardRequests]);
   const activeVoucherTargetLabel = useMemo(() => {
     if (!activeVoucher) return '';
     const targetLabel = String(activeVoucher.targetLabel || '').trim();
@@ -1673,6 +1726,37 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const financeProgress =
     cobrancas.length > 0 ? Math.round((financeMetrics.paid.length / cobrancas.length) * 100) : 0;
   const financeSensitiveClass = 'student-finance-sensitive';
+  const standaloneCreditCardRequests = useMemo(
+    () =>
+      creditCardRequests.filter(
+        (request) =>
+          !request.monthlyChargeId &&
+          String(request.status || '').toUpperCase() !== 'CANCELED',
+      ),
+    [creditCardRequests],
+  );
+  const enrollmentFeeCardRequest = useMemo(
+    () =>
+      creditCardRequests.find(
+        (request) =>
+          String(request.kind || '').toUpperCase() === 'ENROLLMENT_FEE' &&
+          String(request.status || '').toUpperCase() !== 'CANCELED',
+      ) ?? null,
+    [creditCardRequests],
+  );
+  const preContractPaymentMessage = useMemo(() => {
+    const status = String(enrollmentFeeCardRequest?.status || '').toUpperCase();
+    if (status === 'REQUESTED') {
+      return 'Sua solicitação de pagamento da matrícula foi enviada. Aguarde o financeiro gerar e enviar o link do cartão.';
+    }
+    if (status === 'LINK_SENT' || status === 'VIEWED' || status === 'COPIED') {
+      return 'O link de pagamento da matrícula já está disponível no Financeiro. Após o pagamento, aguarde a aprovação manual.';
+    }
+    if (status === 'APPROVED') {
+      return 'O pagamento da matrícula foi aprovado. Aguarde a definição da turma e a liberação dos contratos pela instituição.';
+    }
+    return 'Finalize o pagamento da taxa de matrícula no financeiro. Após a quitação, o contrato será liberado para assinatura.';
+  }, [enrollmentFeeCardRequest?.status]);
 
   const titleName = me?.name || user.name;
   const topbarName = firstAndLastName(titleName);
@@ -2124,6 +2208,20 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     }
   };
 
+  const storeCreditCardRequest = (request: CreditCardPaymentRequest) => {
+    setCreditCardRequests((current) => {
+      const existingIndex = current.findIndex((item) => item.id === request.id);
+      if (existingIndex < 0) return [request, ...current];
+      return current.map((item) => (item.id === request.id ? request : item));
+    });
+    if (request.monthlyChargeId) {
+      setCreditCardRequestsByChargeId((current) => ({
+        ...current,
+        [request.monthlyChargeId as string]: request,
+      }));
+    }
+  };
+
   const handleRequestCreditCardLink = async (charge: StudentCharge) => {
     setPayingChargeId(charge.id);
     setChargePaymentErrorById((current) => ({
@@ -2141,10 +2239,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         `/mis/v1/aluno/cobrancas/${charge.id}/cartao/solicitar`,
         { method: 'POST' },
       );
-      setCreditCardRequestsByChargeId((current) => ({
-        ...current,
-        [charge.id]: request,
-      }));
+      storeCreditCardRequest(request);
       setChargePaymentInfoById((current) => ({
         ...current,
         [charge.id]:
@@ -2167,26 +2262,18 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   };
 
   const handleOpenCreditCardLink = async (
-    chargeId: string,
     request: CreditCardPaymentRequest,
   ) => {
     const paymentLink = request.paymentLinkUrl?.trim();
     if (!paymentLink) return;
 
     try {
-      await apiRequest<CreditCardPaymentRequest>(
+      const updated = await apiRequest<CreditCardPaymentRequest>(
         token,
         `/mis/v1/aluno/cartao-solicitacoes/${request.id}/visualizar`,
         { method: 'POST' },
       );
-      setCreditCardRequestsByChargeId((current) => ({
-        ...current,
-        [chargeId]: {
-          ...request,
-          status: request.status === 'COPIED' ? 'COPIED' : 'VIEWED',
-          viewedAt: request.viewedAt || new Date().toISOString(),
-        },
-      }));
+      storeCreditCardRequest(updated);
     } catch {
       // O link ainda pode ser aberto mesmo se o registro de visualização falhar.
     }
@@ -2197,7 +2284,6 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   };
 
   const handleCopyCreditCardLink = async (
-    chargeId: string,
     request: CreditCardPaymentRequest,
   ) => {
     const paymentLink = request.paymentLinkUrl?.trim();
@@ -2218,19 +2304,20 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         `/mis/v1/aluno/cartao-solicitacoes/${request.id}/copiar`,
         { method: 'POST' },
       );
-      setCreditCardRequestsByChargeId((current) => ({
-        ...current,
-        [chargeId]: updated,
-      }));
-      setChargePaymentInfoById((current) => ({
-        ...current,
-        [chargeId]: 'Link de pagamento copiado.',
-      }));
+      storeCreditCardRequest(updated);
+      if (request.monthlyChargeId) {
+        setChargePaymentInfoById((current) => ({
+          ...current,
+          [request.monthlyChargeId as string]: 'Link de pagamento copiado.',
+        }));
+      }
     } catch {
-      setChargePaymentErrorById((current) => ({
-        ...current,
-        [chargeId]: 'Não foi possível copiar o link automaticamente.',
-      }));
+      if (request.monthlyChargeId) {
+        setChargePaymentErrorById((current) => ({
+          ...current,
+          [request.monthlyChargeId as string]: 'Não foi possível copiar o link automaticamente.',
+        }));
+      }
     }
   };
 
@@ -2632,6 +2719,66 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               </p>
             </article>
           </div>
+          {standaloneCreditCardRequests.length > 0 ? (
+            <article className="student-page-card student-card-payment-requests">
+              <h4>Pagamentos por cartão</h4>
+              <p>Acompanhe aqui os links enviados e as cobranças programadas pelo financeiro.</p>
+              <div className="student-card-payment-request-list">
+                {standaloneCreditCardRequests.map((request) => {
+                  const paymentLink = request.paymentLinkUrl?.trim() || '';
+                  const courseName =
+                    request.studentCourse?.course?.name || 'Curso não informado';
+                  const voucher =
+                    request.studentCourse?.selectedPaymentOption?.appliedVoucher;
+                  const installmentLabel =
+                    request.installmentCount && request.installmentCount > 1
+                      ? `${request.installmentCount}x de ${formatCurrency(
+                          Number(request.installmentAmount || 0),
+                        )}`
+                      : 'À vista';
+                  return (
+                    <div className="student-card-payment-request-row" key={request.id}>
+                      <div>
+                        <strong>{creditCardRequestKindLabel(request.kind)}</strong>
+                        <small>{courseName}</small>
+                        <p>{creditCardRequestStudentStatus(request)}</p>
+                        {voucher?.code ? (
+                          <small className="student-card-payment-voucher">
+                            Voucher {voucher.code}
+                            {voucher.discountLabel ? ` • ${voucher.discountLabel}` : ''}
+                          </small>
+                        ) : null}
+                      </div>
+                      <div className="student-card-payment-request-values">
+                        <strong className={financeSensitiveClass}>
+                          {formatCurrency(request.amount)}
+                        </strong>
+                        <small>{installmentLabel}</small>
+                        {paymentLink ? (
+                          <div className="student-charge-inline-actions">
+                            <button
+                              type="button"
+                              className="student-charge-commercial-action"
+                              onClick={() => void handleOpenCreditCardLink(request)}
+                            >
+                              Abrir link
+                            </button>
+                            <button
+                              type="button"
+                              className="student-charge-secondary-action"
+                              onClick={() => void handleCopyCreditCardLink(request)}
+                            >
+                              Copiar link
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          ) : null}
           {creditChargesForCommercial.length > 0 ? (
             <article className="student-page-card student-page-card-contact-assist">
               <h4>Pagamento no crédito</h4>
@@ -2727,7 +2874,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       ) : null}
                       {requiresCommercialContact ? (
                         <small className="student-charge-feedback is-warning">
-                          Cartão de crédito indisponível neste gateway. Solicite a cobrança ao comercial.
+                          {creditCardRequestStatus === 'WAITING_COURSE_START'
+                            ? 'Pagamento registrado para o início do curso. Aguarde o envio do link pelo financeiro.'
+                            : 'Cartão de crédito indisponível neste gateway. Solicite a cobrança ao comercial.'}
                         </small>
                       ) : null}
                       {paymentData?.pixCopyPaste ? (
@@ -2777,7 +2926,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                                 type="button"
                                 className="student-charge-commercial-action"
                                 onClick={() =>
-                                  void handleOpenCreditCardLink(charge.id, creditCardRequest)
+                                  void handleOpenCreditCardLink(creditCardRequest)
                                 }
                               >
                                 Abrir link
@@ -2786,7 +2935,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                                 type="button"
                                 className="student-charge-commercial-action"
                                 onClick={() =>
-                                  void handleCopyCreditCardLink(charge.id, creditCardRequest)
+                                  void handleCopyCreditCardLink(creditCardRequest)
                                 }
                               >
                                 Copiar link
@@ -2799,12 +2948,15 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                               onClick={() => void handleRequestCreditCardLink(charge)}
                               disabled={
                                 isPaying ||
+                                creditCardRequestStatus === 'WAITING_COURSE_START' ||
                                 creditCardRequestStatus === 'REQUESTED' ||
                                 creditCardRequestStatus === 'LINK_SENT'
                               }
                             >
                               {isPaying
                                 ? 'Enviando...'
+                                : creditCardRequestStatus === 'WAITING_COURSE_START'
+                                  ? 'Aguardando início'
                                 : creditCardRequest
                                   ? 'Solicitado'
                                   : 'Solicitar link'}
@@ -3190,10 +3342,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                           : 'Acesso parcial liberado: falta uma assinatura obrigatória'}
                     </strong>
                     {isPreContractStage ? (
-                      <p>
-                        Finalize o pagamento da taxa de matrícula no financeiro. Após a quitação,
-                        o contrato será liberado para assinatura.
-                      </p>
+                      <p>{preContractPaymentMessage}</p>
                     ) : !hasPendingContractsToSign ? (
                       <p>
                         Ainda faltam {missingRequiredContractCount} contrato(s) obrigatório(s).
