@@ -243,10 +243,11 @@ export class ClassesService {
       throw new NotFoundException('Turma não encontrada.');
     }
 
-    return this.prisma.schoolClass.update({
+    const nextStatus = this.toPrismaStatus(status);
+    const updatedClass = await this.prisma.schoolClass.update({
       where: { id: classId },
       data: {
-        status: this.toPrismaStatus(status),
+        status: nextStatus,
       },
       include: {
         course: true,
@@ -255,6 +256,12 @@ export class ClassesService {
         },
       },
     });
+
+    if (nextStatus === 'IN_PROGRESS') {
+      await this.enrollmentsService.activateCourseStartPaymentsForClass(classId);
+    }
+
+    return updatedClass;
   }
 
   async remove(classId: string, actor: ClassActor) {

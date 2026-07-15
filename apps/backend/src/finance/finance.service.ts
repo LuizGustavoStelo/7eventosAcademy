@@ -102,26 +102,29 @@ export class FinanceService {
     await this.syncExpiredPendingCharges(user);
 
     const where = this.buildChargeWhere(user);
+    const collectibleWhere = this.buildCollectibleChargeWhere(user);
     const endOfCurrentMonth = this.getEndOfCurrentMonth();
     const [totalCharges, pendingCharges, paidCharges, overdueCharges] =
       await Promise.all([
         this.prisma.monthlyCharge.count({ where }),
         this.prisma.monthlyCharge.count({
           where: {
-            ...where,
+            ...collectibleWhere,
             status: 'PENDING',
             dueDate: { lte: endOfCurrentMonth },
           },
         }),
         this.prisma.monthlyCharge.count({ where: { ...where, status: 'PAID' } }),
-        this.prisma.monthlyCharge.count({ where: { ...where, status: 'OVERDUE' } }),
+        this.prisma.monthlyCharge.count({
+          where: { ...collectibleWhere, status: 'OVERDUE' },
+        }),
       ]);
 
     const [pendingAmount, paidAmount, overdueAmount, canceledAmount] =
       await Promise.all([
         this.prisma.monthlyCharge.aggregate({
           where: {
-            ...where,
+            ...collectibleWhere,
             status: 'PENDING',
             dueDate: { lte: endOfCurrentMonth },
           },
@@ -132,7 +135,7 @@ export class FinanceService {
           _sum: { amount: true },
         }),
         this.prisma.monthlyCharge.aggregate({
-          where: { ...where, status: 'OVERDUE' },
+          where: { ...collectibleWhere, status: 'OVERDUE' },
           _sum: { amount: true },
         }),
         this.prisma.monthlyCharge.aggregate({
@@ -200,7 +203,7 @@ export class FinanceService {
     );
 
     const endOfCurrentMonth = this.getEndOfCurrentMonth(now);
-    const chargeWhere = this.buildChargeWhere(user);
+    const chargeWhere = this.buildCollectibleChargeWhere(user);
 
     const [
       studentsCount,
@@ -433,6 +436,12 @@ export class FinanceService {
       ...charge,
       description:
         descriptionByChargeId.get(charge.id) ?? this.buildDefaultChargeDescription(charge),
+      paymentMethod:
+        this.parseEnrollmentSelectedPaymentOption(
+          charge.kind === 'ENROLLMENT_FEE'
+            ? charge.enrollment.selectedEnrollmentPaymentOption
+            : charge.enrollment.selectedPaymentOption,
+        )?.method ?? null,
       amount: Number(charge.amount),
       paymentTransactions: charge.paymentTransactions.map((transaction) => ({
         ...transaction,
@@ -962,7 +971,10 @@ export class FinanceService {
   }
 
   async listCreditCardPaymentRequests(user: JwtPayload) {
-    const where = this.buildCreditCardPaymentRequestWhere(user);
+    const where: Prisma.CreditCardPaymentRequestWhereInput = {
+      ...this.buildCreditCardPaymentRequestWhere(user),
+      status: { notIn: ['APPROVED', 'CANCELED'] },
+    };
     const requests = await this.prisma.creditCardPaymentRequest.findMany({
       where,
       include: this.creditCardPaymentRequestInclude(),
@@ -981,7 +993,7 @@ export class FinanceService {
       where: {
         id: requestId,
         ...this.buildCreditCardPaymentRequestWhere(user),
-        status: { notIn: ['APPROVED', 'CANCELED'] },
+        status: { in: ['REQUESTED', 'LINK_SENT', 'VIEWED', 'COPIED'] },
       },
       select: { id: true },
     });
@@ -1009,7 +1021,7 @@ export class FinanceService {
       where: {
         id: requestId,
         ...this.buildCreditCardPaymentRequestWhere(user),
-        status: { not: 'CANCELED' },
+        status: { in: ['REQUESTED', 'LINK_SENT', 'VIEWED', 'COPIED'] },
       },
       include: {
         monthlyCharge: {
@@ -1951,6 +1963,19 @@ export class FinanceService {
     };
   }
 
+  private buildCollectibleChargeWhere(
+    user: JwtPayload,
+  ): Prisma.MonthlyChargeWhereInput {
+    return {
+      ...this.buildChargeWhere(user),
+      creditCardPaymentRequests: {
+        none: {
+          status: 'WAITING_COURSE_START',
+        },
+      },
+    };
+  }
+
   private getDashboardSummaryCacheKey(user: JwtPayload) {
     if (user.role === 'superadmin') {
       return 'superadmin';
@@ -1972,7 +1997,7 @@ export class FinanceService {
   }
 
   private async syncExpiredPendingCharges(user: JwtPayload) {
-    const where = this.buildChargeWhere(user);
+    const where = this.buildCollectibleChargeWhere(user);
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 

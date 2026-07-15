@@ -148,6 +148,7 @@ type StudentCharge = {
   status: string;
   description?: string | null;
   paymentMethod?: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD' | string;
+  creditCardRequestStatus?: string | null;
   gatewayProvider?: 'manual' | 'sicoob' | 'asaas' | 'stripe' | string | null;
   gatewayIsActive?: boolean;
   creditCardUnsupported?: boolean;
@@ -1609,9 +1610,22 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       return aTime - bTime;
     });
 
+    const waitingCourseStart = sorted.filter((item) => {
+      const status = String(item.status || '').toUpperCase();
+      return (
+        String(item.creditCardRequestStatus || '').toUpperCase() ===
+          'WAITING_COURSE_START' &&
+        status !== 'PAID' &&
+        status !== 'CANCELED' &&
+        status !== 'CANCELLED'
+      );
+    });
     const pendingAll = sorted.filter((item) => {
       const status = item.status.toUpperCase();
-      return status === 'PENDING' || status === 'OVERDUE';
+      const isWaitingCourseStart =
+        String(item.creditCardRequestStatus || '').toUpperCase() ===
+        'WAITING_COURSE_START';
+      return !isWaitingCourseStart && (status === 'PENDING' || status === 'OVERDUE');
     });
     const paid = sorted.filter((item) => item.status.toUpperCase() === 'PAID');
     const overdue = pendingAll.filter((item) => {
@@ -1651,7 +1665,17 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       visible.push(item);
       visibleById.add(item.id);
     });
-    const nextCharge = visible[0] ?? null;
+    waitingCourseStart.forEach((item) => {
+      if (visibleById.has(item.id)) return;
+      visible.push(item);
+      visibleById.add(item.id);
+    });
+    const nextCharge =
+      visible.find(
+        (item) =>
+          String(item.creditCardRequestStatus || '').toUpperCase() !==
+          'WAITING_COURSE_START',
+      ) ?? null;
     const pendingAmount = pending.reduce((sum, item) => sum + item.amount, 0);
     const overdueAmount = overdue.reduce((sum, item) => sum + item.amount, 0);
 
@@ -1661,6 +1685,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       pending,
       paid,
       overdue,
+      waitingCourseStart,
       nextCharge,
       pendingAmount,
       overdueAmount,
@@ -1819,15 +1844,20 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     const studentName = firstAndLastName(me?.name || user.name);
     const institutionName = me?.institution?.name || 'a instituição';
     const lines = charges.map((charge, index) => {
-      const dueDateLabel = formatDate(charge.dueDate);
-      return `${index + 1}. ${charge.description || charge.className} (${charge.courseName}) - vencimento ${dueDateLabel} - valor ${formatCurrency(charge.amount)}`;
+      const isWaitingCourseStart =
+        String(charge.creditCardRequestStatus || '').toUpperCase() ===
+        'WAITING_COURSE_START';
+      const scheduleLabel = isWaitingCourseStart
+        ? 'cobrança no início do curso'
+        : `vencimento ${formatDate(charge.dueDate)}`;
+      return `${index + 1}. ${charge.description || charge.className} (${charge.courseName}) - ${scheduleLabel} - valor ${formatCurrency(charge.amount)}`;
     });
 
     return [
       'Olá! Tudo bem?',
       '',
       `Meu nome é ${studentName} e acessei agora a Área do Aluno da ${institutionName}.`,
-      'Gostaria de solicitar cobrança no cartão de crédito para os itens abaixo:',
+      'Minhas solicitações de cobrança no cartão já foram registradas. Gostaria de falar com o atendimento sobre os itens abaixo:',
       '',
       ...lines,
       '',
@@ -2783,9 +2813,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
             <article className="student-page-card student-page-card-contact-assist">
               <h4>Pagamento no crédito</h4>
               <p>
-                Encontramos {creditChargesForCommercial.length} cobrança(s) com forma de pagamento
-                em cartão de crédito. Como o gateway financeiro atual não processa cartão, sua
-                solicitação deve ser feita diretamente com o comercial.
+                Sua solicitação de pagamento em cartão de crédito já foi enviada ao financeiro.
+                Aguarde a criação e o envio do link de pagamento. Se precisar, fale com o atendimento
+                pelo canal abaixo.
               </p>
               <div className="student-page-contact-actions">
                 <button
@@ -2793,7 +2823,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   onClick={() => openExternalContact(commercialCreditUrl)}
                   disabled={!commercialCreditUrl}
                 >
-                  Solicitar cobrança no crédito
+                  Falar com o atendimento
                 </button>
                 <small>
                   {commercialCreditUrl
@@ -2810,7 +2840,6 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
             ) : (
               <div className="student-page-list">
                 {financeMetrics.visible.map((charge) => {
-                  const isOverdue = isChargeOverdue(charge);
                   const paymentData = chargePaymentDataById[charge.id];
                   const paymentError = chargePaymentErrorById[charge.id];
                   const paymentInfo = chargePaymentInfoById[charge.id];
@@ -2854,8 +2883,12 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   const creditCardRequest = creditCardRequestsByChargeId[charge.id];
                   const creditCardPaymentLink = creditCardRequest?.paymentLinkUrl?.trim() || '';
                   const creditCardRequestStatus = String(
-                    creditCardRequest?.status || '',
+                    creditCardRequest?.status || charge.creditCardRequestStatus || '',
                   ).toUpperCase();
+                  const isWaitingCourseStart =
+                    creditCardRequestStatus === 'WAITING_COURSE_START';
+                  const isOverdue =
+                    !isWaitingCourseStart && isChargeOverdue(charge);
                   return (
                     <article key={charge.id} className={`student-page-list-item ${isOverdue ? 'is-overdue' : ''}`}>
                     <div>
@@ -2864,7 +2897,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       </strong>
                       <small>
                         {chargeDescription || charge.className} • {paymentMethodLabel(charge.paymentMethod)} •
-                        {' '}Vencimento {formatDate(charge.dueDate)}
+                        {' '}{isWaitingCourseStart
+                          ? 'Cobrança no início do curso'
+                          : `Vencimento ${formatDate(charge.dueDate)}`}
                       </small>
                       {paymentInfo ? (
                         <small className="student-charge-feedback">{paymentInfo}</small>
@@ -2876,7 +2911,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                         <small className="student-charge-feedback is-warning">
                           {creditCardRequestStatus === 'WAITING_COURSE_START'
                             ? 'Pagamento registrado para o início do curso. Aguarde o envio do link pelo financeiro.'
-                            : 'Cartão de crédito indisponível neste gateway. Solicite a cobrança ao comercial.'}
+                            : creditCardRequest
+                              ? 'Solicitação enviada ao financeiro. Aguarde a confirmação ou utilize o canal de atendimento se precisar.'
+                              : 'Solicitação de pagamento em cartão ainda não localizada.'}
                         </small>
                       ) : null}
                       {paymentData?.pixCopyPaste ? (
@@ -2916,7 +2953,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     </div>
                     <div className="student-charge-actions">
                       <span className={isOverdue ? 'student-charge-status is-overdue' : 'student-charge-status'}>
-                        {normalizeChargeStatus(charge.status)}
+                        {isWaitingCourseStart
+                          ? 'Aguardando início'
+                          : normalizeChargeStatus(charge.status)}
                       </span>
                       {requiresCommercialContact ? (
                         <>

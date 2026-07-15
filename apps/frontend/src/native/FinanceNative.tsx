@@ -28,7 +28,11 @@ type Charge = {
   amount: number;
   dueDate: string;
   description?: string;
+  paymentMethod?: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD' | string | null;
   status: 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELED';
+  creditCardPaymentRequest?: {
+    status: string;
+  } | null;
   enrollment?: {
     id: string;
     student?: {
@@ -280,11 +284,12 @@ function chipClass(status: Charge['status']): string {
   }
 }
 
-function paymentMethodLabel(value: string) {
+function paymentMethodLabel(value: string | null | undefined) {
   const normalized = String(value || '').toUpperCase();
   if (normalized === 'BANK_SLIP') return 'Boleto';
-  if (normalized === 'CREDIT_CARD') return 'Cartão';
-  return 'Pix';
+  if (normalized === 'CREDIT_CARD') return 'Cartão de crédito';
+  if (normalized === 'PIX') return 'Pix';
+  return '-';
 }
 
 function voucherStatusClass(active: boolean) {
@@ -1057,6 +1062,8 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                   const canEdit =
                     normalizedStatus !== 'APPROVED' &&
                     normalizedStatus !== 'CANCELED';
+                  const canProcess =
+                    canEdit && normalizedStatus !== 'WAITING_COURSE_START';
                   const isBusy = creditCardActionId === request.id;
                   const studentName = request.student?.name || 'Aluno não identificado';
                   const studentEmail = request.student?.email || '-';
@@ -1118,7 +1125,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                             }))
                           }
                           placeholder="Cole o link de pagamento"
-                          disabled={!canEdit || isBusy}
+                          disabled={!canProcess || isBusy}
                         />
                         {normalizedStatus === 'WAITING_COURSE_START' ? (
                           <small>Envie o link quando o curso iniciar.</small>
@@ -1129,7 +1136,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                           <button
                             type="button"
                             onClick={() => void sendCreditCardLink(request)}
-                            disabled={!canEdit || isBusy}
+                            disabled={!canProcess || isBusy}
                           >
                             {isBusy ? 'Salvando...' : 'Enviar link'}
                           </button>
@@ -1137,7 +1144,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                             type="button"
                             className="ghost"
                             onClick={() => void approveCreditCardRequest(request)}
-                            disabled={!canEdit || isBusy}
+                            disabled={!canProcess || isBusy}
                           >
                             Aprovar
                           </button>
@@ -1202,6 +1209,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                 <th>Aluno</th>
                 <th>Turma</th>
                 <th>Descrição</th>
+                <th>Forma de pagamento</th>
                 <th>Valor</th>
                 <th>Vencimento</th>
                 <th>Status</th>
@@ -1211,7 +1219,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
             <tbody>
               {filteredCharges.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>Nenhuma cobrança encontrada.</td>
+                  <td colSpan={8}>Nenhuma cobrança encontrada.</td>
                 </tr>
               ) : (
                 filteredCharges.map((charge) => {
@@ -1221,6 +1229,9 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                     charge.enrollment?.schoolClass?.name ||
                     charge.enrollment?.schoolClass?.course?.name ||
                     'Turma não definida';
+                  const isWaitingCourseStart =
+                    String(charge.creditCardPaymentRequest?.status || '').toUpperCase() ===
+                    'WAITING_COURSE_START';
 
                   return (
                     <tr key={charge.id}>
@@ -1235,40 +1246,47 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                       </td>
                       <td>{className}</td>
                       <td>{charge.description || 'Cobrança'}</td>
+                      <td>{paymentMethodLabel(charge.paymentMethod)}</td>
                       <td className={financeSensitiveClass}>{formatCurrency(Number(charge.amount || 0))}</td>
-                      <td>{formatDate(charge.dueDate)}</td>
+                      <td>{isWaitingCourseStart ? 'No início do curso' : formatDate(charge.dueDate)}</td>
                       <td>
                         <span className={`native-status-chip ${chipClass(charge.status)}`}>
-                          {statusLabel(charge.status)}
+                          {isWaitingCourseStart
+                            ? 'Aguardando início'
+                            : statusLabel(charge.status)}
                         </span>
                       </td>
                       <td>
-                        <div className="native-finance-row-actions">
-                          <select
-                            className="native-finance-select"
-                            value={statusDraft[charge.id] || charge.status}
-                            onChange={(event) =>
-                              setStatusDraft((current) => ({
-                                ...current,
-                                [charge.id]: event.target.value as Charge['status'],
-                              }))
-                            }
-                          >
-                            <option value="PENDING">Pendente</option>
-                            <option value="PAID">Pago</option>
-                            <option value="OVERDUE">Atrasado</option>
-                            <option value="CANCELED">Cancelado</option>
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              void applyStatus(charge.id);
-                            }}
-                            disabled={savingStatus === charge.id}
-                          >
-                            {savingStatus === charge.id ? 'Salvando...' : 'Aplicar'}
-                          </button>
-                        </div>
+                        {isWaitingCourseStart ? (
+                          <small>Será liberada quando a turma entrar em andamento.</small>
+                        ) : (
+                          <div className="native-finance-row-actions">
+                            <select
+                              className="native-finance-select"
+                              value={statusDraft[charge.id] || charge.status}
+                              onChange={(event) =>
+                                setStatusDraft((current) => ({
+                                  ...current,
+                                  [charge.id]: event.target.value as Charge['status'],
+                                }))
+                              }
+                            >
+                              <option value="PENDING">Pendente</option>
+                              <option value="PAID">Pago</option>
+                              <option value="OVERDUE">Atrasado</option>
+                              <option value="CANCELED">Cancelado</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void applyStatus(charge.id);
+                              }}
+                              disabled={savingStatus === charge.id}
+                            >
+                              {savingStatus === charge.id ? 'Salvando...' : 'Aplicar'}
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

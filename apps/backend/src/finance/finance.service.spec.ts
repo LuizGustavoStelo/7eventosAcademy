@@ -48,4 +48,28 @@ describe('FinanceService pre-enrollment card approval', () => {
       }),
     );
   });
+
+  it('returns only active card requests in the administrative queue', async () => {
+    const prisma = {
+      creditCardPaymentRequest: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new FinanceService(prisma as never, {} as never);
+
+    await service.listCreditCardPaymentRequests({
+      sub: 'admin-1',
+      role: 'admin',
+      activeInstitutionId: 'institution-1',
+    });
+
+    expect(prisma.creditCardPaymentRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          institutionId: 'institution-1',
+          status: { notIn: ['APPROVED', 'CANCELED'] },
+        }),
+      }),
+    );
+  });
 });

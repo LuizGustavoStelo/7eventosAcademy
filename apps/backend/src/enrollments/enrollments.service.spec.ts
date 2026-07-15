@@ -124,4 +124,62 @@ describe('EnrollmentsService pre-enrollment commercial selection', () => {
     expect(Number(courseRequest.amount)).toBe(4860);
     expect(Number(courseRequest.installmentAmount)).toBe(270);
   });
+
+  it('activates a course-start card request when the class begins', async () => {
+    const activatedRequest = {
+      id: 'request-course-1',
+      monthlyChargeId: 'charge-course-1',
+      enrollmentId: 'enrollment-1',
+      ownerAdminId: 'admin-1',
+      amount: 4860,
+      enrollment: {
+        selectedPaymentOption: {
+          id: 'course-card-18',
+          method: 'CREDIT_CARD',
+          collectionMode: 'MANUAL_LINK',
+          installmentStartMode: 'COURSE_START',
+        },
+      },
+    };
+    const tx = {
+      creditCardPaymentRequest: {
+        findMany: jest.fn().mockResolvedValue([activatedRequest]),
+        update: jest.fn(),
+      },
+      monthlyCharge: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        create: jest.fn(),
+      },
+    };
+    const prisma = {
+      $transaction: jest.fn().mockImplementation((callback) => callback(tx)),
+    };
+    const service = new EnrollmentsService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await service.activateCourseStartPaymentsForClass('class-1');
+
+    expect(tx.monthlyCharge.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'charge-course-1',
+        status: { in: ['PENDING', 'OVERDUE'] },
+      },
+      data: {
+        dueDate: expect.any(Date),
+        status: 'PENDING',
+      },
+    });
+    expect(tx.creditCardPaymentRequest.update).toHaveBeenCalledWith({
+      where: { id: 'request-course-1' },
+      data: {
+        monthlyChargeId: 'charge-course-1',
+        status: 'REQUESTED',
+        requestedAt: expect.any(Date),
+      },
+    });
+  });
 });

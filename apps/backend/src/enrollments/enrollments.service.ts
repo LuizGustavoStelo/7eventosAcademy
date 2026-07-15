@@ -401,6 +401,7 @@ export class EnrollmentsService {
         const onboardingCharges = this.buildEnrollmentChargesForPreContractFlow({
           enrollmentCreatedAt: createdEnrollment.createdAt,
           classStartDate: schoolClass.startDate,
+          classStatus: schoolClass.status,
           enrollmentFee: Number(schoolClass.course.enrollmentFee ?? 0),
           paymentModel: schoolClass.course.paymentModel,
           installmentMonths: schoolClass.course.installmentMonths,
@@ -443,6 +444,10 @@ export class EnrollmentsService {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
+
+    if (schoolClass.status === 'IN_PROGRESS') {
+      await this.activateCourseStartPaymentsForClass(schoolClass.id);
+    }
 
     const enrollmentFeeAmount = Number(
       enrollment.schoolClass?.course?.enrollmentFee ?? 0,
@@ -498,6 +503,88 @@ export class EnrollmentsService {
       .catch(() => undefined);
 
     return enrollment;
+  }
+
+  async activateCourseStartPaymentsForClass(classId: string) {
+    const activatedAt = new Date();
+
+    return this.prisma.$transaction(async (tx) => {
+      const requests = await tx.creditCardPaymentRequest.findMany({
+        where: {
+          kind: 'COURSE_PAYMENT',
+          status: 'WAITING_COURSE_START',
+          enrollment: {
+            classId,
+            status: 'ACTIVE',
+          },
+        },
+        select: {
+          id: true,
+          monthlyChargeId: true,
+          enrollmentId: true,
+          ownerAdminId: true,
+          amount: true,
+          enrollment: {
+            select: {
+              selectedPaymentOption: true,
+            },
+          },
+        },
+      });
+
+      let activatedCount = 0;
+      for (const request of requests) {
+        if (!request.enrollmentId) continue;
+        const option = this.parseStoredPaymentOption(
+          request.enrollment?.selectedPaymentOption,
+        );
+        const isCourseStartManualCard =
+          option?.installmentStartMode === 'COURSE_START' &&
+          option.method === 'CREDIT_CARD' &&
+          option.collectionMode === 'MANUAL_LINK';
+        if (!isCourseStartManualCard) continue;
+
+        let monthlyChargeId = request.monthlyChargeId;
+        if (monthlyChargeId) {
+          const updated = await tx.monthlyCharge.updateMany({
+            where: {
+              id: monthlyChargeId,
+              status: { in: ['PENDING', 'OVERDUE'] },
+            },
+            data: {
+              dueDate: activatedAt,
+              status: 'PENDING',
+            },
+          });
+          if (updated.count === 0) continue;
+        } else {
+          const charge = await tx.monthlyCharge.create({
+            data: {
+              enrollmentId: request.enrollmentId,
+              ownerAdminId: request.ownerAdminId,
+              dueDate: activatedAt,
+              amount: request.amount,
+              kind: 'COURSE_PAYMENT',
+              status: 'PENDING',
+            },
+            select: { id: true },
+          });
+          monthlyChargeId = charge.id;
+        }
+
+        await tx.creditCardPaymentRequest.update({
+          where: { id: request.id },
+          data: {
+            monthlyChargeId,
+            status: 'REQUESTED',
+            requestedAt: activatedAt,
+          },
+        });
+        activatedCount += 1;
+      }
+
+      return { activatedCount };
+    });
   }
 
   async remove(
@@ -630,6 +717,7 @@ export class EnrollmentsService {
   private buildInstallmentCharges(input: {
     enrollmentCreatedAt: Date;
     classStartDate: Date | null;
+    classStatus: string;
     paymentModel: string;
     installmentMonths: number | null;
     installmentValue: { toNumber: () => number } | null;
@@ -645,7 +733,7 @@ export class EnrollmentsService {
       ).toUpperCase();
       if (
         startMode === 'COURSE_START' &&
-        !input.classStartDate &&
+        input.classStatus !== 'IN_PROGRESS' &&
         input.selectedPaymentOption.method === 'CREDIT_CARD' &&
         selectedCollectionMode === 'MANUAL_LINK'
       ) {
@@ -854,6 +942,7 @@ export class EnrollmentsService {
   private buildEnrollmentChargesForPreContractFlow(input: {
     enrollmentCreatedAt: Date;
     classStartDate: Date | null;
+    classStatus: string;
     enrollmentFee: number;
     paymentModel: string;
     installmentMonths: number | null;
@@ -863,6 +952,7 @@ export class EnrollmentsService {
     const charges = this.buildInstallmentCharges({
       enrollmentCreatedAt: input.enrollmentCreatedAt,
       classStartDate: input.classStartDate,
+      classStatus: input.classStatus,
       paymentModel: input.paymentModel,
       installmentMonths: input.installmentMonths,
       installmentValue: input.installmentValue,

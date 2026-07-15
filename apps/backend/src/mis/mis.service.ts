@@ -840,6 +840,13 @@ export class MisService {
             createdAt: true,
           },
         },
+        creditCardPaymentRequests: {
+          orderBy: { requestedAt: 'desc' },
+          take: 1,
+          select: {
+            status: true,
+          },
+        },
       },
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
       take: 30,
@@ -908,6 +915,9 @@ export class MisService {
         paidAt: Date | null;
         createdAt: Date;
       }>;
+      creditCardPaymentRequests: Array<{
+        status: string;
+      }>;
     }>,
     descriptionByChargeId: Map<string, string>,
     pricingByChargeId: Map<string, StudentChargePricing>,
@@ -936,6 +946,11 @@ export class MisService {
         paymentMethod === 'CREDIT_CARD' &&
         gatewayProvider === 'sicoob' &&
         gatewayIsActive;
+      const creditCardRequestStatus = String(
+        charge.creditCardPaymentRequests[0]?.status || '',
+      ).toUpperCase();
+      const waitingCourseStart =
+        creditCardRequestStatus === 'WAITING_COURSE_START';
       const pricing = pricingByChargeId.get(charge.id) ?? {
         originalAmount: this.toMoneyValue(Number(charge.amount)),
         payableAmount: this.toMoneyValue(Number(charge.amount)),
@@ -948,7 +963,7 @@ export class MisService {
       return {
         id: charge.id,
         enrollmentId: charge.enrollmentId,
-        dueDate: charge.dueDate,
+        dueDate: waitingCourseStart ? null : charge.dueDate,
         amount: pricing.payableAmount,
         originalAmount: pricing.originalAmount,
         discountAmount: pricing.discountAmount,
@@ -965,6 +980,7 @@ export class MisService {
             charge.enrollment.selectedPaymentOption,
           ),
         paymentMethod,
+        creditCardRequestStatus: creditCardRequestStatus || null,
         paymentOptionTitle: this.resolveEnrollmentPaymentOptionTitle(
           charge.kind === 'ENROLLMENT_FEE'
             ? charge.enrollment.selectedEnrollmentPaymentOption
@@ -975,7 +991,8 @@ export class MisService {
         ),
         canPay:
           (charge.status === 'PENDING' || charge.status === 'OVERDUE') &&
-          !creditCardUnsupported,
+          !creditCardUnsupported &&
+          !waitingCourseStart,
         gatewayProvider,
         gatewayIsActive,
         creditCardUnsupported,
