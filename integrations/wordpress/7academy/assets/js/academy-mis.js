@@ -15,6 +15,38 @@
     return Math.max(minHeight, Math.ceil(parsed));
   }
 
+  function forwardEmailVerificationToStudentFrame(container) {
+    if (!container || !window.location.hash) return false;
+
+    var iframe = container.querySelector('iframe');
+    if (!iframe) return false;
+
+    try {
+      var frameUrl = new URL(iframe.src, window.location.href);
+      if (frameUrl.searchParams.get('app') !== 'student') return false;
+
+      var pageFragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      var token = pageFragment.get('emailVerificationToken');
+      var email = pageFragment.get('emailVerificationEmail');
+      if (!token || !email) return false;
+
+      frameUrl.hash = new URLSearchParams({
+        emailVerificationToken: token,
+        emailVerificationEmail: email,
+      }).toString();
+      iframe.src = frameUrl.toString();
+
+      pageFragment.delete('emailVerificationToken');
+      pageFragment.delete('emailVerificationEmail');
+      var cleanPageUrl = new URL(window.location.href);
+      cleanPageUrl.hash = pageFragment.toString();
+      window.history.replaceState({}, document.title, cleanPageUrl.toString());
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   function bindContainerLoading(container) {
     if (!container) return;
 
@@ -88,10 +120,15 @@
   }
 
   function initSevenAcademyContainers() {
-    var containers = document.querySelectorAll('.seven-academy-container.is-loading');
+    var containers = document.querySelectorAll('.seven-academy-container');
     if (!containers.length) return;
 
-    containers.forEach(bindContainerLoading);
+    containers.forEach(function (container) {
+      forwardEmailVerificationToStudentFrame(container);
+      if (container.classList.contains('is-loading')) {
+        bindContainerLoading(container);
+      }
+    });
   }
 
   if (document.readyState === 'loading') {

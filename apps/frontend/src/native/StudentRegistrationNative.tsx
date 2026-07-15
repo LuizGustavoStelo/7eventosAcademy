@@ -1198,6 +1198,12 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (!isFinalStep) {
+      await goToNextStep();
+      return;
+    }
+
     setError('');
     setVerificationEmailError('');
     setVerificationEmailFeedback('');
