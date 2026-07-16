@@ -72,4 +72,30 @@ describe('FinanceService pre-enrollment card approval', () => {
       }),
     );
   });
+
+  it('returns approved pre-enrollment payments in the financial history', async () => {
+    const prisma = {
+      creditCardPaymentRequest: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new FinanceService(prisma as never, {} as never);
+
+    await service.listCreditCardPaymentRequestHistory({
+      sub: 'admin-1',
+      role: 'admin',
+      activeInstitutionId: 'institution-1',
+    });
+
+    expect(prisma.creditCardPaymentRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          institutionId: 'institution-1',
+          status: 'APPROVED',
+          monthlyChargeId: null,
+        },
+        orderBy: [{ approvedAt: 'desc' }, { requestedAt: 'desc' }],
+      }),
+    );
+  });
 });

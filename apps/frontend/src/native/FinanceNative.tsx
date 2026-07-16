@@ -30,6 +30,8 @@ type Charge = {
   description?: string;
   paymentMethod?: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD' | string | null;
   status: 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELED';
+  isCreditCardRequestHistory?: boolean;
+  historyApprovedAt?: string | null;
   creditCardPaymentRequest?: {
     status: string;
   } | null;
@@ -341,6 +343,47 @@ function creditCardRequestKindLabel(kind: string): string {
     : 'Curso';
 }
 
+function creditCardRequestToHistoryCharge(
+  request: CreditCardPaymentRequest,
+): Charge {
+  const course =
+    request.enrollment?.schoolClass?.course ||
+    request.studentCourse?.course ||
+    undefined;
+  const schoolClass = request.enrollment?.schoolClass;
+
+  return {
+    id: `credit-card-request:${request.id}`,
+    amount: request.amount,
+    dueDate: request.approvedAt || request.requestedAt,
+    description: creditCardRequestKindLabel(request.kind),
+    paymentMethod: 'CREDIT_CARD',
+    status: 'PAID',
+    isCreditCardRequestHistory: true,
+    historyApprovedAt: request.approvedAt,
+    creditCardPaymentRequest: {
+      status: request.status,
+    },
+    enrollment: {
+      id: request.enrollmentId || `pre-enrollment:${request.id}`,
+      student: request.student
+        ? {
+            id: request.student.id,
+            name: request.student.name,
+            email: request.student.email,
+          }
+        : undefined,
+      schoolClass: course
+        ? {
+            id: schoolClass?.id || `course:${course.id}`,
+            name: schoolClass?.name || 'Turma a definir',
+            course,
+          }
+        : undefined,
+    },
+  };
+}
+
 export function FinanceNative({ token }: FinanceNativeProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -386,6 +429,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
         vouchersData,
         voucherCoursesData,
         creditCardRequestsData,
+        creditCardHistoryData,
       ] = await Promise.all([
         apiRequest<FinanceOverview>(token, '/finance/overview'),
         apiRequest<Charge[]>(token, '/finance/charges'),
@@ -394,10 +438,20 @@ export function FinanceNative({ token }: FinanceNativeProps) {
         apiRequest<Voucher[]>(token, '/finance/vouchers'),
         apiRequest<VoucherCourse[]>(token, '/finance/voucher-courses'),
         apiRequest<CreditCardPaymentRequest[]>(token, '/finance/credit-card-requests'),
+        apiRequest<CreditCardPaymentRequest[]>(
+          token,
+          '/finance/credit-card-requests/history',
+        ),
       ]);
 
+      const normalizedCharges = Array.isArray(chargesData) ? chargesData : [];
+      const historicalCharges = (
+        Array.isArray(creditCardHistoryData) ? creditCardHistoryData : []
+      ).map(creditCardRequestToHistoryCharge);
+      const combinedCharges = [...normalizedCharges, ...historicalCharges];
+
       setOverview(overviewData);
-      setCharges(Array.isArray(chargesData) ? chargesData : []);
+      setCharges(combinedCharges);
       setEnrollments(Array.isArray(enrollmentsData) ? enrollmentsData : []);
       setGateway(gatewayData);
       setVouchers(Array.isArray(vouchersData) ? vouchersData : []);
@@ -416,7 +470,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
       );
       setStatusDraft(
         Object.fromEntries(
-          (Array.isArray(chargesData) ? chargesData : []).map((item) => [
+          combinedCharges.map((item) => [
             item.id,
             item.status,
           ]),
@@ -1248,7 +1302,15 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                       <td>{charge.description || 'Cobrança'}</td>
                       <td>{paymentMethodLabel(charge.paymentMethod)}</td>
                       <td className={financeSensitiveClass}>{formatCurrency(Number(charge.amount || 0))}</td>
-                      <td>{isWaitingCourseStart ? 'No início do curso' : formatDate(charge.dueDate)}</td>
+                      <td>
+                        {charge.isCreditCardRequestHistory
+                          ? `Aprovado em ${formatDate(
+                              charge.historyApprovedAt || charge.dueDate,
+                            )}`
+                          : isWaitingCourseStart
+                            ? 'No início do curso'
+                            : formatDate(charge.dueDate)}
+                      </td>
                       <td>
                         <span className={`native-status-chip ${chipClass(charge.status)}`}>
                           {isWaitingCourseStart
@@ -1257,7 +1319,9 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                         </span>
                       </td>
                       <td>
-                        {isWaitingCourseStart ? (
+                        {charge.isCreditCardRequestHistory ? (
+                          <small>Pagamento aprovado manualmente.</small>
+                        ) : isWaitingCourseStart ? (
                           <small>Será liberada quando a turma entrar em andamento.</small>
                         ) : (
                           <div className="native-finance-row-actions">

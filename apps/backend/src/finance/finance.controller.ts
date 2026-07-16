@@ -51,6 +51,12 @@ export class FinanceController {
     return this.financeService.listCreditCardPaymentRequests(request.user);
   }
 
+  @RequirePermissions('finance.read')
+  @Get('credit-card-requests/history')
+  async listCreditCardRequestHistory(@Req() request: AuthenticatedRequest) {
+    return this.financeService.listCreditCardPaymentRequestHistory(request.user);
+  }
+
   @RequirePermissions('finance.write')
   @Patch('credit-card-requests/:requestId/link')
   async sendCreditCardPaymentLink(

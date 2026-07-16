@@ -984,6 +984,20 @@ export class FinanceService {
     return requests.map((request) => this.mapCreditCardPaymentRequest(request));
   }
 
+  async listCreditCardPaymentRequestHistory(user: JwtPayload) {
+    const requests = await this.prisma.creditCardPaymentRequest.findMany({
+      where: {
+        ...this.buildCreditCardPaymentRequestWhere(user),
+        status: 'APPROVED',
+        monthlyChargeId: null,
+      },
+      include: this.creditCardPaymentRequestInclude(),
+      orderBy: [{ approvedAt: 'desc' }, { requestedAt: 'desc' }],
+    });
+
+    return requests.map((request) => this.mapCreditCardPaymentRequest(request));
+  }
+
   async sendCreditCardPaymentLink(
     requestId: string,
     dto: SendCreditCardPaymentLinkDto,

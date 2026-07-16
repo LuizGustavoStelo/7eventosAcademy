@@ -1769,6 +1769,8 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       ) ?? null,
     [creditCardRequests],
   );
+  const enrollmentFeePaymentApproved =
+    String(enrollmentFeeCardRequest?.status || '').toUpperCase() === 'APPROVED';
   const preContractPaymentMessage = useMemo(() => {
     const status = String(enrollmentFeeCardRequest?.status || '').toUpperCase();
     if (status === 'REQUESTED') {
@@ -2756,6 +2758,13 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
               <div className="student-card-payment-request-list">
                 {standaloneCreditCardRequests.map((request) => {
                   const paymentLink = request.paymentLinkUrl?.trim() || '';
+                  const normalizedRequestStatus = String(
+                    request.status || '',
+                  ).toUpperCase();
+                  const canUsePaymentLink =
+                    Boolean(paymentLink) &&
+                    normalizedRequestStatus !== 'APPROVED' &&
+                    normalizedRequestStatus !== 'CANCELED';
                   const courseName =
                     request.studentCourse?.course?.name || 'Curso não informado';
                   const voucher =
@@ -2784,7 +2793,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                           {formatCurrency(request.amount)}
                         </strong>
                         <small>{installmentLabel}</small>
-                        {paymentLink ? (
+                        {canUsePaymentLink ? (
                           <div className="student-charge-inline-actions">
                             <button
                               type="button"
@@ -3375,7 +3384,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   <div>
                     <strong>
                       {isPreContractStage
-                        ? 'Acesso parcial liberado: falta o pagamento'
+                        ? enrollmentFeePaymentApproved
+                          ? 'Acesso parcial: pagamento aprovado'
+                          : 'Acesso parcial liberado: falta o pagamento'
                         : missingRequiredContractCount > 1
                           ? 'Acesso parcial liberado: faltam assinaturas obrigatórias'
                           : 'Acesso parcial liberado: falta uma assinatura obrigatória'}
@@ -3403,7 +3414,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       )
                     }
                   >
-                    {isPreContractStage ? 'Ir para Financeiro' : 'Ir para Contratos'}
+                    {isPreContractStage
+                      ? enrollmentFeePaymentApproved
+                        ? 'Ver pagamentos'
+                        : 'Ir para Financeiro'
+                      : 'Ir para Contratos'}
                   </button>
                 </section>
               ) : null}
