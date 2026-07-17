@@ -132,10 +132,12 @@ jobs:
           timeout: 30s
           command_timeout: 20m
           script: |
+            set -e
             cd /var/www/7eventosAcademy
             docker compose pull
             docker compose up -d db redis
             docker compose run --rm --no-deps --entrypoint sh backend -lc "node scripts/prisma-migrate-safe.mjs"
-            docker compose up -d --remove-orphans backend frontend
+            docker compose up -d --remove-orphans --wait --wait-timeout 180 backend frontend
+            curl --fail --silent --show-error http://127.0.0.1:3210/api/health
             docker image prune -f
 
