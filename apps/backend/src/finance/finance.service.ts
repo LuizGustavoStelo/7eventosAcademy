@@ -392,6 +392,7 @@ export class FinanceService {
       where: {
         ...where,
         OR: [
+          { awaitingCourseStart: true },
           { status: 'OVERDUE' },
           { status: 'PAID' },
           { status: 'CANCELED' },
@@ -547,6 +548,7 @@ export class FinanceService {
       await this.tryReleaseAutomaticContractsAfterEnrollmentFeePayment(
         updatedCharge.id,
       );
+      await this.createNextSequentialCourseStartInstallment(updatedCharge.id);
     }
 
     this.invalidateDashboardSummaryCache();
@@ -650,6 +652,9 @@ export class FinanceService {
 
     if (status === 'success') {
       await this.tryReleaseAutomaticContractsAfterEnrollmentFeePayment(
+        dto.monthlyChargeId,
+      );
+      await this.createNextSequentialCourseStartInstallment(
         dto.monthlyChargeId,
       );
     }
@@ -1105,6 +1110,9 @@ export class FinanceService {
 
     if (request.monthlyChargeId) {
       await this.tryReleaseAutomaticContractsAfterEnrollmentFeePayment(
+        request.monthlyChargeId,
+      );
+      await this.createNextSequentialCourseStartInstallment(
         request.monthlyChargeId,
       );
     }
@@ -1731,9 +1739,22 @@ export class FinanceService {
           ? 'CREDIT_CARD'
           : 'PIX';
     const collectionModeRaw = String(record.collectionMode || '').toUpperCase();
+    const installmentStartModeRaw = String(
+      record.installmentStartMode || '',
+    ).toUpperCase();
     const installmentCount = Number(record.installmentCount ?? 0);
     const installmentAmount = Number(record.installmentAmount ?? 0);
     const totalAmount = Number(record.totalAmount ?? 0);
+    const dueDay = Number(record.dueDay ?? 0);
+    const appliedVoucherRecord =
+      record.appliedVoucher &&
+      typeof record.appliedVoucher === 'object' &&
+      !Array.isArray(record.appliedVoucher)
+        ? (record.appliedVoucher as Record<string, unknown>)
+        : null;
+    const regularInstallmentAmount = Number(
+      appliedVoucherRecord?.regularInstallmentAmount ?? 0,
+    );
 
     return {
       method,
@@ -1742,6 +1763,12 @@ export class FinanceService {
         collectionModeRaw === 'MANUAL_LINK'
           ? 'MANUAL_LINK'
           : 'INSTALLMENT_CHARGES',
+      installmentStartMode:
+        installmentStartModeRaw === 'COURSE_START'
+          ? 'COURSE_START'
+          : installmentStartModeRaw === 'SCHEDULED'
+            ? 'SCHEDULED'
+            : 'ON_ENROLLMENT',
       installmentCount:
         Number.isFinite(installmentCount) && installmentCount > 0
           ? installmentCount
@@ -1753,6 +1780,20 @@ export class FinanceService {
       totalAmount:
         Number.isFinite(totalAmount) && totalAmount > 0
           ? totalAmount
+          : 0,
+      dueDay:
+        Number.isFinite(dueDay) && dueDay > 0
+          ? Math.min(31, Math.max(1, Math.trunc(dueDay)))
+          : null,
+      voucherInstallmentScope:
+        String(appliedVoucherRecord?.installmentScope || '').toUpperCase() ===
+        'SINGLE'
+          ? 'SINGLE'
+          : null,
+      regularInstallmentAmount:
+        Number.isFinite(regularInstallmentAmount) &&
+        regularInstallmentAmount > 0
+          ? regularInstallmentAmount
           : 0,
     };
   }
@@ -1982,6 +2023,7 @@ export class FinanceService {
   ): Prisma.MonthlyChargeWhereInput {
     return {
       ...this.buildChargeWhere(user),
+      awaitingCourseStart: false,
       creditCardPaymentRequests: {
         none: {
           status: 'WAITING_COURSE_START',
@@ -2029,6 +2071,121 @@ export class FinanceService {
     });
   }
 
+  private async createNextSequentialCourseStartInstallment(chargeId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const charge = await tx.monthlyCharge.findUnique({
+        where: { id: chargeId },
+        select: {
+          enrollmentId: true,
+          ownerAdminId: true,
+          dueDate: true,
+          amount: true,
+          kind: true,
+          status: true,
+          installmentNumber: true,
+          installmentTotal: true,
+          awaitingCourseStart: true,
+          enrollment: {
+            select: {
+              selectedPaymentOption: true,
+              schoolClass: {
+                select: {
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (
+        !charge ||
+        charge.kind !== 'COURSE_PAYMENT' ||
+        charge.status !== 'PAID' ||
+        charge.awaitingCourseStart ||
+        !charge.installmentNumber ||
+        !charge.installmentTotal ||
+        charge.installmentNumber >= charge.installmentTotal ||
+        charge.enrollment.schoolClass.status !== 'IN_PROGRESS'
+      ) {
+        return;
+      }
+
+      const option = this.parseEnrollmentSelectedPaymentOption(
+        charge.enrollment.selectedPaymentOption,
+      );
+      if (
+        option?.type !== 'INSTALLMENTS' ||
+        option.installmentStartMode !== 'COURSE_START' ||
+        option.collectionMode === 'MANUAL_LINK'
+      ) {
+        return;
+      }
+
+      const nextInstallmentNumber = charge.installmentNumber + 1;
+      const configuredAmount =
+        option.voucherInstallmentScope === 'SINGLE'
+          ? option.regularInstallmentAmount
+          : option.installmentAmount;
+      const amount = this.toMoneyValue(
+        configuredAmount > 0 ? configuredAmount : Number(charge.amount),
+      );
+      if (amount <= 0) return;
+
+      const dueDate = this.buildNextSequentialInstallmentDueDate(
+        charge.dueDate,
+        option.dueDay,
+      );
+      await tx.monthlyCharge.createMany({
+        data: [
+          {
+            enrollmentId: charge.enrollmentId,
+            ownerAdminId: charge.ownerAdminId,
+            dueDate,
+            amount,
+            kind: 'COURSE_PAYMENT',
+            status: this.resolveChargeStatusByDueDate(dueDate),
+            installmentNumber: nextInstallmentNumber,
+            installmentTotal: charge.installmentTotal,
+            awaitingCourseStart: false,
+          },
+        ],
+        skipDuplicates: true,
+      });
+    });
+  }
+
+  private buildNextSequentialInstallmentDueDate(
+    currentDueDate: Date,
+    dueDay: number | null,
+  ) {
+    const current = new Date(currentDueDate);
+    const year = current.getFullYear();
+    const month = current.getMonth() + 1;
+    const desiredDay = dueDay ?? current.getDate();
+    const maxDay = new Date(year, month + 1, 0).getDate();
+    return new Date(
+      year,
+      month,
+      Math.min(Math.max(1, desiredDay), maxDay),
+      current.getHours(),
+      current.getMinutes(),
+      current.getSeconds(),
+      current.getMilliseconds(),
+    );
+  }
+
+  private resolveChargeStatusByDueDate(dueDate: Date): 'PENDING' | 'OVERDUE' {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dueDateStart = new Date(
+      dueDate.getFullYear(),
+      dueDate.getMonth(),
+      dueDate.getDate(),
+    );
+    return dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING';
+  }
+
   private buildChargeDescriptionMap(
     charges: Array<{
       id: string;
@@ -2036,6 +2193,9 @@ export class FinanceService {
       amount: Prisma.Decimal | number;
       dueDate: Date;
       createdAt: Date;
+      kind: 'COURSE_PAYMENT' | 'ENROLLMENT_FEE';
+      installmentNumber: number | null;
+      installmentTotal: number | null;
       status: 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELED';
       enrollment: {
         createdAt: Date;
@@ -2072,7 +2232,8 @@ export class FinanceService {
       );
 
       const enrollmentFeeCharge =
-        enrollmentFeeAmount > 0
+        ordered.find((item) => item.kind === 'ENROLLMENT_FEE') ??
+        (enrollmentFeeAmount > 0
           ? (() => {
               const candidates = ordered.filter((item) => {
                 const amount = this.toMoneyValue(Number(item.amount));
@@ -2089,7 +2250,7 @@ export class FinanceService {
                 return a.createdAt.getTime() - b.createdAt.getTime();
               })[0];
             })()
-          : null;
+          : null);
 
       if (enrollmentFeeCharge) {
         descriptionById.set(enrollmentFeeCharge.id, 'Matrícula');
@@ -2110,6 +2271,13 @@ export class FinanceService {
           : installmentCharges.length;
 
       installmentCharges.forEach((item, index) => {
+        if (item.installmentNumber && item.installmentTotal) {
+          descriptionById.set(
+            item.id,
+            `Mensalidade ${item.installmentNumber}/${item.installmentTotal}`,
+          );
+          return;
+        }
         if (totalInstallments <= 1) {
           descriptionById.set(item.id, 'Mensalidade 1/1');
           return;
@@ -2123,10 +2291,15 @@ export class FinanceService {
   }
 
   private buildDefaultChargeDescription(charge: {
+    installmentNumber?: number | null;
+    installmentTotal?: number | null;
     enrollment: {
       selectedPaymentOption: Prisma.JsonValue | null;
     };
   }) {
+    if (charge.installmentNumber && charge.installmentTotal) {
+      return `Mensalidade ${charge.installmentNumber}/${charge.installmentTotal}`;
+    }
     const selectedOption = this.parseEnrollmentSelectedPaymentOption(
       charge.enrollment.selectedPaymentOption,
     );

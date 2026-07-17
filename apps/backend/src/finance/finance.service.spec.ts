@@ -98,4 +98,77 @@ describe('FinanceService pre-enrollment card approval', () => {
       }),
     );
   });
+
+  it('creates only the next course-start installment after the current one is paid', async () => {
+    const tx = {
+      monthlyCharge: {
+        findUnique: jest.fn().mockResolvedValue({
+          enrollmentId: 'enrollment-1',
+          ownerAdminId: 'admin-1',
+          dueDate: new Date('2026-08-10T09:00:00-04:00'),
+          amount: 592,
+          kind: 'COURSE_PAYMENT',
+          status: 'PAID',
+          installmentNumber: 1,
+          installmentTotal: 18,
+          awaitingCourseStart: false,
+          enrollment: {
+            selectedPaymentOption: {
+              type: 'INSTALLMENTS',
+              method: 'BANK_SLIP',
+              collectionMode: 'INSTALLMENT_CHARGES',
+              installmentStartMode: 'COURSE_START',
+              installmentCount: 18,
+              installmentAmount: 592,
+              dueDay: 10,
+            },
+            schoolClass: { status: 'IN_PROGRESS' },
+          },
+        }),
+        createMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const prisma = {
+      monthlyCharge: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'charge-1' }),
+        update: jest.fn().mockResolvedValue({
+          id: 'charge-1',
+          amount: 592,
+          status: 'PAID',
+          enrollment: {},
+        }),
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      creditCardPaymentRequest: {
+        updateMany: jest.fn(),
+      },
+      $transaction: jest.fn().mockImplementation((callback) => callback(tx)),
+    };
+    const service = new FinanceService(prisma as never, {} as never);
+
+    await service.updateChargeStatus(
+      'charge-1',
+      { status: 'paid' },
+      {
+        sub: 'admin-1',
+        role: 'admin',
+        activeInstitutionId: 'institution-1',
+      },
+    );
+
+    expect(tx.monthlyCharge.createMany).toHaveBeenCalledTimes(1);
+    const created = tx.monthlyCharge.createMany.mock.calls[0][0].data[0];
+    expect(created).toEqual(
+      expect.objectContaining({
+        enrollmentId: 'enrollment-1',
+        amount: 592,
+        status: 'PENDING',
+        installmentNumber: 2,
+        installmentTotal: 18,
+        awaitingCourseStart: false,
+      }),
+    );
+    expect(created.dueDate.getMonth()).toBe(8);
+    expect(created.dueDate.getDate()).toBe(10);
+  });
 });

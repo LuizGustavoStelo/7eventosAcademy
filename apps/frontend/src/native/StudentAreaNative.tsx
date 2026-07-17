@@ -148,6 +148,7 @@ type StudentCharge = {
   status: string;
   description?: string | null;
   paymentMethod?: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD' | string;
+  chargeScheduleStatus?: string | null;
   creditCardRequestStatus?: string | null;
   gatewayProvider?: 'manual' | 'sicoob' | 'asaas' | 'stripe' | string | null;
   gatewayIsActive?: boolean;
@@ -176,6 +177,15 @@ type StudentCharge = {
     createdAt: string | null;
   } | null;
 };
+
+function isChargeWaitingCourseStart(charge: StudentCharge) {
+  return (
+    String(charge.chargeScheduleStatus || '').toUpperCase() ===
+      'WAITING_COURSE_START' ||
+    String(charge.creditCardRequestStatus || '').toUpperCase() ===
+      'WAITING_COURSE_START'
+  );
+}
 
 type StudentChargePaymentResponse = {
   chargeId: string;
@@ -1613,8 +1623,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     const waitingCourseStart = sorted.filter((item) => {
       const status = String(item.status || '').toUpperCase();
       return (
-        String(item.creditCardRequestStatus || '').toUpperCase() ===
-          'WAITING_COURSE_START' &&
+        isChargeWaitingCourseStart(item) &&
         status !== 'PAID' &&
         status !== 'CANCELED' &&
         status !== 'CANCELLED'
@@ -1622,9 +1631,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     });
     const pendingAll = sorted.filter((item) => {
       const status = item.status.toUpperCase();
-      const isWaitingCourseStart =
-        String(item.creditCardRequestStatus || '').toUpperCase() ===
-        'WAITING_COURSE_START';
+      const isWaitingCourseStart = isChargeWaitingCourseStart(item);
       return !isWaitingCourseStart && (status === 'PENDING' || status === 'OVERDUE');
     });
     const paid = sorted.filter((item) => item.status.toUpperCase() === 'PAID');
@@ -1671,11 +1678,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       visibleById.add(item.id);
     });
     const nextCharge =
-      visible.find(
-        (item) =>
-          String(item.creditCardRequestStatus || '').toUpperCase() !==
-          'WAITING_COURSE_START',
-      ) ?? null;
+      visible.find((item) => !isChargeWaitingCourseStart(item)) ?? null;
     const pendingAmount = pending.reduce((sum, item) => sum + item.amount, 0);
     const overdueAmount = overdue.reduce((sum, item) => sum + item.amount, 0);
 
@@ -1846,9 +1849,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     const studentName = firstAndLastName(me?.name || user.name);
     const institutionName = me?.institution?.name || 'a instituição';
     const lines = charges.map((charge, index) => {
-      const isWaitingCourseStart =
-        String(charge.creditCardRequestStatus || '').toUpperCase() ===
-        'WAITING_COURSE_START';
+      const isWaitingCourseStart = isChargeWaitingCourseStart(charge);
       const scheduleLabel = isWaitingCourseStart
         ? 'cobrança no início do curso'
         : `vencimento ${formatDate(charge.dueDate)}`;
@@ -2895,6 +2896,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     creditCardRequest?.status || charge.creditCardRequestStatus || '',
                   ).toUpperCase();
                   const isWaitingCourseStart =
+                    isChargeWaitingCourseStart(charge) ||
                     creditCardRequestStatus === 'WAITING_COURSE_START';
                   const isOverdue =
                     !isWaitingCourseStart && isChargeOverdue(charge);
@@ -2923,6 +2925,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                             : creditCardRequest
                               ? 'Solicitação enviada ao financeiro. Aguarde a confirmação ou utilize o canal de atendimento se precisar.'
                               : 'Solicitação de pagamento em cartão ainda não localizada.'}
+                        </small>
+                      ) : null}
+                      {isWaitingCourseStart && !requiresCommercialContact ? (
+                        <small className="student-charge-feedback is-warning">
+                          A primeira mensalidade será liberada quando o curso iniciar.
                         </small>
                       ) : null}
                       {paymentData?.pixCopyPaste ? (
@@ -2963,7 +2970,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     <div className="student-charge-actions">
                       <span className={isOverdue ? 'student-charge-status is-overdue' : 'student-charge-status'}>
                         {isWaitingCourseStart
-                          ? 'Aguardando início'
+                          ? 'Aguardando início do curso'
                           : normalizeChargeStatus(charge.status)}
                       </span>
                       {requiresCommercialContact ? (
@@ -3004,7 +3011,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                               {isPaying
                                 ? 'Enviando...'
                                 : creditCardRequestStatus === 'WAITING_COURSE_START'
-                                  ? 'Aguardando início'
+                                  ? 'Aguardando início do curso'
                                 : creditCardRequest
                                   ? 'Solicitado'
                                   : 'Solicitar link'}

@@ -134,6 +134,7 @@ type StudentChargePaymentContext = {
   createdAt: Date;
   dueDate: Date;
   status: string;
+  awaitingCourseStart: boolean;
   externalChargeId: string | null;
   ownerAdminId: string | null;
   enrollment: {
@@ -397,6 +398,12 @@ export class MisService {
     if (charge.status === 'CANCELED') {
       throw new BadRequestException(
         'Esta cobrança foi cancelada e não pode ser paga.',
+      );
+    }
+
+    if (charge.awaitingCourseStart) {
+      throw new BadRequestException(
+        'Esta mensalidade será liberada quando o curso iniciar.',
       );
     }
 
@@ -807,6 +814,9 @@ export class MisService {
         dueDate: true,
         amount: true,
         status: true,
+        installmentNumber: true,
+        installmentTotal: true,
+        awaitingCourseStart: true,
         externalChargeId: true,
         createdAt: true,
         enrollment: {
@@ -895,6 +905,9 @@ export class MisService {
       dueDate: Date;
       amount: Prisma.Decimal;
       status: string;
+      installmentNumber: number | null;
+      installmentTotal: number | null;
+      awaitingCourseStart: boolean;
       externalChargeId: string | null;
       enrollment: {
         selectedPaymentOption: Prisma.JsonValue | null;
@@ -950,6 +963,7 @@ export class MisService {
         charge.creditCardPaymentRequests[0]?.status || '',
       ).toUpperCase();
       const waitingCourseStart =
+        charge.awaitingCourseStart ||
         creditCardRequestStatus === 'WAITING_COURSE_START';
       const pricing = pricingByChargeId.get(charge.id) ?? {
         originalAmount: this.toMoneyValue(Number(charge.amount)),
@@ -980,6 +994,9 @@ export class MisService {
             charge.enrollment.selectedPaymentOption,
           ),
         paymentMethod,
+        chargeScheduleStatus: waitingCourseStart
+          ? 'WAITING_COURSE_START'
+          : null,
         creditCardRequestStatus: creditCardRequestStatus || null,
         paymentOptionTitle: this.resolveEnrollmentPaymentOptionTitle(
           charge.kind === 'ENROLLMENT_FEE'
@@ -1218,9 +1235,12 @@ export class MisService {
     charges: Array<{
       id: string;
       enrollmentId: string;
+      kind: 'COURSE_PAYMENT' | 'ENROLLMENT_FEE';
       amount: Prisma.Decimal;
       dueDate: Date;
       createdAt: Date;
+      installmentNumber: number | null;
+      installmentTotal: number | null;
       enrollment: {
         createdAt: Date;
         selectedPaymentOption: Prisma.JsonValue | null;
@@ -1254,11 +1274,13 @@ export class MisService {
         Number(first.enrollment.schoolClass.course.enrollmentFee ?? 0),
       );
 
-      const enrollmentFeeCharge = this.findEnrollmentFeeChargeInOrderedGroup(
-        ordered,
-        enrollmentFee,
-        first.enrollment.createdAt,
-      );
+      const enrollmentFeeCharge =
+        ordered.find((item) => item.kind === 'ENROLLMENT_FEE') ??
+        this.findEnrollmentFeeChargeInOrderedGroup(
+          ordered,
+          enrollmentFee,
+          first.enrollment.createdAt,
+        );
 
       if (enrollmentFeeCharge) {
         descriptionById.set(enrollmentFeeCharge.id, 'Matrícula');
@@ -1285,6 +1307,13 @@ export class MisService {
           : remaining.length;
 
       remaining.forEach((item, index) => {
+        if (item.installmentNumber && item.installmentTotal) {
+          descriptionById.set(
+            item.id,
+            `Mensalidade ${item.installmentNumber}/${item.installmentTotal}`,
+          );
+          return;
+        }
         if (totalInstallments <= 1) {
           descriptionById.set(item.id, 'Mensalidade 1/1');
           return;
@@ -2599,6 +2628,7 @@ export class MisService {
         createdAt: true,
         dueDate: true,
         status: true,
+        awaitingCourseStart: true,
         externalChargeId: true,
         ownerAdminId: true,
         enrollment: {
@@ -2667,6 +2697,7 @@ export class MisService {
         createdAt: true,
         dueDate: true,
         status: true,
+        awaitingCourseStart: true,
         externalChargeId: true,
         ownerAdminId: true,
         enrollment: {
@@ -2740,6 +2771,7 @@ export class MisService {
         createdAt: true,
         dueDate: true,
         status: true,
+        awaitingCourseStart: true,
         externalChargeId: true,
         ownerAdminId: true,
         enrollment: {
@@ -4654,4 +4686,3 @@ export class MisService {
     return Array.from(new Set(classIds));
   }
 }
-

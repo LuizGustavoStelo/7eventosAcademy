@@ -147,6 +147,7 @@ describe('EnrollmentsService pre-enrollment commercial selection', () => {
         update: jest.fn(),
       },
       monthlyCharge: {
+        findMany: jest.fn().mockResolvedValue([]),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         create: jest.fn(),
       },
@@ -181,5 +182,112 @@ describe('EnrollmentsService pre-enrollment commercial selection', () => {
         requestedAt: expect.any(Date),
       },
     });
+  });
+
+  it('creates only the first boleto installment while the course has not started', () => {
+    const service = new EnrollmentsService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const enrollmentCreatedAt = new Date('2026-07-17T09:00:00-04:00');
+
+    const charges = (
+      service as unknown as {
+        buildInstallmentCharges: (input: Record<string, unknown>) => Array<{
+          dueDate: Date;
+          amount: number;
+          status: string;
+          installmentNumber?: number;
+          installmentTotal?: number;
+          awaitingCourseStart?: boolean;
+        }>;
+      }
+    ).buildInstallmentCharges({
+      enrollmentCreatedAt,
+      classStartDate: null,
+      classStatus: 'ENROLLMENTS_OPEN',
+      paymentModel: 'INSTALLMENTS',
+      installmentMonths: 18,
+      installmentValue: null,
+      selectedPaymentOption: {
+        id: 'boleto-18',
+        method: 'BANK_SLIP',
+        type: 'INSTALLMENTS',
+        collectionMode: 'INSTALLMENT_CHARGES',
+        installmentStartMode: 'COURSE_START',
+        installmentCount: 18,
+        installmentAmount: 592,
+        dueDay: 10,
+      },
+    });
+
+    expect(charges).toEqual([
+      expect.objectContaining({
+        dueDate: enrollmentCreatedAt,
+        amount: 592,
+        status: 'PENDING',
+        installmentNumber: 1,
+        installmentTotal: 18,
+        awaitingCourseStart: true,
+      }),
+    ]);
+  });
+
+  it('sets the first boleto due date only when the class begins', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-17T09:00:00-04:00'));
+    try {
+      const tx = {
+        monthlyCharge: {
+          findMany: jest.fn().mockResolvedValue([
+            {
+              id: 'charge-boleto-1',
+              enrollment: {
+                selectedPaymentOption: {
+                  id: 'boleto-18',
+                  method: 'BANK_SLIP',
+                  type: 'INSTALLMENTS',
+                  collectionMode: 'INSTALLMENT_CHARGES',
+                  installmentStartMode: 'COURSE_START',
+                  dueDay: 10,
+                },
+              },
+            },
+          ]),
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        creditCardPaymentRequest: {
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+      };
+      const prisma = {
+        $transaction: jest.fn().mockImplementation((callback) => callback(tx)),
+      };
+      const service = new EnrollmentsService(
+        prisma as never,
+        {} as never,
+        {} as never,
+        {} as never,
+      );
+
+      await service.activateCourseStartPaymentsForClass('class-1');
+
+      const update = tx.monthlyCharge.updateMany.mock.calls[0][0];
+      expect(update.where).toEqual({
+        id: 'charge-boleto-1',
+        awaitingCourseStart: true,
+        status: { in: ['PENDING', 'OVERDUE'] },
+      });
+      expect(update.data).toEqual({
+        dueDate: expect.any(Date),
+        status: 'PENDING',
+        awaitingCourseStart: false,
+      });
+      expect(update.data.dueDate.getMonth()).toBe(7);
+      expect(update.data.dueDate.getDate()).toBe(10);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

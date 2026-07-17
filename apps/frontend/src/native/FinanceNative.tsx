@@ -30,6 +30,7 @@ type Charge = {
   description?: string;
   paymentMethod?: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD' | string | null;
   status: 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELED';
+  awaitingCourseStart?: boolean;
   isCreditCardRequestHistory?: boolean;
   historyApprovedAt?: string | null;
   creditCardPaymentRequest?: {
@@ -1284,8 +1285,9 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                     charge.enrollment?.schoolClass?.course?.name ||
                     'Turma não definida';
                   const isWaitingCourseStart =
+                    Boolean(charge.awaitingCourseStart) ||
                     String(charge.creditCardPaymentRequest?.status || '').toUpperCase() ===
-                    'WAITING_COURSE_START';
+                      'WAITING_COURSE_START';
 
                   return (
                     <tr key={charge.id}>
@@ -1314,7 +1316,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                       <td>
                         <span className={`native-status-chip ${chipClass(charge.status)}`}>
                           {isWaitingCourseStart
-                            ? 'Aguardando início'
+                            ? 'Aguardando início do curso'
                             : statusLabel(charge.status)}
                         </span>
                       </td>

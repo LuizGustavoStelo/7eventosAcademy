@@ -81,6 +81,15 @@ type EnrollmentPaymentOption = {
   } | null;
 };
 
+type GeneratedMonthlyCharge = {
+  dueDate: Date;
+  amount: number;
+  status: 'PENDING' | 'OVERDUE';
+  installmentNumber?: number;
+  installmentTotal?: number;
+  awaitingCourseStart?: boolean;
+};
+
 @Injectable()
 export class EnrollmentsService {
   constructor(
@@ -426,6 +435,9 @@ export class EnrollmentsService {
               amount: charge.amount,
               kind: charge.kind,
               status: charge.status,
+              installmentNumber: charge.installmentNumber ?? null,
+              installmentTotal: charge.installmentTotal ?? null,
+              awaitingCourseStart: charge.awaitingCourseStart ?? false,
             })),
           });
         }
@@ -509,6 +521,25 @@ export class EnrollmentsService {
     const activatedAt = new Date();
 
     return this.prisma.$transaction(async (tx) => {
+      const sequentialCharges = await tx.monthlyCharge.findMany({
+        where: {
+          kind: 'COURSE_PAYMENT',
+          awaitingCourseStart: true,
+          status: { in: ['PENDING', 'OVERDUE'] },
+          enrollment: {
+            classId,
+            status: 'ACTIVE',
+          },
+        },
+        select: {
+          id: true,
+          enrollment: {
+            select: {
+              selectedPaymentOption: true,
+            },
+          },
+        },
+      });
       const requests = await tx.creditCardPaymentRequest.findMany({
         where: {
           kind: 'COURSE_PAYMENT',
@@ -533,6 +564,35 @@ export class EnrollmentsService {
       });
 
       let activatedCount = 0;
+      for (const charge of sequentialCharges) {
+        const option = this.parseStoredPaymentOption(
+          charge.enrollment.selectedPaymentOption,
+        );
+        const isSequentialCourseStartCharge =
+          option?.type === 'INSTALLMENTS' &&
+          option.installmentStartMode === 'COURSE_START' &&
+          option.collectionMode !== 'MANUAL_LINK';
+        if (!isSequentialCourseStartCharge) continue;
+
+        const dueDate = this.buildFirstCourseStartDueDate(
+          activatedAt,
+          option.dueDay ?? undefined,
+        );
+        const updated = await tx.monthlyCharge.updateMany({
+          where: {
+            id: charge.id,
+            awaitingCourseStart: true,
+            status: { in: ['PENDING', 'OVERDUE'] },
+          },
+          data: {
+            dueDate,
+            status: 'PENDING',
+            awaitingCourseStart: false,
+          },
+        });
+        activatedCount += updated.count;
+      }
+
       for (const request of requests) {
         if (!request.enrollmentId) continue;
         const option = this.parseStoredPaymentOption(
@@ -722,7 +782,7 @@ export class EnrollmentsService {
     installmentMonths: number | null;
     installmentValue: { toNumber: () => number } | null;
     selectedPaymentOption?: EnrollmentPaymentOption;
-  }) {
+  }): GeneratedMonthlyCharge[] {
     if (input.selectedPaymentOption) {
       const startMode = input.selectedPaymentOption.installmentStartMode;
       const scheduledDate = input.selectedPaymentOption.installmentStartDate
@@ -859,6 +919,28 @@ export class EnrollmentsService {
           : value;
       };
 
+      if (startMode === 'COURSE_START') {
+        const awaitingCourseStart = input.classStatus !== 'IN_PROGRESS';
+        const dueDate = awaitingCourseStart
+          ? new Date(input.enrollmentCreatedAt)
+          : this.buildFirstCourseStartDueDate(
+              input.enrollmentCreatedAt,
+              input.selectedPaymentOption.dueDay ?? undefined,
+            );
+        return [
+          {
+            dueDate,
+            amount: resolveInstallmentAmount(0),
+            status: awaitingCourseStart
+              ? 'PENDING'
+              : this.resolveChargeStatusByDueDate(dueDate),
+            installmentNumber: 1,
+            installmentTotal: Math.trunc(months),
+            awaitingCourseStart,
+          },
+        ];
+      }
+
       if (hasScheduledStart) {
         for (let index = 0; index < months; index += 1) {
           const dueDate = this.buildChargeDueDate(
@@ -948,7 +1030,11 @@ export class EnrollmentsService {
     installmentMonths: number | null;
     installmentValue: { toNumber: () => number } | null;
     selectedPaymentOption?: EnrollmentPaymentOption;
-  }) {
+  }): Array<
+    GeneratedMonthlyCharge & {
+      kind: 'COURSE_PAYMENT' | 'ENROLLMENT_FEE';
+    }
+  > {
     const charges = this.buildInstallmentCharges({
       enrollmentCreatedAt: input.enrollmentCreatedAt,
       classStartDate: input.classStartDate,
@@ -963,7 +1049,7 @@ export class EnrollmentsService {
       Boolean(input.selectedPaymentOption) &&
       charges.length > 0
         ? charges.map((item, index) => {
-            if (index !== 0) return item;
+            if (index !== 0 || item.installmentNumber) return item;
             const dueDate =
               item.dueDate.getTime() < enrollmentGraceDueDate.getTime()
                 ? new Date(enrollmentGraceDueDate)
@@ -1036,6 +1122,41 @@ export class EnrollmentsService {
     const month = dueDate.getMonth();
     const maxDay = new Date(year, month + 1, 0).getDate();
     dueDate.setDate(Math.min(Math.max(1, dueDay), maxDay));
+    return dueDate;
+  }
+
+  private buildFirstCourseStartDueDate(referenceDate: Date, dueDay?: number) {
+    const reference = new Date(referenceDate);
+    if (!dueDay) return reference;
+
+    const normalizedDueDay = Math.min(Math.max(1, Math.trunc(dueDay)), 31);
+    const buildForMonth = (year: number, month: number) => {
+      const maxDay = new Date(year, month + 1, 0).getDate();
+      return new Date(
+        year,
+        month,
+        Math.min(normalizedDueDay, maxDay),
+        reference.getHours(),
+        reference.getMinutes(),
+        reference.getSeconds(),
+        reference.getMilliseconds(),
+      );
+    };
+
+    let dueDate = buildForMonth(reference.getFullYear(), reference.getMonth());
+    const referenceDay = new Date(
+      reference.getFullYear(),
+      reference.getMonth(),
+      reference.getDate(),
+    );
+    const dueDateDay = new Date(
+      dueDate.getFullYear(),
+      dueDate.getMonth(),
+      dueDate.getDate(),
+    );
+    if (dueDateDay.getTime() < referenceDay.getTime()) {
+      dueDate = buildForMonth(reference.getFullYear(), reference.getMonth() + 1);
+    }
     return dueDate;
   }
 
