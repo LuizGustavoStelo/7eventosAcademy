@@ -14,7 +14,7 @@ WITH eligible_enrollments AS (
       ELSE 1
     END AS "installment_total"
   FROM "enrollments" enrollment
-  INNER JOIN "school_classes" school_class
+  INNER JOIN "classes" school_class
     ON school_class."id" = enrollment."class_id"
   WHERE enrollment."selected_payment_option"->>'installmentStartMode' = 'COURSE_START'
     AND enrollment."selected_payment_option"->>'type' = 'INSTALLMENTS'
@@ -68,7 +68,7 @@ WITH eligible_enrollments AS (
       ELSE 1
     END AS "installment_total"
   FROM "enrollments" enrollment
-  INNER JOIN "school_classes" school_class
+  INNER JOIN "classes" school_class
     ON school_class."id" = enrollment."class_id"
   WHERE enrollment."selected_payment_option"->>'installmentStartMode' = 'COURSE_START'
     AND enrollment."selected_payment_option"->>'type' = 'INSTALLMENTS'
