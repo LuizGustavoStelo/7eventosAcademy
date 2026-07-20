@@ -17,6 +17,7 @@ import { UpdateVoucherStatusDto } from './dto/update-voucher-status.dto';
 type ChargeStatusInput = 'pending' | 'paid' | 'overdue' | 'canceled';
 type TransactionStatusInput = 'pending' | 'success' | 'failed' | 'refunded';
 type VoucherDiscountTypeInput = 'PERCENT' | 'FIXED';
+type VoucherValueBaseInput = 'REGULAR' | 'PROMOTIONAL';
 type VoucherAppliesToInput = 'TOTAL' | 'INSTALLMENT';
 type VoucherInstallmentScopeInput = 'ALL' | 'SINGLE';
 type VoucherPaymentOptionTypeInput = 'CASH' | 'INSTALLMENTS';
@@ -60,6 +61,7 @@ type VoucherCourseOption = {
   title: string;
   method: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD';
   type: VoucherPaymentOptionTypeInput;
+  isPromotional: boolean;
 };
 
 type AppliedVoucherSnapshot = {
@@ -68,6 +70,7 @@ type AppliedVoucherSnapshot = {
   title: string | null;
   discountType: VoucherDiscountTypeInput;
   discountValue: number;
+  valueBase: VoucherValueBaseInput;
   appliesTo: VoucherAppliesToInput;
   appliesToEnrollmentFee: boolean;
   installmentScope: VoucherInstallmentScopeInput;
@@ -719,6 +722,7 @@ export class FinanceService {
       title: voucher.title,
       discountType: voucher.discountType,
       discountValue: Number(voucher.discountValue),
+      valueBase: voucher.valueBase,
       appliesTo: voucher.appliesTo,
       appliesToEnrollmentFee: voucher.appliesToEnrollmentFee,
       installmentScope: voucher.installmentScope,
@@ -812,6 +816,7 @@ export class FinanceService {
     }
 
     const discountType = this.normalizeVoucherDiscountType(dto.discountType);
+    const valueBase = this.normalizeVoucherValueBase(dto.valueBase);
     const appliesTo = this.normalizeVoucherAppliesTo(dto.appliesTo);
     const appliesToEnrollmentFee = dto.appliesToEnrollmentFee === true;
     const installmentScope =
@@ -827,6 +832,22 @@ export class FinanceService {
       throw new BadRequestException(
         'Desconto em percentual deve estar entre 0,01% e 100%.',
       );
+    }
+
+    if (valueBase === 'PROMOTIONAL') {
+      const promotionalOptionIds = new Set(
+        allCoursePaymentOptions
+          .filter((option) => option.isPromotional)
+          .map((option) => option.id),
+      );
+      const optionWithoutPromotion = normalizedAllowedOptionIds.find(
+        (optionId) => !promotionalOptionIds.has(optionId),
+      );
+      if (optionWithoutPromotion) {
+        throw new BadRequestException(
+          'Para usar o valor promocional, selecione somente opções de pagamento que tenham promoção configurada.',
+        );
+      }
     }
 
     if (appliesTo === 'INSTALLMENT') {
@@ -860,6 +881,7 @@ export class FinanceService {
         title: String(dto.title || '').trim() || null,
         discountType,
         discountValue,
+        valueBase,
         appliesTo,
         appliesToEnrollmentFee,
         installmentScope,
@@ -889,6 +911,7 @@ export class FinanceService {
       title: createdVoucher.title,
       discountType: createdVoucher.discountType,
       discountValue: Number(createdVoucher.discountValue),
+      valueBase: createdVoucher.valueBase,
       appliesTo: createdVoucher.appliesTo,
       appliesToEnrollmentFee: createdVoucher.appliesToEnrollmentFee,
       installmentScope: createdVoucher.installmentScope,
@@ -953,6 +976,7 @@ export class FinanceService {
       title: updatedVoucher.title,
       discountType: updatedVoucher.discountType,
       discountValue: Number(updatedVoucher.discountValue),
+      valueBase: updatedVoucher.valueBase,
       appliesTo: updatedVoucher.appliesTo,
       appliesToEnrollmentFee: updatedVoucher.appliesToEnrollmentFee,
       installmentScope: updatedVoucher.installmentScope,
@@ -1373,6 +1397,7 @@ export class FinanceService {
         title: true,
         discountType: true,
         discountValue: true,
+        valueBase: true,
         appliesTo: true,
         appliesToEnrollmentFee: true,
         installmentScope: true,
@@ -1395,8 +1420,10 @@ export class FinanceService {
         this.isVoucherApplicableToOption({
           allowedPaymentOptionIds: voucher.allowedPaymentOptionIds,
           appliesTo: voucher.appliesTo,
+          valueBase: voucher.valueBase,
           optionId: option.id,
           optionType: option.type,
+          optionIsPromotional: option.isPromotional,
         }),
       )
       .map((option) => option.id);
@@ -1413,6 +1440,7 @@ export class FinanceService {
       title: voucher.title,
       discountType: voucher.discountType,
       discountValue: Number(voucher.discountValue),
+      valueBase: voucher.valueBase,
       appliesTo: voucher.appliesTo,
       appliesToEnrollmentFee: voucher.appliesToEnrollmentFee,
       installmentScope: voucher.installmentScope,
@@ -1437,6 +1465,24 @@ export class FinanceService {
       ),
       affectedPaymentOptionIds,
     };
+  }
+
+  async resolveVoucherValueBaseForCourse(input: {
+    institutionId: string;
+    courseId: string;
+    voucherCode: string;
+    tx?: Prisma.TransactionClient;
+  }): Promise<VoucherValueBaseInput> {
+    const voucher = await this.findActiveVoucherForCourse({
+      tx: input.tx,
+      institutionId: input.institutionId,
+      courseId: input.courseId,
+      code: this.normalizeVoucherCode(input.voucherCode),
+    });
+    if (!voucher) {
+      throw new BadRequestException('Voucher de desconto inválido para este curso.');
+    }
+    return voucher.valueBase;
   }
 
   async applyVoucherOnPaymentOption(input: {
@@ -1466,12 +1512,23 @@ export class FinanceService {
       !this.isVoucherApplicableToOption({
         allowedPaymentOptionIds: voucher.allowedPaymentOptionIds,
         appliesTo: voucher.appliesTo,
+        valueBase: voucher.valueBase,
         optionId: input.paymentOption.id,
         optionType: input.paymentOption.type,
+        optionIsPromotional: input.paymentOption.isPromotional,
       })
     ) {
       throw new BadRequestException(
         'Voucher não é válido para a forma de pagamento selecionada.',
+      );
+    }
+
+    if (
+      voucher.valueBase === 'PROMOTIONAL' &&
+      input.paymentOption.promotionalApplied !== true
+    ) {
+      throw new BadRequestException(
+        'Este voucher usa o valor promocional, mas a promoção não está disponível para esta opção.',
       );
     }
 
@@ -1505,6 +1562,7 @@ export class FinanceService {
     const adjusted = this.applyVoucherValuesToPaymentOption(input.paymentOption, {
       discountType: voucher.discountType,
       discountValue: Number(voucher.discountValue),
+      valueBase: voucher.valueBase,
       appliesTo: voucher.appliesTo,
       installmentScope: voucher.installmentScope,
     });
@@ -1545,6 +1603,7 @@ export class FinanceService {
         title: voucher.title,
         discountType: voucher.discountType,
         discountValue,
+        valueBase: voucher.valueBase,
         appliesTo: voucher.appliesTo,
         appliesToEnrollmentFee: voucher.appliesToEnrollmentFee,
         installmentScope: voucher.installmentScope,
@@ -2405,6 +2464,14 @@ export class FinanceService {
       : 'FIXED';
   }
 
+  private normalizeVoucherValueBase(
+    value?: string | null,
+  ): VoucherValueBaseInput {
+    return String(value || '').trim().toUpperCase() === 'PROMOTIONAL'
+      ? 'PROMOTIONAL'
+      : 'REGULAR';
+  }
+
   private normalizeVoucherAppliesTo(value: string): VoucherAppliesToInput {
     return String(value || '').trim().toUpperCase() === 'INSTALLMENT'
       ? 'INSTALLMENT'
@@ -2450,8 +2517,10 @@ export class FinanceService {
   private isVoucherApplicableToOption(input: {
     allowedPaymentOptionIds: Prisma.JsonValue | null | undefined;
     appliesTo: VoucherAppliesToInput;
+    valueBase?: VoucherValueBaseInput;
     optionId: string;
     optionType: VoucherPaymentOptionTypeInput;
+    optionIsPromotional?: boolean;
   }) {
     const allowedIds = this.parseAllowedPaymentOptionIds(
       input.allowedPaymentOptionIds,
@@ -2461,6 +2530,10 @@ export class FinanceService {
     }
 
     if (input.appliesTo === 'INSTALLMENT' && input.optionType !== 'INSTALLMENTS') {
+      return false;
+    }
+
+    if (input.valueBase === 'PROMOTIONAL' && !input.optionIsPromotional) {
       return false;
     }
 
@@ -2490,6 +2563,7 @@ export class FinanceService {
           title: `${months}x (Boleto)`,
           method: 'BANK_SLIP' as const,
           type: 'INSTALLMENTS' as const,
+          isPromotional: false,
         },
       ];
     }
@@ -2500,6 +2574,7 @@ export class FinanceService {
         title: 'À vista (Pix)',
         method: 'PIX' as const,
         type: 'CASH' as const,
+        isPromotional: false,
       },
     ];
   }
@@ -2536,6 +2611,10 @@ export class FinanceService {
           title,
           method,
           type,
+          isPromotional:
+            option.isPromotional === true &&
+            (Number(option.promotionalTotalAmount ?? 0) > 0 ||
+              Number(option.promotionalInstallmentAmount ?? 0) > 0),
         } as VoucherCourseOption;
       })
       .filter((item): item is VoucherCourseOption => item !== null);
@@ -2556,14 +2635,29 @@ export class FinanceService {
     voucher: {
       discountType: VoucherDiscountTypeInput;
       discountValue: number;
+      valueBase: VoucherValueBaseInput;
       appliesTo: VoucherAppliesToInput;
       installmentScope: VoucherInstallmentScopeInput;
     },
   ): VoucherPaymentOptionShape {
-    const next = {
-      ...paymentOption,
-      appliedVoucher: paymentOption.appliedVoucher ?? null,
-    };
+    const next =
+      voucher.valueBase === 'REGULAR'
+        ? {
+            ...paymentOption,
+            discountEnabled: false,
+            discountTotalAmount: null,
+            discountInstallmentAmount: null,
+            discountType: null,
+            discountValue: null,
+            discountDeadlineDay: null,
+            discountRequiresActiveCrf: false,
+            discountAppliesTo: null,
+            appliedVoucher: paymentOption.appliedVoucher ?? null,
+          }
+        : {
+            ...paymentOption,
+            appliedVoucher: paymentOption.appliedVoucher ?? null,
+          };
     const safeDiscount = this.toMoneyValue(voucher.discountValue);
     const percentRate = voucher.discountType === 'PERCENT' ? safeDiscount / 100 : 0;
 
@@ -2778,6 +2872,7 @@ export class FinanceService {
         title: true,
         discountType: true,
         discountValue: true,
+        valueBase: true,
         appliesTo: true,
         appliesToEnrollmentFee: true,
         installmentScope: true,

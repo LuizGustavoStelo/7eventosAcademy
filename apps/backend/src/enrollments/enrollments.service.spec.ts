@@ -56,6 +56,7 @@ describe('EnrollmentsService pre-enrollment commercial selection', () => {
       $transaction: jest.fn().mockImplementation((callback) => callback(tx)),
     };
     const financeService = {
+      resolveVoucherValueBaseForCourse: jest.fn().mockResolvedValue('REGULAR'),
       applyVoucherOnPaymentOption: jest
         .fn()
         .mockImplementation(({ paymentOption }) => ({
@@ -123,6 +124,143 @@ describe('EnrollmentsService pre-enrollment commercial selection', () => {
     );
     expect(Number(courseRequest.amount)).toBe(4860);
     expect(Number(courseRequest.installmentAmount)).toBe(270);
+  });
+
+  it('uses the promotional condition as the base for a promotional voucher', async () => {
+    const tx = {
+      enrollment: {
+        count: jest.fn().mockResolvedValue(0),
+      },
+      studentCourse: {
+        count: jest.fn().mockResolvedValue(0),
+      },
+    };
+    const applyVoucherOnPaymentOption = jest
+      .fn()
+      .mockImplementation(({ paymentOption }) => paymentOption);
+    const financeService = {
+      resolveVoucherValueBaseForCourse: jest
+        .fn()
+        .mockResolvedValue('PROMOTIONAL'),
+      applyVoucherOnPaymentOption,
+    };
+    const service = new EnrollmentsService(
+      {} as never,
+      {} as never,
+      financeService as never,
+      {} as never,
+    );
+
+    await (
+      service as unknown as {
+        resolveEnrollmentPaymentOption: (input: Record<string, unknown>) => Promise<unknown>;
+      }
+    ).resolveEnrollmentPaymentOption({
+      tx,
+      institutionId: 'institution-1',
+      courseId: 'course-1',
+      requestedPaymentOptionId: 'boleto-18',
+      requestedVoucherCode: 'PROMO50',
+      course: {
+        paymentModel: 'INSTALLMENTS',
+        price: 15208.38,
+        installmentMonths: 18,
+        installmentValue: 844.91,
+        paymentOptions: [
+          {
+            id: 'boleto-18',
+            title: '18 parcelas no boleto',
+            method: 'BANK_SLIP',
+            type: 'INSTALLMENTS',
+            collectionMode: 'INSTALLMENT_CHARGES',
+            totalAmount: 15208.38,
+            installmentCount: 18,
+            installmentAmount: 844.91,
+            isPromotional: true,
+            promotionalSlots: 20,
+            promotionalTotalAmount: 10656,
+            promotionalInstallmentAmount: 592,
+            active: true,
+          },
+        ],
+      },
+    });
+
+    expect(applyVoucherOnPaymentOption).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentOption: expect.objectContaining({
+          id: 'boleto-18',
+          totalAmount: 10656,
+          installmentAmount: 592,
+          promotionalApplied: true,
+        }),
+      }),
+    );
+  });
+
+  it('uses the full standard price without stacking commercial discounts', async () => {
+    const applyVoucherOnPaymentOption = jest
+      .fn()
+      .mockImplementation(({ paymentOption }) => paymentOption);
+    const financeService = {
+      resolveVoucherValueBaseForCourse: jest.fn().mockResolvedValue('REGULAR'),
+      applyVoucherOnPaymentOption,
+    };
+    const service = new EnrollmentsService(
+      {} as never,
+      {} as never,
+      financeService as never,
+      {} as never,
+    );
+
+    await (
+      service as unknown as {
+        resolveEnrollmentPaymentOption: (input: Record<string, unknown>) => Promise<unknown>;
+      }
+    ).resolveEnrollmentPaymentOption({
+      tx: {},
+      institutionId: 'institution-1',
+      courseId: 'course-1',
+      requestedPaymentOptionId: 'boleto-12',
+      requestedVoucherCode: 'PADRAO50',
+      course: {
+        paymentModel: 'INSTALLMENTS',
+        price: 13824,
+        installmentMonths: 12,
+        installmentValue: 1152,
+        paymentOptions: [
+          {
+            id: 'boleto-12',
+            title: '12 parcelas no boleto',
+            method: 'BANK_SLIP',
+            type: 'INSTALLMENTS',
+            collectionMode: 'INSTALLMENT_CHARGES',
+            totalAmount: 13824,
+            installmentCount: 12,
+            installmentAmount: 1152,
+            discountEnabled: true,
+            discountTotalAmount: 13404,
+            discountInstallmentAmount: 1117,
+            discountDeadlineDay: 7,
+            active: true,
+          },
+        ],
+      },
+    });
+
+    expect(applyVoucherOnPaymentOption).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentOption: expect.objectContaining({
+          totalAmount: 13824,
+          installmentAmount: 1152,
+          promotionalApplied: false,
+          discountEnabled: false,
+          discountTotalAmount: null,
+          discountInstallmentAmount: null,
+          discountDeadlineDay: null,
+        }),
+      }),
+    );
   });
 
   it('activates a course-start card request when the class begins', async () => {

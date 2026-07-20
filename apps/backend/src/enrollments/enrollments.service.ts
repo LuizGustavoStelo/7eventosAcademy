@@ -70,6 +70,7 @@ type EnrollmentPaymentOption = {
     title: string | null;
     discountType: 'PERCENT' | 'FIXED';
     discountValue: number;
+    valueBase?: 'REGULAR' | 'PROMOTIONAL';
     appliesTo: 'TOTAL' | 'INSTALLMENT';
     appliesToEnrollmentFee?: boolean;
     installmentScope?: 'ALL' | 'SINGLE';
@@ -1437,6 +1438,27 @@ export class EnrollmentsService {
     const hasRequestedVoucher = Boolean(
       String(input.requestedVoucherCode || '').trim(),
     );
+    const voucherValueBase = hasRequestedVoucher
+      ? await this.financeService.resolveVoucherValueBaseForCourse({
+          tx: input.tx,
+          institutionId: input.institutionId,
+          courseId: input.courseId,
+          voucherCode: input.requestedVoucherCode!,
+        })
+      : null;
+
+    const resolveOptionForVoucher = async (option: EnrollmentPaymentOption) => {
+      if (voucherValueBase !== 'PROMOTIONAL') {
+        return this.resolveOptionAtRegularPrice(option);
+      }
+      const promotionalApplied = await this.isPromotionalOptionAvailable({
+        tx: input.tx,
+        institutionId: input.institutionId,
+        courseId: input.courseId,
+        option,
+      });
+      return this.resolveOptionWithPromotion(option, promotionalApplied);
+    };
 
     if (availableOptions.length === 0) {
       throw new BadRequestException(
@@ -1453,7 +1475,7 @@ export class EnrollmentsService {
       }
 
       const optionWithPromotion = hasRequestedVoucher
-        ? this.resolveOptionWithoutPromotion(requestedOption)
+        ? await resolveOptionForVoucher(requestedOption)
         : this.resolveOptionWithPromotion(
             requestedOption,
             await this.isPromotionalOptionAvailable({
@@ -1475,7 +1497,7 @@ export class EnrollmentsService {
     const resolvedOptions: EnrollmentPaymentOption[] = [];
     if (hasRequestedVoucher) {
       for (const option of availableOptions) {
-        resolvedOptions.push(this.resolveOptionWithoutPromotion(option));
+        resolvedOptions.push(await resolveOptionForVoucher(option));
       }
     } else {
       for (const option of availableOptions) {
@@ -1654,12 +1676,20 @@ export class EnrollmentsService {
     };
   }
 
-  private resolveOptionWithoutPromotion(
+  private resolveOptionAtRegularPrice(
     option: EnrollmentPaymentOption,
   ): EnrollmentPaymentOption {
     return {
       ...option,
       promotionalApplied: false,
+      discountEnabled: false,
+      discountTotalAmount: null,
+      discountInstallmentAmount: null,
+      discountType: null,
+      discountValue: null,
+      discountDeadlineDay: null,
+      discountRequiresActiveCrf: false,
+      discountAppliesTo: null,
     };
   }
 

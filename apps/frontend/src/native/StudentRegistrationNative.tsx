@@ -41,6 +41,7 @@ type CourseCatalogItem = {
     promotionalSlots?: number | null;
     promotionalTotalAmount?: number | null;
     promotionalInstallmentAmount?: number | null;
+    promotionalApplied?: boolean | null;
     discountEnabled?: boolean | null;
     discountTotalAmount?: number | null;
     discountInstallmentAmount?: number | null;
@@ -56,6 +57,7 @@ type CourseCatalogItem = {
       title?: string | null;
       discountType?: 'PERCENT' | 'FIXED' | string;
       discountValue?: number | null;
+      valueBase?: 'REGULAR' | 'PROMOTIONAL' | string;
       appliesTo?: 'TOTAL' | 'INSTALLMENT' | string;
       installmentScope?: 'ALL' | 'SINGLE' | string;
       discountLabel?: string | null;
@@ -128,6 +130,7 @@ type VoucherValidationResponse = {
   title?: string | null;
   discountType: 'PERCENT' | 'FIXED';
   discountValue: number;
+  valueBase?: 'REGULAR' | 'PROMOTIONAL';
   appliesTo: 'TOTAL' | 'INSTALLMENT';
   installmentScope?: 'ALL' | 'SINGLE';
   discountLabel: string;
@@ -579,6 +582,41 @@ function applyVoucherToPaymentOption(
     return option;
   }
 
+  const usesPromotionalValue =
+    String(voucher.valueBase || '').toUpperCase() === 'PROMOTIONAL';
+  const installmentCount = Math.max(1, Number(option.installmentCount || 1));
+  const promotionalTotal = Number(option.promotionalTotalAmount || 0);
+  const promotionalInstallment =
+    Number(option.promotionalInstallmentAmount || 0) ||
+    (promotionalTotal > 0 ? promotionalTotal / installmentCount : 0);
+  const sourceOption: PaymentOptionItem = usesPromotionalValue
+    ? {
+        ...option,
+        totalAmount: promotionalTotal,
+        installmentAmount:
+          String(option.type || '').toUpperCase() === 'INSTALLMENTS'
+            ? promotionalInstallment
+            : option.installmentAmount,
+        discountEnabled:
+          Boolean(option.promotionalDiscountEnabled) &&
+          Number(option.promotionalDiscountTotalAmount || 0) > 0,
+        discountTotalAmount: option.promotionalDiscountTotalAmount,
+        discountInstallmentAmount: option.promotionalDiscountInstallmentAmount,
+        discountDeadlineDay: option.promotionalDiscountDeadlineDay,
+        discountRequiresActiveCrf: option.promotionalDiscountRequiresActiveCrf,
+        promotionalApplied: true,
+      }
+    : {
+        ...option,
+        isPromotional: false,
+        promotionalApplied: false,
+        discountEnabled: false,
+        discountTotalAmount: null,
+        discountInstallmentAmount: null,
+        discountDeadlineDay: null,
+        discountRequiresActiveCrf: false,
+      };
+
   const appliesToInstallment =
     String(voucher.appliesTo || '').toUpperCase() === 'INSTALLMENT';
   const installmentScope =
@@ -587,7 +625,6 @@ function applyVoucherToPaymentOption(
       : 'ALL';
   const isPercent = String(voucher.discountType || '').toUpperCase() === 'PERCENT';
   const discountValue = Math.max(0, Number(voucher.discountValue || 0));
-  const installmentCount = Math.max(1, Number(option.installmentCount || 1));
 
   const applyDiscount = (value: number) => {
     const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
@@ -597,12 +634,13 @@ function applyVoucherToPaymentOption(
   };
 
   const nextOption: PaymentOptionItem = {
-    ...option,
+    ...sourceOption,
     appliedVoucher: {
       code: voucher.code,
       title: voucher.title || null,
       discountType: voucher.discountType,
       discountValue: discountValue,
+      valueBase: voucher.valueBase || 'REGULAR',
       appliesTo: voucher.appliesTo,
       discountLabel: voucher.discountLabel,
       installmentScope,
@@ -616,8 +654,11 @@ function applyVoucherToPaymentOption(
     },
   };
 
-  if (appliesToInstallment && String(option.type || '').toUpperCase() === 'INSTALLMENTS') {
-    const baseInstallment = resolveOptionInstallmentAmount(option);
+  if (
+    appliesToInstallment &&
+    String(sourceOption.type || '').toUpperCase() === 'INSTALLMENTS'
+  ) {
+    const baseInstallment = resolveOptionInstallmentAmount(sourceOption);
     if (installmentScope === 'SINGLE') {
       const adjustedFirstInstallment = applyDiscount(baseInstallment);
       nextOption.installmentAmount = baseInstallment;
@@ -632,6 +673,10 @@ function applyVoucherToPaymentOption(
         discountedInstallmentAmount: adjustedFirstInstallment,
         regularInstallmentAmount: baseInstallment,
       };
+      if (usesPromotionalValue) {
+        nextOption.promotionalTotalAmount = nextOption.totalAmount;
+        nextOption.promotionalInstallmentAmount = nextOption.installmentAmount;
+      }
       return nextOption;
     }
 
@@ -645,91 +690,56 @@ function applyVoucherToPaymentOption(
       regularInstallmentAmount: baseInstallment,
     };
 
-    if (Number(option.discountInstallmentAmount || 0) > 0) {
-      const discountedInstallment = applyDiscount(Number(option.discountInstallmentAmount || 0));
+    if (Number(sourceOption.discountInstallmentAmount || 0) > 0) {
+      const discountedInstallment = applyDiscount(
+        Number(sourceOption.discountInstallmentAmount || 0),
+      );
       nextOption.discountInstallmentAmount = discountedInstallment;
       nextOption.discountTotalAmount = Number((discountedInstallment * installmentCount).toFixed(2));
-    } else if (Number(option.discountTotalAmount || 0) > 0) {
-      const discountedTotal = applyDiscount(Number(option.discountTotalAmount || 0));
+    } else if (Number(sourceOption.discountTotalAmount || 0) > 0) {
+      const discountedTotal = applyDiscount(Number(sourceOption.discountTotalAmount || 0));
       nextOption.discountTotalAmount = discountedTotal;
       nextOption.discountInstallmentAmount = Number((discountedTotal / installmentCount).toFixed(2));
     }
 
-    if (Number(option.promotionalInstallmentAmount || 0) > 0) {
-      const promotionalInstallment = applyDiscount(
-        Number(option.promotionalInstallmentAmount || 0),
-      );
-      nextOption.promotionalInstallmentAmount = promotionalInstallment;
-      nextOption.promotionalTotalAmount = Number((promotionalInstallment * installmentCount).toFixed(2));
-    } else if (Number(option.promotionalTotalAmount || 0) > 0) {
-      const promotionalTotal = applyDiscount(Number(option.promotionalTotalAmount || 0));
-      nextOption.promotionalTotalAmount = promotionalTotal;
-      nextOption.promotionalInstallmentAmount = Number((promotionalTotal / installmentCount).toFixed(2));
-    }
-
-    if (Number(option.promotionalDiscountInstallmentAmount || 0) > 0) {
-      const promotionalDiscountInstallment = applyDiscount(
-        Number(option.promotionalDiscountInstallmentAmount || 0),
-      );
-      nextOption.promotionalDiscountInstallmentAmount = promotionalDiscountInstallment;
-      nextOption.promotionalDiscountTotalAmount = Number(
-        (promotionalDiscountInstallment * installmentCount).toFixed(2),
-      );
-    } else if (Number(option.promotionalDiscountTotalAmount || 0) > 0) {
-      const promotionalDiscountTotal = applyDiscount(
-        Number(option.promotionalDiscountTotalAmount || 0),
-      );
-      nextOption.promotionalDiscountTotalAmount = promotionalDiscountTotal;
-      nextOption.promotionalDiscountInstallmentAmount = Number(
-        (promotionalDiscountTotal / installmentCount).toFixed(2),
-      );
+    if (usesPromotionalValue) {
+      nextOption.promotionalTotalAmount = nextOption.totalAmount;
+      nextOption.promotionalInstallmentAmount = nextOption.installmentAmount;
+      nextOption.promotionalDiscountEnabled = nextOption.discountEnabled;
+      nextOption.promotionalDiscountTotalAmount = nextOption.discountTotalAmount;
+      nextOption.promotionalDiscountInstallmentAmount =
+        nextOption.discountInstallmentAmount;
     }
 
     return nextOption;
   }
 
-  const currentTotal = resolveOptionTotalAmount(option);
+  const currentTotal = resolveOptionTotalAmount(sourceOption);
   const adjustedTotal = applyDiscount(currentTotal);
   nextOption.totalAmount = adjustedTotal;
-  if (String(option.type || '').toUpperCase() === 'INSTALLMENTS') {
+  if (String(sourceOption.type || '').toUpperCase() === 'INSTALLMENTS') {
     nextOption.installmentAmount = Number((adjustedTotal / installmentCount).toFixed(2));
   }
 
-  if (Number(option.discountTotalAmount || 0) > 0) {
-    nextOption.discountTotalAmount = applyDiscount(Number(option.discountTotalAmount || 0));
+  if (Number(sourceOption.discountTotalAmount || 0) > 0) {
+    nextOption.discountTotalAmount = applyDiscount(
+      Number(sourceOption.discountTotalAmount || 0),
+    );
   }
-  if (String(option.type || '').toUpperCase() === 'INSTALLMENTS') {
+  if (String(sourceOption.type || '').toUpperCase() === 'INSTALLMENTS') {
     nextOption.discountInstallmentAmount =
       Number(nextOption.discountTotalAmount || 0) > 0
         ? Number((Number(nextOption.discountTotalAmount || 0) / installmentCount).toFixed(2))
         : null;
   }
 
-  if (Number(option.promotionalTotalAmount || 0) > 0) {
-    nextOption.promotionalTotalAmount = applyDiscount(Number(option.promotionalTotalAmount || 0));
-  }
-  if (String(option.type || '').toUpperCase() === 'INSTALLMENTS') {
-    nextOption.promotionalInstallmentAmount =
-      Number(nextOption.promotionalTotalAmount || 0) > 0
-        ? Number((Number(nextOption.promotionalTotalAmount || 0) / installmentCount).toFixed(2))
-        : null;
-  }
-
-  if (Number(option.promotionalDiscountTotalAmount || 0) > 0) {
-    nextOption.promotionalDiscountTotalAmount = applyDiscount(
-      Number(option.promotionalDiscountTotalAmount || 0),
-    );
-  }
-  if (String(option.type || '').toUpperCase() === 'INSTALLMENTS') {
+  if (usesPromotionalValue) {
+    nextOption.promotionalTotalAmount = nextOption.totalAmount;
+    nextOption.promotionalInstallmentAmount = nextOption.installmentAmount;
+    nextOption.promotionalDiscountEnabled = nextOption.discountEnabled;
+    nextOption.promotionalDiscountTotalAmount = nextOption.discountTotalAmount;
     nextOption.promotionalDiscountInstallmentAmount =
-      Number(nextOption.promotionalDiscountTotalAmount || 0) > 0
-        ? Number(
-            (
-              Number(nextOption.promotionalDiscountTotalAmount || 0) /
-              installmentCount
-            ).toFixed(2),
-          )
-        : null;
+      nextOption.discountInstallmentAmount;
   }
 
   return nextOption;
@@ -1053,7 +1063,9 @@ export function StudentRegistrationNative({ embedded }: StudentRegistrationNativ
         setError('');
       }
       setVoucherFeedback(
-        `Voucher ativo: ${payload.discountLabel || 'desconto aplicado'}.`,
+        `Voucher ativo: ${payload.discountLabel || 'desconto aplicado'} sobre o ${
+          payload.valueBase === 'PROMOTIONAL' ? 'valor promocional' : 'valor padrão'
+        }.`,
       );
     } catch (validationError) {
       clearAppliedVoucher();

@@ -113,6 +113,13 @@ enum FinanceVoucherInstallmentScope {
   @@map("finance_voucher_installment_scope")
 }
 
+enum FinanceVoucherValueBase {
+  REGULAR     @map("regular")
+  PROMOTIONAL @map("promotional")
+
+  @@map("finance_voucher_value_base")
+}
+
 enum UploadOwnerType {
   COURSE     @map("course")
   USER       @map("user")
@@ -767,6 +774,7 @@ model FinanceVoucher {
   title                   String?
   discountType            FinanceVoucherDiscountType @map("discount_type")
   discountValue           Decimal                   @map("discount_value") @db.Decimal(12, 2)
+  valueBase               FinanceVoucherValueBase   @default(REGULAR) @map("value_base")
   appliesTo               FinanceVoucherAppliesTo   @map("applies_to")
   appliesToEnrollmentFee  Boolean                   @default(false) @map("applies_to_enrollment_fee")
   installmentScope        FinanceVoucherInstallmentScope @default(ALL) @map("installment_scope")

@@ -40,6 +40,10 @@ export class CreateVoucherDto {
   @Min(0.01)
   discountValue!: number;
 
+  @IsOptional()
+  @IsIn(['REGULAR', 'PROMOTIONAL'])
+  valueBase?: 'REGULAR' | 'PROMOTIONAL';
+
   @IsIn(['TOTAL', 'INSTALLMENT'])
   appliesTo!: 'TOTAL' | 'INSTALLMENT';
 

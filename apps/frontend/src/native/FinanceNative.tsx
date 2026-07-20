@@ -145,6 +145,7 @@ type VoucherCourse = {
     title: string;
     method: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD' | string;
     type: 'CASH' | 'INSTALLMENTS' | string;
+    isPromotional: boolean;
   }>;
 };
 
@@ -156,6 +157,7 @@ type Voucher = {
   title: string | null;
   discountType: 'PERCENT' | 'FIXED' | string;
   discountValue: number;
+  valueBase: 'REGULAR' | 'PROMOTIONAL' | string;
   appliesTo: 'TOTAL' | 'INSTALLMENT' | string;
   appliesToEnrollmentFee?: boolean;
   installmentScope?: 'ALL' | 'SINGLE' | string;
@@ -175,6 +177,7 @@ type VoucherFormState = {
   title: string;
   discountType: 'PERCENT' | 'FIXED';
   discountValue: string;
+  valueBase: 'REGULAR' | 'PROMOTIONAL';
   appliesTo: 'TOTAL' | 'INSTALLMENT';
   appliesToEnrollmentFee: boolean;
   installmentScope: 'ALL' | 'SINGLE';
@@ -219,6 +222,7 @@ function defaultVoucherForm(): VoucherFormState {
     title: '',
     discountType: 'PERCENT',
     discountValue: '',
+    valueBase: 'REGULAR',
     appliesTo: 'INSTALLMENT',
     appliesToEnrollmentFee: false,
     installmentScope: 'ALL',
@@ -306,6 +310,12 @@ function voucherApplicationLabel(voucher: Voucher) {
   return String(voucher.installmentScope || '').toUpperCase() === 'SINGLE'
     ? 'Uma mensalidade'
     : 'Todas as mensalidades';
+}
+
+function voucherValueBaseLabel(value: string | null | undefined) {
+  return String(value || '').toUpperCase() === 'PROMOTIONAL'
+    ? 'Valor promocional'
+    : 'Valor padrão';
 }
 
 function voucherUsageLabel(voucher: Voucher) {
@@ -572,6 +582,31 @@ export function FinanceNative({ token }: FinanceNativeProps) {
     [allVoucherPaymentOptions, voucherCourses, voucherForm.courseId],
   );
   const isAllCoursesVoucher = voucherForm.courseId === VOUCHER_ALL_COURSES_ID;
+  const eligibleVoucherPaymentOptions = useMemo(
+    () =>
+      (selectedVoucherCourse?.paymentOptions ?? []).filter(
+        (option) => voucherForm.valueBase !== 'PROMOTIONAL' || option.isPromotional,
+      ),
+    [selectedVoucherCourse, voucherForm.valueBase],
+  );
+
+  const voucherRuleSummary = useMemo(() => {
+    const discount = voucherForm.discountValue
+      ? voucherForm.discountType === 'PERCENT'
+        ? `${voucherForm.discountValue}%`
+        : formatCurrency(Number(voucherForm.discountValue || 0))
+      : 'Desconto não informado';
+    const target =
+      voucherForm.appliesTo === 'TOTAL'
+        ? 'curso inteiro'
+        : voucherForm.installmentScope === 'SINGLE'
+          ? 'uma mensalidade'
+          : 'todas as mensalidades';
+    const enrollment = voucherForm.appliesToEnrollmentFee
+      ? 'inclui a matrícula'
+      : 'não inclui a matrícula';
+    return `${discount} sobre o ${voucherValueBaseLabel(voucherForm.valueBase).toLowerCase()}, em ${target}; ${enrollment}.`;
+  }, [voucherForm]);
 
   const openChargeModal = () => {
     setChargeForm(defaultChargeForm());
@@ -691,6 +726,10 @@ export function FinanceNative({ token }: FinanceNativeProps) {
       setVoucherFormError('Selecione o curso do voucher.');
       return;
     }
+    if (!voucherForm.title.trim()) {
+      setVoucherFormError('Informe um nome para identificar o voucher.');
+      return;
+    }
     if (!Number.isFinite(discountValue) || discountValue <= 0) {
       setVoucherFormError('Informe um valor de desconto válido.');
       return;
@@ -701,6 +740,18 @@ export function FinanceNative({ token }: FinanceNativeProps) {
     }
     if (voucherForm.allowedPaymentOptionIds.length === 0) {
       setVoucherFormError('Selecione ao menos uma opção de pagamento.');
+      return;
+    }
+    if (
+      voucherForm.valueBase === 'PROMOTIONAL' &&
+      voucherForm.allowedPaymentOptionIds.some(
+        (optionId) =>
+          !eligibleVoucherPaymentOptions.some((option) => option.id === optionId),
+      )
+    ) {
+      setVoucherFormError(
+        'Para usar o valor promocional, selecione somente opções que tenham promoção configurada.',
+      );
       return;
     }
     if (voucherForm.appliesTo === 'INSTALLMENT') {
@@ -736,6 +787,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
           title: voucherForm.title.trim() || undefined,
           discountType: voucherForm.discountType,
           discountValue,
+          valueBase: voucherForm.valueBase,
           appliesTo: voucherForm.appliesTo,
           installmentScope:
             voucherForm.appliesTo === 'INSTALLMENT'
@@ -987,12 +1039,14 @@ export function FinanceNative({ token }: FinanceNativeProps) {
           <p className="native-info">Nenhum voucher cadastrado até o momento.</p>
         ) : (
           <div className="native-table-wrap">
-            <table className="native-table">
+            <table className="native-table native-voucher-table">
               <thead>
                 <tr>
+                  <th>Nome</th>
                   <th>Código</th>
                   <th>Curso</th>
                   <th>Desconto</th>
+                  <th>Base de cálculo</th>
                   <th>Aplicação</th>
                   <th>Uso</th>
                   <th>Pagamentos</th>
@@ -1003,13 +1057,23 @@ export function FinanceNative({ token }: FinanceNativeProps) {
               <tbody>
                 {vouchers.map((voucher) => (
                   <tr key={voucher.id}>
+                    <td className="native-voucher-name-cell">
+                      <strong>{voucher.title || 'Sem nome'}</strong>
+                    </td>
                     <td>
-                      <strong>{voucher.code}</strong>
-                      <small>{voucher.title || 'Sem título'}</small>
+                      <code className="native-voucher-code">{voucher.code}</code>
                     </td>
                     <td>{voucher.courseName}</td>
                     <td>{voucher.discountLabel}</td>
-                    <td>{voucherApplicationLabel(voucher)}</td>
+                    <td>{voucherValueBaseLabel(voucher.valueBase)}</td>
+                    <td className="native-voucher-rule-cell">
+                      <strong>{voucherApplicationLabel(voucher)}</strong>
+                      <small>
+                        {voucher.appliesToEnrollmentFee
+                          ? 'Inclui matrícula'
+                          : 'Não inclui matrícula'}
+                      </small>
+                    </td>
                     <td>
                       <strong>{voucherUsageLabel(voucher)}</strong>
                       <small>
@@ -1364,233 +1428,403 @@ export function FinanceNative({ token }: FinanceNativeProps) {
       ) : null}
 
       {voucherModalOpen ? (
-        <div className="native-modal-backdrop" onClick={() => setVoucherModalOpen(false)}>
-          <section className="native-modal native-modal-sm" onClick={(event) => event.stopPropagation()}>
-            <header>
-              <h3>Novo voucher</h3>
-              <button type="button" onClick={() => setVoucherModalOpen(false)}>
-                Fechar
+        <div
+          className="native-modal-backdrop native-voucher-modal-backdrop"
+          onClick={() => setVoucherModalOpen(false)}
+        >
+          <section className="native-modal native-voucher-modal" onClick={(event) => event.stopPropagation()}>
+            <header className="native-voucher-modal-header">
+              <div>
+                <span>Novo benefício comercial</span>
+                <h3>Novo voucher</h3>
+                <p>Defina o desconto, a base de cálculo e onde ele poderá ser usado.</p>
+              </div>
+              <button
+                type="button"
+                className="native-voucher-modal-close"
+                aria-label="Fechar"
+                title="Fechar"
+                onClick={() => setVoucherModalOpen(false)}
+              >
+                ×
               </button>
             </header>
 
-            <form className="native-form-grid native-finance-form" onSubmit={submitVoucher}>
-              <label>
-                Curso
-                <select
-                  value={voucherForm.courseId}
-                  onChange={(event) => {
-                    const nextCourseId = event.target.value;
-                    const course =
-                      nextCourseId === VOUCHER_ALL_COURSES_ID
-                        ? {
-                            paymentOptions: allVoucherPaymentOptions,
+            <form className="native-voucher-form" onSubmit={submitVoucher}>
+              <div className="native-voucher-form-columns">
+                <section className="native-voucher-form-section">
+                  <header>
+                    <span>1</span>
+                    <div>
+                      <h4>Identificação e desconto</h4>
+                      <p>Dados usados para reconhecer e calcular o voucher.</p>
+                    </div>
+                  </header>
+
+                  <label>
+                    Nome do voucher
+                    <input
+                      value={voucherForm.title}
+                      onChange={(event) =>
+                        setVoucherForm((current) => ({
+                          ...current,
+                          title: event.target.value,
+                        }))
+                      }
+                      maxLength={120}
+                      placeholder="Ex.: Bolsa cortesia"
+                      required
+                    />
+                    <small>Esse nome aparece somente para a equipe administrativa.</small>
+                  </label>
+
+                  <label>
+                    Curso
+                    <select
+                      value={voucherForm.courseId}
+                      onChange={(event) => {
+                        const nextCourseId = event.target.value;
+                        const course =
+                          nextCourseId === VOUCHER_ALL_COURSES_ID
+                            ? { paymentOptions: allVoucherPaymentOptions }
+                            : voucherCourses.find((item) => item.id === nextCourseId);
+                        setVoucherForm((current) => ({
+                          ...current,
+                          courseId: nextCourseId,
+                          allowedPaymentOptionIds: course
+                            ? course.paymentOptions
+                                .filter(
+                                  (item) =>
+                                    current.valueBase !== 'PROMOTIONAL' ||
+                                    item.isPromotional,
+                                )
+                                .map((item) => item.id)
+                            : [],
+                        }));
+                      }}
+                      required
+                    >
+                      <option value="">Selecione um curso</option>
+                      <option value={VOUCHER_ALL_COURSES_ID}>Todos os cursos</option>
+                      {voucherCourses.map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="native-voucher-field-grid">
+                    <label>
+                      Código
+                      <input
+                        value={voucherForm.code}
+                        onChange={(event) =>
+                          setVoucherForm((current) => ({
+                            ...current,
+                            code: event.target.value
+                              .toUpperCase()
+                              .replace(/\s+/g, '')
+                              .replace(/[^A-Z0-9_-]/g, ''),
+                          }))
+                        }
+                        maxLength={40}
+                        placeholder="Gerado automaticamente"
+                      />
+                    </label>
+
+                    <label>
+                      Limite de usos
+                      <input
+                        type="number"
+                        step={1}
+                        min={1}
+                        value={voucherForm.maxUses}
+                        onChange={(event) =>
+                          setVoucherForm((current) => ({
+                            ...current,
+                            maxUses: event.target.value.replace(/[^\d]/g, ''),
+                          }))
+                        }
+                        placeholder="Sem limite"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="native-voucher-field-grid">
+                    <label>
+                      Tipo de desconto
+                      <select
+                        value={voucherForm.discountType}
+                        onChange={(event) =>
+                          setVoucherForm((current) => ({
+                            ...current,
+                            discountType:
+                              event.target.value as VoucherFormState['discountType'],
+                          }))
+                        }
+                      >
+                        <option value="PERCENT">Percentual (%)</option>
+                        <option value="FIXED">Valor fixo (R$)</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      {voucherForm.discountType === 'PERCENT'
+                        ? 'Percentual de desconto'
+                        : 'Valor do desconto'}
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0.01}
+                        max={voucherForm.discountType === 'PERCENT' ? 100 : undefined}
+                        value={voucherForm.discountValue}
+                        onChange={(event) =>
+                          setVoucherForm((current) => ({
+                            ...current,
+                            discountValue: event.target.value,
+                          }))
+                        }
+                        placeholder={voucherForm.discountType === 'PERCENT' ? 'Ex.: 50' : 'Ex.: 450,00'}
+                        required
+                      />
+                    </label>
+                  </div>
+
+                  <fieldset className="native-voucher-base-fieldset">
+                    <legend>Base de cálculo</legend>
+                    <label className={voucherForm.valueBase === 'REGULAR' ? 'is-selected' : ''}>
+                      <input
+                        type="radio"
+                        name="voucherValueBase"
+                        value="REGULAR"
+                        checked={voucherForm.valueBase === 'REGULAR'}
+                        onChange={() =>
+                          setVoucherForm((current) => ({
+                            ...current,
+                            valueBase: 'REGULAR',
+                            allowedPaymentOptionIds:
+                              selectedVoucherCourse?.paymentOptions.map((item) => item.id) ?? [],
+                          }))
+                        }
+                      />
+                      <span>
+                        <strong>Valor padrão</strong>
+                        <small>Usa o valor cheio, sem promoção ou desconto por antecipação.</small>
+                      </span>
+                    </label>
+                    <label className={voucherForm.valueBase === 'PROMOTIONAL' ? 'is-selected' : ''}>
+                      <input
+                        type="radio"
+                        name="voucherValueBase"
+                        value="PROMOTIONAL"
+                        checked={voucherForm.valueBase === 'PROMOTIONAL'}
+                        onChange={() =>
+                          setVoucherForm((current) => ({
+                            ...current,
+                            valueBase: 'PROMOTIONAL',
+                            allowedPaymentOptionIds:
+                              selectedVoucherCourse?.paymentOptions
+                                .filter((item) => item.isPromotional)
+                                .map((item) => item.id) ?? [],
+                          }))
+                        }
+                      />
+                      <span>
+                        <strong>Valor promocional</strong>
+                        <small>Acumula o voucher com a promoção configurada no curso.</small>
+                      </span>
+                    </label>
+                  </fieldset>
+                </section>
+
+                <section className="native-voucher-form-section">
+                  <header>
+                    <span>2</span>
+                    <div>
+                      <h4>Regras de aplicação</h4>
+                      <p>Escolha quais cobranças e pagamentos aceitam o voucher.</p>
+                    </div>
+                  </header>
+
+                  <div className="native-voucher-field-grid">
+                    <label>
+                      Aplicar o desconto em
+                      <select
+                        value={voucherForm.appliesTo}
+                        onChange={(event) =>
+                          setVoucherForm((current) => ({
+                            ...current,
+                            appliesTo:
+                              event.target.value as VoucherFormState['appliesTo'],
+                            installmentScope:
+                              event.target.value === 'INSTALLMENT'
+                                ? current.installmentScope
+                                : 'ALL',
+                          }))
+                        }
+                      >
+                        <option value="INSTALLMENT">Mensalidades</option>
+                        <option value="TOTAL">Valor total do curso</option>
+                      </select>
+                    </label>
+
+                    {voucherForm.appliesTo === 'INSTALLMENT' ? (
+                      <label>
+                        Quantas mensalidades
+                        <select
+                          value={voucherForm.installmentScope}
+                          onChange={(event) =>
+                            setVoucherForm((current) => ({
+                              ...current,
+                              installmentScope:
+                                event.target.value as VoucherFormState['installmentScope'],
+                            }))
                           }
-                        : voucherCourses.find((item) => item.id === nextCourseId);
-                    setVoucherForm((current) => ({
-                      ...current,
-                      courseId: nextCourseId,
-                      allowedPaymentOptionIds: course
-                        ? course.paymentOptions.map((item) => item.id)
-                        : [],
-                    }));
-                  }}
-                  required
-                >
-                  <option value="">Selecione</option>
-                  <option value={VOUCHER_ALL_COURSES_ID}>Todos os cursos</option>
-                  {voucherCourses.map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {course.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="native-finance-voucher-option-item">
-                <input
-                  type="checkbox"
-                  checked={voucherForm.appliesToEnrollmentFee}
-                  onChange={(event) =>
-                    setVoucherForm((current) => ({
-                      ...current,
-                      appliesToEnrollmentFee: event.target.checked,
-                    }))
-                  }
-                />
-                <span>Aplicar desconto também na matrícula</span>
-              </label>
-
-              <label>
-                Código (opcional)
-                <input
-                  value={voucherForm.code}
-                  onChange={(event) =>
-                    setVoucherForm((current) => ({
-                      ...current,
-                      code: event.target.value
-                        .toUpperCase()
-                        .replace(/\s+/g, '')
-                        .replace(/[^A-Z0-9_-]/g, ''),
-                    }))
-                  }
-                  maxLength={40}
-                  placeholder="Deixe vazio para gerar automático"
-                />
-              </label>
-
-              <label>
-                Título (opcional)
-                <input
-                  value={voucherForm.title}
-                  onChange={(event) =>
-                    setVoucherForm((current) => ({
-                      ...current,
-                      title: event.target.value,
-                    }))
-                  }
-                  maxLength={120}
-                  placeholder="Ex.: Campanha abril"
-                />
-              </label>
-
-              <label>
-                Tipo de desconto
-                <select
-                  value={voucherForm.discountType}
-                  onChange={(event) =>
-                    setVoucherForm((current) => ({
-                      ...current,
-                      discountType: event.target.value as VoucherFormState['discountType'],
-                    }))
-                  }
-                >
-                  <option value="PERCENT">Percentual (%)</option>
-                  <option value="FIXED">Valor (R$)</option>
-                </select>
-              </label>
-
-              <label>
-                Valor do desconto
-                <input
-                  type="number"
-                  step="0.01"
-                  min={0.01}
-                  value={voucherForm.discountValue}
-                  onChange={(event) =>
-                    setVoucherForm((current) => ({
-                      ...current,
-                      discountValue: event.target.value,
-                    }))
-                  }
-                  required
-                />
-              </label>
-
-              <label>
-                Aplicar em
-                <select
-                  value={voucherForm.appliesTo}
-                  onChange={(event) =>
-                    setVoucherForm((current) => ({
-                      ...current,
-                      appliesTo: event.target.value as VoucherFormState['appliesTo'],
-                      installmentScope:
-                        event.target.value === 'INSTALLMENT'
-                          ? current.installmentScope
-                          : 'ALL',
-                    }))
-                  }
-                >
-                  <option value="INSTALLMENT">Mensalidade</option>
-                  <option value="TOTAL">Curso inteiro</option>
-                </select>
-              </label>
-
-              {voucherForm.appliesTo === 'INSTALLMENT' ? (
-                <label>
-                  Escopo da mensalidade
-                  <select
-                    value={voucherForm.installmentScope}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({
-                        ...current,
-                        installmentScope:
-                          event.target.value as VoucherFormState['installmentScope'],
-                      }))
-                    }
-                  >
-                    <option value="ALL">Todas as mensalidades</option>
-                    <option value="SINGLE">Uma mensalidade</option>
-                  </select>
-                </label>
-              ) : null}
-
-              <label>
-                Limite de uso (opcional)
-                <input
-                  type="number"
-                  step={1}
-                  min={1}
-                  value={voucherForm.maxUses}
-                  onChange={(event) =>
-                    setVoucherForm((current) => ({
-                      ...current,
-                      maxUses: event.target.value.replace(/[^\d]/g, ''),
-                    }))
-                  }
-                  placeholder="Ex.: 5"
-                />
-              </label>
-
-              {selectedVoucherCourse ? (
-                <fieldset className="native-finance-voucher-options">
-                  <legend>Opções de pagamento permitidas</legend>
-                  {selectedVoucherCourse.paymentOptions.map((option) => {
-                    const checked = voucherForm.allowedPaymentOptionIds.includes(option.id);
-                    return (
-                      <label key={option.id} className="native-finance-voucher-option-item">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(event) => {
-                            const shouldInclude = event.target.checked;
-                            setVoucherForm((current) => {
-                              const currentIds = new Set(current.allowedPaymentOptionIds);
-                              if (shouldInclude) {
-                                currentIds.add(option.id);
-                              } else {
-                                currentIds.delete(option.id);
-                              }
-                              return {
-                                ...current,
-                                allowedPaymentOptionIds: Array.from(currentIds),
-                              };
-                            });
-                          }}
-                        />
-                        <span>
-                          {option.title} ({paymentMethodLabel(option.method)})
-                        </span>
+                        >
+                          <option value="ALL">Todas as mensalidades</option>
+                          <option value="SINGLE">Somente a primeira</option>
+                        </select>
                       </label>
-                    );
-                  })}
-                </fieldset>
-              ) : null}
+                    ) : (
+                      <div className="native-voucher-field-placeholder" aria-hidden="true" />
+                    )}
+                  </div>
 
-              {isAllCoursesVoucher ? (
-                <p className="native-info">
-                  O voucher valerá para qualquer curso.
-                </p>
-              ) : null}
+                  <label className="native-voucher-enrollment-toggle">
+                    <span>
+                      <strong>Aplicar também na matrícula</strong>
+                      <small>
+                        {voucherForm.appliesToEnrollmentFee
+                          ? 'A taxa de matrícula receberá o mesmo desconto.'
+                          : 'A taxa de matrícula permanecerá com o valor original.'}
+                      </small>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={voucherForm.appliesToEnrollmentFee}
+                      onChange={(event) =>
+                        setVoucherForm((current) => ({
+                          ...current,
+                          appliesToEnrollmentFee: event.target.checked,
+                        }))
+                      }
+                    />
+                    <i aria-hidden="true" />
+                  </label>
 
-              <p className="native-info">
-                Voucher não acumula com desconto promocional. Quando aplicado, o desconto é
-                calculado sobre o valor original do curso.
-              </p>
+                  <fieldset className="native-finance-voucher-options native-voucher-payment-options">
+                    <legend>Formas de pagamento permitidas</legend>
+                    <div className="native-voucher-payment-options-head">
+                      <span>
+                        {voucherForm.allowedPaymentOptionIds.length} de{' '}
+                        {eligibleVoucherPaymentOptions.length} selecionada(s)
+                      </span>
+                      {selectedVoucherCourse ? (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setVoucherForm((current) => ({
+                                ...current,
+                                allowedPaymentOptionIds:
+                                  eligibleVoucherPaymentOptions.map((item) => item.id),
+                              }))
+                            }
+                          >
+                            Selecionar todas
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setVoucherForm((current) => ({
+                                ...current,
+                                allowedPaymentOptionIds: [],
+                              }))
+                            }
+                          >
+                            Limpar
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {!selectedVoucherCourse ? (
+                      <p>Selecione um curso para carregar as formas de pagamento.</p>
+                    ) : (
+                      <div className="native-voucher-payment-options-list">
+                        {selectedVoucherCourse.paymentOptions.map((option) => {
+                          const disabled =
+                            voucherForm.valueBase === 'PROMOTIONAL' &&
+                            !option.isPromotional;
+                          const checked =
+                            !disabled &&
+                            voucherForm.allowedPaymentOptionIds.includes(option.id);
+                          return (
+                            <label
+                              key={option.id}
+                              className={`native-finance-voucher-option-item ${
+                                disabled ? 'is-disabled' : ''
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={disabled}
+                                onChange={(event) => {
+                                  const shouldInclude = event.target.checked;
+                                  setVoucherForm((current) => {
+                                    const currentIds = new Set(
+                                      current.allowedPaymentOptionIds,
+                                    );
+                                    if (shouldInclude) currentIds.add(option.id);
+                                    else currentIds.delete(option.id);
+                                    return {
+                                      ...current,
+                                      allowedPaymentOptionIds: Array.from(currentIds),
+                                    };
+                                  });
+                                }}
+                              />
+                              <span>
+                                <strong>{option.title}</strong>
+                                <small>
+                                  {paymentMethodLabel(option.method)}
+                                  {disabled ? ' · sem valor promocional' : ''}
+                                </small>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </fieldset>
+
+                  {voucherForm.valueBase === 'PROMOTIONAL' &&
+                  selectedVoucherCourse &&
+                  eligibleVoucherPaymentOptions.length === 0 ? (
+                    <p className="native-voucher-warning">
+                      Este curso não possui formas de pagamento com valor promocional.
+                    </p>
+                  ) : null}
+
+                  {isAllCoursesVoucher ? (
+                    <p className="native-voucher-note">
+                      Este voucher poderá ser usado nos cursos ativos que possuírem as formas
+                      de pagamento selecionadas.
+                    </p>
+                  ) : null}
+                </section>
+              </div>
+
+              <div className="native-voucher-rule-summary">
+                <span>Resumo da regra</span>
+                <strong>{voucherRuleSummary}</strong>
+              </div>
 
               {voucherFormError ? <p className="native-error">{voucherFormError}</p> : null}
 
-              <div className="native-modal-actions">
+              <div className="native-modal-actions native-voucher-modal-actions">
                 <button
                   type="button"
                   className="ghost"
@@ -1599,7 +1833,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                   Cancelar
                 </button>
                 <button type="submit" disabled={voucherSubmitting}>
-                  {voucherSubmitting ? 'Salvando...' : 'Criar voucher'}
+                  {voucherSubmitting ? 'Criando voucher...' : 'Criar voucher'}
                 </button>
               </div>
             </form>
