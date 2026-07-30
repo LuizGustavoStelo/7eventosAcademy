@@ -31,6 +31,7 @@ type Charge = {
   paymentMethod?: 'PIX' | 'BANK_SLIP' | 'CREDIT_CARD' | string | null;
   status: 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELED';
   awaitingCourseStart?: boolean;
+  awaitingContractSignature?: boolean;
   isCreditCardRequestHistory?: boolean;
   historyApprovedAt?: string | null;
   creditCardPaymentRequest?: {
@@ -67,7 +68,16 @@ type CreditCardPaymentRequest = {
   amount: number;
   installmentCount: number | null;
   installmentAmount: number | null;
-  status: 'WAITING_COURSE_START' | 'REQUESTED' | 'LINK_SENT' | 'VIEWED' | 'COPIED' | 'APPROVED' | 'CANCELED' | string;
+  status:
+    | "WAITING_CONTRACT_SIGNATURE"
+    | "WAITING_COURSE_START"
+    | "REQUESTED"
+    | "LINK_SENT"
+    | "VIEWED"
+    | "COPIED"
+    | "APPROVED"
+    | "CANCELED"
+    | string;
   paymentLinkUrl: string | null;
   adminNote: string | null;
   requestedAt: string;
@@ -328,21 +338,23 @@ function voucherUsageLabel(voucher: Voucher) {
 }
 
 function creditCardRequestStatusLabel(status: string): string {
-  switch (String(status || '').toUpperCase()) {
-    case 'WAITING_COURSE_START':
-      return 'Aguardando início do curso';
-    case 'REQUESTED':
-      return 'Solicitado';
-    case 'LINK_SENT':
-      return 'Link enviado';
-    case 'VIEWED':
-      return 'Visualizado';
-    case 'COPIED':
-      return 'Copiado';
-    case 'APPROVED':
-      return 'Aprovado';
-    case 'CANCELED':
-      return 'Cancelado';
+  switch (String(status || "").toUpperCase()) {
+    case "WAITING_CONTRACT_SIGNATURE":
+      return "Aguardando assinatura";
+    case "WAITING_COURSE_START":
+      return "Aguardando início do curso";
+    case "REQUESTED":
+      return "Solicitado";
+    case "LINK_SENT":
+      return "Link enviado";
+    case "VIEWED":
+      return "Visualizado";
+    case "COPIED":
+      return "Copiado";
+    case "APPROVED":
+      return "Aprovado";
+    case "CANCELED":
+      return "Cancelado";
     default:
       return status || '-';
   }
@@ -1182,7 +1194,9 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                     normalizedStatus !== 'APPROVED' &&
                     normalizedStatus !== 'CANCELED';
                   const canProcess =
-                    canEdit && normalizedStatus !== 'WAITING_COURSE_START';
+                    canEdit &&
+                    normalizedStatus !== "WAITING_CONTRACT_SIGNATURE" &&
+                    normalizedStatus !== "WAITING_COURSE_START";
                   const isBusy = creditCardActionId === request.id;
                   const studentName = request.student?.name || 'Aluno não identificado';
                   const studentEmail = request.student?.email || '-';
@@ -1248,6 +1262,12 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                         />
                         {normalizedStatus === 'WAITING_COURSE_START' ? (
                           <small>Envie o link quando o curso iniciar.</small>
+                        ) : normalizedStatus ===
+                          "WAITING_CONTRACT_SIGNATURE" ? (
+                          <small>
+                            O link será liberado após os contratos obrigatórios
+                            serem assinados.
+                          </small>
                         ) : null}
                       </td>
                       <td>
@@ -1350,8 +1370,14 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                     'Turma não definida';
                   const isWaitingCourseStart =
                     Boolean(charge.awaitingCourseStart) ||
-                    String(charge.creditCardPaymentRequest?.status || '').toUpperCase() ===
-                      'WAITING_COURSE_START';
+                    String(
+                      charge.creditCardPaymentRequest?.status || "",
+                    ).toUpperCase() === "WAITING_COURSE_START";
+                  const isWaitingContractSignature =
+                    Boolean(charge.awaitingContractSignature) ||
+                    String(
+                      charge.creditCardPaymentRequest?.status || "",
+                    ).toUpperCase() === "WAITING_CONTRACT_SIGNATURE";
 
                   return (
                     <tr key={charge.id}>
@@ -1373,20 +1399,31 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                           ? `Aprovado em ${formatDate(
                               charge.historyApprovedAt || charge.dueDate,
                             )}`
-                          : isWaitingCourseStart
-                            ? 'No início do curso'
-                            : formatDate(charge.dueDate)}
+                          : isWaitingContractSignature
+                            ? "Após a assinatura"
+                            : isWaitingCourseStart
+                              ? "No início do curso"
+                              : formatDate(charge.dueDate)}
                       </td>
                       <td>
-                        <span className={`native-status-chip ${chipClass(charge.status)}`}>
-                          {isWaitingCourseStart
-                            ? 'Aguardando início do curso'
-                            : statusLabel(charge.status)}
+                        <span
+                          className={`native-status-chip ${chipClass(charge.status)}`}
+                        >
+                          {isWaitingContractSignature
+                            ? "Aguardando assinatura"
+                            : isWaitingCourseStart
+                              ? "Aguardando início do curso"
+                              : statusLabel(charge.status)}
                         </span>
                       </td>
                       <td>
                         {charge.isCreditCardRequestHistory ? (
                           <small>Pagamento aprovado manualmente.</small>
+                        ) : isWaitingContractSignature ? (
+                          <small>
+                            Será liberada após a assinatura dos contratos
+                            obrigatórios.
+                          </small>
                         ) : isWaitingCourseStart ? (
                           <small>Será liberada quando a turma entrar em andamento.</small>
                         ) : (

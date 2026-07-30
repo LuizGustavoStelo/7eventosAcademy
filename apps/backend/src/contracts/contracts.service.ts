@@ -4,8 +4,10 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   ContractInstanceStatus,
   InstitutionMemberStatus,
@@ -48,6 +50,7 @@ type ContractDownloadPayload = {
 
 type ContractSendContext = {
   publicOrigin?: string | null;
+  automaticDispatchKey?: string | null;
 };
 
 type AutoSendContractInput = {
@@ -88,12 +91,15 @@ type ContractSelectedPaymentOption = {
   discountDeadlineDay: number | null;
   discountRequiresActiveCrf: boolean;
   discountAppliesTo: 'INSTALLMENT' | 'TOTAL' | null;
+  promotionalApplied: boolean;
   appliedVoucher: {
     code: string;
     title: string | null;
     discountType: 'PERCENT' | 'FIXED';
     discountValue: number;
+    valueBase: 'REGULAR' | 'PROMOTIONAL';
     appliesTo: 'TOTAL' | 'INSTALLMENT';
+    appliesToEnrollmentFee: boolean;
     installmentScope: 'ALL' | 'SINGLE';
     discountLabel: string;
     targetLabel: string | null;
@@ -101,6 +107,28 @@ type ContractSelectedPaymentOption = {
     discountedInstallmentAmount: number | null;
     regularInstallmentAmount: number | null;
   } | null;
+};
+
+export type StudentAccessGate = {
+  locked: boolean;
+  contractLocked: boolean;
+  paymentLocked: boolean;
+  requiredCount: number;
+  availableCount: number;
+  signedCount: number;
+  pendingSignatureCount: number;
+  missingCount: number;
+  enrollments: Array<{
+    enrollmentId: string;
+    classId: string;
+    courseId: string;
+    contractLocked: boolean;
+    paymentLocked: boolean;
+    accessLocked: boolean;
+    requiredCount: number;
+    availableCount: number;
+    signedCount: number;
+  }>;
 };
 
 const DEFAULT_SIGNING_TOKEN_HOURS = 72;
@@ -118,8 +146,9 @@ const CONTRACT_PAGE_BREAK_REGEX =
   /<div[^>]*(data-contract-page-break\s*=\s*["']true["'][^>]*|page-break-after\s*:\s*always[^>]*)><\/div>/gi;
 
 @Injectable()
-export class ContractsService {
+export class ContractsService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ContractsService.name);
+  private automaticReconciliationRunning = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -127,6 +156,122 @@ export class ContractsService {
     private readonly mailService: MailService,
     private readonly superadminIntegrationsService: SuperadminIntegrationsService,
   ) {}
+
+  onApplicationBootstrap() {
+    void this.reconcileMissingAutomaticContracts();
+  }
+
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async reconcileMissingAutomaticContracts() {
+    if (this.automaticReconciliationRunning) return;
+    this.automaticReconciliationRunning = true;
+
+    try {
+      const templates = await this.prisma.contractTemplate.findMany({
+        where: {
+          status: ContractTemplateStatus.PUBLISHED,
+          autoSendEnabled: true,
+          latestVersionNumber: { gt: 0 },
+          institutionSignedAt: { not: null },
+        },
+        select: {
+          id: true,
+          institutionId: true,
+          autoSendAllCourses: true,
+          autoSendCourseIds: true,
+        },
+      });
+
+      let dispatched = 0;
+      for (const template of templates) {
+        const courseIds = template.autoSendAllCourses
+          ? []
+          : this.parseUuidListFromJson(template.autoSendCourseIds);
+        if (!template.autoSendAllCourses && courseIds.length === 0) continue;
+
+        const enrollments = await this.prisma.enrollment.findMany({
+          where: {
+            institutionId: template.institutionId,
+            status: 'ACTIVE',
+            AND: [
+              ...(courseIds.length > 0
+                ? [{ schoolClass: { courseId: { in: courseIds } } }]
+                : []),
+              {
+                OR: [
+                  {
+                    schoolClass: {
+                      status: { in: ['PLANNING', 'ENROLLMENTS_OPEN'] },
+                    },
+                  },
+                  {
+                    monthlyCharges: {
+                      some: { awaitingContractSignature: true },
+                    },
+                  },
+                ],
+              },
+            ],
+            contractInstances: {
+              none: {
+                templateId: template.id,
+                status: {
+                  notIn: [
+                    ContractInstanceStatus.CANCELED,
+                    ContractInstanceStatus.ARCHIVED,
+                  ],
+                },
+              },
+            },
+          },
+          select: {
+            id: true,
+            studentId: true,
+            classId: true,
+            schoolClass: {
+              select: {
+                courseId: true,
+                course: {
+                  select: {
+                    ownerAdminId: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: [{ createdAt: 'asc' }],
+          take: 100,
+        });
+
+        for (const enrollment of enrollments) {
+          await this.sendAutomaticContractsForEnrollment({
+            institutionId: template.institutionId,
+            enrollmentId: enrollment.id,
+            studentId: enrollment.studentId,
+            courseId: enrollment.schoolClass.courseId,
+            classId: enrollment.classId,
+            createdByUserId: enrollment.schoolClass.course.ownerAdminId,
+          });
+          await this.releaseEnrollmentFinancialFlowIfContractsSigned(
+            enrollment.id,
+          );
+          dispatched += 1;
+        }
+      }
+
+      if (dispatched > 0) {
+        this.logger.log(
+          `[contracts-reconciliation] ${dispatched} matrícula(s) processada(s).`,
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Falha desconhecida.';
+      this.logger.error(`[contracts-reconciliation] ${message}`);
+    } finally {
+      this.automaticReconciliationRunning = false;
+    }
+  }
 
   async listTemplates(actor: ContractActor) {
     const institutionId = this.requireActiveInstitutionId(actor);
@@ -945,6 +1090,17 @@ export class ContractsService {
     const selectedEnrollmentPaymentOption = this.parseInstallmentOptionFromJson(
       enrollmentSelectedFeePaymentOption,
     );
+    const enrollmentVoucher = selectedPaymentOption?.appliedVoucher;
+    const contractEnrollmentFee =
+      enrollmentVoucher?.appliesToEnrollmentFee && courseEnrollmentFee > 0
+        ? enrollmentVoucher.discountType === 'PERCENT'
+          ? this.toMoneyValue(
+              courseEnrollmentFee * (1 - enrollmentVoucher.discountValue / 100),
+            )
+          : this.toMoneyValue(
+              courseEnrollmentFee - enrollmentVoucher.discountValue,
+            )
+        : this.toMoneyValue(courseEnrollmentFee);
     const installments = await this.resolveInstallmentsForContract(
       institutionId,
       dto.enrollmentId ?? null,
@@ -994,10 +1150,6 @@ export class ContractsService {
     const selectedOptionDiscountDeadlineDay = Number(
       selectedPaymentOption?.discountDeadlineDay ?? 0,
     );
-    const hideScheduleForCreditCard =
-      String(selectedPaymentOption?.method || '')
-        .trim()
-        .toUpperCase() === 'CREDIT_CARD';
     const financialTotal =
       selectedOptionTotalAmount > 0
         ? selectedOptionTotalAmount
@@ -1010,13 +1162,13 @@ export class ContractsService {
       selectedPaymentOption?.title?.trim() ||
       this.paymentModelLabelPtBr(coursePaymentModel, installments.length);
     const installmentCountForSummary =
-      installments.length ||
       selectedOptionInstallmentCount ||
+      installments.length ||
       courseInstallmentMonths ||
       (selectedPaymentOption?.type === 'CASH' ? 1 : 0);
-    const installmentCountForSummaryDisplay = hideScheduleForCreditCard
-      ? '-'
-      : String(installmentCountForSummary);
+    const installmentCountForSummaryDisplay = String(
+      installmentCountForSummary,
+    );
     const installmentValueForSummary = (() => {
       if (selectedOptionInstallmentAmount > 0) return selectedOptionInstallmentAmount;
       if (courseInstallmentValue > 0) return courseInstallmentValue;
@@ -1026,30 +1178,44 @@ export class ContractsService {
       }
       return 0;
     })();
-    const installmentValueForSummaryDisplay = hideScheduleForCreditCard
-      ? '-'
-      : this.formatCurrencyPtBr(installmentValueForSummary);
+    const installmentValueForSummaryDisplay = this.formatCurrencyPtBr(
+      installmentValueForSummary,
+    );
 
     const formsAndValuesSummaryLines = [
       `Forma de pagamento: ${paymentMethodLabel}`,
       `Valor total: ${this.formatCurrencyPtBr(financialTotal)}`,
-      `Taxa de matrícula: ${this.formatCurrencyPtBr(courseEnrollmentFee)}`,
+      `Taxa de matrícula: ${this.formatCurrencyPtBr(contractEnrollmentFee)}`,
     ];
-    if (courseEnrollmentFee > 0 && selectedEnrollmentPaymentOption) {
+    if (contractEnrollmentFee > 0 && selectedEnrollmentPaymentOption) {
+      const feeInstallmentCount = Math.max(
+        1,
+        Number(selectedEnrollmentPaymentOption.installmentCount ?? 1),
+      );
+      const feeInstallmentAmount = this.toMoneyValue(
+        contractEnrollmentFee / feeInstallmentCount,
+      );
       formsAndValuesSummaryLines.push(
         `Pagamento da matrícula: ${
           selectedEnrollmentPaymentOption.title ||
           this.paymentMethodLabelPtBr(selectedEnrollmentPaymentOption.method)
+        }${
+          feeInstallmentCount > 1
+            ? ` - ${feeInstallmentCount}x de ${this.formatCurrencyPtBr(
+                feeInstallmentAmount,
+              )}`
+            : ''
         }`,
       );
     }
-    if (!hideScheduleForCreditCard) {
-      formsAndValuesSummaryLines.push(
-        `Quantidade de parcelas: ${installmentCountForSummary}`,
-      );
-      formsAndValuesSummaryLines.push(
-        `Valor da parcela: ${this.formatCurrencyPtBr(installmentValueForSummary)}`,
-      );
+    formsAndValuesSummaryLines.push(
+      `Quantidade de parcelas: ${installmentCountForSummary}`,
+    );
+    formsAndValuesSummaryLines.push(
+      `Valor da parcela: ${this.formatCurrencyPtBr(installmentValueForSummary)}`,
+    );
+    if (selectedPaymentOption?.promotionalApplied) {
+      formsAndValuesSummaryLines.push('Condição promocional aplicada.');
     }
     if (selectedPaymentOption?.installmentStartMode === 'COURSE_START') {
       formsAndValuesSummaryLines.push(
@@ -1197,7 +1363,9 @@ export class ContractsService {
         financeiro_parcelas_tabela_html: installmentsTableHtml,
         financeiro_forma_pagamento: paymentMethodLabel,
         financeiro_valor_total: this.formatCurrencyPtBr(financialTotal),
-        financeiro_taxa_matricula: this.formatCurrencyPtBr(courseEnrollmentFee),
+        financeiro_taxa_matricula: this.formatCurrencyPtBr(
+          contractEnrollmentFee,
+        ),
         financeiro_quantidade_parcelas: installmentCountForSummaryDisplay,
         financeiro_valor_parcela: installmentValueForSummaryDisplay,
         financeiro_formas_valores_resumo: formsAndValuesSummary,
@@ -1282,6 +1450,7 @@ export class ContractsService {
           unsignedHtmlSnapshot: institutionSignedUnsignedHtmlSnapshot,
           unsignedContentHash,
           signatureCode,
+          automaticDispatchKey: context?.automaticDispatchKey ?? null,
           createdByUserId: actor.sub,
         },
       });
@@ -1578,10 +1747,291 @@ export class ContractsService {
         institutionSignedAt: institutionSignature.signedAt,
         institutionSignedByName: institutionSignature.signedByName,
         institutionSignaturePending,
+        enrollmentId: instance.enrollmentId,
+        courseId: instance.courseId,
+        classId: instance.classId,
         template: instance.template,
         templateVersion: instance.templateVersion,
       };
     });
+  }
+
+  async getMyAccessGate(actor: ContractActor) {
+    return this.getStudentAccessGate(actor.sub);
+  }
+
+  async getStudentAccessGate(studentId: string): Promise<StudentAccessGate> {
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: {
+        studentId,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+        institutionId: true,
+        classId: true,
+        selectedPaymentOption: true,
+        schoolClass: {
+          select: {
+            courseId: true,
+            status: true,
+          },
+        },
+        monthlyCharges: {
+          where: {
+            status: { in: ['PENDING', 'OVERDUE'] },
+          },
+          select: {
+            kind: true,
+            status: true,
+            dueDate: true,
+            installmentNumber: true,
+            awaitingCourseStart: true,
+            awaitingContractSignature: true,
+          },
+        },
+      },
+    });
+
+    if (enrollments.length === 0) {
+      return {
+        locked: false,
+        contractLocked: false,
+        paymentLocked: false,
+        requiredCount: 0,
+        availableCount: 0,
+        signedCount: 0,
+        pendingSignatureCount: 0,
+        missingCount: 0,
+        enrollments: [],
+      };
+    }
+
+    const institutionIds = Array.from(
+      new Set(enrollments.map((item) => item.institutionId)),
+    );
+    const enrollmentIds = enrollments.map((item) => item.id);
+    const [templates, instances] = await Promise.all([
+      this.prisma.contractTemplate.findMany({
+        where: {
+          institutionId: { in: institutionIds },
+          status: ContractTemplateStatus.PUBLISHED,
+          autoSendEnabled: true,
+          latestVersionNumber: { gt: 0 },
+          institutionSignedAt: { not: null },
+        },
+        select: {
+          id: true,
+          institutionId: true,
+          autoSendAllCourses: true,
+          autoSendCourseIds: true,
+        },
+      }),
+      this.prisma.contractInstance.findMany({
+        where: {
+          studentId,
+          enrollmentId: { in: enrollmentIds },
+          status: {
+            notIn: [
+              ContractInstanceStatus.CANCELED,
+              ContractInstanceStatus.ARCHIVED,
+            ],
+          },
+        },
+        select: {
+          enrollmentId: true,
+          templateId: true,
+          status: true,
+          signedAt: true,
+        },
+      }),
+    ]);
+
+    const enrollmentGates = enrollments.map((enrollment) => {
+      const requiresConfiguredTemplates =
+        ['PLANNING', 'ENROLLMENTS_OPEN'].includes(
+          enrollment.schoolClass.status,
+        ) ||
+        enrollment.monthlyCharges.some(
+          (charge) => charge.awaitingContractSignature,
+        );
+      const configuredTemplateIds = requiresConfiguredTemplates
+        ? templates
+            .filter((template) => {
+              if (template.institutionId !== enrollment.institutionId)
+                return false;
+              if (template.autoSendAllCourses) return true;
+              return this.parseUuidListFromJson(
+                template.autoSendCourseIds,
+              ).includes(enrollment.schoolClass.courseId);
+            })
+            .map((template) => template.id)
+        : [];
+      const enrollmentInstances = instances.filter(
+        (instance) => instance.enrollmentId === enrollment.id,
+      );
+      const requiredTemplateIds = new Set([
+        ...configuredTemplateIds,
+        ...enrollmentInstances.map((instance) => instance.templateId),
+      ]);
+      const availableTemplateIds = new Set(
+        enrollmentInstances.map((instance) => instance.templateId),
+      );
+      const signedTemplateIds = new Set(
+        enrollmentInstances
+          .filter(
+            (instance) =>
+              instance.status === ContractInstanceStatus.SIGNED ||
+              Boolean(instance.signedAt),
+          )
+          .map((instance) => instance.templateId),
+      );
+      const requiredCount = requiredTemplateIds.size;
+      const availableCount = Array.from(requiredTemplateIds).filter((id) =>
+        availableTemplateIds.has(id),
+      ).length;
+      const signedCount = Array.from(requiredTemplateIds).filter((id) =>
+        signedTemplateIds.has(id),
+      ).length;
+      const contractLocked = signedCount < requiredCount;
+      const selectedOption = this.parseInstallmentOptionFromJson(
+        enrollment.selectedPaymentOption,
+      );
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const paymentLocked = enrollment.monthlyCharges.some((charge) => {
+        if (charge.awaitingCourseStart) return false;
+        if (charge.kind === 'ENROLLMENT_FEE') return true;
+        if (selectedOption?.type === 'CASH') return true;
+        if (
+          selectedOption?.method === 'CREDIT_CARD' &&
+          charge.installmentNumber === null
+        ) {
+          return true;
+        }
+        if (charge.installmentNumber === 1) return true;
+        return (
+          charge.status === 'OVERDUE' ||
+          new Date(charge.dueDate).getTime() < startOfToday.getTime()
+        );
+      });
+
+      return {
+        enrollmentId: enrollment.id,
+        classId: enrollment.classId,
+        courseId: enrollment.schoolClass.courseId,
+        contractLocked,
+        paymentLocked,
+        accessLocked: contractLocked || paymentLocked,
+        requiredCount,
+        availableCount,
+        signedCount,
+      };
+    });
+
+    const requiredCount = enrollmentGates.reduce(
+      (sum, item) => sum + item.requiredCount,
+      0,
+    );
+    const availableCount = enrollmentGates.reduce(
+      (sum, item) => sum + item.availableCount,
+      0,
+    );
+    const signedCount = enrollmentGates.reduce(
+      (sum, item) => sum + item.signedCount,
+      0,
+    );
+    const locked = enrollmentGates.every((item) => item.accessLocked);
+    const contractLocked =
+      locked && enrollmentGates.some((item) => item.contractLocked);
+    const paymentLocked =
+      locked &&
+      !contractLocked &&
+      enrollmentGates.some((item) => item.paymentLocked);
+
+    return {
+      locked,
+      contractLocked,
+      paymentLocked,
+      requiredCount,
+      availableCount,
+      signedCount,
+      pendingSignatureCount: Math.max(0, availableCount - signedCount),
+      missingCount: Math.max(0, requiredCount - signedCount),
+      enrollments: enrollmentGates,
+    };
+  }
+
+  async releaseEnrollmentFinancialFlowIfContractsSigned(enrollmentId: string) {
+    const enrollment = await this.prisma.enrollment.findUnique({
+      where: { id: enrollmentId },
+      select: {
+        id: true,
+        studentId: true,
+        selectedPaymentOption: true,
+        schoolClass: {
+          select: {
+            status: true,
+          },
+        },
+      },
+    });
+    if (!enrollment) return { released: false };
+
+    const gate = await this.getStudentAccessGate(enrollment.studentId);
+    const enrollmentGate = gate.enrollments.find(
+      (item) => item.enrollmentId === enrollment.id,
+    );
+    if (enrollmentGate?.contractLocked) {
+      return { released: false };
+    }
+
+    const selectedOption = this.parseInstallmentOptionFromJson(
+      enrollment.selectedPaymentOption,
+    );
+    const waitingCourseStart =
+      selectedOption?.installmentStartMode === 'COURSE_START' &&
+      enrollment.schoolClass.status !== 'IN_PROGRESS';
+    const releasedAt = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.monthlyCharge.updateMany({
+        where: {
+          enrollmentId: enrollment.id,
+          awaitingContractSignature: true,
+        },
+        data: {
+          awaitingContractSignature: false,
+        },
+      });
+
+      const requests = await tx.creditCardPaymentRequest.findMany({
+        where: {
+          enrollmentId: enrollment.id,
+          status: 'WAITING_CONTRACT_SIGNATURE',
+        },
+        select: {
+          id: true,
+          kind: true,
+        },
+      });
+
+      for (const request of requests) {
+        const shouldWaitForCourseStart =
+          request.kind === 'COURSE_PAYMENT' && waitingCourseStart;
+        await tx.creditCardPaymentRequest.update({
+          where: { id: request.id },
+          data: {
+            status: shouldWaitForCourseStart
+              ? 'WAITING_COURSE_START'
+              : 'REQUESTED',
+            requestedAt: shouldWaitForCourseStart ? undefined : releasedAt,
+          },
+        });
+      }
+    });
+
+    return { released: true };
   }
 
   async resolveSigningToken(rawToken: string) {
@@ -2158,8 +2608,11 @@ export class ContractsService {
     } as Prisma.InputJsonValue;
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.contractInstance.update({
-        where: { id: instance.id },
+      const signedUpdate = await tx.contractInstance.updateMany({
+        where: {
+          id: instance.id,
+          status: { not: ContractInstanceStatus.SIGNED },
+        },
         data: {
           status: ContractInstanceStatus.SIGNED,
           signedAt: now,
@@ -2177,6 +2630,9 @@ export class ContractsService {
           signerOtpDestinationMasked: this.maskEmail(token.otpDestination || ''),
         },
       });
+      if (signedUpdate.count !== 1) {
+        throw new BadRequestException('Este contrato já foi assinado.');
+      }
 
       await tx.contractSigningToken.update({
         where: { id: token.id },
@@ -2246,6 +2702,12 @@ export class ContractsService {
       });
     });
 
+    if (instance.enrollmentId) {
+      await this.releaseEnrollmentFinancialFlowIfContractsSigned(
+        instance.enrollmentId,
+      );
+    }
+
     void this.superadminIntegrationsService
       .dispatchKobayashiForSignedContractInstance(instance.id)
       .catch((error) => {
@@ -2287,6 +2749,7 @@ export class ContractsService {
         schoolClass: {
           select: {
             startDate: true,
+            status: true,
             course: {
               select: {
                 ownerAdminId: true,
@@ -2306,6 +2769,7 @@ export class ContractsService {
 
     const charges = this.buildChargesForEnrollmentAfterContract({
       classStartDate: enrollment.schoolClass.startDate,
+      classStatus: enrollment.schoolClass.status,
       signedAt: signedAt ?? new Date(),
       enrollmentFee: Number(enrollment.schoolClass.course.enrollmentFee ?? 0),
       paymentModel: enrollment.schoolClass.course.paymentModel,
@@ -2324,12 +2788,16 @@ export class ContractsService {
         amount: item.amount,
         kind: item.kind,
         status: item.status,
+        installmentNumber: item.installmentNumber ?? null,
+        installmentTotal: item.installmentTotal ?? null,
+        awaitingCourseStart: item.awaitingCourseStart ?? false,
       })),
     });
   }
 
   private buildChargesForEnrollmentAfterContract(input: {
     classStartDate: Date | null;
+    classStatus: string;
     signedAt: Date;
     enrollmentFee: number;
     paymentModel: string;
@@ -2342,6 +2810,9 @@ export class ContractsService {
       amount: number;
       kind: 'COURSE_PAYMENT' | 'ENROLLMENT_FEE';
       status: 'PENDING' | 'OVERDUE';
+      installmentNumber?: number;
+      installmentTotal?: number;
+      awaitingCourseStart?: boolean;
     }> = [];
     const now = new Date();
     const startOfToday = new Date(
@@ -2371,13 +2842,17 @@ export class ContractsService {
     );
 
     if (selectedOption) {
+      const awaitingCourseStart =
+        selectedOption.installmentStartMode === 'COURSE_START' &&
+        input.classStatus !== 'IN_PROGRESS';
       const selectedStartDate = selectedOption.installmentStartDate
         ? new Date(selectedOption.installmentStartDate)
         : null;
-      const configuredFirstDueDate =
-        selectedOption.installmentStartMode === 'SCHEDULED' &&
-        selectedStartDate &&
-        !Number.isNaN(selectedStartDate.getTime())
+      const configuredFirstDueDate = awaitingCourseStart
+        ? new Date(input.signedAt)
+        : selectedOption.installmentStartMode === 'SCHEDULED' &&
+            selectedStartDate &&
+            !Number.isNaN(selectedStartDate.getTime())
           ? selectedStartDate
           : selectedOption.installmentStartMode === 'COURSE_START' && input.classStartDate
             ? new Date(input.classStartDate)
@@ -2397,7 +2872,11 @@ export class ContractsService {
           dueDate,
           amount: this.toMoneyValue(totalAmount),
           kind: 'COURSE_PAYMENT',
-          status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+          status:
+            awaitingCourseStart || dueDateStart >= startOfToday
+              ? 'PENDING'
+              : 'OVERDUE',
+          awaitingCourseStart,
         });
         return result;
       }
@@ -2419,6 +2898,30 @@ export class ContractsService {
       const hasScheduledStart =
         scheduledBase !== null && !Number.isNaN(scheduledBase.getTime());
 
+      if (selectedOption.installmentStartMode === 'COURSE_START') {
+        const dueDate = awaitingCourseStart
+          ? new Date(input.signedAt)
+          : this.buildChargeDueDate(
+              new Date(input.signedAt),
+              0,
+              selectedOption.dueDay ?? undefined,
+            );
+        result.push({
+          dueDate,
+          amount: this.toMoneyValue(value),
+          kind: 'COURSE_PAYMENT',
+          status: awaitingCourseStart
+            ? 'PENDING'
+            : dueDate < startOfToday
+              ? 'OVERDUE'
+              : 'PENDING',
+          installmentNumber: 1,
+          installmentTotal: Math.trunc(months),
+          awaitingCourseStart,
+        });
+        return result;
+      }
+
       if (hasScheduledStart) {
         for (let index = 0; index < months; index += 1) {
           const dueDate = this.buildChargeDueDate(
@@ -2436,6 +2939,8 @@ export class ContractsService {
             amount: this.toMoneyValue(value),
             kind: 'COURSE_PAYMENT',
             status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+            installmentNumber: index + 1,
+            installmentTotal: Math.trunc(months),
           });
         }
         return result;
@@ -2460,6 +2965,8 @@ export class ContractsService {
           amount: this.toMoneyValue(value),
           kind: 'COURSE_PAYMENT',
           status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+          installmentNumber: index + 1,
+          installmentTotal: Math.trunc(months),
         });
       }
 
@@ -2484,6 +2991,8 @@ export class ContractsService {
         amount: this.toMoneyValue(value),
         kind: 'COURSE_PAYMENT',
         status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+        installmentNumber: index + 1,
+        installmentTotal: Math.trunc(months),
       });
     }
 
@@ -2582,6 +3091,11 @@ export class ContractsService {
           ? 'FIXED'
           : null;
     const voucherDiscountValue = this.toMoneyValue(voucherRaw?.discountValue);
+    const voucherValueBaseRaw = String(voucherRaw?.valueBase || '')
+      .trim()
+      .toUpperCase();
+    const voucherValueBase: 'REGULAR' | 'PROMOTIONAL' =
+      voucherValueBaseRaw === 'PROMOTIONAL' ? 'PROMOTIONAL' : 'REGULAR';
     const voucherAppliesToRaw = String(voucherRaw?.appliesTo || '')
       .trim()
       .toUpperCase();
@@ -2603,7 +3117,9 @@ export class ContractsService {
             title: String(voucherRaw?.title || '').trim() || null,
             discountType: voucherDiscountType,
             discountValue: voucherDiscountValue,
+            valueBase: voucherValueBase,
             appliesTo: voucherAppliesTo,
+            appliesToEnrollmentFee: Boolean(voucherRaw?.appliesToEnrollmentFee),
             installmentScope: voucherInstallmentScope,
             discountLabel: String(voucherRaw?.discountLabel || '').trim(),
             targetLabel: String(voucherRaw?.targetLabel || '').trim() || null,
@@ -2640,6 +3156,7 @@ export class ContractsService {
       discountDeadlineDay,
       discountRequiresActiveCrf,
       discountAppliesTo,
+      promotionalApplied: Boolean(source.promotionalApplied),
       appliedVoucher,
     };
   }
@@ -2735,10 +3252,22 @@ export class ContractsService {
             activeInstitutionId: input.institutionId,
             activePermissionCodes: [],
           },
-          { publicOrigin: input.publicOrigin ?? null },
+          {
+            publicOrigin: input.publicOrigin ?? null,
+            automaticDispatchKey: `${template.id}:${input.enrollmentId}`,
+          },
         );
-      } catch {
-        // O envio automático não deve quebrar a matrícula se houver falha.
+      } catch (error) {
+        const isDuplicateDispatch =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002';
+        if (!isDuplicateDispatch) {
+          const message =
+            error instanceof Error ? error.message : 'Falha desconhecida.';
+          this.logger.error(
+            `[automatic-contract] matrícula=${input.enrollmentId} modelo=${template.id} erro=${message}`,
+          );
+        }
       }
     }
   }
@@ -2907,49 +3436,14 @@ export class ContractsService {
   }
 
   private async resolveInstallmentsForContract(
-    institutionId: string,
-    enrollmentId?: string | null,
+    _institutionId: string,
+    _enrollmentId?: string | null,
     fallback?: {
       classStartDate?: Date | null;
       selectedPaymentOption?: ContractSelectedPaymentOption | null;
     },
   ): Promise<ContractInstallmentLine[]> {
     const selectedOption = fallback?.selectedPaymentOption ?? null;
-    const hideScheduleForCreditCard =
-      String(selectedOption?.method || '')
-        .trim()
-        .toUpperCase() === 'CREDIT_CARD';
-    if (hideScheduleForCreditCard) {
-      return [];
-    }
-
-    const charges = enrollmentId
-      ? await this.prisma.monthlyCharge.findMany({
-          where: {
-            enrollmentId,
-            enrollment: {
-              institutionId,
-            },
-          },
-          orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
-          select: {
-            dueDate: true,
-            amount: true,
-            status: true,
-          },
-        })
-      : [];
-
-    if (charges.length > 0) {
-      return charges.map((charge, index) => ({
-        number: index + 1,
-        dueDateLabel: this.formatDatePtBr(charge.dueDate),
-        amountValue: Number(charge.amount ?? 0),
-        amountLabel: this.formatCurrencyPtBr(Number(charge.amount)),
-        statusLabel: this.chargeStatusLabel(charge.status),
-      }));
-    }
-
     if (!selectedOption || selectedOption.type !== 'INSTALLMENTS') {
       return [];
     }
@@ -2985,23 +3479,40 @@ export class ContractsService {
       voucher.installmentScope === 'SINGLE' &&
       Number(voucher.discountedInstallmentAmount ?? 0) > 0;
 
-    const baseDate =
-      (selectedOption.installmentStartDate &&
+    const configuredStartDate =
+      selectedOption.installmentStartDate &&
       !Number.isNaN(new Date(selectedOption.installmentStartDate).getTime())
         ? new Date(selectedOption.installmentStartDate)
-        : null) ||
-      (fallback?.classStartDate ? new Date(fallback.classStartDate) : null) ||
-      new Date();
+        : null;
+    const classStartDate =
+      fallback?.classStartDate &&
+      !Number.isNaN(new Date(fallback.classStartDate).getTime())
+        ? new Date(fallback.classStartDate)
+        : null;
+    const baseDate =
+      selectedOption.installmentStartMode === 'SCHEDULED'
+        ? configuredStartDate
+        : selectedOption.installmentStartMode === 'COURSE_START'
+          ? classStartDate
+          : new Date();
 
     return Array.from({ length: months }).map((_, index) => {
-      const dueDate = this.buildChargeDueDate(
-        baseDate,
-        index,
-        selectedOption.dueDay ?? undefined,
-      );
-      const amountValue = hasSingleInstallmentVoucher && index === 0
-        ? this.toMoneyValue(voucher?.discountedInstallmentAmount ?? 0)
-        : this.toMoneyValue(regularInstallmentAmount);
+      const dueDate = baseDate
+        ? this.buildChargeDueDate(
+            baseDate,
+            index,
+            selectedOption.dueDay ?? undefined,
+          )
+        : null;
+      const amountValue =
+        hasSingleInstallmentVoucher && index === 0
+          ? this.toMoneyValue(voucher?.discountedInstallmentAmount ?? 0)
+          : this.toMoneyValue(
+              hasSingleInstallmentVoucher &&
+                Number(voucher?.regularInstallmentAmount ?? 0) > 0
+                ? voucher?.regularInstallmentAmount
+                : regularInstallmentAmount,
+            );
       const discountValue = hasDiscountInstallment
         ? this.toMoneyValue(discountInstallmentAmount)
         : 0;
@@ -3024,7 +3535,9 @@ export class ContractsService {
 
       return {
         number: index + 1,
-        dueDateLabel: this.formatDatePtBr(dueDate),
+        dueDateLabel: dueDate
+          ? this.formatDatePtBr(dueDate)
+          : 'No início do curso (data a definir)',
         amountValue,
         amountLabel: this.formatCurrencyPtBr(amountValue),
         statusLabel: 'Prevista',
@@ -3032,14 +3545,6 @@ export class ContractsService {
         detailsLabel,
       };
     });
-  }
-
-  private chargeStatusLabel(status: string): string {
-    const normalized = String(status || '').trim().toUpperCase();
-    if (normalized === 'PAID') return 'Pago';
-    if (normalized === 'OVERDUE') return 'Em atraso';
-    if (normalized === 'CANCELED') return 'Cancelado';
-    return 'Pendente';
   }
 
   private paymentModelLabelPtBr(

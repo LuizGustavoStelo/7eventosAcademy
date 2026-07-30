@@ -11,6 +11,7 @@ import { Prisma } from '@prisma/client';
 import { JwtPayload } from '../auth/types/app-role.type';
 import { PrismaService } from '../database/prisma.service';
 import { FinanceService } from '../finance/finance.service';
+import { ContractsService } from '../contracts/contracts.service';
 import { SecretsService } from '../security/secrets/secrets.service';
 import { PayStudentChargeDto } from './dto/pay-student-charge.dto';
 import { ValidatePublicVoucherDto } from './dto/validate-public-voucher.dto';
@@ -135,6 +136,7 @@ type StudentChargePaymentContext = {
   dueDate: Date;
   status: string;
   awaitingCourseStart: boolean;
+  awaitingContractSignature: boolean;
   externalChargeId: string | null;
   ownerAdminId: string | null;
   enrollment: {
@@ -239,6 +241,7 @@ export class MisService {
     private readonly prisma: PrismaService,
     private readonly secrets: SecretsService,
     private readonly financeService: FinanceService,
+    private readonly contractsService: ContractsService,
   ) {}
 
   @Cron(CronExpression.EVERY_5_MINUTES)
@@ -404,6 +407,11 @@ export class MisService {
     if (charge.awaitingCourseStart) {
       throw new BadRequestException(
         'Esta mensalidade será liberada quando o curso iniciar.',
+      );
+    }
+    if (charge.awaitingContractSignature) {
+      throw new BadRequestException(
+        'Esta cobrança será liberada após a assinatura dos contratos obrigatórios.',
       );
     }
 
@@ -591,17 +599,35 @@ export class MisService {
   }
 
   async getAlunoDashboard(userId: string) {
-    const [me, enrollments, cobrancas] = await Promise.all([
+    const [me, enrollments, cobrancas, contractGate] = await Promise.all([
       this.getAlunoMe(userId),
       this.fetchActiveEnrollments(userId),
       this.getAlunoCobrancas(userId),
+      this.contractsService.getStudentAccessGate(userId),
     ]);
 
     const matriculas = this.mapMatriculas(enrollments);
-    const classIds = this.uniqueClassIds(enrollments.map((en) => en.classId));
+    const unlockedEnrollmentIds = new Set(
+      contractGate.enrollments
+        .filter((item) => !item.accessLocked)
+        .map((item) => item.enrollmentId),
+    );
+    const classIds = this.uniqueClassIds(
+      enrollments
+        .filter((item) => unlockedEnrollmentIds.has(item.id))
+        .map((enrollment) => enrollment.classId),
+    );
 
     if (classIds.length === 0) {
-      return { me, matriculas, materiais: [], avisos: [], cobrancas, agenda: [] };
+      return {
+        me,
+        matriculas,
+        materiais: [],
+        avisos: [],
+        cobrancas,
+        agenda: [],
+        contractGate,
+      };
     }
 
     const [materiais, avisos, agenda] = await Promise.all([
@@ -610,7 +636,15 @@ export class MisService {
       this.fetchAgendaByClassIds(classIds),
     ]);
 
-    return { me, matriculas, materiais, avisos, cobrancas, agenda };
+    return {
+      me,
+      matriculas,
+      materiais,
+      avisos,
+      cobrancas,
+      agenda,
+      contractGate,
+    };
   }
 
   async validatePublicVoucher(courseId: string, dto: ValidatePublicVoucherDto) {
@@ -658,11 +692,12 @@ export class MisService {
   }
 
   private async fetchActiveClassIds(userId: string) {
-    const activeEnrollments = await this.prisma.enrollment.findMany({
-      where: { studentId: userId, status: 'ACTIVE' },
-      select: { classId: true },
-    });
-    return this.uniqueClassIds(activeEnrollments.map((e) => e.classId));
+    const gate = await this.contractsService.getStudentAccessGate(userId);
+    return this.uniqueClassIds(
+      gate.enrollments
+        .filter((item) => !item.accessLocked)
+        .map((item) => item.classId),
+    );
   }
 
   private async fetchMateriaisByClassIds(classIds: string[]) {
@@ -817,6 +852,7 @@ export class MisService {
         installmentNumber: true,
         installmentTotal: true,
         awaitingCourseStart: true,
+        awaitingContractSignature: true,
         externalChargeId: true,
         createdAt: true,
         enrollment: {
@@ -908,6 +944,7 @@ export class MisService {
       installmentNumber: number | null;
       installmentTotal: number | null;
       awaitingCourseStart: boolean;
+      awaitingContractSignature: boolean;
       externalChargeId: string | null;
       enrollment: {
         selectedPaymentOption: Prisma.JsonValue | null;
@@ -965,6 +1002,9 @@ export class MisService {
       const waitingCourseStart =
         charge.awaitingCourseStart ||
         creditCardRequestStatus === 'WAITING_COURSE_START';
+      const waitingContractSignature =
+        charge.awaitingContractSignature ||
+        creditCardRequestStatus === 'WAITING_CONTRACT_SIGNATURE';
       const pricing = pricingByChargeId.get(charge.id) ?? {
         originalAmount: this.toMoneyValue(Number(charge.amount)),
         payableAmount: this.toMoneyValue(Number(charge.amount)),
@@ -977,7 +1017,10 @@ export class MisService {
       return {
         id: charge.id,
         enrollmentId: charge.enrollmentId,
-        dueDate: waitingCourseStart ? null : charge.dueDate,
+        dueDate:
+          waitingCourseStart || waitingContractSignature
+            ? null
+            : charge.dueDate,
         amount: pricing.payableAmount,
         originalAmount: pricing.originalAmount,
         discountAmount: pricing.discountAmount,
@@ -994,9 +1037,11 @@ export class MisService {
             charge.enrollment.selectedPaymentOption,
           ),
         paymentMethod,
-        chargeScheduleStatus: waitingCourseStart
-          ? 'WAITING_COURSE_START'
-          : null,
+        chargeScheduleStatus: waitingContractSignature
+          ? 'WAITING_CONTRACT_SIGNATURE'
+          : waitingCourseStart
+            ? 'WAITING_COURSE_START'
+            : null,
         creditCardRequestStatus: creditCardRequestStatus || null,
         paymentOptionTitle: this.resolveEnrollmentPaymentOptionTitle(
           charge.kind === 'ENROLLMENT_FEE'
@@ -1009,7 +1054,8 @@ export class MisService {
         canPay:
           (charge.status === 'PENDING' || charge.status === 'OVERDUE') &&
           !creditCardUnsupported &&
-          !waitingCourseStart,
+          !waitingCourseStart &&
+          !waitingContractSignature,
         gatewayProvider,
         gatewayIsActive,
         creditCardUnsupported,
@@ -2629,6 +2675,7 @@ export class MisService {
         dueDate: true,
         status: true,
         awaitingCourseStart: true,
+        awaitingContractSignature: true,
         externalChargeId: true,
         ownerAdminId: true,
         enrollment: {
@@ -2698,6 +2745,7 @@ export class MisService {
         dueDate: true,
         status: true,
         awaitingCourseStart: true,
+        awaitingContractSignature: true,
         externalChargeId: true,
         ownerAdminId: true,
         enrollment: {
@@ -2772,6 +2820,7 @@ export class MisService {
         dueDate: true,
         status: true,
         awaitingCourseStart: true,
+        awaitingContractSignature: true,
         externalChargeId: true,
         ownerAdminId: true,
         enrollment: {

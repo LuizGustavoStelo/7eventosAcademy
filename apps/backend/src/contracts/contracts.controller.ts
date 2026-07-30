@@ -193,6 +193,12 @@ export class ContractsController {
   }
 
   @Roles('user', 'admin', 'superadmin')
+  @Get('my/access-gate')
+  async getMyAccessGate(@Req() request: AuthenticatedRequest) {
+    return this.contractsService.getMyAccessGate(request.user);
+  }
+
+  @Roles('user', 'admin', 'superadmin')
   @Get('my/:instanceId')
   async getMyInstanceById(
     @Param('instanceId') instanceId: string,

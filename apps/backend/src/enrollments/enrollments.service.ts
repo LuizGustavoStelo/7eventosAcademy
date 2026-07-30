@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, StudentCourseStatus, UserRole } from '@prisma/client';
@@ -93,6 +94,8 @@ type GeneratedMonthlyCharge = {
 
 @Injectable()
 export class EnrollmentsService {
+  private readonly logger = new Logger(EnrollmentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly contractsService: ContractsService,
@@ -439,6 +442,7 @@ export class EnrollmentsService {
               installmentNumber: charge.installmentNumber ?? null,
               installmentTotal: charge.installmentTotal ?? null,
               awaitingCourseStart: charge.awaitingCourseStart ?? false,
+              awaitingContractSignature: true,
             })),
           });
         }
@@ -462,53 +466,25 @@ export class EnrollmentsService {
       await this.activateCourseStartPaymentsForClass(schoolClass.id);
     }
 
-    const enrollmentFeeAmount = Number(
-      enrollment.schoolClass?.course?.enrollmentFee ?? 0,
-    );
-    const selectedPaymentOption =
-      enrollment.selectedPaymentOption &&
-      typeof enrollment.selectedPaymentOption === 'object' &&
-      !Array.isArray(enrollment.selectedPaymentOption)
-        ? (enrollment.selectedPaymentOption as Record<string, unknown>)
-        : null;
-    const selectedPaymentType = String(selectedPaymentOption?.type ?? '')
-      .trim()
-      .toUpperCase();
-    const selectedInstallmentCount = Number(
-      selectedPaymentOption?.installmentCount ?? 0,
-    );
-    const selectedInstallmentAmount = Number(
-      selectedPaymentOption?.installmentAmount ?? 0,
-    );
-    const selectedTotalAmount = Number(selectedPaymentOption?.totalAmount ?? 0);
-    const requiresFirstInstallmentPayment =
-      selectedPaymentType === 'INSTALLMENTS' &&
-      Number.isFinite(selectedInstallmentCount) &&
-      selectedInstallmentCount > 0 &&
-      Number.isFinite(selectedInstallmentAmount) &&
-      selectedInstallmentAmount > 0;
-    const requiresCashCoursePayment =
-      selectedPaymentType === 'CASH' &&
-      Number.isFinite(selectedTotalAmount) &&
-      selectedTotalAmount > 0;
-    const shouldSendContractImmediately =
-      (!Number.isFinite(enrollmentFeeAmount) || enrollmentFeeAmount <= 0) &&
-      !requiresFirstInstallmentPayment &&
-      !requiresCashCoursePayment;
-
-    if (shouldSendContractImmediately) {
-      try {
-        await this.contractsService.sendAutomaticContractsForEnrollment({
-          institutionId: enrollment.institutionId,
-          enrollmentId: enrollment.id,
-          studentId: enrollment.studentId,
-          courseId: enrollment.schoolClass?.course?.id ?? null,
-          classId: enrollment.classId,
-          createdByUserId: enrollment.schoolClass.course.ownerAdminId,
-        });
-      } catch {
-        // O envio automático de contrato não deve bloquear a criação da matrícula.
-      }
+    try {
+      await this.contractsService.sendAutomaticContractsForEnrollment({
+        institutionId: enrollment.institutionId,
+        enrollmentId: enrollment.id,
+        studentId: enrollment.studentId,
+        courseId: enrollment.schoolClass?.course?.id ?? null,
+        classId: enrollment.classId,
+        createdByUserId: enrollment.schoolClass.course.ownerAdminId,
+      });
+      await this.contractsService.releaseEnrollmentFinancialFlowIfContractsSigned(
+        enrollment.id,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Falha desconhecida.';
+      this.logger.error(
+        `[contract-dispatch] matrícula=${enrollment.id} erro=${message}`,
+      );
+      // A reconciliação automática tentará novamente sem desfazer a matrícula.
     }
 
     void this.superadminIntegrationsService
@@ -569,11 +545,10 @@ export class EnrollmentsService {
         const option = this.parseStoredPaymentOption(
           charge.enrollment.selectedPaymentOption,
         );
-        const isSequentialCourseStartCharge =
-          option?.type === 'INSTALLMENTS' &&
-          option.installmentStartMode === 'COURSE_START' &&
+        const isCourseStartCharge =
+          option?.installmentStartMode === 'COURSE_START' &&
           option.collectionMode !== 'MANUAL_LINK';
-        if (!isSequentialCourseStartCharge) continue;
+        if (!isCourseStartCharge) continue;
 
         const dueDate = this.buildFirstCourseStartDueDate(
           activatedAt,
@@ -846,7 +821,16 @@ export class EnrollmentsService {
           Number.isFinite(totalAmount) &&
           totalAmount > 0
         ) {
-          const dueDate = new Date(configuredFirstDueDate);
+          const awaitingCourseStart =
+            startMode === 'COURSE_START' && input.classStatus !== 'IN_PROGRESS';
+          const dueDate = awaitingCourseStart
+            ? new Date(input.enrollmentCreatedAt)
+            : startMode === 'COURSE_START'
+              ? this.buildFirstCourseStartDueDate(
+                  input.enrollmentCreatedAt,
+                  input.selectedPaymentOption.dueDay ?? undefined,
+                )
+              : new Date(configuredFirstDueDate);
           const dueDateStart = new Date(
             dueDate.getFullYear(),
             dueDate.getMonth(),
@@ -862,13 +846,14 @@ export class EnrollmentsService {
             {
               dueDate,
               amount: this.toMoneyValue(totalAmount),
-              status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+              status: awaitingCourseStart
+                ? 'PENDING'
+                : dueDateStart < startOfToday
+                  ? 'OVERDUE'
+                  : 'PENDING',
+              awaitingCourseStart,
             },
-          ] as Array<{
-            dueDate: Date;
-            amount: number;
-            status: 'PENDING' | 'OVERDUE';
-          }>;
+          ];
         }
         return [] as Array<{
           dueDate: Date;
@@ -900,11 +885,7 @@ export class EnrollmentsService {
           : null;
       const hasScheduledStart =
         scheduledBase !== null && !Number.isNaN(scheduledBase.getTime());
-      const result: Array<{
-        dueDate: Date;
-        amount: number;
-        status: 'PENDING' | 'OVERDUE';
-      }> = [];
+      const result: GeneratedMonthlyCharge[] = [];
       const resolveInstallmentAmount = (installmentIndex: number) => {
         const appliedVoucher = input.selectedPaymentOption?.appliedVoucher;
         const appliesVoucherToSingleInstallment =
@@ -958,6 +939,8 @@ export class EnrollmentsService {
             dueDate,
             amount: resolveInstallmentAmount(index),
             status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+            installmentNumber: index + 1,
+            installmentTotal: Math.trunc(months),
           });
         }
         return result;
@@ -979,6 +962,8 @@ export class EnrollmentsService {
           dueDate,
           amount: resolveInstallmentAmount(index),
           status: dueDateStart < startOfToday ? 'OVERDUE' : 'PENDING',
+          installmentNumber: index + 1,
+          installmentTotal: Math.trunc(months),
         });
       }
 
@@ -1050,7 +1035,7 @@ export class EnrollmentsService {
       Boolean(input.selectedPaymentOption) &&
       charges.length > 0
         ? charges.map((item, index) => {
-            if (index !== 0 || item.installmentNumber) return item;
+            if (index !== 0 || item.awaitingCourseStart) return item;
             const dueDate =
               item.dueDate.getTime() < enrollmentGraceDueDate.getTime()
                 ? new Date(enrollmentGraceDueDate)
@@ -1226,9 +1211,7 @@ export class EnrollmentsService {
     const isApproved = existing?.status === 'APPROVED';
     const status = isApproved
       ? ('APPROVED' as const)
-      : input.waitingCourseStart
-        ? ('WAITING_COURSE_START' as const)
-        : ('REQUESTED' as const);
+      : ('WAITING_CONTRACT_SIGNATURE' as const);
     const data = {
       monthlyChargeId: null,
       enrollmentId: null,

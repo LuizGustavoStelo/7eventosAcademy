@@ -51,6 +51,7 @@ enum TransactionStatus {
 }
 
 enum CreditCardPaymentRequestStatus {
+  WAITING_CONTRACT_SIGNATURE @map("waiting_contract_signature")
   WAITING_COURSE_START @map("waiting_course_start")
   REQUESTED @map("requested")
   LINK_SENT @map("link_sent")
@@ -662,6 +663,7 @@ model ContractInstance {
   signedContentHash         String?              @map("signed_content_hash")
   signedPdfHash             String?              @map("signed_pdf_hash")
   signatureCode             String               @map("signature_code")
+  automaticDispatchKey      String?              @unique @map("automatic_dispatch_key")
   acceptedTermsText         String?              @map("accepted_terms_text")
   acceptedTermsVersion      String?              @map("accepted_terms_version")
   acceptedAt                DateTime?            @map("accepted_at")
@@ -806,6 +808,7 @@ model MonthlyCharge {
   installmentNumber   Int?                 @map("installment_number")
   installmentTotal    Int?                 @map("installment_total")
   awaitingCourseStart Boolean              @default(false) @map("awaiting_course_start")
+  awaitingContractSignature Boolean         @default(false) @map("awaiting_contract_signature")
   externalChargeId    String?              @map("external_charge_id")
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")

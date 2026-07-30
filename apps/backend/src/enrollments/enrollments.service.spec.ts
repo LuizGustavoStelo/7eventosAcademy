@@ -108,7 +108,7 @@ describe('EnrollmentsService pre-enrollment commercial selection', () => {
       expect.objectContaining({
         kind: 'ENROLLMENT_FEE',
         installmentCount: 3,
-        status: 'REQUESTED',
+        status: 'WAITING_CONTRACT_SIGNATURE',
       }),
     );
     expect(Number(enrollmentFeeRequest.amount)).toBe(450);
@@ -119,7 +119,7 @@ describe('EnrollmentsService pre-enrollment commercial selection', () => {
       expect.objectContaining({
         kind: 'COURSE_PAYMENT',
         installmentCount: 18,
-        status: 'WAITING_COURSE_START',
+        status: 'WAITING_CONTRACT_SIGNATURE',
       }),
     );
     expect(Number(courseRequest.amount)).toBe(4860);

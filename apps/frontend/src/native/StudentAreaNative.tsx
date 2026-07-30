@@ -89,6 +89,25 @@ type StudentContractNoticeItem = {
   institutionSignaturePending?: boolean;
 };
 
+type StudentAccessGate = {
+  locked: boolean;
+  contractLocked: boolean;
+  paymentLocked: boolean;
+  requiredCount: number;
+  availableCount: number;
+  signedCount: number;
+  pendingSignatureCount: number;
+  missingCount: number;
+  enrollments: Array<{
+    enrollmentId: string;
+    classId: string;
+    courseId: string;
+    contractLocked: boolean;
+    paymentLocked: boolean;
+    accessLocked: boolean;
+  }>;
+};
+
 type StudentNoticeFeedItem = {
   id: string;
   title: string;
@@ -138,6 +157,7 @@ type StudentDashboardPayload = {
   avisos: StudentNotice[];
   cobrancas: StudentCharge[];
   agenda: StudentAgendaEvent[];
+  contractGate: StudentAccessGate;
 };
 
 type StudentCharge = {
@@ -187,6 +207,15 @@ function isChargeWaitingCourseStart(charge: StudentCharge) {
   );
 }
 
+function isChargeWaitingContractSignature(charge: StudentCharge) {
+  return (
+    String(charge.chargeScheduleStatus || "").toUpperCase() ===
+      "WAITING_CONTRACT_SIGNATURE" ||
+    String(charge.creditCardRequestStatus || "").toUpperCase() ===
+      "WAITING_CONTRACT_SIGNATURE"
+  );
+}
+
 type StudentChargePaymentResponse = {
   chargeId: string;
   provider: string;
@@ -211,7 +240,7 @@ type CreditCardPaymentRequest = {
   amount: number;
   installmentCount: number | null;
   installmentAmount: number | null;
-  status: 'WAITING_COURSE_START' | 'REQUESTED' | 'LINK_SENT' | 'VIEWED' | 'COPIED' | 'APPROVED' | 'CANCELED' | string;
+  status: 'WAITING_CONTRACT_SIGNATURE' | 'WAITING_COURSE_START' | 'REQUESTED' | 'LINK_SENT' | 'VIEWED' | 'COPIED' | 'APPROVED' | 'CANCELED' | string;
   paymentLinkUrl: string | null;
   adminNote: string | null;
   requestedAt: string;
@@ -248,7 +277,6 @@ type StudentAreaNativeProps = {
 
 const STUDENT_CACHE_TTL_MS = 25_000;
 const REFRESH_MS = 30_000;
-const REQUIRED_SIGNED_CONTRACTS_TO_UNLOCK = 2;
 const STUDENT_CHARGE_PAYMENT_CACHE_KEY = 'student-charge-payment-cache-v1';
 const DEFAULT_STUDENT_BRANDING_LOGO_URL = '/Logo-IPESK.png';
 const DEFAULT_STUDENT_BRANDING_PALETTE: StudentBrandingPalette = {
@@ -426,10 +454,12 @@ const STUDENT_SECTIONS_ENABLED_WITHOUT_CLASS = new Set<SectionId>([
 
 const STUDENT_SECTIONS_ENABLED_BEFORE_CONTRACT = new Set<SectionId>([
   'st-student-finance',
+  'st-student-contracts',
 ]);
 
 const STUDENT_SECTIONS_ENABLED_WITH_PENDING_CONTRACT = new Set<SectionId>([
   'st-student-contracts',
+  'st-student-finance',
 ]);
 
 const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -724,6 +754,9 @@ function creditCardRequestKindLabel(kind: string) {
 
 function creditCardRequestStudentStatus(request: CreditCardPaymentRequest) {
   const status = String(request.status || '').toUpperCase();
+  if (status === 'WAITING_CONTRACT_SIGNATURE') {
+    return 'Registrado. O financeiro poderá gerar o link após a assinatura dos contratos obrigatórios.';
+  }
   if (status === 'WAITING_COURSE_START') {
     return 'Registrado para cobrança no início do curso. O financeiro enviará o link quando a turma começar.';
   }
@@ -1109,8 +1142,6 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   >({});
   const [creditCardRequests, setCreditCardRequests] = useState<CreditCardPaymentRequest[]>([]);
   const [pendingContractNotificationCount, setPendingContractNotificationCount] = useState(0);
-  const [availableContractCount, setAvailableContractCount] = useState(0);
-  const [signedContractCount, setSignedContractCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const initialContractId = useMemo(() => {
@@ -1147,7 +1178,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   }, [chargePaymentDataById]);
 
   const loadFallback = async (bypassCache = false): Promise<StudentDashboardPayload> => {
-    const [me, matriculas, materiais, avisos] = await Promise.all([
+    const [me, matriculas, materiais, avisos, contractGate] = await Promise.all([
       apiRequest<StudentMe>(token, '/mis/v1/aluno/me', undefined, {
         cacheTtlMs: STUDENT_CACHE_TTL_MS,
         bypassCache,
@@ -1161,6 +1192,10 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         bypassCache,
       }),
       apiRequest<StudentNotice[]>(token, '/mis/v1/aluno/avisos', undefined, {
+        cacheTtlMs: STUDENT_CACHE_TTL_MS,
+        bypassCache,
+      }),
+      apiRequest<StudentAccessGate>(token, '/contracts/my/access-gate', undefined, {
         cacheTtlMs: STUDENT_CACHE_TTL_MS,
         bypassCache,
       }),
@@ -1188,7 +1223,15 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       if (status !== 404) throw agendaError;
     }
 
-    return { me, matriculas, materiais, avisos, cobrancas, agenda };
+    return {
+      me,
+      matriculas,
+      materiais,
+      avisos,
+      cobrancas,
+      agenda,
+      contractGate,
+    };
   };
 
   const loadDashboard = async (options?: { bypassCache?: boolean }) => {
@@ -1271,18 +1314,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         const pendingCount = (Array.isArray(contracts) ? contracts : []).filter((item) =>
           hasPendingContractSignature(item),
         ).length;
-        const availableCount = Array.isArray(contracts) ? contracts.length : 0;
-        const signedCount = (Array.isArray(contracts) ? contracts : []).filter((item) => {
-          const normalized = String(item.status || '').trim().toUpperCase();
-          return normalized === 'SIGNED' || Boolean(item.signedAt);
-        }).length;
         setPendingContractNotificationCount(pendingCount);
-        setAvailableContractCount(availableCount);
-        setSignedContractCount(signedCount);
       } catch {
         setPendingContractNotificationCount(0);
-        setAvailableContractCount(0);
-        setSignedContractCount(0);
       }
     } catch (loadError) {
       setError(
@@ -1291,8 +1325,6 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
           : 'Não foi possível carregar a Área do Aluno.',
       );
       setPendingContractNotificationCount(0);
-      setAvailableContractCount(0);
-      setSignedContractCount(0);
     } finally {
       setLoading(false);
     }
@@ -1456,14 +1488,20 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
   const cobrancas = dashboard?.cobrancas ?? [];
   const agenda = dashboard?.agenda ?? [];
   const hasActiveClass = matriculas.length > 0;
+  const accessGate = dashboard?.contractGate;
   const missingRequiredContractCount = Math.max(
-    REQUIRED_SIGNED_CONTRACTS_TO_UNLOCK - signedContractCount,
+    accessGate?.missingCount ?? 0,
     0,
   );
-  const isPreContractStage = availableContractCount <= 0;
+  const isPreContractStage = Boolean(
+    accessGate?.contractLocked && accessGate.availableCount <= 0,
+  );
   const isPreSignatureStage =
-    availableContractCount > 0 && missingRequiredContractCount > 0;
-  const isContractGateLocked = isPreContractStage || isPreSignatureStage;
+    Boolean(accessGate?.contractLocked) &&
+    Number(accessGate?.availableCount ?? 0) > 0;
+  const isPaymentStage =
+    !accessGate?.contractLocked && Boolean(accessGate?.paymentLocked);
+  const isContractGateLocked = Boolean(accessGate?.locked);
   const hasPendingContractsToSign = pendingContractNotificationCount > 0;
 
   const isSectionDisabled = (sectionId: SectionId) => {
@@ -1472,6 +1510,9 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
     }
     if (isPreSignatureStage) {
       return !STUDENT_SECTIONS_ENABLED_WITH_PENDING_CONTRACT.has(sectionId);
+    }
+    if (isPaymentStage) {
+      return !STUDENT_SECTIONS_ENABLED_BEFORE_CONTRACT.has(sectionId);
     }
     if (hasActiveClass) return false;
     return !STUDENT_SECTIONS_ENABLED_WITHOUT_CLASS.has(sectionId);
@@ -1629,10 +1670,24 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
         status !== 'CANCELLED'
       );
     });
+    const waitingContractSignature = sorted.filter((item) => {
+      const status = String(item.status || "").toUpperCase();
+      return (
+        isChargeWaitingContractSignature(item) &&
+        status !== "PAID" &&
+        status !== "CANCELED" &&
+        status !== "CANCELLED"
+      );
+    });
     const pendingAll = sorted.filter((item) => {
       const status = item.status.toUpperCase();
       const isWaitingCourseStart = isChargeWaitingCourseStart(item);
-      return !isWaitingCourseStart && (status === 'PENDING' || status === 'OVERDUE');
+      const isWaitingContractSignature = isChargeWaitingContractSignature(item);
+      return (
+        !isWaitingCourseStart &&
+        !isWaitingContractSignature &&
+        (status === 'PENDING' || status === 'OVERDUE')
+      );
     });
     const paid = sorted.filter((item) => item.status.toUpperCase() === 'PAID');
     const overdue = pendingAll.filter((item) => {
@@ -1677,8 +1732,17 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       visible.push(item);
       visibleById.add(item.id);
     });
+    waitingContractSignature.forEach((item) => {
+      if (visibleById.has(item.id)) return;
+      visible.push(item);
+      visibleById.add(item.id);
+    });
     const nextCharge =
-      visible.find((item) => !isChargeWaitingCourseStart(item)) ?? null;
+      visible.find(
+        (item) =>
+          !isChargeWaitingCourseStart(item) &&
+          !isChargeWaitingContractSignature(item),
+      ) ?? null;
     const pendingAmount = pending.reduce((sum, item) => sum + item.amount, 0);
     const overdueAmount = overdue.reduce((sum, item) => sum + item.amount, 0);
 
@@ -1689,6 +1753,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       paid,
       overdue,
       waitingCourseStart,
+      waitingContractSignature,
       nextCharge,
       pendingAmount,
       overdueAmount,
@@ -1763,31 +1828,6 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       ),
     [creditCardRequests],
   );
-  const enrollmentFeeCardRequest = useMemo(
-    () =>
-      creditCardRequests.find(
-        (request) =>
-          String(request.kind || '').toUpperCase() === 'ENROLLMENT_FEE' &&
-          String(request.status || '').toUpperCase() !== 'CANCELED',
-      ) ?? null,
-    [creditCardRequests],
-  );
-  const enrollmentFeePaymentApproved =
-    String(enrollmentFeeCardRequest?.status || '').toUpperCase() === 'APPROVED';
-  const preContractPaymentMessage = useMemo(() => {
-    const status = String(enrollmentFeeCardRequest?.status || '').toUpperCase();
-    if (status === 'REQUESTED') {
-      return 'Sua solicitação de pagamento da matrícula foi enviada. Aguarde o financeiro gerar e enviar o link do cartão.';
-    }
-    if (status === 'LINK_SENT' || status === 'VIEWED' || status === 'COPIED') {
-      return 'O link de pagamento da matrícula já está disponível no Financeiro. Após o pagamento, aguarde a aprovação manual.';
-    }
-    if (status === 'APPROVED') {
-      return 'O pagamento da matrícula foi aprovado. Aguarde a definição da turma e a liberação dos contratos pela instituição.';
-    }
-    return 'Finalize o pagamento da taxa de matrícula no financeiro. Após a quitação, o contrato será liberado para assinatura.';
-  }, [enrollmentFeeCardRequest?.status]);
-
   const titleName = me?.name || user.name;
   const topbarName = firstAndLastName(titleName);
   const profileCityState = useMemo(() => {
@@ -2067,7 +2107,13 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label, 'pt-BR'))
       .slice(0, 6);
-  }, [studentSearchQuery, hasActiveClass, isPreContractStage, isPreSignatureStage]);
+  }, [
+    studentSearchQuery,
+    hasActiveClass,
+    isPreContractStage,
+    isPreSignatureStage,
+    isPaymentStage,
+  ]);
 
   const executeStudentSearch = () => {
     const topSuggestion = studentSearchSuggestions[0];
@@ -2099,8 +2145,18 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
       setActiveSection('st-student-contracts');
       return;
     }
+    if (isPaymentStage) {
+      setActiveSection('st-student-finance');
+      return;
+    }
     setActiveSection('st-student-panel');
-  }, [activeSection, hasActiveClass, isPreContractStage, isPreSignatureStage]);
+  }, [
+    activeSection,
+    hasActiveClass,
+    isPreContractStage,
+    isPreSignatureStage,
+    isPaymentStage,
+  ]);
 
   useEffect(() => {
     const target = document.getElementById(activeSection);
@@ -2898,8 +2954,13 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                   const isWaitingCourseStart =
                     isChargeWaitingCourseStart(charge) ||
                     creditCardRequestStatus === 'WAITING_COURSE_START';
+                  const isWaitingContractSignature =
+                    isChargeWaitingContractSignature(charge) ||
+                    creditCardRequestStatus === 'WAITING_CONTRACT_SIGNATURE';
                   const isOverdue =
-                    !isWaitingCourseStart && isChargeOverdue(charge);
+                    !isWaitingCourseStart &&
+                    !isWaitingContractSignature &&
+                    isChargeOverdue(charge);
                   return (
                     <article key={charge.id} className={`student-page-list-item ${isOverdue ? 'is-overdue' : ''}`}>
                     <div>
@@ -2908,9 +2969,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       </strong>
                       <small>
                         {chargeDescription || charge.className} • {paymentMethodLabel(charge.paymentMethod)} •
-                        {' '}{isWaitingCourseStart
-                          ? 'Cobrança no início do curso'
-                          : `Vencimento ${formatDate(charge.dueDate)}`}
+                        {' '}{isWaitingContractSignature
+                          ? 'Liberação após assinatura'
+                          : isWaitingCourseStart
+                            ? 'Cobrança no início do curso'
+                            : `Vencimento ${formatDate(charge.dueDate)}`}
                       </small>
                       {paymentInfo ? (
                         <small className="student-charge-feedback">{paymentInfo}</small>
@@ -2920,8 +2983,10 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       ) : null}
                       {requiresCommercialContact ? (
                         <small className="student-charge-feedback is-warning">
-                          {creditCardRequestStatus === 'WAITING_COURSE_START'
-                            ? 'Pagamento registrado para o início do curso. Aguarde o envio do link pelo financeiro.'
+                          {creditCardRequestStatus === 'WAITING_CONTRACT_SIGNATURE'
+                            ? 'A forma de pagamento já foi registrada. Assine os contratos obrigatórios para o financeiro liberar o link.'
+                            : creditCardRequestStatus === 'WAITING_COURSE_START'
+                              ? 'Pagamento registrado para o início do curso. Aguarde o envio do link pelo financeiro.'
                             : creditCardRequest
                               ? 'Solicitação enviada ao financeiro. Aguarde a confirmação ou utilize o canal de atendimento se precisar.'
                               : 'Solicitação de pagamento em cartão ainda não localizada.'}
@@ -2930,6 +2995,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                       {isWaitingCourseStart && !requiresCommercialContact ? (
                         <small className="student-charge-feedback is-warning">
                           A primeira mensalidade será liberada quando o curso iniciar.
+                        </small>
+                      ) : null}
+                      {isWaitingContractSignature && !requiresCommercialContact ? (
+                        <small className="student-charge-feedback is-warning">
+                          Esta cobrança será liberada após a assinatura dos contratos obrigatórios.
                         </small>
                       ) : null}
                       {paymentData?.pixCopyPaste ? (
@@ -2969,9 +3039,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     </div>
                     <div className="student-charge-actions">
                       <span className={isOverdue ? 'student-charge-status is-overdue' : 'student-charge-status'}>
-                        {isWaitingCourseStart
-                          ? 'Aguardando início do curso'
-                          : normalizeChargeStatus(charge.status)}
+                        {isWaitingContractSignature
+                          ? 'Aguardando assinatura'
+                          : isWaitingCourseStart
+                            ? 'Aguardando início do curso'
+                            : normalizeChargeStatus(charge.status)}
                       </span>
                       {requiresCommercialContact ? (
                         <>
@@ -3003,6 +3075,7 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                               onClick={() => void handleRequestCreditCardLink(charge)}
                               disabled={
                                 isPaying ||
+                                creditCardRequestStatus === 'WAITING_CONTRACT_SIGNATURE' ||
                                 creditCardRequestStatus === 'WAITING_COURSE_START' ||
                                 creditCardRequestStatus === 'REQUESTED' ||
                                 creditCardRequestStatus === 'LINK_SENT'
@@ -3010,11 +3083,13 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                             >
                               {isPaying
                                 ? 'Enviando...'
-                                : creditCardRequestStatus === 'WAITING_COURSE_START'
-                                  ? 'Aguardando início do curso'
-                                : creditCardRequest
-                                  ? 'Solicitado'
-                                  : 'Solicitar link'}
+                                : creditCardRequestStatus === 'WAITING_CONTRACT_SIGNATURE'
+                                  ? 'Aguardando assinatura'
+                                  : creditCardRequestStatus === 'WAITING_COURSE_START'
+                                    ? 'Aguardando início do curso'
+                                    : creditCardRequest
+                                      ? 'Solicitado'
+                                      : 'Solicitar link'}
                             </button>
                           )}
                         </>
@@ -3390,16 +3465,26 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                 <section className="student-contract-gate-banner" role="alert">
                   <div>
                     <strong>
-                      {isPreContractStage
-                        ? enrollmentFeePaymentApproved
-                          ? 'Acesso parcial: pagamento aprovado'
-                          : 'Acesso parcial liberado: falta o pagamento'
+                      {isPaymentStage
+                        ? 'Acesso parcial: pagamento pendente'
+                        : isPreContractStage
+                          ? 'Acesso parcial: contratos em preparação'
                         : missingRequiredContractCount > 1
                           ? 'Acesso parcial liberado: faltam assinaturas obrigatórias'
                           : 'Acesso parcial liberado: falta uma assinatura obrigatória'}
                     </strong>
-                    {isPreContractStage ? (
-                      <p>{preContractPaymentMessage}</p>
+                    {isPaymentStage ? (
+                      <p>
+                        Os contratos obrigatórios foram assinados. Finalize as
+                        cobranças disponíveis no Financeiro para concluir a
+                        liberação do acesso.
+                      </p>
+                    ) : isPreContractStage ? (
+                      <p>
+                        Os documentos obrigatórios estão sendo preparados pela
+                        instituição. Eles aparecerão na área de Contratos assim
+                        que forem disponibilizados.
+                      </p>
                     ) : !hasPendingContractsToSign ? (
                       <p>
                         Ainda faltam {missingRequiredContractCount} contrato(s) obrigatório(s).
@@ -3417,15 +3502,11 @@ export function StudentAreaNative({ token, user, onLogout }: StudentAreaNativePr
                     type="button"
                     onClick={() =>
                       openSection(
-                        isPreContractStage ? 'st-student-finance' : 'st-student-contracts',
+                        isPaymentStage ? 'st-student-finance' : 'st-student-contracts',
                       )
                     }
                   >
-                    {isPreContractStage
-                      ? enrollmentFeePaymentApproved
-                        ? 'Ver pagamentos'
-                        : 'Ir para Financeiro'
-                      : 'Ir para Contratos'}
+                    {isPaymentStage ? 'Ir para Financeiro' : 'Ir para Contratos'}
                   </button>
                 </section>
               ) : null}

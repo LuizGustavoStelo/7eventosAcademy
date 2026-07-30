@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
@@ -86,6 +87,8 @@ type AppliedVoucherSnapshot = {
 
 @Injectable()
 export class FinanceService {
+  private readonly logger = new Logger(FinanceService.name);
+
   private readonly dashboardSummaryTtlMs = 15_000;
   private dashboardSummaryCache = new Map<
     string,
@@ -511,11 +514,22 @@ export class FinanceService {
     const where = this.buildChargeWhere(user);
     const charge = await this.prisma.monthlyCharge.findFirst({
       where: { id: chargeId, ...where },
-      select: { id: true },
+      select: {
+        id: true,
+        awaitingContractSignature: true,
+      },
     });
 
     if (!charge) {
       throw new NotFoundException('Cobrança não encontrada.');
+    }
+    if (
+      charge.awaitingContractSignature &&
+      this.toPrismaChargeStatus(dto.status) === 'PAID'
+    ) {
+      throw new BadRequestException(
+        'A cobrança só pode ser aprovada após a assinatura dos contratos obrigatórios.',
+      );
     }
 
     const updatedCharge = await this.prisma.monthlyCharge.update({
@@ -591,12 +605,21 @@ export class FinanceService {
         id: true,
         amount: true,
         ownerAdminId: true,
+        awaitingContractSignature: true,
       },
     });
 
     if (!charge) {
       throw new NotFoundException(
         'Cobrança não encontrada para este lançamento.',
+      );
+    }
+    if (
+      charge.awaitingContractSignature &&
+      String(dto.status ?? 'success').toLowerCase() === 'success'
+    ) {
+      throw new BadRequestException(
+        'O pagamento só pode ser registrado após a assinatura dos contratos obrigatórios.',
       );
     }
 
@@ -1178,6 +1201,8 @@ export class FinanceService {
       where: {
         id: chargeId,
         status: { in: ['PENDING', 'OVERDUE'] },
+        awaitingCourseStart: false,
+        awaitingContractSignature: false,
         enrollment: {
           studentId: userId,
         },
@@ -1650,18 +1675,12 @@ export class FinanceService {
               institutionId: true,
               studentId: true,
               classId: true,
-              createdAt: true,
-              selectedPaymentOption: true,
               schoolClass: {
                 select: {
                   course: {
                     select: {
                       id: true,
                       ownerAdminId: true,
-                      enrollmentFee: true,
-                      paymentModel: true,
-                      installmentMonths: true,
-                      installmentValue: true,
                     },
                   },
                 },
@@ -1675,96 +1694,6 @@ export class FinanceService {
         return;
       }
 
-      const enrollmentCharges = await this.prisma.monthlyCharge.findMany({
-        where: {
-          enrollmentId: charge.enrollmentId,
-        },
-        select: {
-          id: true,
-          status: true,
-          dueDate: true,
-          createdAt: true,
-          amount: true,
-        },
-        orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
-      });
-
-      const enrollmentFeeAmount = this.toMoneyValue(
-        Number(charge.enrollment.schoolClass.course.enrollmentFee ?? 0),
-      );
-
-      const enrollmentFeeCharge =
-        enrollmentFeeAmount > 0
-          ? (() => {
-              const candidates = enrollmentCharges.filter((item) => {
-                const amount = this.toMoneyValue(Number(item.amount));
-                return amount === enrollmentFeeAmount;
-              });
-              if (candidates.length === 0) return null;
-              if (candidates.length === 1) return candidates[0];
-
-              const enrollmentCreatedAt = charge.enrollment.createdAt.getTime();
-              return candidates.sort((a, b) => {
-                const distanceA = Math.abs(a.dueDate.getTime() - enrollmentCreatedAt);
-                const distanceB = Math.abs(b.dueDate.getTime() - enrollmentCreatedAt);
-                if (distanceA !== distanceB) return distanceA - distanceB;
-                return a.createdAt.getTime() - b.createdAt.getTime();
-              })[0];
-            })()
-          : null;
-
-      const enrollmentFeePaid =
-        enrollmentFeeAmount <= 0 ||
-        Boolean(enrollmentFeeCharge && enrollmentFeeCharge.status === 'PAID');
-      if (!enrollmentFeePaid) {
-        return;
-      }
-
-      const selectedOption = this.parseEnrollmentSelectedPaymentOption(
-        charge.enrollment.selectedPaymentOption,
-      );
-      const requiresFirstInstallment =
-        selectedOption
-          ? selectedOption.type === 'INSTALLMENTS' &&
-            Number(selectedOption.installmentCount ?? 0) > 0 &&
-            Number(selectedOption.installmentAmount ?? 0) > 0
-            : String(charge.enrollment.schoolClass.course.paymentModel).toUpperCase() ===
-                'INSTALLMENTS' &&
-              Number(charge.enrollment.schoolClass.course.installmentMonths ?? 0) > 0 &&
-              Number(charge.enrollment.schoolClass.course.installmentValue ?? 0) > 0;
-      const requiresCashCoursePayment =
-        Boolean(selectedOption) &&
-        selectedOption?.type === 'CASH' &&
-        Number(selectedOption.totalAmount ?? 0) > 0;
-      const requiresFirstAcademicPayment =
-        requiresFirstInstallment || requiresCashCoursePayment;
-
-      const firstInstallmentCharge = enrollmentCharges.find(
-        (item) => !enrollmentFeeCharge || item.id !== enrollmentFeeCharge.id,
-      );
-      const firstInstallmentPaid =
-        !requiresFirstAcademicPayment ||
-        Boolean(firstInstallmentCharge && firstInstallmentCharge.status === 'PAID');
-      if (!firstInstallmentPaid) {
-        return;
-      }
-
-      const alreadySentContract = await this.prisma.contractInstance.findFirst({
-        where: {
-          institutionId: charge.enrollment.institutionId,
-          enrollmentId: charge.enrollment.id,
-          studentId: charge.enrollment.studentId,
-          status: {
-            notIn: ['CANCELED', 'ARCHIVED'],
-          },
-        },
-        select: { id: true },
-      });
-
-      if (alreadySentContract) {
-        return;
-      }
-
       await this.contractsService.sendAutomaticContractsForEnrollment({
         institutionId: charge.enrollment.institutionId,
         enrollmentId: charge.enrollment.id,
@@ -1773,8 +1702,12 @@ export class FinanceService {
         classId: charge.enrollment.classId,
         createdByUserId: charge.enrollment.schoolClass.course.ownerAdminId,
       });
-    } catch {
-      // A falha no envio automático não deve bloquear o financeiro.
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Falha desconhecida.';
+      this.logger.error(
+        `[automatic-contract-after-payment] cobrança=${chargeId} erro=${message}`,
+      );
     }
   }
 
@@ -2083,9 +2016,12 @@ export class FinanceService {
     return {
       ...this.buildChargeWhere(user),
       awaitingCourseStart: false,
+      awaitingContractSignature: false,
       creditCardPaymentRequests: {
         none: {
-          status: 'WAITING_COURSE_START',
+          status: {
+            in: ['WAITING_COURSE_START', 'WAITING_CONTRACT_SIGNATURE'],
+          },
         },
       },
     };

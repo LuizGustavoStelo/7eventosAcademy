@@ -171,4 +171,32 @@ describe('FinanceService pre-enrollment card approval', () => {
     expect(created.dueDate.getMonth()).toBe(8);
     expect(created.dueDate.getDate()).toBe(10);
   });
+
+  it('rejects payment approval while the charge awaits contract signature', async () => {
+    const prisma = {
+      monthlyCharge: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'charge-1',
+          awaitingContractSignature: true,
+        }),
+        update: jest.fn(),
+      },
+    };
+    const service = new FinanceService(prisma as never, {} as never);
+
+    await expect(
+      service.updateChargeStatus(
+        'charge-1',
+        { status: 'paid' },
+        {
+          sub: 'admin-1',
+          role: 'admin',
+          activeInstitutionId: 'institution-1',
+        },
+      ),
+    ).rejects.toThrow(
+      'A cobrança só pode ser aprovada após a assinatura dos contratos obrigatórios.',
+    );
+    expect(prisma.monthlyCharge.update).not.toHaveBeenCalled();
+  });
 });
