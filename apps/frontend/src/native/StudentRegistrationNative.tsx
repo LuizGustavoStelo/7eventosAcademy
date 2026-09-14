@@ -416,7 +416,6 @@ function paymentOptionDetailLines(option: PaymentOptionItem): PaymentOptionDetai
   const lines: PaymentOptionDetailLine[] = [];
   const type = String(option.type || '').toUpperCase();
   const dueDay = Number(option.dueDay || 0);
-  const promotionalSlots = Number(option.promotionalSlots || 0);
   const hasPromotionalDiscount =
     Boolean(option.isPromotional) &&
     Boolean(option.promotionalDiscountEnabled) &&
@@ -450,7 +449,7 @@ function paymentOptionDetailLines(option: PaymentOptionItem): PaymentOptionDetai
   }
   if (option.isPromotional) {
     lines.push({
-      text: `Valores exclusivos para os ${promotionalSlots || 0} primeiros inscritos.`,
+      text: 'Valores exclusivos para as primeiras turmas',
       tone: 'highlight',
     });
   }

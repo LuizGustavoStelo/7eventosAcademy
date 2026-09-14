@@ -74,6 +74,17 @@ export class SuperadminIntegrationsController {
     );
   }
 
+  @Post('institutions/:institutionId/providers/:provider/credential-test')
+  async testProviderCredentials(
+    @Param('institutionId') institutionId: string,
+    @Param('provider') provider: string,
+  ) {
+    return this.superadminIntegrationsService.testProviderCredentials(
+      institutionId,
+      provider,
+    );
+  }
+
   @Post('institutions/:institutionId/providers/:provider/logs/:logId/retry')
   async retryInstitutionProviderDispatchLog(
     @Param('institutionId') institutionId: string,

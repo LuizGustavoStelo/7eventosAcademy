@@ -53,10 +53,11 @@ type RdStationRequestResult = {
 };
 
 type DispatchLogInput = {
+  idempotencyKey?: string | null;
   institutionId: string;
   integrationId?: string | null;
   provider: SupportedProvider;
-  status: 'success' | 'failed';
+  status: 'processing' | 'success' | 'failed';
   studentId?: string | null;
   studentName: string;
   enrollmentId?: string | null;
@@ -77,6 +78,8 @@ const RDSTATION_DEFAULT_COURSE_FIELD_KEY = 'cf_curso_matriculado';
 const RDSTATION_DEFAULT_AGE_FIELD_KEY = 'cf_idade';
 const RDSTATION_DEFAULT_ADDRESS_FIELD_KEY = 'cf_endereco';
 const RDSTATION_DEFAULT_ENROLLMENT_ID_FIELD_KEY = 'cf_matricula_id';
+const KOBAYASHI_CREDENTIAL_PROBE_INVALID_BEARER =
+  '7eventos-credential-probe-invalid-bearer';
 
 @Injectable()
 export class SuperadminIntegrationsService {
@@ -412,6 +415,85 @@ export class SuperadminIntegrationsService {
     }
 
     throw new BadRequestException('Provedor de integração não suportado para teste.');
+  }
+
+  async testProviderCredentials(
+    institutionId: string,
+    rawProvider: string,
+  ) {
+    const provider = this.normalizeProvider(rawProvider);
+    await this.ensureInstitutionExists(institutionId);
+
+    if (provider !== 'kobayashi') {
+      throw new BadRequestException(
+        'O teste seguro de credenciais está disponível apenas para KOBAYASHI.',
+      );
+    }
+
+    const integration = await this.prisma.institutionIntegration.findUnique({
+      where: {
+        institutionId_provider: {
+          institutionId,
+          provider,
+        },
+      },
+      select: {
+        environment: true,
+        isActive: true,
+        encryptedSettings: true,
+      },
+    });
+
+    if (!integration?.encryptedSettings) {
+      throw new NotFoundException(
+        'Integração KOBAYASHI não configurada para esta instituição.',
+      );
+    }
+
+    const settings = this.decryptSettings(integration.encryptedSettings).kobayashi;
+    if (!settings) {
+      throw new BadRequestException('Configuração KOBAYASHI inválida.');
+    }
+
+    const configuredBearer = this.resolveKobayashiAuthorizationBearer(settings);
+    const [configuredProbe, invalidControlProbe] = await Promise.all([
+      this.requestKobayashiCredentialProbe(settings, configuredBearer),
+      this.requestKobayashiCredentialProbe(
+        settings,
+        KOBAYASHI_CREDENTIAL_PROBE_INVALID_BEARER,
+      ),
+    ]);
+    const configuredRejected = this.isAuthenticationRejected(
+      configuredProbe.statusCode,
+    );
+    const invalidControlRejected = this.isAuthenticationRejected(
+      invalidControlProbe.statusCode,
+    );
+    const credentialsAccepted =
+      !configuredRejected && invalidControlRejected
+        ? true
+        : configuredRejected && invalidControlRejected
+          ? false
+          : null;
+    const message =
+      credentialsAccepted === true
+        ? 'O servidor diferenciou a credencial configurada do controle inválido. As credenciais foram aceitas.'
+        : credentialsAccepted === false
+          ? 'O servidor rejeitou a credencial configurada.'
+          : 'O servidor respondeu, mas não diferenciou a credencial configurada do controle inválido. Não foi possível validar a autenticação sem enviar matrícula.';
+
+    return {
+      success: credentialsAccepted === true,
+      reachable: true,
+      credentialsAccepted,
+      integrationActive: integration.isActive,
+      environment: integration.environment,
+      endpoint: this.maskClientIdInUrl(this.buildKobayashiEndpoint(settings)),
+      configuredCredentialStatusCode: configuredProbe.statusCode,
+      invalidControlStatusCode: invalidControlProbe.statusCode,
+      sentEnrollmentData: false,
+      message,
+    };
   }
 
   async sendKobayashiTestRequest(
@@ -870,6 +952,7 @@ export class SuperadminIntegrationsService {
       String(contract.student?.name || 'Aluno não identificado').trim() ||
       'Aluno não identificado';
     const baseLog = {
+      idempotencyKey: `kobayashi:contract:${contract.id}`,
       institutionId: contract.institutionId,
       integrationId: integration.id,
       provider: 'kobayashi' as const,
@@ -880,6 +963,21 @@ export class SuperadminIntegrationsService {
       requestPayload: payload,
     };
 
+    const reservation = await this.reserveAutomaticDispatch(baseLog);
+    if (!reservation.reserved) {
+      const alreadySucceeded = reservation.status === 'success';
+      return {
+        dispatched: false,
+        success: alreadySucceeded,
+        duplicate: true,
+        message: alreadySucceeded
+          ? 'Este contrato já foi enviado ao KOBAYASHI.'
+          : reservation.status === 'processing'
+            ? 'O envio deste contrato ao KOBAYASHI já está em processamento.'
+            : 'Já existe uma tentativa automática para este contrato. Utilize o reenvio manual na auditoria.',
+      };
+    }
+
     try {
       const response = await this.requestKobayashi(settings, payload);
       if (!response.ok) {
@@ -888,8 +986,7 @@ export class SuperadminIntegrationsService {
           `KOBAYASHI respondeu com status HTTP ${response.statusCode}.`,
         );
         await this.markIntegrationFailure(integration.id, message);
-        await this.createDispatchLog({
-          ...baseLog,
+        await this.completeReservedDispatchLog(reservation.logId, {
           status: 'failed',
           responsePayload: response.body,
           responseStatusCode: response.statusCode,
@@ -903,8 +1000,7 @@ export class SuperadminIntegrationsService {
       }
 
       await this.markIntegrationSuccess(integration.id);
-      await this.createDispatchLog({
-        ...baseLog,
+      await this.completeReservedDispatchLog(reservation.logId, {
         status: 'success',
         responsePayload: response.body,
         responseStatusCode: response.statusCode,
@@ -921,8 +1017,7 @@ export class SuperadminIntegrationsService {
           : 'Falha inesperada no envio automático para KOBAYASHI.';
 
       await this.markIntegrationFailure(integration.id, message);
-      await this.createDispatchLog({
-        ...baseLog,
+      await this.completeReservedDispatchLog(reservation.logId, {
         status: 'failed',
         errorMessage: message,
       });
@@ -1296,6 +1391,59 @@ export class SuperadminIntegrationsService {
     }
   }
 
+  private async requestKobayashiCredentialProbe(
+    settings: KobayashiSettings,
+    authorizationBearer: string,
+  ): Promise<KobayashiRequestResult> {
+    const endpoint = this.buildKobayashiEndpoint(settings);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    const probePayload = {
+      grant_type: settings.grantType || KOBAYASHI_DEFAULT_GRANT_TYPE,
+      scopes: this.toKobayashiScopeObjects(settings.scopes),
+      gcssid: settings.defaultGcssid || KOBAYASHI_DEFAULT_GCSSID,
+      diagnosticoConexao: true,
+    };
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authorizationBearer}`,
+          'X-7Eventos-Connection-Test': 'true',
+        },
+        body: JSON.stringify(probePayload),
+        signal: controller.signal,
+      });
+      const contentType = response.headers.get('content-type') || '';
+      const textBody = await response.text();
+
+      return {
+        statusCode: response.status,
+        ok: response.ok,
+        body: this.tryParseBody(textBody, contentType),
+      };
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new BadRequestException(
+          'Tempo limite excedido ao testar as credenciais KOBAYASHI.',
+        );
+      }
+      throw new BadRequestException(
+        error instanceof Error
+          ? `Não foi possível acessar o KOBAYASHI: ${error.message}`
+          : 'Não foi possível acessar o KOBAYASHI.',
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private isAuthenticationRejected(statusCode: number) {
+    return statusCode === 401 || statusCode === 403;
+  }
+
   private async requestRdStation(
     settings: RdStationSettings,
     payload: Record<string, unknown>,
@@ -1371,6 +1519,18 @@ export class SuperadminIntegrationsService {
       const parsed = new URL(url);
       if (parsed.searchParams.has('api_key')) {
         parsed.searchParams.set('api_key', '****');
+      }
+      return parsed.toString();
+    } catch {
+      return url;
+    }
+  }
+
+  private maskClientIdInUrl(url: string) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.searchParams.has('client_id')) {
+        parsed.searchParams.set('client_id', '****');
       }
       return parsed.toString();
     } catch {
@@ -1715,9 +1875,63 @@ export class SuperadminIntegrationsService {
     });
   }
 
-  private async createDispatchLog(input: DispatchLogInput) {
-    await this.prisma.institutionIntegrationDispatchLog.create({
+  private async reserveAutomaticDispatch(
+    input: Omit<DispatchLogInput, 'status'> & { idempotencyKey: string },
+  ): Promise<
+    | { reserved: true; logId: string }
+    | { reserved: false; logId: string; status: string }
+  > {
+    try {
+      const log = await this.createDispatchLog({
+        ...input,
+        status: 'processing',
+      });
+      return { reserved: true, logId: log.id };
+    } catch (error) {
+      const isDuplicate =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002';
+      if (!isDuplicate) throw error;
+
+      const existing =
+        await this.prisma.institutionIntegrationDispatchLog.findUnique({
+          where: { idempotencyKey: input.idempotencyKey },
+          select: { id: true, status: true },
+        });
+      if (!existing) throw error;
+      return {
+        reserved: false,
+        logId: existing.id,
+        status: existing.status,
+      };
+    }
+  }
+
+  private async completeReservedDispatchLog(
+    logId: string,
+    result: Pick<
+      DispatchLogInput,
+      'status' | 'responsePayload' | 'responseStatusCode' | 'errorMessage'
+    >,
+  ) {
+    await this.prisma.institutionIntegrationDispatchLog.update({
+      where: { id: logId },
       data: {
+        status: result.status,
+        responsePayload:
+          result.responsePayload === undefined || result.responsePayload === null
+            ? Prisma.DbNull
+            : this.toPrismaJsonValue(result.responsePayload),
+        responseStatusCode: result.responseStatusCode ?? null,
+        errorMessage: result.errorMessage?.slice(0, 1500) ?? null,
+      },
+    });
+  }
+
+  private async createDispatchLog(input: DispatchLogInput) {
+    return this.prisma.institutionIntegrationDispatchLog.create({
+      data: {
+        idempotencyKey: input.idempotencyKey ?? null,
         institutionId: input.institutionId,
         integrationId: input.integrationId ?? null,
         provider: input.provider,
@@ -1737,6 +1951,7 @@ export class SuperadminIntegrationsService {
         responseStatusCode: input.responseStatusCode ?? null,
         errorMessage: input.errorMessage?.slice(0, 1500) ?? null,
       },
+      select: { id: true },
     });
   }
 
@@ -2120,4 +2335,3 @@ export class SuperadminIntegrationsService {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
   }
 }
-

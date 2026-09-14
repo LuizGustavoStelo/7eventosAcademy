@@ -88,6 +88,19 @@ type TestRequestResponse = {
   };
 };
 
+type CredentialTestResponse = {
+  success: boolean;
+  reachable: boolean;
+  credentialsAccepted: boolean | null;
+  integrationActive: boolean;
+  environment: string;
+  endpoint: string;
+  configuredCredentialStatusCode: number;
+  invalidControlStatusCode: number;
+  sentEnrollmentData: boolean;
+  message: string;
+};
+
 type IntegrationDispatchLog = {
   id: string;
   provider: string;
@@ -191,12 +204,10 @@ const INTEGRATION_OPTIONS: Array<{
 
 const KOBAYASHI_PRESET = {
   baseUrl: 'https://apiappdo.facinpro.flie.com.br',
-  clientId: 'c6b7f6ac-87ff-4790-9a22-f54ddb19cff2',
+  clientId: '',
   clientSecret: '',
-  token:
-    '8198f8e53bba-efac-4355-abec-2aae21b37d3381984c522deb-84ce-4321-8b87-3a48b10147c58198',
-  authorizationBearer:
-    'Bearer 8198f8e53bba-efac-4355-abec-2aae21b37d3381984c522deb-84ce-4321-8b87-3a48b10147c58198',
+  token: '',
+  authorizationBearer: '',
   grantType: 'client_credentials',
   scopes: 'cobranca.parceiro, b2b.parceiro',
   defaultGcssid: '1984579899879879525449846',
@@ -564,6 +575,7 @@ export function SuperadminIntegrationsNative({
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [testingCredentials, setTestingCredentials] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
   const [search, setSearch] = useState('');
@@ -574,6 +586,8 @@ export function SuperadminIntegrationsNative({
     DEFAULT_SECRET_FLAGS,
   );
   const [lastResult, setLastResult] = useState<TestRequestResponse | null>(null);
+  const [credentialTestResult, setCredentialTestResult] =
+    useState<CredentialTestResponse | null>(null);
   const [dispatchLogs, setDispatchLogs] = useState<IntegrationDispatchLog[]>([]);
   const [retryingLogId, setRetryingLogId] = useState<string | null>(null);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
@@ -693,6 +707,7 @@ export function SuperadminIntegrationsNative({
       setTestPayload(buildTestPayloadTemplate(provider, nextForm));
       setTestEnrollmentId('');
       setLastResult(null);
+      setCredentialTestResult(null);
       setProviderSummaries((current) => ({
         ...current,
         [provider]: toProviderSummary(data),
@@ -752,6 +767,7 @@ export function SuperadminIntegrationsNative({
     });
     setDispatchLogs([]);
     setLastResult(null);
+    setCredentialTestResult(null);
     void Promise.all([
       loadProviderSummary(selectedInstitutionId, 'kobayashi'),
       loadProviderSummary(selectedInstitutionId, 'rdstation'),
@@ -896,7 +912,7 @@ export function SuperadminIntegrationsNative({
           parsedPayload = parsed as Record<string, unknown>;
         } catch {
           setTesting(false);
-          setError('O payload de teste precisa ser um JSON v?lido.');
+          setError('O payload de teste precisa ser um JSON válido.');
           return;
         }
         body.payload = parsedPayload;
@@ -996,6 +1012,39 @@ export function SuperadminIntegrationsNative({
       );
     } finally {
       setRetryingLogId(null);
+    }
+  };
+
+  const testSavedCredentials = async () => {
+    if (!selectedInstitutionId) {
+      setError('Selecione uma instituição para testar as credenciais.');
+      return;
+    }
+    if (selectedProvider !== 'kobayashi') {
+      setError('O teste seguro de credenciais está disponível apenas para KOBAYASHI.');
+      return;
+    }
+
+    setError('');
+    setFeedback('');
+    setCredentialTestResult(null);
+    setTestingCredentials(true);
+    try {
+      const result = await apiRequest<CredentialTestResponse>(
+        token,
+        `/superadmin/integrations/institutions/${selectedInstitutionId}/providers/${selectedProvider}/credential-test`,
+        { method: 'POST' },
+      );
+      setCredentialTestResult(result);
+      setFeedback(result.message);
+    } catch (testError) {
+      setError(
+        testError instanceof Error
+          ? testError.message
+          : 'Falha ao testar as credenciais da integração.',
+      );
+    } finally {
+      setTestingCredentials(false);
     }
   };
 
@@ -1516,10 +1565,49 @@ export function SuperadminIntegrationsNative({
             <article className="native-panel native-super-test-request">
               <header className="native-panel-header">
                 <h3>Teste de request {selectedProvider.toUpperCase()}</h3>
-                <small>
-                  Último sucesso: {formatDate(providerSummaries[selectedProvider].lastSuccessAt)}
-                </small>
+                <div className="native-super-integration-audit-actions">
+                  <small>
+                    Último sucesso: {formatDate(providerSummaries[selectedProvider].lastSuccessAt)}
+                  </small>
+                  {selectedProvider === 'kobayashi' ? (
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => void testSavedCredentials()}
+                      disabled={
+                        testingCredentials ||
+                        loadingConfig ||
+                        !providerSummaries.kobayashi.isConfigured
+                      }
+                    >
+                      {testingCredentials ? 'Testando...' : 'Testar credenciais'}
+                    </button>
+                  ) : null}
+                </div>
               </header>
+
+              {selectedProvider === 'kobayashi' ? (
+                <p className="native-super-integration-note">
+                  O teste de credenciais usa somente os dados salvos, sem enviar matrícula,
+                  contrato ou informações pessoais.
+                </p>
+              ) : null}
+
+              {credentialTestResult ? (
+                <p
+                  className={`native-super-integration-note ${
+                    credentialTestResult.credentialsAccepted === true
+                      ? 'is-success'
+                      : credentialTestResult.credentialsAccepted === false
+                        ? 'is-danger'
+                        : ''
+                  }`}
+                >
+                  {credentialTestResult.message} HTTP configurado:{' '}
+                  {credentialTestResult.configuredCredentialStatusCode}; controle inválido:{' '}
+                  {credentialTestResult.invalidControlStatusCode}.
+                </p>
+              ) : null}
 
               <p className="native-super-integration-note">
                 {selectedProvider === 'rdstation'
@@ -1708,10 +1796,18 @@ export function SuperadminIntegrationsNative({
                             <td>
                               <span
                                 className={`native-status-chip ${
-                                  log.status === 'success' ? 'is-success' : 'is-danger'
+                                  log.status === 'success'
+                                    ? 'is-success'
+                                    : log.status === 'processing'
+                                      ? ''
+                                      : 'is-danger'
                                 }`}
                               >
-                                {log.status === 'success' ? 'Sucesso' : 'Falha'}
+                                {log.status === 'success'
+                                  ? 'Sucesso'
+                                  : log.status === 'processing'
+                                    ? 'Processando'
+                                    : 'Falha'}
                               </span>
                             </td>
                             <td>{log.responseStatusCode ?? '-'}</td>
