@@ -120,21 +120,32 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-and-push
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Deploy remoto na VPS
         uses: appleboy/ssh-action@v1.2.2
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.SSH_HOST }}
           port: ${{ secrets.SSH_PORT || 22 }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: GHCR_USERNAME,GHCR_TOKEN
           timeout: 30s
           command_timeout: 20m
           script: |
-            set -e
+            set -eu
             cd /var/www/7eventosAcademy
-            docker compose pull
+            test -n "$GHCR_USERNAME"
+            test -n "$GHCR_TOKEN"
+            trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+            printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+            docker compose pull backend frontend
             docker compose up -d db redis
             docker compose run --rm --no-deps --entrypoint sh backend -lc "node scripts/prisma-migrate-safe.mjs"
             docker compose up -d --remove-orphans --wait --wait-timeout 180 backend frontend
