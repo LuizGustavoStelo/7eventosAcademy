@@ -5,11 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
+import { randomInt } from 'node:crypto';
 import { JwtPayload } from '../auth/types/app-role.type';
 import { ContractsService } from '../contracts/contracts.service';
 import { PrismaService } from '../database/prisma.service';
 import { CreateChargeDto } from './dto/create-charge.dto';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { CreateVoucherBatchDto } from './dto/create-voucher-batch.dto';
 import { CreateVoucherDto } from './dto/create-voucher.dto';
 import { SendCreditCardPaymentLinkDto } from './dto/send-credit-card-payment-link.dto';
 import { UpdateChargeStatusDto } from './dto/update-charge-status.dto';
@@ -769,152 +771,19 @@ export class FinanceService {
   }
 
   async createVoucher(dto: CreateVoucherDto, user: JwtPayload) {
-    const allCourses = dto.allCourses === true;
-    if (!allCourses && !dto.courseId) {
-      throw new BadRequestException('Selecione o curso do voucher.');
-    }
-
-    const availableCourses = await this.prisma.course.findMany({
-      where: {
-        status: 'ACTIVE',
-        ...this.buildCourseWhere(user),
-        ...(allCourses ? {} : { id: dto.courseId }),
-      },
-      select: {
-        id: true,
-        institutionId: true,
-        paymentModel: true,
-        paymentOptions: true,
-        price: true,
-        installmentMonths: true,
-        installmentValue: true,
-      },
-    });
-
-    if (!allCourses && availableCourses.length === 0) {
-      throw new NotFoundException('Curso nao encontrado para criar voucher.');
-    }
-
-    if (allCourses && availableCourses.length === 0) {
-      throw new NotFoundException('Nenhum curso ativo encontrado para criar voucher global.');
-    }
-
-    const institutionIds = Array.from(
-      new Set(availableCourses.map((course) => course.institutionId)),
+    const { institutionId, data } = await this.prepareVoucherCreateData(
+      dto,
+      user,
     );
-    if (institutionIds.length !== 1) {
-      throw new BadRequestException('Nao foi possivel determinar a instituicao do voucher. Selecione uma instituicao ativa.');
-    }
-    const voucherInstitutionId = institutionIds[0]!;
-
-    const allCoursePaymentOptions = availableCourses.flatMap((course) =>
-      this.extractVoucherCoursePaymentOptions(course),
-    );
-
-    const normalizedAllowedOptionIds = this.normalizePaymentOptionIdList(
-      dto.allowedPaymentOptionIds,
-    );
-    if (normalizedAllowedOptionIds.length === 0) {
-      throw new BadRequestException('Selecione pelo menos uma opcao de pagamento para o voucher.');
-    }
-
-    if (allCoursePaymentOptions.length === 0) {
-      throw new BadRequestException(
-        allCourses
-          ? 'Nenhum curso ativo possui opcoes de pagamento para vincular voucher.'
-          : 'Este curso nao possui opcoes de pagamento ativas para vincular voucher.',
-      );
-    }
-
-    const availableOptionIds = new Set(allCoursePaymentOptions.map((item) => item.id));
-    const invalidOptionId = normalizedAllowedOptionIds.find(
-      (item) => !availableOptionIds.has(item),
-    );
-    if (invalidOptionId) {
-      throw new BadRequestException(
-        allCourses
-          ? 'Uma ou mais opcoes de pagamento selecionadas nao sao validas para os cursos ativos.'
-          : 'Uma ou mais opcoes de pagamento selecionadas nao sao validas para este curso.',
-      );
-    }
-
-    const discountType = this.normalizeVoucherDiscountType(dto.discountType);
-    const valueBase = this.normalizeVoucherValueBase(dto.valueBase);
-    const appliesTo = this.normalizeVoucherAppliesTo(dto.appliesTo);
-    const appliesToEnrollmentFee = dto.appliesToEnrollmentFee === true;
-    const installmentScope =
-      appliesTo === 'INSTALLMENT'
-        ? this.normalizeVoucherInstallmentScope(dto.installmentScope)
-        : 'ALL';
-    const discountValue = this.toMoneyValue(dto.discountValue);
-    const maxUses = this.normalizeVoucherMaxUses(dto.maxUses);
-    if (discountValue <= 0) {
-      throw new BadRequestException('Informe um valor de desconto maior que zero para o voucher.');
-    }
-    if (discountType === 'PERCENT' && discountValue > 100) {
-      throw new BadRequestException(
-        'Desconto em percentual deve estar entre 0,01% e 100%.',
-      );
-    }
-
-    if (valueBase === 'PROMOTIONAL') {
-      const promotionalOptionIds = new Set(
-        allCoursePaymentOptions
-          .filter((option) => option.isPromotional)
-          .map((option) => option.id),
-      );
-      const optionWithoutPromotion = normalizedAllowedOptionIds.find(
-        (optionId) => !promotionalOptionIds.has(optionId),
-      );
-      if (optionWithoutPromotion) {
-        throw new BadRequestException(
-          'Para usar o valor promocional, selecione somente opções de pagamento que tenham promoção configurada.',
-        );
-      }
-    }
-
-    if (appliesTo === 'INSTALLMENT') {
-      const optionIdsForInstallmentValidation =
-        normalizedAllowedOptionIds.length > 0
-          ? new Set(normalizedAllowedOptionIds)
-          : new Set(allCoursePaymentOptions.map((item) => item.id));
-      const hasInstallmentOption = allCoursePaymentOptions.some(
-        (option) =>
-          optionIdsForInstallmentValidation.has(option.id) &&
-          option.type === 'INSTALLMENTS',
-      );
-      if (!hasInstallmentOption) {
-        throw new BadRequestException(
-          'Para desconto em mensalidade, selecione ao menos uma opcao parcelada.',
-        );
-      }
-    }
-
     const requestedCode = String(dto.code || '').trim();
     const normalizedCode = requestedCode
       ? this.normalizeVoucherCode(requestedCode)
-      : await this.generateVoucherCode(voucherInstitutionId);
+      : await this.generateVoucherCode(institutionId);
 
     const createdVoucher = await this.prisma.financeVoucher.create({
       data: {
-        institutionId: voucherInstitutionId,
-        ownerAdminId: this.resolveVoucherOwnerAdminId(user),
-        courseId: allCourses ? null : dto.courseId!,
+        ...data,
         code: normalizedCode,
-        title: String(dto.title || '').trim() || null,
-        discountType,
-        discountValue,
-        valueBase,
-        appliesTo,
-        appliesToEnrollmentFee,
-        installmentScope,
-        maxUses,
-        usageCount: 0,
-        allowedPaymentOptionIds:
-          normalizedAllowedOptionIds.length > 0
-            ? (normalizedAllowedOptionIds as Prisma.InputJsonValue)
-            : undefined,
-        active: dto.active !== false,
       },
       include: {
         course: {
@@ -955,6 +824,48 @@ export class FinanceService {
       createdAt: createdVoucher.createdAt,
       updatedAt: createdVoucher.updatedAt,
     };
+  }
+
+  async createVoucherBatch(dto: CreateVoucherBatchDto, user: JwtPayload) {
+    const quantity = Math.trunc(Number(dto.quantity));
+    if (!Number.isFinite(quantity) || quantity < 2 || quantity > 500) {
+      throw new BadRequestException(
+        'A quantidade deve estar entre 2 e 500 vouchers.',
+      );
+    }
+
+    const { institutionId, data } = await this.prepareVoucherCreateData(
+      dto,
+      user,
+    );
+    const prefix = this.normalizeVoucherBatchPrefix(dto.codePrefix);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const codes = this.generateVoucherBatchCodes(quantity, prefix);
+      try {
+        const created = await this.prisma.financeVoucher.createMany({
+          data: codes.map((code) => ({ ...data, code })),
+        });
+
+        return {
+          createdCount: created.count,
+          codes,
+          codePattern: `${prefix}-XXXXXX`,
+        };
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new BadRequestException(
+      'Não foi possível gerar códigos únicos para o lote. Tente novamente.',
+    );
   }
 
   async updateVoucherStatus(
@@ -2307,6 +2218,156 @@ export class FinanceService {
     return 'Cobrança';
   }
 
+  private async prepareVoucherCreateData(
+    dto: CreateVoucherDto,
+    user: JwtPayload,
+  ): Promise<{
+    institutionId: string;
+    data: Omit<Prisma.FinanceVoucherCreateManyInput, 'code'>;
+  }> {
+    const allCourses = dto.allCourses === true;
+    if (!allCourses && !dto.courseId) {
+      throw new BadRequestException('Selecione o curso do voucher.');
+    }
+
+    const availableCourses = await this.prisma.course.findMany({
+      where: {
+        status: 'ACTIVE',
+        ...this.buildCourseWhere(user),
+        ...(allCourses ? {} : { id: dto.courseId }),
+      },
+      select: {
+        id: true,
+        institutionId: true,
+        paymentModel: true,
+        paymentOptions: true,
+        price: true,
+        installmentMonths: true,
+        installmentValue: true,
+      },
+    });
+
+    if (!allCourses && availableCourses.length === 0) {
+      throw new NotFoundException('Curso não encontrado para criar voucher.');
+    }
+    if (allCourses && availableCourses.length === 0) {
+      throw new NotFoundException(
+        'Nenhum curso ativo encontrado para criar voucher global.',
+      );
+    }
+
+    const institutionIds = Array.from(
+      new Set(availableCourses.map((course) => course.institutionId)),
+    );
+    if (institutionIds.length !== 1) {
+      throw new BadRequestException(
+        'Não foi possível determinar a instituição do voucher. Selecione uma instituição ativa.',
+      );
+    }
+    const institutionId = institutionIds[0]!;
+    const allCoursePaymentOptions = availableCourses.flatMap((course) =>
+      this.extractVoucherCoursePaymentOptions(course),
+    );
+    const allowedPaymentOptionIds = this.normalizePaymentOptionIdList(
+      dto.allowedPaymentOptionIds,
+    );
+
+    if (allowedPaymentOptionIds.length === 0) {
+      throw new BadRequestException(
+        'Selecione pelo menos uma opção de pagamento para o voucher.',
+      );
+    }
+    if (allCoursePaymentOptions.length === 0) {
+      throw new BadRequestException(
+        allCourses
+          ? 'Nenhum curso ativo possui opções de pagamento para vincular voucher.'
+          : 'Este curso não possui opções de pagamento ativas para vincular voucher.',
+      );
+    }
+
+    const availableOptionIds = new Set(
+      allCoursePaymentOptions.map((item) => item.id),
+    );
+    if (allowedPaymentOptionIds.some((item) => !availableOptionIds.has(item))) {
+      throw new BadRequestException(
+        allCourses
+          ? 'Uma ou mais opções de pagamento selecionadas não são válidas para os cursos ativos.'
+          : 'Uma ou mais opções de pagamento selecionadas não são válidas para este curso.',
+      );
+    }
+
+    const discountType = this.normalizeVoucherDiscountType(dto.discountType);
+    const valueBase = this.normalizeVoucherValueBase(dto.valueBase);
+    const appliesTo = this.normalizeVoucherAppliesTo(dto.appliesTo);
+    const installmentScope =
+      appliesTo === 'INSTALLMENT'
+        ? this.normalizeVoucherInstallmentScope(dto.installmentScope)
+        : 'ALL';
+    const discountValue = this.toMoneyValue(dto.discountValue);
+
+    if (discountValue <= 0) {
+      throw new BadRequestException(
+        'Informe um valor de desconto maior que zero para o voucher.',
+      );
+    }
+    if (discountType === 'PERCENT' && discountValue > 100) {
+      throw new BadRequestException(
+        'Desconto em percentual deve estar entre 0,01% e 100%.',
+      );
+    }
+
+    if (valueBase === 'PROMOTIONAL') {
+      const promotionalOptionIds = new Set(
+        allCoursePaymentOptions
+          .filter((option) => option.isPromotional)
+          .map((option) => option.id),
+      );
+      if (
+        allowedPaymentOptionIds.some(
+          (optionId) => !promotionalOptionIds.has(optionId),
+        )
+      ) {
+        throw new BadRequestException(
+          'Para usar o valor promocional, selecione somente opções de pagamento que tenham promoção configurada.',
+        );
+      }
+    }
+
+    if (appliesTo === 'INSTALLMENT') {
+      const allowedOptionIds = new Set(allowedPaymentOptionIds);
+      const hasInstallmentOption = allCoursePaymentOptions.some(
+        (option) =>
+          allowedOptionIds.has(option.id) && option.type === 'INSTALLMENTS',
+      );
+      if (!hasInstallmentOption) {
+        throw new BadRequestException(
+          'Para desconto em mensalidade, selecione ao menos uma opção parcelada.',
+        );
+      }
+    }
+
+    return {
+      institutionId,
+      data: {
+        institutionId,
+        ownerAdminId: this.resolveVoucherOwnerAdminId(user),
+        courseId: allCourses ? null : dto.courseId!,
+        title: String(dto.title || '').trim() || null,
+        discountType,
+        discountValue,
+        valueBase,
+        appliesTo,
+        appliesToEnrollmentFee: dto.appliesToEnrollmentFee === true,
+        installmentScope,
+        maxUses: this.normalizeVoucherMaxUses(dto.maxUses),
+        usageCount: 0,
+        allowedPaymentOptionIds:
+          allowedPaymentOptionIds as Prisma.InputJsonValue,
+        active: dto.active !== false,
+      },
+    };
+  }
+
   private buildCourseWhere(user: JwtPayload): Prisma.CourseWhereInput {
     if (user.activeInstitutionId) {
       return {
@@ -2365,6 +2426,45 @@ export class FinanceService {
     }
 
     return normalized;
+  }
+
+  private normalizeVoucherBatchPrefix(value?: string | null): string {
+    const normalized = String(value || 'VOUCHER')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^A-Z0-9_-]/g, '')
+      .replace(/[-_]+$/g, '');
+
+    if (!normalized) {
+      throw new BadRequestException(
+        'Informe um prefixo válido para os códigos.',
+      );
+    }
+    if (normalized.length > 24) {
+      throw new BadRequestException(
+        'O prefixo deve ter no máximo 24 caracteres.',
+      );
+    }
+    return normalized;
+  }
+
+  private generateVoucherBatchCodes(
+    quantity: number,
+    prefix: string,
+  ): string[] {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const codes = new Set<string>();
+
+    while (codes.size < quantity) {
+      let suffix = '';
+      for (let index = 0; index < 6; index += 1) {
+        suffix += alphabet[randomInt(0, alphabet.length)] ?? 'A';
+      }
+      codes.add(`${prefix}-${suffix}`);
+    }
+
+    return Array.from(codes);
   }
 
   private async generateVoucherCode(institutionId: string) {

@@ -13,6 +13,7 @@ import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { JwtPayload } from '../auth/types/app-role.type';
 import { CreateChargeDto } from './dto/create-charge.dto';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { CreateVoucherBatchDto } from './dto/create-voucher-batch.dto';
 import { CreateVoucherDto } from './dto/create-voucher.dto';
 import { SendCreditCardPaymentLinkDto } from './dto/send-credit-card-payment-link.dto';
 import { UpdateChargeStatusDto } from './dto/update-charge-status.dto';
@@ -148,6 +149,15 @@ export class FinanceController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.financeService.createVoucher(dto, request.user);
+  }
+
+  @RequirePermissions('finance.write')
+  @Post('vouchers/batch')
+  async createVoucherBatch(
+    @Body() dto: CreateVoucherBatchDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.financeService.createVoucherBatch(dto, request.user);
   }
 
   @RequirePermissions('finance.write')

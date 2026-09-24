@@ -182,6 +182,9 @@ type Voucher = {
 };
 
 type VoucherFormState = {
+  generationMode: 'SINGLE' | 'BATCH';
+  batchQuantity: string;
+  codePrefix: string;
   courseId: string;
   code: string;
   title: string;
@@ -227,6 +230,9 @@ function defaultTransactionForm(): TransactionFormState {
 
 function defaultVoucherForm(): VoucherFormState {
   return {
+    generationMode: 'SINGLE',
+    batchQuantity: '10',
+    codePrefix: 'VOUCHER',
     courseId: '',
     code: '',
     title: '',
@@ -617,7 +623,11 @@ export function FinanceNative({ token }: FinanceNativeProps) {
     const enrollment = voucherForm.appliesToEnrollmentFee
       ? 'inclui a matrícula'
       : 'não inclui a matrícula';
-    return `${discount} sobre o ${voucherValueBaseLabel(voucherForm.valueBase).toLowerCase()}, em ${target}; ${enrollment}.`;
+    const volume =
+      voucherForm.generationMode === 'BATCH'
+        ? `${voucherForm.batchQuantity || '0'} códigos individuais`
+        : '1 código';
+    return `${volume}; ${discount} sobre o ${voucherValueBaseLabel(voucherForm.valueBase).toLowerCase()}, em ${target}; ${enrollment}.`;
   }, [voucherForm]);
 
   const openChargeModal = () => {
@@ -734,12 +744,29 @@ export function FinanceNative({ token }: FinanceNativeProps) {
     const discountValue = Number(voucherForm.discountValue);
     const maxUses =
       voucherForm.maxUses.trim() === '' ? undefined : Number(voucherForm.maxUses);
+    const batchQuantity = Number(voucherForm.batchQuantity);
     if (!voucherForm.courseId) {
       setVoucherFormError('Selecione o curso do voucher.');
       return;
     }
     if (!voucherForm.title.trim()) {
       setVoucherFormError('Informe um nome para identificar o voucher.');
+      return;
+    }
+    if (
+      voucherForm.generationMode === 'BATCH' &&
+      (!Number.isInteger(batchQuantity) ||
+        batchQuantity < 2 ||
+        batchQuantity > 500)
+    ) {
+      setVoucherFormError('A quantidade deve estar entre 2 e 500 vouchers.');
+      return;
+    }
+    if (
+      voucherForm.generationMode === 'BATCH' &&
+      !voucherForm.codePrefix.trim()
+    ) {
+      setVoucherFormError('Informe o prefixo dos códigos.');
       return;
     }
     if (!Number.isFinite(discountValue) || discountValue <= 0) {
@@ -789,32 +816,43 @@ export function FinanceNative({ token }: FinanceNativeProps) {
 
     setVoucherSubmitting(true);
     try {
-      await apiRequest(token, '/finance/vouchers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          courseId: isAllCoursesVoucher ? undefined : voucherForm.courseId,
-          allCourses: isAllCoursesVoucher,
-          code: voucherForm.code.trim() || undefined,
-          title: voucherForm.title.trim() || undefined,
-          discountType: voucherForm.discountType,
-          discountValue,
-          valueBase: voucherForm.valueBase,
-          appliesTo: voucherForm.appliesTo,
-          installmentScope:
-            voucherForm.appliesTo === 'INSTALLMENT'
-              ? voucherForm.installmentScope
-              : 'ALL',
-          appliesToEnrollmentFee: voucherForm.appliesToEnrollmentFee,
-          maxUses,
-          allowedPaymentOptionIds: voucherForm.allowedPaymentOptionIds,
-          active: true,
-        }),
-      });
+      const isBatch = voucherForm.generationMode === 'BATCH';
+      const result = await apiRequest<{ createdCount?: number }>(
+        token,
+        isBatch ? '/finance/vouchers/batch' : '/finance/vouchers',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            courseId: isAllCoursesVoucher ? undefined : voucherForm.courseId,
+            allCourses: isAllCoursesVoucher,
+            code: !isBatch ? voucherForm.code.trim() || undefined : undefined,
+            quantity: isBatch ? batchQuantity : undefined,
+            codePrefix: isBatch ? voucherForm.codePrefix.trim() : undefined,
+            title: voucherForm.title.trim() || undefined,
+            discountType: voucherForm.discountType,
+            discountValue,
+            valueBase: voucherForm.valueBase,
+            appliesTo: voucherForm.appliesTo,
+            installmentScope:
+              voucherForm.appliesTo === 'INSTALLMENT'
+                ? voucherForm.installmentScope
+                : 'ALL',
+            appliesToEnrollmentFee: voucherForm.appliesToEnrollmentFee,
+            maxUses,
+            allowedPaymentOptionIds: voucherForm.allowedPaymentOptionIds,
+            active: true,
+          }),
+        },
+      );
       await loadData(false);
       setVoucherModalOpen(false);
       setVoucherForm(defaultVoucherForm());
-      setFeedback('Voucher criado com sucesso.');
+      setFeedback(
+        isBatch
+          ? `${Number(result.createdCount ?? batchQuantity)} vouchers criados com sucesso.`
+          : 'Voucher criado com sucesso.',
+      );
     } catch (voucherError) {
       setVoucherFormError(
         voucherError instanceof Error
@@ -1551,42 +1589,169 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                     </select>
                   </label>
 
-                  <div className="native-voucher-field-grid">
-                    <label>
-                      Código
+                  <fieldset className="native-voucher-generation-fieldset">
+                    <legend>Quantidade de códigos</legend>
+                    <label
+                      className={
+                        voucherForm.generationMode === 'SINGLE' ? 'is-selected' : ''
+                      }
+                    >
                       <input
-                        value={voucherForm.code}
-                        onChange={(event) =>
+                        type="radio"
+                        name="voucherGenerationMode"
+                        checked={voucherForm.generationMode === 'SINGLE'}
+                        onChange={() =>
                           setVoucherForm((current) => ({
                             ...current,
-                            code: event.target.value
-                              .toUpperCase()
-                              .replace(/\s+/g, '')
-                              .replace(/[^A-Z0-9_-]/g, ''),
+                            generationMode: 'SINGLE',
                           }))
                         }
-                        maxLength={40}
-                        placeholder="Gerado automaticamente"
                       />
+                      <span>
+                        <strong>Um voucher</strong>
+                        <small>
+                          Cria um único código, automático ou definido por você.
+                        </small>
+                      </span>
                     </label>
+                    <label
+                      className={
+                        voucherForm.generationMode === 'BATCH' ? 'is-selected' : ''
+                      }
+                    >
+                      <input
+                        type="radio"
+                        name="voucherGenerationMode"
+                        checked={voucherForm.generationMode === 'BATCH'}
+                        onChange={() =>
+                          setVoucherForm((current) => ({
+                            ...current,
+                            generationMode: 'BATCH',
+                            maxUses: current.maxUses || '1',
+                          }))
+                        }
+                      />
+                      <span>
+                        <strong>Vários vouchers</strong>
+                        <small>
+                          Gera vários códigos únicos com o mesmo prefixo e regra.
+                        </small>
+                      </span>
+                    </label>
+                  </fieldset>
 
-                    <label>
-                      Limite de usos
-                      <input
-                        type="number"
-                        step={1}
-                        min={1}
-                        value={voucherForm.maxUses}
-                        onChange={(event) =>
-                          setVoucherForm((current) => ({
-                            ...current,
-                            maxUses: event.target.value.replace(/[^\d]/g, ''),
-                          }))
-                        }
-                        placeholder="Sem limite"
-                      />
-                    </label>
-                  </div>
+                  {voucherForm.generationMode === 'BATCH' ? (
+                    <>
+                      <div className="native-voucher-field-grid">
+                        <label>
+                          Quantidade
+                          <input
+                            type="number"
+                            step={1}
+                            min={2}
+                            max={500}
+                            value={voucherForm.batchQuantity}
+                            onChange={(event) =>
+                              setVoucherForm((current) => ({
+                                ...current,
+                                batchQuantity: event.target.value.replace(
+                                  /[^\d]/g,
+                                  '',
+                                ),
+                              }))
+                            }
+                            required
+                          />
+                          <small>De 2 a 500 vouchers por lote.</small>
+                        </label>
+
+                        <label>
+                          Prefixo dos códigos
+                          <input
+                            value={voucherForm.codePrefix}
+                            onChange={(event) =>
+                              setVoucherForm((current) => ({
+                                ...current,
+                                codePrefix: event.target.value
+                                  .toUpperCase()
+                                  .replace(/\s+/g, '-')
+                                  .replace(/[^A-Z0-9_-]/g, ''),
+                              }))
+                            }
+                            maxLength={24}
+                            placeholder="Ex.: BOLSA"
+                            required
+                          />
+                          <small>
+                            Formato gerado:{' '}
+                            {(voucherForm.codePrefix || 'VOUCHER').replace(
+                              /[-_]+$/g,
+                              '',
+                            )}
+                            -XXXXXX
+                          </small>
+                        </label>
+                      </div>
+
+                      <label>
+                        Limite de usos por código
+                        <input
+                          type="number"
+                          step={1}
+                          min={1}
+                          value={voucherForm.maxUses}
+                          onChange={(event) =>
+                            setVoucherForm((current) => ({
+                              ...current,
+                              maxUses: event.target.value.replace(/[^\d]/g, ''),
+                            }))
+                          }
+                          placeholder="Sem limite"
+                        />
+                        <small>
+                          Esse limite vale separadamente para cada código. Use 1
+                          para vouchers individuais.
+                        </small>
+                      </label>
+                    </>
+                  ) : (
+                    <div className="native-voucher-field-grid">
+                      <label>
+                        Código
+                        <input
+                          value={voucherForm.code}
+                          onChange={(event) =>
+                            setVoucherForm((current) => ({
+                              ...current,
+                              code: event.target.value
+                                .toUpperCase()
+                                .replace(/\s+/g, '')
+                                .replace(/[^A-Z0-9_-]/g, ''),
+                            }))
+                          }
+                          maxLength={40}
+                          placeholder="Gerado automaticamente"
+                        />
+                      </label>
+
+                      <label>
+                        Limite de usos
+                        <input
+                          type="number"
+                          step={1}
+                          min={1}
+                          value={voucherForm.maxUses}
+                          onChange={(event) =>
+                            setVoucherForm((current) => ({
+                              ...current,
+                              maxUses: event.target.value.replace(/[^\d]/g, ''),
+                            }))
+                          }
+                          placeholder="Sem limite"
+                        />
+                      </label>
+                    </div>
+                  )}
 
                   <div className="native-voucher-field-grid">
                     <label>
@@ -1870,7 +2035,13 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                   Cancelar
                 </button>
                 <button type="submit" disabled={voucherSubmitting}>
-                  {voucherSubmitting ? 'Criando voucher...' : 'Criar voucher'}
+                  {voucherSubmitting
+                    ? voucherForm.generationMode === 'BATCH'
+                      ? 'Criando lote...'
+                      : 'Criando voucher...'
+                    : voucherForm.generationMode === 'BATCH'
+                      ? `Criar ${voucherForm.batchQuantity || '0'} vouchers`
+                      : 'Criar voucher'}
                 </button>
               </div>
             </form>

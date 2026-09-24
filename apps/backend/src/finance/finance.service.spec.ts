@@ -1,6 +1,10 @@
 import { FinanceService } from './finance.service';
 
 describe('FinanceService pre-enrollment card approval', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('records enrollment fee payment without requiring a monthly charge', async () => {
     const tx = {
       paymentTransaction: { create: jest.fn() },
@@ -100,6 +104,7 @@ describe('FinanceService pre-enrollment card approval', () => {
   });
 
   it('creates only the next course-start installment after the current one is paid', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-15T12:00:00-04:00'));
     const tx = {
       monthlyCharge: {
         findUnique: jest.fn().mockResolvedValue({
@@ -198,5 +203,113 @@ describe('FinanceService pre-enrollment card approval', () => {
       'A cobrança só pode ser aprovada após a assinatura dos contratos obrigatórios.',
     );
     expect(prisma.monthlyCharge.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('FinanceService voucher batch creation', () => {
+  const user = {
+    sub: 'admin-1',
+    email: 'admin@example.com',
+    role: 'admin' as const,
+    activeInstitutionId: 'institution-1',
+  };
+
+  function createPrismaMock() {
+    return {
+      course: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'course-1',
+            institutionId: 'institution-1',
+            paymentModel: 'INSTALLMENTS',
+            paymentOptions: [
+              {
+                id: 'payment-option-1',
+                title: '12 parcelas no boleto',
+                method: 'BANK_SLIP',
+                type: 'INSTALLMENTS',
+                active: true,
+              },
+            ],
+            price: 1200,
+            installmentMonths: 12,
+            installmentValue: 100,
+          },
+        ]),
+      },
+      financeVoucher: {
+        createMany: jest.fn().mockResolvedValue({ count: 12 }),
+      },
+    };
+  }
+
+  it('creates unique codes with the requested prefix and shared rules', async () => {
+    const prisma = createPrismaMock();
+    const service = new FinanceService(prisma as never, {} as never);
+
+    const result = await service.createVoucherBatch(
+      {
+        courseId: 'course-1',
+        quantity: 12,
+        codePrefix: 'bolsa turma 1',
+        title: 'Bolsa turma 1',
+        discountType: 'PERCENT',
+        discountValue: 50,
+        valueBase: 'REGULAR',
+        appliesTo: 'INSTALLMENT',
+        installmentScope: 'ALL',
+        appliesToEnrollmentFee: false,
+        maxUses: 1,
+        allowedPaymentOptionIds: ['payment-option-1'],
+      },
+      user,
+    );
+
+    expect(result.createdCount).toBe(12);
+    expect(result.codePattern).toBe('BOLSA-TURMA-1-XXXXXX');
+    expect(result.codes).toHaveLength(12);
+    expect(new Set(result.codes).size).toBe(12);
+    expect(result.codes).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^BOLSA-TURMA-1-[A-HJ-NP-Z2-9]{6}$/),
+      ]),
+    );
+
+    const createInput = prisma.financeVoucher.createMany.mock.calls[0][0];
+    expect(createInput.data).toHaveLength(12);
+    expect(createInput.data[0]).toEqual(
+      expect.objectContaining({
+        institutionId: 'institution-1',
+        ownerAdminId: 'admin-1',
+        courseId: 'course-1',
+        title: 'Bolsa turma 1',
+        maxUses: 1,
+        usageCount: 0,
+        allowedPaymentOptionIds: ['payment-option-1'],
+      }),
+    );
+  });
+
+  it('rejects batches above the operational limit', async () => {
+    const prisma = createPrismaMock();
+    const service = new FinanceService(prisma as never, {} as never);
+
+    await expect(
+      service.createVoucherBatch(
+        {
+          courseId: 'course-1',
+          quantity: 501,
+          title: 'Lote inválido',
+          discountType: 'PERCENT',
+          discountValue: 10,
+          appliesTo: 'TOTAL',
+          allowedPaymentOptionIds: ['payment-option-1'],
+        },
+        user,
+      ),
+    ).rejects.toThrow('A quantidade deve estar entre 2 e 500 vouchers.');
+
+    expect(prisma.course.findMany).not.toHaveBeenCalled();
+    expect(prisma.financeVoucher.createMany).not.toHaveBeenCalled();
   });
 });
