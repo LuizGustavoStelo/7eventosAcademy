@@ -4629,6 +4629,161 @@ table button:disabled {
   cursor: pointer;
 }
 
+.native-voucher-accordion-heading {
+  min-width: 0;
+}
+
+.native-voucher-accordion-trigger {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #1f3a65 !important;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: left;
+}
+
+.native-voucher-accordion-trigger > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.native-voucher-accordion-trigger strong {
+  color: #1f3a65;
+  font-size: 1rem;
+}
+
+.native-voucher-accordion-trigger small {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.native-voucher-accordion-chevron {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d5e0e6;
+  border-radius: 6px;
+  background: #f8fafb;
+  transition: transform 150ms ease;
+}
+
+.native-voucher-accordion-chevron svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.native-voucher-accordion-trigger[aria-expanded='true']
+  .native-voucher-accordion-chevron {
+  transform: rotate(180deg);
+}
+
+.native-voucher-header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.native-finance-vouchers-header .native-voucher-download {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid #b9cbd3;
+  border-radius: 7px;
+  background: #fff;
+  color: #155e63;
+}
+
+.native-voucher-download:hover:not(:disabled) {
+  border-color: #0f7f82;
+  background: #effafa;
+}
+
+.native-voucher-download:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.native-voucher-download svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.native-voucher-download-spinner {
+  width: 17px;
+  height: 17px;
+  border: 2px solid #cbd5e1;
+  border-top-color: #0f7f82;
+  border-radius: 50%;
+  animation: native-voucher-spin 700ms linear infinite;
+}
+
+@keyframes native-voucher-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.native-voucher-accordion-content {
+  min-width: 0;
+}
+
+.native-voucher-load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  background: #fff7f7;
+  color: #991b1b;
+  padding: 0.7rem 0.8rem;
+  font-size: 0.82rem;
+}
+
+.native-voucher-load-error button {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .native-finance-vouchers-header {
+    flex-wrap: wrap;
+  }
+
+  .native-voucher-accordion-heading {
+    flex: 1 1 100%;
+  }
+
+  .native-voucher-header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .native-voucher-load-error {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .native-finance-voucher-options {
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 10px;

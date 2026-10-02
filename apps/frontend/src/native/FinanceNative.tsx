@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { apiRequest, formatCurrency } from './api';
 
@@ -343,6 +343,145 @@ function voucherUsageLabel(voucher: Voucher) {
   return `${used}/${max}`;
 }
 
+function xmlEscape(value: unknown): string {
+  return String(value ?? '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function excelColumnName(index: number): string {
+  let value = index + 1;
+  let name = '';
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    value = Math.floor((value - 1) / 26);
+  }
+  return name;
+}
+
+async function downloadVoucherWorkbook(
+  vouchers: Voucher[],
+  courses: VoucherCourse[],
+) {
+  const { strToU8, zipSync } = await import('fflate');
+  const paymentOptionTitles = new Map<string, string>();
+  for (const course of courses) {
+    for (const option of course.paymentOptions) {
+      paymentOptionTitles.set(option.id, option.title);
+    }
+  }
+
+  const headers = [
+    'ID',
+    'Nome do voucher',
+    'Código',
+    'Curso',
+    'Tipo de desconto',
+    'Valor do desconto',
+    'Desconto exibido',
+    'Base de cálculo',
+    'Aplicação',
+    'Escopo das mensalidades',
+    'Inclui matrícula',
+    'Limite de usos',
+    'Usos realizados',
+    'Usos restantes',
+    'Status',
+    'Ativo',
+    'IDs das formas de pagamento',
+    'Formas de pagamento',
+    'Criado em',
+    'Atualizado em',
+  ];
+  const rows: unknown[][] = [
+    headers,
+    ...vouchers.map((voucher) => {
+      const paymentIds = Array.isArray(voucher.allowedPaymentOptionIds)
+        ? voucher.allowedPaymentOptionIds
+        : [];
+      const remaining =
+        voucher.maxUses && voucher.maxUses > 0
+          ? Math.max(0, Number(voucher.remainingUses ?? 0))
+          : null;
+      return [
+        voucher.id,
+        voucher.title || 'Sem nome',
+        voucher.code,
+        voucher.courseName,
+        voucher.discountType === 'PERCENT' ? 'Percentual' : 'Valor fixo',
+        Number(voucher.discountValue),
+        voucher.discountLabel,
+        voucherValueBaseLabel(voucher.valueBase),
+        voucherApplicationLabel(voucher),
+        voucher.appliesTo === 'INSTALLMENT'
+          ? voucher.installmentScope === 'SINGLE'
+            ? 'Somente a primeira mensalidade'
+            : 'Todas as mensalidades'
+          : 'Não se aplica',
+        voucher.appliesToEnrollmentFee ? 'Sim' : 'Não',
+        voucher.maxUses && voucher.maxUses > 0 ? voucher.maxUses : 'Sem limite',
+        Number(voucher.usageCount ?? 0),
+        remaining === null ? 'Sem limite' : remaining,
+        voucher.active ? 'Ativo' : 'Inativo',
+        voucher.active ? 'Sim' : 'Não',
+        paymentIds.join(', '),
+        paymentIds
+          .map((id) => paymentOptionTitles.get(id) || `Opção ${id}`)
+          .join('; '),
+        voucher.createdAt,
+        voucher.updatedAt,
+      ];
+    }),
+  ];
+
+  const worksheetRows = rows
+    .map((row, rowIndex) => {
+      const cells = row
+        .map((value, columnIndex) => {
+          const cellRef = `${excelColumnName(columnIndex)}${rowIndex + 1}`;
+          if (typeof value === 'number' && Number.isFinite(value)) {
+            return `<c r="${cellRef}"><v>${value}</v></c>`;
+          }
+          const content = xmlEscape(value);
+          return `<c r="${cellRef}" t="inlineStr"><is><t xml:space="preserve">${content}</t></is></c>`;
+        })
+        .join('');
+      return `<row r="${rowIndex + 1}">${cells}</row>`;
+    })
+    .join('');
+
+  const lastColumn = excelColumnName(headers.length - 1);
+  const worksheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><dimension ref="A1:${lastColumn}${rows.length}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><sheetData>${worksheetRows}</sheetData><autoFilter ref="A1:${lastColumn}${rows.length}"/></worksheet>`;
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Vouchers" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`;
+  const rootRelationships = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const workbookRelationships = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`;
+
+  const workbookBytes = zipSync({
+    '[Content_Types].xml': strToU8(contentTypes),
+    '_rels/.rels': strToU8(rootRelationships),
+    'xl/workbook.xml': strToU8(workbook),
+    'xl/_rels/workbook.xml.rels': strToU8(workbookRelationships),
+    'xl/worksheets/sheet1.xml': strToU8(worksheet),
+  });
+  const blobBytes = new ArrayBuffer(workbookBytes.byteLength);
+  new Uint8Array(blobBytes).set(workbookBytes);
+  const blob = new Blob([blobBytes], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `vouchers-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function creditCardRequestStatusLabel(status: string): string {
   switch (String(status || "").toUpperCase()) {
     case "WAITING_CONTRACT_SIGNATURE":
@@ -436,6 +575,18 @@ export function FinanceNative({ token }: FinanceNativeProps) {
   );
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [voucherCourses, setVoucherCourses] = useState<VoucherCourse[]>([]);
+  const [vouchersExpanded, setVouchersExpanded] = useState(false);
+  const [vouchersLoading, setVouchersLoading] = useState(false);
+  const [vouchersError, setVouchersError] = useState('');
+  const [vouchersExporting, setVouchersExporting] = useState(false);
+  const voucherDataRef = useRef<{
+    vouchers: Voucher[];
+    courses: VoucherCourse[];
+  } | null>(null);
+  const voucherLoadPromiseRef = useRef<
+    Promise<{ vouchers: Voucher[]; courses: VoucherCourse[] } | null> | null
+  >(null);
+  const voucherDataTokenRef = useRef(token);
   const [voucherModalOpen, setVoucherModalOpen] = useState(false);
   const [voucherForm, setVoucherForm] = useState<VoucherFormState>(() => defaultVoucherForm());
   const [voucherFormError, setVoucherFormError] = useState('');
@@ -446,6 +597,53 @@ export function FinanceNative({ token }: FinanceNativeProps) {
   const [submitting, setSubmitting] = useState(false);
   const [showFinanceValues, setShowFinanceValues] = useState(false);
 
+  const loadVoucherData = async (force = false) => {
+    if (voucherDataTokenRef.current !== token) {
+      voucherDataTokenRef.current = token;
+      voucherDataRef.current = null;
+      voucherLoadPromiseRef.current = null;
+      setVouchers([]);
+      setVoucherCourses([]);
+    }
+    if (!force && voucherDataRef.current) return voucherDataRef.current;
+    if (voucherLoadPromiseRef.current) return voucherLoadPromiseRef.current;
+
+    setVouchersLoading(true);
+    setVouchersError('');
+    const request = Promise.all([
+      apiRequest<Voucher[]>(token, '/finance/vouchers', undefined, {
+        bypassCache: force,
+      }),
+      apiRequest<VoucherCourse[]>(token, '/finance/voucher-courses', undefined, {
+        bypassCache: force,
+      }),
+    ])
+      .then(([voucherData, courseData]) => {
+        const data = {
+          vouchers: Array.isArray(voucherData) ? voucherData : [],
+          courses: Array.isArray(courseData) ? courseData : [],
+        };
+        voucherDataRef.current = data;
+        setVouchers(data.vouchers);
+        setVoucherCourses(data.courses);
+        return data;
+      })
+      .catch((loadError: unknown) => {
+        setVouchersError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Falha ao carregar vouchers.',
+        );
+        return null;
+      })
+      .finally(() => {
+        voucherLoadPromiseRef.current = null;
+        setVouchersLoading(false);
+      });
+    voucherLoadPromiseRef.current = request;
+    return request;
+  };
+
   const loadData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     setError('');
@@ -455,8 +653,6 @@ export function FinanceNative({ token }: FinanceNativeProps) {
         chargesData,
         enrollmentsData,
         gatewayData,
-        vouchersData,
-        voucherCoursesData,
         creditCardRequestsData,
         creditCardHistoryData,
       ] = await Promise.all([
@@ -464,8 +660,6 @@ export function FinanceNative({ token }: FinanceNativeProps) {
         apiRequest<Charge[]>(token, '/finance/charges'),
         apiRequest<Enrollment[]>(token, '/enrollments'),
         apiRequest<GatewayConfig>(token, '/finance/gateway-config'),
-        apiRequest<Voucher[]>(token, '/finance/vouchers'),
-        apiRequest<VoucherCourse[]>(token, '/finance/voucher-courses'),
         apiRequest<CreditCardPaymentRequest[]>(token, '/finance/credit-card-requests'),
         apiRequest<CreditCardPaymentRequest[]>(
           token,
@@ -483,8 +677,6 @@ export function FinanceNative({ token }: FinanceNativeProps) {
       setCharges(combinedCharges);
       setEnrollments(Array.isArray(enrollmentsData) ? enrollmentsData : []);
       setGateway(gatewayData);
-      setVouchers(Array.isArray(vouchersData) ? vouchersData : []);
-      setVoucherCourses(Array.isArray(voucherCoursesData) ? voucherCoursesData : []);
       const normalizedCreditRequests = Array.isArray(creditCardRequestsData)
         ? creditCardRequestsData
         : [];
@@ -655,6 +847,41 @@ export function FinanceNative({ token }: FinanceNativeProps) {
     setVoucherForm(defaultVoucherForm());
     setVoucherFormError('');
     setVoucherModalOpen(true);
+    void apiRequest<VoucherCourse[]>(token, '/finance/voucher-courses')
+      .then((data) => {
+        setVoucherCourses(Array.isArray(data) ? data : []);
+      })
+      .catch((loadError: unknown) => {
+        setVouchersError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Falha ao carregar cursos para o voucher.',
+        );
+      });
+  };
+
+  const exportVouchers = async () => {
+    setVouchersExporting(true);
+    setError('');
+    try {
+      const data = await loadVoucherData(true);
+      if (data) {
+        await downloadVoucherWorkbook(data.vouchers, data.courses);
+        setFeedback(`${data.vouchers.length} voucher(s) exportado(s) para XLSX.`);
+      } else {
+        setError(
+          'Não foi possível carregar os vouchers para exportação. Abra a seção para consultar o erro e tentar novamente.',
+        );
+      }
+    } catch (exportError) {
+      setError(
+        exportError instanceof Error
+          ? exportError.message
+          : 'Falha ao gerar a planilha de vouchers.',
+      );
+    } finally {
+      setVouchersExporting(false);
+    }
   };
 
   const submitCharge = async (event: FormEvent<HTMLFormElement>) => {
@@ -846,6 +1073,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
         },
       );
       await loadData(false);
+      await loadVoucherData(true);
       setVoucherModalOpen(false);
       setVoucherForm(defaultVoucherForm());
       setFeedback(
@@ -875,6 +1103,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
         body: JSON.stringify({ active: !voucher.active }),
       });
       await loadData(false);
+      await loadVoucherData(true);
       setFeedback(
         !voucher.active
           ? 'Voucher ativado com sucesso.'
@@ -901,6 +1130,7 @@ export function FinanceNative({ token }: FinanceNativeProps) {
         method: 'DELETE',
       });
       await loadData(false);
+      await loadVoucherData(true);
       setFeedback('Voucher excluído com sucesso.');
     } catch (voucherError) {
       setError(
@@ -1077,19 +1307,71 @@ export function FinanceNative({ token }: FinanceNativeProps) {
 
       <section className="native-panel native-finance-vouchers">
         <div className="native-finance-vouchers-header">
-          <div>
-            <h3>Vouchers de desconto</h3>
-            <p>Crie e gerencie vouchers por curso e forma de pagamento.</p>
+          <div className="native-voucher-accordion-heading">
+            <button
+              type="button"
+              className="native-voucher-accordion-trigger"
+              aria-expanded={vouchersExpanded}
+              onClick={() => {
+                const nextExpanded = !vouchersExpanded;
+                setVouchersExpanded(nextExpanded);
+                if (nextExpanded) void loadVoucherData();
+              }}
+            >
+              <span className="native-voucher-accordion-chevron" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </span>
+              <span>
+                <strong>Vouchers de desconto</strong>
+                <small>Crie e gerencie vouchers por curso e forma de pagamento.</small>
+              </span>
+            </button>
           </div>
-          <button type="button" onClick={openVoucherModal}>
-            Novo voucher
-          </button>
+          <div className="native-voucher-header-actions">
+            <button
+              type="button"
+              className="native-voucher-download"
+              onClick={() => void exportVouchers()}
+              disabled={vouchersExporting}
+              aria-label="Baixar todos os vouchers em XLSX"
+              title="Baixar todos os vouchers em XLSX"
+            >
+              {vouchersExporting ? (
+                <span className="native-voucher-download-spinner" aria-hidden="true" />
+              ) : (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3v12m0 0 4-4m-4 4-4-4" />
+                  <path d="M5 16v4h14v-4" />
+                </svg>
+              )}
+            </button>
+            <button type="button" onClick={openVoucherModal}>
+              Novo voucher
+            </button>
+          </div>
         </div>
-        {vouchers.length === 0 ? (
-          <p className="native-info">Nenhum voucher cadastrado até o momento.</p>
-        ) : (
-          <div className="native-table-wrap">
-            <table className="native-table native-voucher-table">
+        {vouchersExpanded ? (
+          <div className="native-voucher-accordion-content">
+            {vouchersLoading && vouchers.length === 0 ? (
+              <p className="native-info">Carregando vouchers...</p>
+            ) : vouchersError ? (
+              <div className="native-voucher-load-error" role="alert">
+                <span>{vouchersError}</span>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => void loadVoucherData(true)}
+                >
+                  Tentar novamente
+                </button>
+              </div>
+            ) : vouchers.length === 0 ? (
+              <p className="native-info">Nenhum voucher cadastrado até o momento.</p>
+            ) : (
+              <div className="native-table-wrap">
+                <table className="native-table native-voucher-table">
               <thead>
                 <tr>
                   <th>Nome</th>
@@ -1196,9 +1478,11 @@ export function FinanceNative({ token }: FinanceNativeProps) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+                </table>
+              </div>
+            )}
           </div>
-        )}
+        ) : null}
       </section>
 
       <section className="native-panel native-finance-vouchers">
